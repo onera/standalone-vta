@@ -3,17 +3,17 @@
 
 """MATRIX GENERATION"""
 # Matrices initialised with random value? (True / False)
-isInitRandom = False
+isInitRandom = True
 # If yes, random_bound limit the value range (int8 = [-128; 127] -> random_bound = 128)
 random_bound = 4
 
 # A matrix size
-A_row = 1
-A_col = 16
+A_row = 10
+A_col = 10
 
 # B matrix size
 B_row = A_col # Required by matrix multiplication
-B_col = 16
+B_col = 10
 
 
 """COMPUTATION SPECIFICATION"""
@@ -21,7 +21,7 @@ B_col = 16
 block_size = 16
 
 # Use square matrix or not
-isSquare = False
+isSquare = True
 
 # Compute the non-padded matrix? (True / False)
 doMultiplyNonPadded = True
