@@ -16,7 +16,7 @@ The operations are composed of:
 
 The following schematic illustrates the difference between the UOP and the instructions.
 
-![Instruction vs UOP](./images/insn_uop.jpg)
+![Instruction vs UOP](./documentation/images/insn_uop.jpg)
 
 VTA's Instruction Set Architecture (ISA) is composed of 4 CISC (Complex Instruction Set Computer) with variable latency:
 * LOAD
@@ -102,7 +102,7 @@ Second 64-bit subfield:
 * X_PAD_RIGHT (4-bit): number of memory column add on right to the copied data
 * unused (0-bit)
 
-![Load and Store instruction](./images/LoadStoreInsn.jpg)
+![Load and Store instruction](./documentation/images/LoadStoreInsn.jpg)
 
 LOAD pseudo-code:
 ```
@@ -120,7 +120,7 @@ for i in range (0, Y_SIZE + Y_PAD_TOP + Y_PAD_BOTTOM):
 **RQ:**
 The bitwidths correspond to the default configuration.
 
-![Load and Store example](./images/LoadStoreExample.jpg)
+![Load and Store example](./documentation/images/LoadStoreExample.jpg)
 
 ### <u>**Instruction GEMM and ALU**</u>
 
@@ -162,7 +162,7 @@ Second 64-bit subfield:
 * WGT_IDX_FACTOR_OUT / Z1 (10-bit)
 * unused (0-bit)
 
-![GeMM instruction](./images/GemmInsn.jpg)
+![GeMM instruction](./documentation/images/GemmInsn.jpg)
 
 Micro-Operations (UOP) 32-bit field:
 * ACC_IDX / X (11-bit): base index for the accumulator
@@ -170,7 +170,7 @@ Micro-Operations (UOP) 32-bit field:
 * WGT_IDX / Z (10-bit): base index for the weight
 * unused (0-bit)
 
-![UOP Gemm](./images/UOP_gemm.jpg)
+![UOP Gemm](./documentation/images/UOP_gemm.jpg)
 
 GEMM pseudo-code:
 ```
@@ -196,14 +196,14 @@ Second 64-bit subfield:
 * IMMEDIATE / IMM (16-bit): scalar operator
 * unused (0-bit)
 
-![ALU instruction](./images/AluInsn.jpg)
+![ALU instruction](./documentation/images/AluInsn.jpg)
 
 Micro-Operations (UOP) 32-bit field:
 * DST_IDX / X (11-bit)
 * SRC_IDX / Y (11-bit)
 * unused (10-bit)
 
-![UOP Gemm](./images/UOP_alu.jpg)
+![UOP Gemm](./documentation/images/UOP_alu.jpg)
 
 Tensor ALU Micro-Operations:
 
@@ -250,11 +250,11 @@ The instructions enable the multiplication of a matrix 16x16 elements, A, with a
 
 As the input is a set of vectors, the matrix A is divided in 16 vectors. Each vector of the matrix A will be multiplied with the matrix B and will result in a new output vector.
 
-![Example 16x16](./images/Ex_16x16.jpg)
+![Example 16x16](./documentation/images/Ex_16x16.jpg)
 
 A single GeMM instruction is necessary to perform this multiplication (in addition to the Load and Store).
 
-![Instruction 16x16](./images/Ex_16x16_insn.jpg)
+![Instruction 16x16](./documentation/images/Ex_16x16_insn.jpg)
 
 
 
@@ -265,7 +265,7 @@ Execute the code with: `python insn_average_pooling.py`.
 The instructions enable an average pooling operation usually after a GeMM operation. 
 In the example, we consider a 4x4 tensor with two channels on which a average pooling of 2x2 with a stride of 2 is applied. It results then in a 4x4 tensor with 2 channels.
 
-![Average Pooling](./images/AvgPool1.jpg)
+![Average Pooling](./documentation/images/AvgPool1.jpg)
 
 The tensor are converted into matrix as following:
 * Each column of the matrix is a tensor channel.
@@ -274,13 +274,13 @@ The tensor are converted into matrix as following:
 
 To perform the average pooling operation, first, the element on each vector must be add together two by two, then, it must be divided by 4 to obtain the mean. As the VTA works with integer, the division round down the value (e.g., 3.5 becomes 3 and -3.5 becomes -4). To do so, the TensorAlu is used.
 
-![Average Pooling add](./images/AvgPool2.jpg)
+![Average Pooling add](./documentation/images/AvgPool2.jpg)
 
-![Average Pooling SHR](./images/AvgPool3.jpg)
+![Average Pooling SHR](./documentation/images/AvgPool3.jpg)
 
 It results in 3 ALU instructions: 2 adds and 1 shift right to divide.
 
-![Average Pooling instructions](./images/AvgPool_insn.jpg)
+![Average Pooling instructions](./documentation/images/AvgPool_insn.jpg)
 
 
 ## Example: `insn_lenet5_conv1_relu_average_pooling.py`
@@ -289,24 +289,24 @@ Execute the code with: `python insn_lenet5_conv1_relu_average_pooling.py`.
 
 This example consists of executing the first part of the LeNet-5 network.
 
-![LeNet-5](./images/LeNet5.jpg)
+![LeNet-5](./documentation/images/LeNet5.jpg)
 
 LeNet-5 first convolution is performed with a matrix multiplication where A is 784x25 elements and B is 25x6. The matrix are padded to be 784x32 elements and 32x16 elements.
 
-![LeNet-5 conv1](./images/lenet_conv1.jpg)
+![LeNet-5 conv1](./documentation/images/lenet_conv1.jpg)
 
 This massive multiplication can be executed with a single GeMM instructions.
 
-![LeNet-5 conv1 instruction](./images/lenet_conv1_insn.jpg)
+![LeNet-5 conv1 instruction](./documentation/images/lenet_conv1_insn.jpg)
 
 The instruction is followed by a ReLU activation, it means each negative value is grounded to 0 thank to an element wise maximum operator with 0.
 
-![LeNet-5 relu](./images/lenet_relu.jpg)
+![LeNet-5 relu](./documentation/images/lenet_relu.jpg)
 
 
 Finally, an average pooling is applied with 2 ADD and 1 shift right.
 
-![LeNet-5 Average Pooling](./images/lenet_AvgPool.jpg)
+![LeNet-5 Average Pooling](./documentation/images/lenet_AvgPool.jpg)
 
-![LeNet-5 Average Pooling instruction](./images/lenet_AvgPool_insn.jpg)
+![LeNet-5 Average Pooling instruction](./documentation/images/lenet_AvgPool_insn.jpg)
 
