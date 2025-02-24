@@ -41,7 +41,7 @@ useReLU = False
 doPrint = True
 
 # Write matrices in binary files in OUTPUT dir (True / False)
-doWriteBinaryFile = False
+doWriteBinaryFile = True
 
 # Write a JSON file for CHISEL Compute in OUTPUT dir (True / False)
 doWriteJSON = True

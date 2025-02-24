@@ -12,6 +12,11 @@
 /**/build/
 /**/build/*
 
+# Do not consider OUTPUT repository
+# --------------------------------_
+/**/OUTPUT/
+/**/OUTPUT/*
+
 # Do not consider binary files (nor executable)
 # ----------------------------
 /**/*.o
