@@ -14,7 +14,11 @@ The operations are composed of:
 * A 128-bit instruction that specify the operation to perform
 * A 32-bit to point the data to use during a computation
 
-The following schematic illustrates the difference between the UOP and the instructions.
+The following schematic illustrates the difference between the UOP and the instructions:
+* The instruction gives the range of UOP index to read ([UOP_BGN, UOP_END[)
+* The UOP points to the initial ACC, INP and WGT data
+* The instruction defines the number of loops and the increment on each index at each iteration
+* At each loop, all the UOP are used
 
 ![Instruction vs UOP](./documentation/images/insn_uop.jpg)
 
@@ -310,3 +314,9 @@ Finally, an average pooling is applied with 2 ADD and 1 shift right.
 
 ![LeNet-5 Average Pooling instruction](./documentation/images/lenet_AvgPool_insn.jpg)
 
+
+## Example: pseudocode
+
+Pseudocode of GeMM and Load are given. 
+The GeMM pseudocode is initialised with the gemm instruction for the first convolution layer of LeNet-5. 
+The Load pseudocode is initialised with the example shown in the `instruction LOAD and STORE` section. The padding is not considered in the pseudocode.

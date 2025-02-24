@@ -1,9 +1,9 @@
 # INPUTS
 # ------
 # Settings
-y = 1
-x = 1
-stride = 1
+y = 2
+x = 2
+stride = 3
 
 # Addresses
 sram_base = 0x0000

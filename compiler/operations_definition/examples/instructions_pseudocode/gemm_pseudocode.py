@@ -2,23 +2,21 @@
 # -------
 # RANGE
 uop_bgn = 0 
-uop_end = 4
+uop_end = 2
 
 uop_buffer = [
     (0,0,0),
-    (16,0,1),
-    (2*16,2*16,0),
-    (3*16,2*16,1)
+    (0,16,1)
 ]
 
 # OUTER LOOP
-end0 = 2 # loop extent 0
-x0 = 0 # accumulator index factor 0
-y0 = 16 # input index factor 0
-z0 = 2 # weight index factor 0
+end0 = 49 # loop extent 0
+x0 = 16 # accumulator index factor 0
+y0 = 32 # input index factor 0
+z0 = 0 # weight index factor 0
 
 # INNER LOOP
-end1 = 16 # loop extent 1
+end1 = 1 # loop extent 1
 x1 = 1 # accumulator index factor 1
 y1 = 1 # input index factor 1
 z1 = 0 # weight index factor 1
