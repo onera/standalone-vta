@@ -1,4 +1,4 @@
-package my_experiments.formal
+package formal
 
 import vta.core.{CoreKey, CoreParams}
 import vta.interface.axi.AXIParams

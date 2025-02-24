@@ -10,7 +10,6 @@ import org.scalatest.flatspec.AnyFlatSpec
 import _root_.circt.stage.ChiselStage
 import vta.util.config._
 
-import my_experiments.formal.SimConfig
 import vta.core.MatrixVectorMultiplicationBypass
 
 /**
