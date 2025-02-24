@@ -441,7 +441,7 @@ class ComputeTest(c: Compute, fn: String = "/x.json")
   loop(true, true)
 
   // Check the result
-//  compare_scratchpad(out_expect_scratchpad, out_scratchpad)
+  compare_scratchpad(out_expect_scratchpad, out_scratchpad)
 
   print(s"\n\t END COMPUTE TESTS! \n\t (done in ${cycle_counter} cycles)\n\n")
 }
