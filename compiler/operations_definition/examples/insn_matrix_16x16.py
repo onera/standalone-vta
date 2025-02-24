@@ -1,6 +1,10 @@
 # PACKAGE IMPORT
 # --------------
 import os
+import sys
+
+# Parent folder
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from structures_insn_uop import *
 
 # -----------------------------------------------------------
@@ -8,9 +12,14 @@ from structures_insn_uop import *
 # FILE PATH
 # ---------
 # Define the files to write 
-output_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'OUTPUT')
-file_uop_path = os.path.join(output_dir, "uop_lenet5_conv1.bin")
-file_insn_path = os.path.join(output_dir, "instructions_lenet5_conv1.bin")
+output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'OUTPUT')
+file_uop_path = os.path.join(output_dir, "uop_matrix_16x16.bin")
+file_insn_path = os.path.join(output_dir, "instructions_matrix_16x16.bin")
+
+# Create the path if it does not exist
+def create_output_directory(path):
+    os.makedirs(path, exist_ok=True)
+create_output_directory(output_dir)
 
 # -----------------------------------------------------------
 
@@ -20,22 +29,16 @@ file_insn_path = os.path.join(output_dir, "instructions_lenet5_conv1.bin")
 uop_buffer = []
 
 # Append the buffer with the UOPs
-uop_buffer.append(VTAUop( # UOP 0 - reset
+uop_buffer.append(VTAUop(
     dst_idx=0, 
     src_idx=0,
     wgt_idx=0
 ))
 
-uop_buffer.append(VTAUop( # UOP 1 - GEMM 0
+uop_buffer.append(VTAUop(
     dst_idx=0, 
     src_idx=0,
     wgt_idx=0
-))
-
-uop_buffer.append(VTAUop( # UOP 2 - GEMM 1
-    dst_idx=0, 
-    src_idx=16,
-    wgt_idx=1
 ))
 
 # Write the UOP in the binary file
@@ -82,14 +85,14 @@ insn_buffer.append(VTAGemInsn( # I1: GEMM RESET
     push_next_dep=0,
     # Operations
     reset=1, # 0-no, 1-reset
-    uop_bgn=0, # UOP 0
+    uop_bgn=0,
     uop_end=1,
-    loop_out=49,
+    loop_out=1,
     loop_in=16,
     # UNUSED
     unused=0, # UNUSED
     # Index factors
-    dst_factor_out=16,
+    dst_factor_out=0,
     dst_factor_in=1,
     src_factor_out=0,
     src_factor_in=0,
@@ -111,8 +114,8 @@ insn_buffer.append(VTAMemInsn( # I2: LOAD INP
     unused=0, # UNUSED
     # Operation over the data
     y_size=1,
-    x_size=1568, # Load 98*16 INP
-    x_stride=1568,
+    x_size=16, # Load 16 INP
+    x_stride=16,
     y_pad_top=0,
     y_pad_bottom=0,
     x_pad_left=0,
@@ -133,8 +136,8 @@ insn_buffer.append(VTAMemInsn( # I3: LOAD WGT
     unused=0, # UNUSED
     # Operation over the data
     y_size=1,
-    x_size=2, # Load 2 WGT
-    x_stride=2,
+    x_size=1,
+    x_stride=1,
     y_pad_top=0,
     y_pad_bottom=0,
     x_pad_left=0,
@@ -155,8 +158,8 @@ insn_buffer.append(VTAMemInsn( # I4: LOAD UOP
     unused=0, # UNUSED
     # Operation over the data
     y_size=1,
-    x_size=2, # Load 2 UOP
-    x_stride=2,
+    x_size=1,
+    x_stride=1,
     y_pad_top=0,
     y_pad_bottom=0,
     x_pad_left=0,
@@ -169,19 +172,19 @@ insn_buffer.append(VTAGemInsn( # I5: GEMM
     pop_prev_dep=0,
     pop_next_dep=0,
     push_prev_dep=0,
-    push_next_dep=1, # Ready to STORE signal
+    push_next_dep=1, # Ready signal to STORE
     # Operations
     reset=0, # 0-no, 1-reset
-    uop_bgn=1, # UOP 1 + UOP 2
-    uop_end=3,
-    loop_out=49,
+    uop_bgn=1,
+    uop_end=2,
+    loop_out=1,
     loop_in=16,
     # UNUSED
     unused=0, # UNUSED
     # Index factors
-    dst_factor_out=16,
+    dst_factor_out=0,
     dst_factor_in=1,
-    src_factor_out=32,
+    src_factor_out=0,
     src_factor_in=1,
     wgt_factor_out=0,
     wgt_factor_in=0
@@ -201,8 +204,8 @@ insn_buffer.append(VTAMemInsn( # I6: STORE
     unused=0, # UNUSED
     # Operation over the data
     y_size=1,
-    x_size=784, # Store 49*16 OUT
-    x_stride=784,
+    x_size=16, # Store 16 OUT
+    x_stride=16,
     y_pad_top=0,
     y_pad_bottom=0,
     x_pad_left=0,

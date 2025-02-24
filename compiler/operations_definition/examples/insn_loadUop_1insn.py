@@ -1,6 +1,10 @@
 # PACKAGE IMPORT
 # --------------
 import os
+import sys
+
+# Parent folder
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from structures_insn_uop import *
 
 # -----------------------------------------------------------
@@ -8,9 +12,14 @@ from structures_insn_uop import *
 # FILE PATH
 # ---------
 # Define the files to write 
-output_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'OUTPUT')
+output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'OUTPUT')
 file_uop_path = os.path.join(output_dir, "uop_batches_1uop_2loops.bin")
 file_insn_path = os.path.join(output_dir, "instructions_batches_1uop_2loops.bin")
+
+# Create the path if it does not exist
+def create_output_directory(path):
+    os.makedirs(path, exist_ok=True)
+create_output_directory(output_dir)
 
 # -----------------------------------------------------------
 
@@ -42,9 +51,9 @@ uop_buffer.append(VTAUop(
 ))
 
 # Write the UOP in the binary file
-# with open(file_uop_path, "wb") as f:
-#     for uop in uop_buffer:
-#         f.write(uop)
+with open(file_uop_path, "wb") as f:
+    for uop in uop_buffer:
+        f.write(uop)
 
 # -----------------------------------------------------------
 
@@ -103,9 +112,9 @@ insn_buffer.append(VTAMemInsn( # I1: FINISH
 # WRITE INSTRUCTIONS IN BINARY FILE
 # ---------------------------------
 # Write the instructions in the binary file
-# with open(file_insn_path, "wb") as f:
-#     for insn in insn_buffer:
-#         f.write(insn)
+with open(file_insn_path, "wb") as f:
+    for insn in insn_buffer:
+        f.write(insn)
 
 # -----------------------------------------------------------
 

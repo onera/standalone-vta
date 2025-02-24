@@ -1,16 +1,26 @@
 # PACKAGE IMPORT
 # --------------
 import os
+import sys
+
+# Parent folder
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from structures_insn_uop import *
+
 
 # -----------------------------------------------------------
 
 # FILE PATH
 # ---------
 # Define the files to write 
-output_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'OUTPUT')
-file_uop_path = os.path.join(output_dir, "uop_matrix_16x16.bin")
-file_insn_path = os.path.join(output_dir, "instructions_matrix_16x16.bin")
+output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'OUTPUT')
+file_uop_path = os.path.join(output_dir, "uop_16x16_relu.bin")
+file_insn_path = os.path.join(output_dir, "instructions_16x16_relu.bin")
+
+# Create the path if it does not exist
+def create_output_directory(path):
+    os.makedirs(path, exist_ok=True)
+create_output_directory(output_dir)
 
 # -----------------------------------------------------------
 
@@ -43,7 +53,6 @@ with open(file_uop_path, "wb") as f:
 # ----------------------
 # Define empty instruction buffer
 insn_buffer = []
-
 # Append the buffer with the instructions
 insn_buffer.append(VTAMemInsn( # I0: LOAD UOP
     opcode=0, # 0-LOAD, 1-STORE, 3-FINISH
@@ -163,25 +172,50 @@ insn_buffer.append(VTAGemInsn( # I5: GEMM
     pop_prev_dep=0,
     pop_next_dep=0,
     push_prev_dep=0,
+    push_next_dep=0, 
+    # Operations
+    reset=0, # 0-no, 1-reset
+    uop_bgn=1,
+    uop_end=2,
+    loop_out=1,
+    loop_in=16, #16 loops
+    # UNUSED
+    unused=0, # UNUSED
+    # Index factors
+    dst_factor_out=0,
+    dst_factor_in=1, # ACC incremented by 1
+    src_factor_out=0,
+    src_factor_in=1, # INP incremented by 1
+    wgt_factor_out=0,
+    wgt_factor_in=0
+))
+
+insn_buffer.append(VTAAluInsn( # I6: ALU - MAX IMM 0
+    opcode=4,  # 4-ALU
+    # DEP FLAG
+    pop_prev_dep=0,
+    pop_next_dep=0,
+    push_prev_dep=0,
     push_next_dep=1, # Ready signal to STORE
     # Operations
     reset=0, # 0-no, 1-reset
     uop_bgn=1,
     uop_end=2,
     loop_out=1,
-    loop_in=16,
+    loop_in=16, # 16 loops
     # UNUSED
-    unused=0, # UNUSED
+    unused=0,  # UNUSED
     # Index factors
     dst_factor_out=0,
-    dst_factor_in=1,
+    dst_factor_in=1, # ACC incremented by 1
     src_factor_out=0,
-    src_factor_in=1,
-    wgt_factor_out=0,
-    wgt_factor_in=0
+    src_factor_in=1, # INP incremented by 1
+    alu_opcode=1, # 0-MIN, 1-MAX, 2-ADD, 3-SHR, 4-MUL
+    use_imm=1, # 0-no, 1-yes
+    imm=0
 ))
 
-insn_buffer.append(VTAMemInsn( # I6: STORE
+insn_buffer.append(VTAMemInsn( # I7: STORE
     opcode=1, # 0-LOAD, 1-STORE, 3-FINISH
     # DEP FLAG
     pop_prev_dep=1, # Acknowledge COMPUTE ready signal
@@ -203,7 +237,7 @@ insn_buffer.append(VTAMemInsn( # I6: STORE
     x_pad_right=0
 ))
 
-insn_buffer.append(VTAMemInsn( # I7: NOP-MEMORY-STAGE
+insn_buffer.append(VTAMemInsn( # I8: NOP-MEMORY-STAGE
     opcode=0, # 0-LOAD, 1-STORE, 3-FINISH
     # DEP FLAG
     pop_prev_dep=0,
@@ -225,7 +259,7 @@ insn_buffer.append(VTAMemInsn( # I7: NOP-MEMORY-STAGE
     x_pad_right=0
 ))
 
-insn_buffer.append(VTAMemInsn( # I8: NOP-COMPUTE-STAGE
+insn_buffer.append(VTAMemInsn( # I9: NOP-COMPUTE-STAGE
     opcode=0, # 0-LOAD, 1-STORE, 3-FINISH
     # DEP FLAG
     pop_prev_dep=1, # Acknowledge LOAD ready signal
@@ -247,7 +281,7 @@ insn_buffer.append(VTAMemInsn( # I8: NOP-COMPUTE-STAGE
     x_pad_right=0
 ))
 
-insn_buffer.append(VTAMemInsn( # I9: FINISH
+insn_buffer.append(VTAMemInsn( # I10: FINISH
     opcode=3, # 0-LOAD, 1-STORE, 3-FINISH
     # DEP FLAG
     pop_prev_dep=0,
@@ -268,6 +302,7 @@ insn_buffer.append(VTAMemInsn( # I9: FINISH
     x_pad_left=0,
     x_pad_right=0
 ))
+
 
 # -----------------------------------------------------------
 

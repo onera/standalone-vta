@@ -1,6 +1,10 @@
 # PACKAGE IMPORT
 # --------------
 import os
+import sys
+
+# Parent folder
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from structures_insn_uop import *
 
 # -----------------------------------------------------------
@@ -8,9 +12,14 @@ from structures_insn_uop import *
 # FILE PATH
 # ---------
 # Define the files to write 
-output_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'OUTPUT')
+output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'OUTPUT')
 file_uop_path = os.path.join(output_dir, "uop_lenet5_conv1_relu_average_pooling.bin")
 file_insn_path = os.path.join(output_dir, "instructions_lenet5_conv1_relu_average_pooling.bin")
+
+# Create the path if it does not exist
+def create_output_directory(path):
+    os.makedirs(path, exist_ok=True)
+create_output_directory(output_dir)
 
 # -----------------------------------------------------------
 
