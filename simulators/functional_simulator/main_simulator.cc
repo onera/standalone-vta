@@ -29,13 +29,20 @@ int execute_simulator(void)
     printf("\nExecute simulator:\n");
 
     // Folder location
-    std::string homeDir = std::getenv("HOME");
-    std::string fileInpPath = homeDir + "/Documents/ONERA_repository/ftdnn-fault-tolerance-dnn/Code/B_VTA_TVM/standalone_simulator/binary_input_files/input.bin";
-    std::string fileWgtPath = homeDir + "/Documents/ONERA_repository/ftdnn-fault-tolerance-dnn/Code/B_VTA_TVM/standalone_simulator/binary_input_files/weight.bin";
-    std::string fileUopPath = homeDir + "/Documents/ONERA_repository/ftdnn-fault-tolerance-dnn/Code/B_VTA_TVM/standalone_simulator/binary_input_files/uop.bin";
-    std::string fileInsnPath = homeDir + "/Documents/ONERA_repository/ftdnn-fault-tolerance-dnn/Code/B_VTA_TVM/standalone_simulator/binary_input_files/instructions.bin";
+    // Define the current location of main_simulator.cc
+    std::filesystem::path currentPath = std::filesystem::current_path();
 
-    std::string fileExpextedOutPath = homeDir + "/Documents/ONERA_repository/ftdnn-fault-tolerance-dnn/Code/B_VTA_TVM/standalone_simulator/binary_input_files/expected_out.bin";
+    // Define the path for the input files
+    std::filesystem::path InpPath = currentPath / "binary_input_files" / "input.bin";
+    std::string fileInpPath = InpPath.string();
+    std::filesystem::path WgtPath = currentPath / "binary_input_files" / "weight.bin";
+    std::string fileWgtPath = WgtPath.string();
+    std::filesystem::path UopPath = currentPath / "binary_input_files" / "uop.bin";
+    std::string fileUopPath = UopPath.string();
+    std::filesystem::path InsnPath = currentPath / "binary_input_files" / "instructions.bin";
+    std::string fileInsnPath = InsnPath.string();
+    std::filesystem::path ExpextedOutPath = currentPath / "binary_input_files" / "expected_out.bin";
+    std::string fileExpextedOutPath = ExpextedOutPath.string();
 
     // File size variable
     long file_size = 0;

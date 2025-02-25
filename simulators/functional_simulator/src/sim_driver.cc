@@ -34,6 +34,9 @@
 
 #include "../include/virtual_memory.h" //"../vmem/virtual_memory.h"
 
+// To dump the file
+#include <filesystem>
+
 namespace vta {
 namespace sim {
 
@@ -353,16 +356,6 @@ class Device {
     }
     this->TlppSynchronization(); // Start the execution
 
-    // /* ADDED SECTION */
-    // FILE * pFileDram; // ADDED
-    // uint64_t dram_base = 0x00000020; // ADDED
-    // uint8_t* dram_ptr = static_cast<uint8_t*>(dram_->GetAddr(dram_base * 256));
-    // pFileDram = fopen("/home/afauregi/Documents/OUTPUT/dump_dram.bin", "wb"); // ADDED
-    // printf("\nDEBUG: DUMP DRAM: size=%lu \n\t DRAM = %p \n\n", sizeof(dram_), dram_); // (printf) ADDED
-    // fwrite(dram_ptr, 256, 1, pFileDram); // ADDED (ptr, size, count, stream)
-    // fclose(pFileDram); // ADDED
-    // /* END OF THE ADDED SECTION*/
-
     return 0;
   }
 
@@ -407,7 +400,11 @@ class Device {
         // FWRITE to write the binary content in a file
         FILE * pFileInp; // ADDED
         printf("\nINP op->x_size: \t %u \t op->y_size: \t %u \t => Element to load = %u (%d-Byte element) \n\n", op->x_size, op->y_size, 16 * op->x_size * op->y_size, VTA_INP_WIDTH/8); // (printf) ADDED
-        pFileInp = fopen("/home/afauregi/Documents/OUTPUT/dump_inp.bin", "ab"); // ADDED
+        // Define the path
+        std::filesystem::path currentPath = std::filesystem::current_path(); // ADDED
+        std::filesystem::path DumpInpPath = currentPath.parent_path().parent_path() / "OUTPUT" / "dump_inp.bin"; // ADDED
+        // Write to the path
+        pFileInp = fopen(DumpInpPath.string().c_str(), "ab"); // ADDED
         fwrite(inp_.BeginPtr(0), VTA_INP_WIDTH/8, 16*(op->x_size * op->y_size), pFileInp); // ADDED (ptr, size, count, stream)
         fclose(pFileInp); // ADDED
       #endif
@@ -421,7 +418,11 @@ class Device {
         // FWRITE to write the binary content in a file
         FILE * pFileWgt; // ADDED
         printf("\nWGT op->x_size: \t %u \t op->y_size: \t %u \t => Element to load = %u (%d-Byte element) \n\n", op->x_size, op->y_size, 256 * op->x_size * op->y_size, VTA_WGT_WIDTH/8); // ADDED
-        pFileWgt = fopen("/home/afauregi/Documents/OUTPUT/dump_wgt.bin", "ab"); // ADDED
+        // Define the path
+        std::filesystem::path currentPath = std::filesystem::current_path(); // ADDED
+        std::filesystem::path DumpWgtPath = currentPath.parent_path().parent_path() / "OUTPUT" / "dump_wgt.bin"; // ADDED
+        // Write to the path
+        pFileWgt = fopen(DumpWgtPath.string().c_str(), "ab"); // ADDED
         fwrite(wgt_.BeginPtr(0), VTA_WGT_WIDTH/8, 256*(op->x_size * op->y_size), pFileWgt); // ADDED (ptr, size, count, stream)
         fclose(pFileWgt); // ADDED
       #endif
@@ -439,7 +440,11 @@ class Device {
         // FWRITE to write the binary content in a file
         FILE * pFileUop; // ADDED
         printf("\nUOP op->x_size: \t %u \t op->y_size: \t %u \t => Element to load = %u (%d-Byte element) \n\n", op->x_size, op->y_size, op->x_size * op->y_size, VTA_UOP_WIDTH/8); // (printf) ADDED
-        pFileUop = fopen("/home/afauregi/Documents/OUTPUT/dump_uop.bin", "ab"); // ADDED
+        // Define the path
+        std::filesystem::path currentPath = std::filesystem::current_path(); // ADDED
+        std::filesystem::path DumpUopPath = currentPath.parent_path().parent_path() / "OUTPUT" / "dump_uop.bin"; // ADDED
+        // Write to the path
+        pFileUop = fopen(DumpUopPath.string().c_str(), "ab"); // ADDED
         fwrite(uop_.BeginPtr(0), sizeof(VTAUop), op->x_size * op->y_size, pFileUop); // ADDED (VTA_UOP_WIDTH/8)
         fclose(pFileUop); // ADDED
       #endif
@@ -469,7 +474,11 @@ class Device {
         // FWRITE to write the binary content in a file
         FILE * pFileAcc; // ADDED
         printf("\nACC op->x_size: \t %u \t op->y_size: \t %u \t => Element to load = %u (%d-Byte element) \n\n", op->x_size, op->y_size, 16 * op->x_size * op->y_size, VTA_ACC_WIDTH/8); // (printf) ADDED
-        pFileAcc = fopen("/home/afauregi/Documents/OUTPUT/dump_acc.bin", "ab"); // ADDED
+        // Define the path
+        std::filesystem::path currentPath = std::filesystem::current_path(); // ADDED
+        std::filesystem::path DumpAccPath = currentPath.parent_path().parent_path() / "OUTPUT" / "dump_acc.bin"; // ADDED
+        // Write to the path
+        pFileAcc = fopen(DumpAccPath.string().c_str(), "ab"); // ADDED
         fwrite(acc_.BeginPtr(0), VTA_ACC_WIDTH/8, 16*(op->x_size * op->y_size), pFileAcc); // ADDED (ptr, size, count, stream)
         fclose(pFileAcc); // ADDED
       #endif
@@ -480,7 +489,11 @@ class Device {
         // FWRITE to write the binary content in a file
         FILE * pFileOut; // ADDED
         printf("\nOUT op->x_size: \t %u \t op->y_size: \t %u \t => Element to load = %u (%d-Byte element) \n\n", op->x_size, op->y_size, 16 * op->x_size * op->y_size, VTA_OUT_WIDTH/8); // (printf) ADDED
-        pFileOut = fopen("/home/afauregi/Documents/OUTPUT/dump_out.bin", "ab"); // ADDED
+        // Define the path
+        std::filesystem::path currentPath = std::filesystem::current_path(); // ADDED
+        std::filesystem::path DumpOutPath = currentPath.parent_path().parent_path() / "OUTPUT" / "dump_out.bin"; // ADDED
+        // Write to the path
+        pFileOut = fopen(DumpOutPath.string().c_str(), "ab"); // ADDED
         //fwrite(dram_, VTA_OUT_WIDTH/8, 16*(op->x_size * op->y_size), pFileOut); // ADDED (ptr, size, count, stream) // Size=VTA_OUT_WIDTH/8
         fwrite(dram_, 1, sizeof(dram_), pFileOut); // ADDED (ptr, size, count, stream) // Size=VTA_OUT_WIDTH/8
         fclose(pFileOut); // ADDED
