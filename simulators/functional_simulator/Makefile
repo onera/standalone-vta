@@ -25,7 +25,7 @@ CC := g++
 CFLAGS = -Wall -Werror -g -DDUMP_MEM=false
 
 # Define the variables for the configuration (vta_config.json)
-CONFIG_PY := python ../config/vta_config.py --defs # The command to execute the python script
+CONFIG_PY := python ./config/vta_config.py --defs # The command to execute the python script
 VTA_DEFS := $(shell $(CONFIG_PY)) # To store the output of running CONFIG_PY
 VTA_DEF_FLAGS := $(patsubst -D%,%,$(filter -D%,$(VTA_DEFS))) # To extract the "-D" flags from VTA_DEFS
 

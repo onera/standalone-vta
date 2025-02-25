@@ -21,6 +21,9 @@ This project aims to improve the VTA's usability and applicability, particularly
 *   `simulators/`: Contains the VTA simulators.
     *   `functional_simulator/`: A C++ simulator that models the functional behaviour of the VTA.
     *   `cycle_accurate_simulator/`: A cycle-accurate hardware description using CHISEL, along with simulation testbenches.
+        * `src/main/scala/core/`: The hardware description of the VTA.
+        * `src/test/scala/simulator/`: The cycle-accurate simulator with different level of simulation (e.g., TensorAlu, Compute module, TensorGemm). The cycle-accurate simulator uses JSON files located in `src/test/scala/resources/`.
+        * `src/test/scala/formal/`: The formal verification of the VTA hardware description using chiseltest.
 
 ## Getting Started
 
@@ -28,7 +31,7 @@ To get started with this repository, follow these steps:
 
 1.  **Clone the repository:**
     ```
-    git clone https://github.com/your-username/standalone_vta.git
+    git clone https://github.com/onera/standalone-vta.git
     cd standalone_vta
     ```
 2.  **Explore the subprojects:** Refer to the individual `README.md` files within each subdirectory (`compiler/`, `simulators/`) for detailed instructions on building, running, and using the specific tools and simulators.
