@@ -1,0 +1,30 @@
+#####################
+# The files to ignore
+#####################
+
+# Do not consider __pycache__ & its content
+# -----------------------------------------
+/**/__pycache__/
+/**/__pycache__/*
+
+# Do not consider build repository
+# --------------------------------
+/**/build/
+/**/build/*
+
+# Do not consider OUTPUT repository
+# --------------------------------_
+/**/OUTPUT/
+/**/OUTPUT/*
+
+# Do not consider binary files (nor executable)
+# ----------------------------
+/**/*.o
+/**/*.bin
+/**/*.exe
+/**/*.out
+
+# Do not consider prompt.txt files (nor tempo.txt): information about execution
+# ------------------------------------------------
+/**/prompt*.txt
+/**/tempo*.txt

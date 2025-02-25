@@ -1,0 +1,11 @@
+test_run_dir
+/bin/
+/target/
+/project/target/
+/project/project/
+/output/
+/null/
+/.idea/
+*z3*
+*.dll
+.bsp
