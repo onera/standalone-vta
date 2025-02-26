@@ -15,15 +15,11 @@
   #include <cstdint> // uint32_t
   #include <cstdlib> // srand() and rand()
   #include <ctime> // time()
-
+  
 
   /******************** 
     NEW TYPE DEFINITION
   *********************/
-  // union instruction_t {
-  //   uint64_t upper_section;
-  //   uint64_t lower_section;
-  // };
   typedef __uint128_t instruction_t; // To modify with union or struct! (TODO)
   typedef uint32_t uop_t; // To modify with union or struct! (TODO)
 

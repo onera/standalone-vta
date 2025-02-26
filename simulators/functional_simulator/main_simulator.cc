@@ -41,8 +41,8 @@ int execute_simulator(void)
     std::string fileUopPath = UopPath.string();
     std::filesystem::path InsnPath = currentPath / "binary_input_files" / "instructions.bin";
     std::string fileInsnPath = InsnPath.string();
-    std::filesystem::path ExpextedOutPath = currentPath / "binary_input_files" / "expected_out.bin";
-    std::string fileExpextedOutPath = ExpextedOutPath.string();
+    std::filesystem::path ExpectedOutPath = currentPath / "binary_input_files" / "expected_out.bin";
+    std::string fileExpectedOutPath = ExpectedOutPath.string();
 
     // File size variable
     long file_size = 0;
@@ -104,7 +104,7 @@ int execute_simulator(void)
 
     // Output (C - OUT)
     FILE * pFileExpectedOut;
-    pFileExpectedOut = fopen(fileExpextedOutPath.c_str(), "rb"); 
+    pFileExpectedOut = fopen(fileExpectedOutPath.c_str(), "rb"); 
 
     // No expected result if the file does not open:
     if (pFileExpectedOut == nullptr){
