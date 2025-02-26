@@ -9,7 +9,7 @@ import user_configuration as UC
 # ---------
 def int8_to_hex(value):
     """Convert an int8 in hexadecimal."""
-    return f"{value & 0xFF:02X}"
+    return f"{int(value) & 0xFF:02X}"
 
 # CHISEL Compute simulation: src/test/my_experiments/ComputeInvestigation.scala
 def generate_json(A_blocks, B_blocks, C_blocks, json_file_path='output.json'):
@@ -34,7 +34,7 @@ def generate_json(A_blocks, B_blocks, C_blocks, json_file_path='output.json'):
     # ACC init value
     json_data["dram"].append({
         "idx": "00000000",
-        "vec": [f"{x & 0xFFFFFFFF:08X}" for x in dram_data]
+        "vec": [f"{int(x) & 0xFFFFFFFF:08X}" for x in dram_data]
     })
     # UOP (start at 0x4000 and are incremented by 4)
     json_data["dram"].append({
