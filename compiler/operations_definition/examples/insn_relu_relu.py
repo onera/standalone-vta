@@ -80,7 +80,7 @@ insn_buffer.append(VTAMemInsn( # I1: LOAD ACC
     # Memory interaction
     buffer_id=3, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
     sram_base=0x0000,
-    dram_base=0x00000000,
+    dram_base=0x00000140,
     unused=0, # UNUSED
     # Operation over the data
     y_size=1, 

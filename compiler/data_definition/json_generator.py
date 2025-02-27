@@ -24,19 +24,12 @@ def generate_json(A_blocks, B_blocks, X_blocks, C_blocks, json_file_path='output
         "out_expect": []
     }
 
-    # Add random instructions
+    # Add random instructions - To be modified (add hexadecimal instruction from operations_definition)
     for i in range(10):
         json_data["inst"][f"I{i}"] = f"{i:032b}"
 
     # Add DRAM data
-    # ACC init value
-    for i, block in enumerate(X_blocks):
-        for row in range(block.shape[0]):
-            json_data["dram"].append({
-                "idx": f"{(i*block_size + row)*64:08X}",  # Incrémentation par 64 (0x40)
-                "vec": [f"{int(x) & 0xFFFFFFFF:08X}" for x in block[row]]
-            })
-    # UOP (start at 0x4000 and are incremented by 4)
+    # UOP (start at 0x4000 and are incremented by 4) - To be modified (add hexadecimal UOP from operations_definition)
     json_data["dram"].append({
         "idx": "00004000",
         "vec": ["00000000", "00000001", "00000002"]
@@ -45,6 +38,13 @@ def generate_json(A_blocks, B_blocks, X_blocks, C_blocks, json_file_path='output
         "idx": "00004004",
         "vec": ["00000003", "00000004", "00000005"]
     })
+    # ACC init value (start at 0x5000 and are incremented by 64)
+    for i, block in enumerate(X_blocks):
+        for row in range(block.shape[0]):
+            json_data["dram"].append({
+                "idx": f"{((i*block_size + row)*64)+20480:08X}",  # Increment by 64 (0x40)
+                "vec": [f"{int(x) & 0xFFFFFFFF:08X}" for x in block[row]]
+            })
 
     # Add INP data (A_matrix)
     for i, block in enumerate(A_blocks):
