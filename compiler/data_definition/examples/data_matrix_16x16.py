@@ -15,6 +15,9 @@ A_col = 16
 B_row = A_col # Required by matrix multiplication
 B_col = 16
 
+# X matrix size (ACCUMULATOR)
+X_row = 1
+X_col = 1
 
 """COMPUTATION SPECIFICATION"""
 # The size of the square matrix multiplication (multiple two block_size square matrix together)

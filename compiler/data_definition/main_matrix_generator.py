@@ -19,13 +19,17 @@ def main(config_file):
     # Import dynamically the configuration file
     config = importlib.import_module(config_file)
 
-    # Create the matrix A and B
-    A_matrix = MG.matrix_int8_creation(n_row=config.A_row, n_col=config.A_col, isInitRandom=config.isInitRandom, random_bound=config.random_bound)
-    B_matrix = MG.matrix_int8_creation(n_row=config.B_row, n_col=config.B_col, isInitRandom=config.isInitRandom, random_bound=config.random_bound)
+    # Create the matrix A and B - int8
+    A_matrix = MG.matrix_creation(n_row=config.A_row, n_col=config.A_col, isInitRandom=config.isInitRandom, random_bound=config.random_bound, dtype=np.int8)
+    B_matrix = MG.matrix_creation(n_row=config.B_row, n_col=config.B_col, isInitRandom=config.isInitRandom, random_bound=config.random_bound, dtype=np.int8)
+
+    # Create the matrix X (the ACCUMULATOR VALUES) - int32
+    X_matrix = MG.matrix_creation(n_row=config.X_row, n_col=config.X_col, isInitRandom=config.isInitRandom, random_bound=config.random_bound, dtype=np.int32)
 
     # Pad the matrix to make n_row and n_col a multiple of block_size
     A_padded = MG.matrix_padding(matrix=A_matrix, block_size=config.block_size, isWeight=False, isSquare=config.isSquare)
     B_padded = MG.matrix_padding(matrix=B_matrix, block_size=config.block_size, isWeight=True, isSquare=config.isSquare)
+    X_padded = MG.matrix_padding(matrix=X_matrix, block_size=config.block_size, isWeight=False, isSquare=config.isSquare)
 
     # EXPECTED RESULTS (ACC: int16, C: ACC casted into int8)
     if (config.doMultiplyNonPadded): # Compute non-padded matrices
@@ -36,6 +40,7 @@ def main(config_file):
     # Split matrix into blocks
     A_blocks, A_blocks_col = MS.matrix_splitting(matrix=A_padded, block_size=config.block_size, isWeight=False, isSquare=config.isSquare)
     B_blocks, B_blocks_col = MS.matrix_splitting(matrix=B_padded, block_size=config.block_size, isWeight=True, isSquare=config.isSquare)
+    X_blocks, X_blocks_col = MS.matrix_splitting(matrix=X_padded, block_size=config.block_size, isWeight=False, isSquare=config.isSquare)
 
     ## Multiply the blocks
     ACC_by_blocks, combinations = MM.block_matrix_multiply(A_blocks, B_blocks, A_blocks_col, B_blocks_col, block_size=config.block_size)
@@ -56,6 +61,7 @@ def main(config_file):
         # Define the complete path of the files
         A_blocks_file_path = os.path.join(output_dir, 'input.bin')
         B_blocks_file_path = os.path.join(output_dir, 'weight.bin')
+        X_blocks_file_path = os.path.join(output_dir, 'accumulator.bin')
         C_padded_file_path = os.path.join(output_dir, 'expected_out.bin')
 
         # Write A_block matrix
@@ -68,6 +74,11 @@ def main(config_file):
             for block in B_blocks:
                 transposed = block.transpose()
                 transposed.tofile(f)
+
+        # Write X_block matrix
+        with open(X_blocks_file_path, 'wb') as f:
+            for block in X_blocks:
+                block.tofile(f)
         
         # Write C_padded (expected result)
         C_padded.tofile(C_padded_file_path)
@@ -81,7 +92,7 @@ def main(config_file):
         json_file_path = os.path.join(output_dir, 'generated_for_compute.json')
 
         # Call the JSON generation function
-        JG.generate_json(A_blocks, B_blocks, C_blocks, json_file_path)
+        JG.generate_json(A_blocks, B_blocks, X_blocks, C_blocks, json_file_path, block_size=config.block_size,)
 
     # Print the matrices
     if (config.doPrint):
@@ -91,12 +102,14 @@ def main(config_file):
         if (config.doMultiplyNonPadded):
             print(f"\n = \n ACC_matrix: ((h, w) = {np.shape(ACC_matrix)}) \n", ACC_matrix)
             print("\n => cast into int8: \n C_matrix: \n", C_matrix)
+        print(f"\n\n X_matrix: ((h, w) = {np.shape(X_matrix)}) \n", X_matrix)
 
         print("\n\n\n PADDED MATRICES:")
         print(f"A_padded: ((h, w) = {np.shape(A_padded)}) \n", A_padded)
         print(f"\n x \n B_padded: ((h, w) = {np.shape(B_padded)}) \n", B_padded)
         print(f"\n = \n ACC_padded: ((h, w) = {np.shape(ACC_padded)}) \n", ACC_padded)
         print("\n => cast into int8: \n C_padded: \n", C_padded)
+        print(f"\n\n X_padded: ((h, w) = {np.shape(X_padded)}) \n", X_padded)
 
         print("\n\n\n SPLITTED MATRICES:")
         i = 0
@@ -133,6 +146,13 @@ def main(config_file):
         print("\n\nBlock computation combination:")
         for combination in combinations:
             print(combination)
+
+        i = 0
+        print(f"\n\n Resulting X_blocks: (blocks_col = {X_blocks_col})")
+        for block in X_blocks:
+            print("\n X", i)
+            print(block)
+            i = i + 1
 
         print("\n\n\n COMPARISON OF ACC_RECONSTRUCTED AND EXPECTED ACC_PADDED:")
         print("Does ACC_reconstructed == ACC_padded:", np.allclose(ACC_reconstructed, ACC_padded))

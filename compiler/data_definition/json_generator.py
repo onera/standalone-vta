@@ -2,7 +2,6 @@
 # ---------------
 import numpy as np
 import json
-import user_configuration as UC
 
 
 # FUNCTIONS
@@ -12,7 +11,7 @@ def int8_to_hex(value):
     return f"{int(value) & 0xFF:02X}"
 
 # CHISEL Compute simulation: src/test/my_experiments/ComputeInvestigation.scala
-def generate_json(A_blocks, B_blocks, C_blocks, json_file_path='output.json'):
+def generate_json(A_blocks, B_blocks, X_blocks, C_blocks, json_file_path='output.json', block_size=16):
     """Generate the JSON for CHISEL Compute module simulation with the matrix values. 
        Instructions and UOPs must be manually corrected."""
     # Create a JSON dictionnary
@@ -30,12 +29,13 @@ def generate_json(A_blocks, B_blocks, C_blocks, json_file_path='output.json'):
         json_data["inst"][f"I{i}"] = f"{i:032b}"
 
     # Add DRAM data
-    dram_data = np.arange(-8, 8, dtype=np.int32)
     # ACC init value
-    json_data["dram"].append({
-        "idx": "00000000",
-        "vec": [f"{int(x) & 0xFFFFFFFF:08X}" for x in dram_data]
-    })
+    for i, block in enumerate(X_blocks):
+        for row in range(block.shape[0]):
+            json_data["dram"].append({
+                "idx": f"{(i*block_size + row)*64:08X}",  # Incrémentation par 64 (0x40)
+                "vec": [f"{int(x) & 0xFFFFFFFF:08X}" for x in block[row]]
+            })
     # UOP (start at 0x4000 and are incremented by 4)
     json_data["dram"].append({
         "idx": "00004000",
@@ -50,7 +50,7 @@ def generate_json(A_blocks, B_blocks, C_blocks, json_file_path='output.json'):
     for i, block in enumerate(A_blocks):
         for row in range(block.shape[0]):
             json_data["inp"].append({
-                "idx": f"{i*UC.block_size + row:08X}",
+                "idx": f"{i*block_size + row:08X}",
                 "vec": [int8_to_hex(x) for x in block[row]]
             })
 
@@ -67,7 +67,7 @@ def generate_json(A_blocks, B_blocks, C_blocks, json_file_path='output.json'):
     for i, block in enumerate(C_blocks):
         for row in range(block.shape[0]):
             json_data["out_expect"].append({
-                "idx": f"{i*UC.block_size + row:08X}",
+                "idx": f"{i*block_size + row:08X}",
                 "vec": [int8_to_hex(x) for x in block[row]]
             })
             nb_out_vector = nb_out_vector + 1

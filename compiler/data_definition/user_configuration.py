@@ -7,14 +7,17 @@ isInitRandom = True
 # If yes, random_bound limit the value range (int8 = [-128; 127] -> random_bound = 128)
 random_bound = 4
 
-# A matrix size
+# A matrix size (INPUT)
 A_row = 784
 A_col = 25
 
-# B matrix size
+# B matrix size (WEIGHT)
 B_row = A_col # Required by matrix multiplication
 B_col = 6
 
+# X matrix size (ACCUMULATOR)
+X_row = 17
+X_col = 3
 
 """COMPUTATION SPECIFICATION"""
 # The size of the square matrix multiplication (multiple two block_size square matrix together)

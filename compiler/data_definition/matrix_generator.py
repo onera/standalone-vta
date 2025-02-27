@@ -5,12 +5,12 @@ import numpy as np
 
 # MATRIX GENERATOR FUNCTIONS
 # --------------------------
-def matrix_int8_creation(n_row=16, n_col=16, isInitRandom=True, random_bound=128):
-    """Create a matrix with int8 values."""
+def matrix_creation(n_row=16, n_col=16, isInitRandom=True, random_bound=128, dtype=np.int8):
+    """Create a matrix with dtype values (e.g., int8 or int32)."""
     if (isInitRandom): # Random values
-        matrix = np.random.randint(-random_bound, random_bound - 1, size=(n_row, n_col), dtype=np.int8)
+        matrix = np.random.randint(-random_bound, random_bound - 1, size=(n_row, n_col), dtype=dtype)
     else: # Init with 0
-        matrix = np.zeros((n_row, n_col), dtype=np.int8)
+        matrix = np.zeros((n_row, n_col), dtype=dtype)
     # Return the matrix
     return matrix
 
