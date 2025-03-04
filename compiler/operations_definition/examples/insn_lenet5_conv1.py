@@ -70,7 +70,7 @@ insn_buffer.append(VTAMemInsn( # I0: LOAD UOP
     # Memory interaction
     buffer_id=0, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
     sram_base=0x0000,
-    dram_base=0x00001000,
+    dram_base=0x00002800,
     unused=0, # UNUSED
     # Operation over the data
     y_size=1,
@@ -138,7 +138,7 @@ insn_buffer.append(VTAMemInsn( # I3: LOAD WGT
     # Memory interaction
     buffer_id=1, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
     sram_base=0x0000,
-    dram_base=0x00000020,
+    dram_base=0x00000080,
     unused=0, # UNUSED
     # Operation over the data
     y_size=1,
@@ -160,7 +160,7 @@ insn_buffer.append(VTAMemInsn( # I4: LOAD UOP
     # Memory interaction
     buffer_id=0, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
     sram_base=0x0001,
-    dram_base=0x00001001,
+    dram_base=0x00002801,
     unused=0, # UNUSED
     # Operation over the data
     y_size=1,
@@ -206,7 +206,7 @@ insn_buffer.append(VTAMemInsn( # I6: STORE
     # Memory interaction
     buffer_id=4, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
     sram_base=0x0000,
-    dram_base=0x00000300,
+    dram_base=0x00000900,
     unused=0, # UNUSED
     # Operation over the data
     y_size=1,
