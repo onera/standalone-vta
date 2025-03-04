@@ -35,7 +35,7 @@ void print_int8_vector(int8_t * vector, uint64_t size){
         if (elem%16 == 0){
             printf("\n");
             if (elem%256 == 0){
-                printf("\n");
+                printf("\n \t(Element nb: %ld) \n", elem/256);
             }
         }
         // Print the element
@@ -53,7 +53,7 @@ void print_int32_vector(int32_t * vector, uint64_t size){
         if (elem%16 == 0){
             printf("\n");
             if (elem%256 == 0){
-                printf("\n");
+                printf("\n \t(Element nb: %ld) \n", elem/256);
             }
         }
         // Print the element

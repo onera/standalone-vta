@@ -94,7 +94,7 @@ insn_buffer.append(VTAMemInsn( # I0: LOAD UOP
     # Memory interaction
     buffer_id=0, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
     sram_base=0x0000,
-    dram_base=0x00002800, # Exceed classic range due to numerous input data
+    dram_base=0x00003400, # Exceed classic range due to numerous input data
     unused=0, # UNUSED
     # Operation over the data
     y_size=1,
@@ -184,7 +184,7 @@ insn_buffer.append(VTAMemInsn( # I4: LOAD UOP
     # Memory interaction
     buffer_id=0, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
     sram_base=0x0001,
-    dram_base=0x00002801, # Exceed classic range due to numerous input data
+    dram_base=0x00003401, # Exceed classic range due to numerous input data
     unused=0, # UNUSED
     # Operation over the data
     y_size=1,
