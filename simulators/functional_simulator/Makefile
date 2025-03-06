@@ -22,22 +22,25 @@
 # -----------------
 # Define the compilation option (compiler: gcc, flags: -Wall)
 CC := g++ 
-CFLAGS = -Wall -Werror -g -DDUMP_MEM=false
+CFLAGS = -std=c++17 -Wall -g
+
+# Define the path of the Makefile
+MAKEFILE_DIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 
 # Define the variables for the configuration (vta_config.json)
-CONFIG_PY := python ./config/vta_config.py --defs # The command to execute the python script
+CONFIG_PY := python $(MAKEFILE_DIR)config/vta_config.py --defs # The command to execute the python script
 VTA_DEFS := $(shell $(CONFIG_PY)) # To store the output of running CONFIG_PY
 VTA_DEF_FLAGS := $(patsubst -D%,%,$(filter -D%,$(VTA_DEFS))) # To extract the "-D" flags from VTA_DEFS
 
 # Define the main files
-SRCS = main_simulator.cc simulator_functions.cc
-SRCS += $(wildcard src/*.cc)
-OBJS = $(patsubst main_simulator.cc, build/main_simulator.o, $(SRCS))
-OBJS += $(patsubst simulator_functions.cc, build/simulator_functions.o, $(SRCS))
-OBJS += $(patsubst src/%.cc, build/%.o, $(SRCS))
+SRCS = $(MAKEFILE_DIR)main_simulator.cc $(MAKEFILE_DIR)simulator_functions.cc
+SRCS += $(wildcard $(MAKEFILE_DIR)src/*.cc)
+OBJS = $(patsubst $(MAKEFILE_DIR)main_simulator.cc, $(MAKEFILE_DIR)build/main_simulator.o, $(SRCS))
+OBJS += $(patsubst $(MAKEFILE_DIR)simulator_functions.cc, $(MAKEFILE_DIR)build/simulator_functions.o, $(SRCS))
+OBJS += $(patsubst $(MAKEFILE_DIR)src/%.cc, $(MAKEFILE_DIR)build/%.o, $(SRCS))
 
 # Configuration files
-CONFIG_FILES := $(wildcard ../config/*)
+CONFIG_FILES := $(wildcard $(MAKEFILE_DIR)../config/*)
 
 
 # ---------------------
@@ -47,10 +50,10 @@ CONFIG_FILES := $(wildcard ../config/*)
 # Generic commands
 # ----------------
 # Build everything
-all: config build/vta_simulator
+all: config $(MAKEFILE_DIR)build/vta_simulator
 
 # Generate the configuration file log 
-config: build/vta_config_def.txt
+config: $(MAKEFILE_DIR)build/vta_config_def.txt
 
 # Compile without linking (main_simulator.cc and src/*.cc)
 compile_only: $(OBJS) 
@@ -61,10 +64,10 @@ compile_only: $(OBJS)
 # Dependencies: device_api -> runtime -> sim_driver -> sim_tlpp & virtual_memory
 
 # Link the standalone VTA simulator executable
-build/vta_simulator: build/vta_config_def.txt $(OBJS) lib_tvm
-	$(CC) build/main_simulator.o build/simulator_functions.o \
-	build/virtual_memory.o build/sim_tlpp.o \
-	build/sim_driver.o \
+$(MAKEFILE_DIR)build/vta_simulator: $(MAKEFILE_DIR)build/vta_config_def.txt $(OBJS) lib_tvm
+	$(CC) $(MAKEFILE_DIR)build/main_simulator.o $(MAKEFILE_DIR)build/simulator_functions.o \
+	$(MAKEFILE_DIR)build/virtual_memory.o $(MAKEFILE_DIR)build/sim_tlpp.o \
+	$(MAKEFILE_DIR)build/sim_driver.o \
 	$(OBJ_LIB_TVM) -o $@
 	@echo
 	@echo "Successful link!"
@@ -74,22 +77,22 @@ build/vta_simulator: build/vta_config_def.txt $(OBJS) lib_tvm
 # COMPILING SIMULATOR AND MAIN FILES (without linking: -c)
 # ----------------------------------
 # Compile the main file:
-build/main_simulator.o: main_simulator.cc simulator_header.h
-	$(CC) $(VTA_DEFS) $(CFLAGS) -o build/main_simulator.o -c main_simulator.cc
+$(MAKEFILE_DIR)build/main_simulator.o: $(MAKEFILE_DIR)main_simulator.cc $(MAKEFILE_DIR)simulator_header.h
+	$(CC) $(VTA_DEFS) $(CFLAGS) -o $(MAKEFILE_DIR)build/main_simulator.o -c $(MAKEFILE_DIR)main_simulator.cc
 
 # Compile the function file (used by main):
-build/simulator_functions.o: simulator_functions.cc simulator_header.h
-	$(CC) $(VTA_DEFS) $(CFLAGS) -o build/simulator_functions.o -c simulator_functions.cc
+$(MAKEFILE_DIR)build/simulator_functions.o: $(MAKEFILE_DIR)simulator_functions.cc $(MAKEFILE_DIR)simulator_header.h
+	$(CC) $(VTA_DEFS) $(CFLAGS) -o $(MAKEFILE_DIR)build/simulator_functions.o -c $(MAKEFILE_DIR)simulator_functions.cc
 
 # Compile simulator files
-build/sim_driver.o: src/sim_driver.cc include/driver.h build/vta_config_def.txt
-	$(CC) $(VTA_DEFS) $(CFLAGS) -c src/sim_driver.cc -o build/sim_driver.o
+$(MAKEFILE_DIR)build/sim_driver.o: $(MAKEFILE_DIR)src/sim_driver.cc $(MAKEFILE_DIR)include/driver.h $(MAKEFILE_DIR)build/vta_config_def.txt
+	$(CC) $(VTA_DEFS) $(CFLAGS) -c $(MAKEFILE_DIR)src/sim_driver.cc -o $(MAKEFILE_DIR)build/sim_driver.o
 
-build/sim_tlpp.o: src/sim_tlpp.cc include/sim_tlpp.h build/vta_config_def.txt
-	$(CC) $(VTA_DEFS) $(CFLAGS) -c src/sim_tlpp.cc -o build/sim_tlpp.o
+$(MAKEFILE_DIR)build/sim_tlpp.o: $(MAKEFILE_DIR)src/sim_tlpp.cc $(MAKEFILE_DIR)include/sim_tlpp.h $(MAKEFILE_DIR)build/vta_config_def.txt
+	$(CC) $(VTA_DEFS) $(CFLAGS) -c $(MAKEFILE_DIR)src/sim_tlpp.cc -o $(MAKEFILE_DIR)build/sim_tlpp.o
 
-build/virtual_memory.o: src/virtual_memory.cc include/virtual_memory.h build/vta_config_def.txt
-	$(CC) $(VTA_DEFS) $(CFLAGS) -c src/virtual_memory.cc -o build/virtual_memory.o
+$(MAKEFILE_DIR)build/virtual_memory.o: $(MAKEFILE_DIR)src/virtual_memory.cc $(MAKEFILE_DIR)include/virtual_memory.h $(MAKEFILE_DIR)build/vta_config_def.txt
+	$(CC) $(VTA_DEFS) $(CFLAGS) -c $(MAKEFILE_DIR)src/virtual_memory.cc -o $(MAKEFILE_DIR)build/virtual_memory.o
 
 # Generic rules for all in one (require to execute $ make depend)
 #build/%.o: src/%.cc build/vta_config_def.txt
@@ -99,12 +102,12 @@ build/virtual_memory.o: src/virtual_memory.cc include/virtual_memory.h build/vta
 # COMPILING EXTERNAL LIBRARIES
 # ----------------------------
 # Define TVM LIB
-SRC_LIB_TVM = $(wildcard external_lib/tvm/*.cc)
-SRC_LIB_TVM += $(wildcard external_lib/tvm/**/*.cc)
-OBJ_LIB_TVM = $(patsubst external_lib/tvm/%.cc, build/others/%.o, $(SRC_LIB_TVM))
+SRC_LIB_TVM = $(wildcard $(MAKEFILE_DIR)external_lib/tvm/*.cc)
+SRC_LIB_TVM += $(wildcard $(MAKEFILE_DIR)external_lib/tvm/**/*.cc)
+OBJ_LIB_TVM = $(patsubst $(MAKEFILE_DIR)external_lib/tvm/%.cc, build/others/%.o, $(SRC_LIB_TVM))
 
 # Generic rules
-build/others/%.o: external_lib/tvm/%.cc
+build/others/%.o: $(MAKEFILE_DIR)external_lib/tvm/%.cc
 	$(CC) $(VTA_DEFS) $(CFLAGS) -o $@ -c $<	
 
 # Aliases (to execute the compilation)
@@ -114,17 +117,15 @@ lib_tvm: $(OBJ_LIB_TVM)
 # --------------
 # EXECUTION AREA
 # --------------
-execute: build/vta_simulator
-	./build/vta_simulator > prompt.txt
-	code prompt.txt
-
+execute: $(MAKEFILE_DIR)build/vta_simulator
+	$(MAKEFILE_DIR)build/vta_simulator
 
 # -------------
 # CONFIGURATION 
 # -------------
 # Run the configuration file (execute build rules if build/ does not exist)
-build/vta_config_def.txt: $(CONFIG_FILES) | build/ build/others/
-	$(CONFIG_PY) > build/vta_config_def.txt
+$(MAKEFILE_DIR)build/vta_config_def.txt: $(CONFIG_FILES) | $(MAKEFILE_DIR)build/ $(MAKEFILE_DIR)build/others/
+	$(CONFIG_PY) > $(MAKEFILE_DIR)build/vta_config_def.txt
 	$(VTA_DEF_FLAGS)
 
 
@@ -132,10 +133,10 @@ build/vta_config_def.txt: $(CONFIG_FILES) | build/ build/others/
 # CREATE BUILD DIRECTORY (if it does not exist)
 # ----------------------
 # Create the build directory
-build/:
-	mkdir build/
-build/others/: | build/
-	mkdir build/others/
+$(MAKEFILE_DIR)build/:
+	mkdir $(MAKEFILE_DIR)build/
+$(MAKEFILE_DIR)build/others/: | $(MAKEFILE_DIR)build/
+	mkdir $(MAKEFILE_DIR)build/others/
 
 
 # ----------------
@@ -145,7 +146,7 @@ build/others/: | build/
 
 # Clean the build directory
 clean: 
-	find build/ -type f -delete
+	find $(MAKEFILE_DIR)build/ -type f -delete
 
 # Generate dependencies
 depend:

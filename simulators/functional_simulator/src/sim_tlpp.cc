@@ -23,12 +23,10 @@
  */
 #include "../include/sim_tlpp.h" //<vta/sim_tlpp.h>
 TlppVerify::TlppVerify() {
-  //printf("\n SIM_TLPP.CC: TlppVerify() \n"); // (printf) ADDED
   done_ = 0;
 }
 
 void TlppVerify::Clear() {
-  //printf("\n SIM_TLPP.CC: Clear() \n"); // (printf) ADDED
   fsim_handle_ = nullptr;
   run_fsim_function_ = nullptr;
   for (int i = 0; i < COREMAX; i++) {
@@ -40,14 +38,12 @@ void TlppVerify::Clear() {
 }
 
 uint64_t TlppVerify::GetOperationCode(const VTAGenericInsn *insn) {
-  //printf("\n SIM_TLPP.CC: GetOperationCode() \n"); // (printf) ADDED
   const VTAMemInsn* mem = reinterpret_cast<const VTAMemInsn*>(insn);
   return mem->opcode;
 }
 
 CORE_TYPE TlppVerify::GetCoreType(uint64_t operation_code,
                               const VTAGenericInsn *insn) {
-  //printf("\n SIM_TLPP.CC: GetCoreType() \n"); // (printf) ADDED
   CORE_TYPE core_type = COREGEMM;
   const VTAMemInsn* mem = reinterpret_cast<const VTAMemInsn*>(insn);
   switch (operation_code) {
@@ -77,7 +73,6 @@ bool TlppVerify::DependencyProcess(bool before_run,
     Dep_q_t *push_prev_q, Dep_q_t *push_next_q,
     CORE_TYPE push_to_prev_q_indx, CORE_TYPE push_to_next_q_indx) {
 
-  //printf("\n SIM_TLPP.CC: DependencyProcess() \n"); // (printf) ADDED
   int val = 1;
   if (before_run) {
     if (pop_prev && pop_prev_q->size() == 0) {
@@ -103,7 +98,6 @@ bool TlppVerify::DependencyProcess(bool before_run,
 
 bool TlppVerify::InsnDependencyCheck(const VTAGenericInsn *insn,
                                      bool before_run) {
-  //printf("\n SIM_TLPP.CC: InsnDependencyCheck() \n"); // (printf) ADDED
   const VTAMemInsn* mem = reinterpret_cast<const VTAMemInsn*>(insn);
   bool pop_prev = mem->pop_prev_dep;
   bool pop_next = mem->pop_next_dep;
@@ -136,7 +130,6 @@ bool TlppVerify::InsnDependencyCheck(const VTAGenericInsn *insn,
 }
 
 void TlppVerify::CoreRun(CORE_TYPE core_type) {
-  //printf("\n SIM_TLPP.CC: CoreRun() \n"); // (printf) ADDED
   const VTAGenericInsn *insn = PickFrontInsn(core_type);
   while (insn) {
     /*!
@@ -169,7 +162,6 @@ void TlppVerify::CoreRun(CORE_TYPE core_type) {
 }
 
 void TlppVerify::EventProcess(void) {
-  //printf("\n SIM_TLPP.CC: EventProcess() \n"); // (printf) ADDED
   while (dep_push_event_.size()) {
       CORE_TYPE core_type = dep_push_event_.front();
       dep_push_event_.pop();
@@ -180,7 +172,6 @@ void TlppVerify::EventProcess(void) {
 void TlppVerify::TlppSynchronization(Run_Function run_function,
                                          void *fsim_handle,
                                          bool debug) {
-  //printf("\n SIM_TLPP.CC: TlppSynchronization() \n"); // (printf) ADDED
   fsim_handle_ = fsim_handle;
   run_fsim_function_ = run_function;
   debug_ = debug;
@@ -201,7 +192,6 @@ void TlppVerify::TlppSynchronization(Run_Function run_function,
 }
 
 void TlppVerify::TlppPushInsn(const VTAGenericInsn *insn) {
-  //printf("\n SIM_TLPP.CC: TlppPushInsn() \n"); // (printf) ADDED
   uint64_t operation_code = GetOperationCode(insn);
   CORE_TYPE core_type = GetCoreType(operation_code, insn);
   insnq_array_[core_type].push(static_cast<const void *>(insn));
@@ -209,7 +199,6 @@ void TlppVerify::TlppPushInsn(const VTAGenericInsn *insn) {
 }
 
 const VTAGenericInsn *TlppVerify::PickFrontInsn(uint64_t core_type) {
-  //printf("\n SIM_TLPP.CC: PickFrontInsn() \n"); // (printf) ADDED
   const void *return_value = nullptr;
   if (insnq_array_[core_type].size()) {
     return_value = insnq_array_[core_type].front();
@@ -218,7 +207,6 @@ const VTAGenericInsn *TlppVerify::PickFrontInsn(uint64_t core_type) {
 }
 
 void TlppVerify::ConsumeFrontInsn(uint64_t core_type) {
-  //printf("\n SIM_TLPP.CC: ConsumeFrontInsn() \n"); // (printf) ADDED
   if (insnq_array_[core_type].size()) {
     insnq_array_[core_type].pop();
   }

@@ -33,17 +33,17 @@ int execute_simulator(void)
     std::filesystem::path currentPath = std::filesystem::current_path();
 
     // Define the path for the input files
-    std::filesystem::path InpPath = currentPath / "binary_input_files" / "input.bin";
+    std::filesystem::path InpPath = currentPath / ".." / ".." / "OUTPUT" / "input.bin";
     std::string fileInpPath = InpPath.string();
-    std::filesystem::path WgtPath = currentPath / "binary_input_files" / "weight.bin";
+    std::filesystem::path WgtPath = currentPath / ".." / ".." / "OUTPUT" / "weight.bin";
     std::string fileWgtPath = WgtPath.string();
-    std::filesystem::path AccPath = currentPath / "binary_input_files" / "accumulator.bin";
+    std::filesystem::path AccPath = currentPath / ".." / ".." / "OUTPUT" / "accumulator.bin";
     std::string fileAccPath = AccPath.string();
-    std::filesystem::path UopPath = currentPath / "binary_input_files" / "uop.bin";
+    std::filesystem::path UopPath = currentPath / ".." / ".." / "OUTPUT" / "uop.bin";
     std::string fileUopPath = UopPath.string();
-    std::filesystem::path InsnPath = currentPath / "binary_input_files" / "instructions.bin";
+    std::filesystem::path InsnPath = currentPath / ".." / ".." / "OUTPUT" / "instructions.bin";
     std::string fileInsnPath = InsnPath.string();
-    std::filesystem::path ExpectedOutPath = currentPath / "binary_input_files" / "expected_out.bin";
+    std::filesystem::path ExpectedOutPath = currentPath / ".." / ".." / "OUTPUT" / "expected_out.bin";
     std::string fileExpectedOutPath = ExpectedOutPath.string();
 
     // File size variable
