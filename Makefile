@@ -21,4 +21,4 @@ OUTPUT/:
 #######
 .PHONY: clean
 clean:
-	make -f OUTPUT/Makefile clean
+	rm $(MAKEFILE_DIR)OUTPUT/*.*
