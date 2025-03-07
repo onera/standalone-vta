@@ -52,7 +52,7 @@ def main(config_file):
     C_blocks, C_blocks_row = MS.matrix_splitting(matrix=C_padded, block_size=config.block_size, isWeight=False, isSquare=config.isSquare)
 
     # Define the output repository
-    output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'OUTPUT')
+    output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'compiler_output')
     # Check if the OUTPUT dir exist, else create it
     os.makedirs(output_dir, exist_ok=True)
 

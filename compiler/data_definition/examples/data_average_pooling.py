@@ -24,7 +24,7 @@ X_col = 2
 block_size = 16
 
 # Use square matrix or not
-isSquare = False
+isSquare = True
 
 # Compute the non-padded matrix? (True / False)
 doMultiplyNonPadded = False

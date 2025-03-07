@@ -12,7 +12,7 @@ from structures_insn_uop import *
 # FILE PATH
 # ---------
 # Define the files to write 
-output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'OUTPUT')
+output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'compiler_output')
 file_uop_path = os.path.join(output_dir, "uop.bin")
 file_insn_path = os.path.join(output_dir, "instructions.bin")
 

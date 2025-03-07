@@ -3,292 +3,175 @@
 ****************************/
 #include "simulator_header.h"
 
+/********************
+    READ BINARY FILES
+*********************/
+template <typename T>
+std::vector<T> read_binary_file(const std::string& file_path) {
+    std::ifstream file(file_path, std::ios::binary);
+    if (!file) {
+        perror(("ERROR: Could not open file: " + file_path).c_str());
+        return {}; // Return an empty vector
+    }
 
-/****************
-    MAIN FUNCTION
-*****************/
-int main()
-{
-    // Execute the simulator (using binary files)
-    execute_simulator();
-    
-    // Return 0 if the program has been successfully executed
-    return 0;
+    // Determine file size
+    file.seekg(0, std::ios::end);
+    std::streamsize file_size = file.tellg();
+    file.seekg(0, std::ios::beg);
+
+    if (file_size == -1) {
+        std::cerr << "ERROR: Could not determine file size.\n";
+        return {};
+    }
+
+    size_t num_elements = static_cast<size_t>(file_size) / sizeof(T);
+    std::vector<T> buffer(num_elements);
+
+    // Read data
+    file.read(reinterpret_cast<char*>(buffer.data()), file_size);
+
+    if (file.gcount() != file_size) {
+        std::cerr << "Warning: Could only read " << file.gcount() << " bytes from file.\n";
+    }
+
+    file.close();
+    return buffer;
 }
 
 
 /********************
     EXECUTE_SIMULATOR
 *********************/
-/*!
- * \brief Execute simulator using binary files
- */
-int execute_simulator(void)
-{
-    // Print the function name
+int execute_simulator() {
     printf("\nExecute simulator:\n");
 
-    // Folder location
     // Define the current location of main_simulator.cc
     std::filesystem::path currentPath = std::filesystem::current_path();
 
     // Define the path for the input files
-    std::filesystem::path InpPath = currentPath / ".." / ".." / "OUTPUT" / "input.bin";
-    std::string fileInpPath = InpPath.string();
-    std::filesystem::path WgtPath = currentPath / ".." / ".." / "OUTPUT" / "weight.bin";
-    std::string fileWgtPath = WgtPath.string();
-    std::filesystem::path AccPath = currentPath / ".." / ".." / "OUTPUT" / "accumulator.bin";
-    std::string fileAccPath = AccPath.string();
-    std::filesystem::path UopPath = currentPath / ".." / ".." / "OUTPUT" / "uop.bin";
-    std::string fileUopPath = UopPath.string();
-    std::filesystem::path InsnPath = currentPath / ".." / ".." / "OUTPUT" / "instructions.bin";
-    std::string fileInsnPath = InsnPath.string();
-    std::filesystem::path ExpectedOutPath = currentPath / ".." / ".." / "OUTPUT" / "expected_out.bin";
-    std::string fileExpectedOutPath = ExpectedOutPath.string();
+    auto construct_path = [&](const std::string& filename) {
+        return (currentPath / ".." / ".." / "compiler_output" / filename).string();
+    };
 
-    // File size variable
-    long file_size = 0;
+    std::string fileInpPath = construct_path("input.bin");
+    std::string fileWgtPath = construct_path("weight.bin");
+    std::string fileAccPath = construct_path("accumulator.bin");
+    std::string fileUopPath = construct_path("uop.bin");
+    std::string fileInsnPath = construct_path("instructions.bin");
+    std::string fileExpectedOutPath = construct_path("expected_out.bin");
 
-    // DATA DEFINITION
-    // ---------------
-    // Input (A - INP) -> read the input.bin file (rb to read a binary file)
-    FILE * pFileInp;
-    pFileInp = fopen(fileInpPath.c_str(), "rb"); 
+    // Read input files into vectors
+    std::vector<int8_t> inpA = read_binary_file<int8_t>(fileInpPath);
+    std::vector<int8_t> wgtB = read_binary_file<int8_t>(fileWgtPath);
+    std::vector<int32_t> accX = read_binary_file<int32_t>(fileAccPath);
+    std::vector<uop_t> uop_buffer = read_binary_file<uop_t>(fileUopPath);
+    std::vector<instruction_t> insn_buffer = read_binary_file<instruction_t>(fileInsnPath);
 
-    // Return an error if the file does not open:
-    if (pFileInp == nullptr){
-        fclose(pFileInp); // Close the file
-        perror("ERROR: program fails at opening the INP binary file"); // Return an error
-        return 1;
+   // Handle the output file differently
+    std::vector<int8_t> outC;
+    size_t outC_size = 0; // Keep track of the actual size
+
+    std::ifstream expectedOutFile(fileExpectedOutPath, std::ios::binary);
+    if (!expectedOutFile.is_open()) {
+        std::cerr << "Warning: Could not open expected_out.bin, initializing outC with a default size.\n";
+        outC_size = 16 * 256; // Initialize with a maximum size
+        outC.resize(outC_size, 0); // Initialize with a maximum size
+    } else {
+        expectedOutFile.seekg(0, std::ios::end);
+        std::streamsize fileSize = expectedOutFile.tellg();
+        expectedOutFile.seekg(0, std::ios::beg);
+
+        if (fileSize == -1) {
+            std::cerr << "ERROR: Could not determine file size for expected_out.bin.\n";
+            outC_size = 16 * 256;
+            outC.resize(outC_size, 0);
+        } else {
+            outC_size = static_cast<size_t>(fileSize) / sizeof(int8_t);
+            outC.resize(outC_size);
+            expectedOutFile.read(reinterpret_cast<char*>(outC.data()), fileSize);
+        }
+        expectedOutFile.close();
     }
 
-    // Move to the end of the file 
-    fseek(pFileInp, 0, SEEK_END);
-    // Return the size of the file by returning the position of the cursor
-    file_size = ftell(pFileInp);
-    // Come back to the beginning of the file
-    fseek(pFileInp, 0, SEEK_SET);
+    // Memory allocation using VTA functions
+    void* mem_inpA = VTAMemAlloc(inpA.size() * sizeof(int8_t), 1);
+    void* mem_wgtB = VTAMemAlloc(wgtB.size() * sizeof(int8_t), 1);
+    void* mem_outC = VTAMemAlloc(outC_size * sizeof(int8_t), 1); // Use the actual size
+    void* mem_uop = VTAMemAlloc(uop_buffer.size() * sizeof(uop_t), 1);
+    void* mem_accX = VTAMemAlloc(accX.size() * sizeof(int32_t), 1);
+    void* mem_insn = VTAMemAlloc(insn_buffer.size() * sizeof(instruction_t), 1);
 
-    // Read the file
-    int8_t inpA[file_size/sizeof(int8_t)] = {0}; 
-    fread(&inpA, sizeof(inpA[0]), sizeof(inpA)/sizeof(inpA[0]), pFileInp); // (ptr, size, count, stream)
+    // Get physical addresses
+    vta_phy_addr_t phy_add_insn = VTAMemGetPhyAddr(mem_insn);
+    vta_phy_addr_t phy_add_inpA = VTAMemGetPhyAddr(mem_inpA);
+    vta_phy_addr_t phy_add_wgtB = VTAMemGetPhyAddr(mem_wgtB);
+    vta_phy_addr_t phy_add_outC = VTAMemGetPhyAddr(mem_outC);
+    vta_phy_addr_t phy_add_uop = VTAMemGetPhyAddr(mem_uop);
+    vta_phy_addr_t phy_add_accX = VTAMemGetPhyAddr(mem_accX);
 
-    // Close the file
-    fclose(pFileInp);
-    
+    printf("\nDEBUG: PHYSICAL (phy) vs LOGIC (logic) ADDRESS: \n"
+           " inpA = phy:0x%x, logic:0x%x (logic = phy/16) \n"
+           " wgtB = phy:0x%x, logic:0x%x (logic = phy/256) \n"
+           " outC = phy:0x%x, logic:0x%x (logic = phy/16) \n"
+           " uop = phy:0x%x, logic:0x%x (logic = phy/4) \n"
+           " accX = phy:0x%x, logic:0x%x (logic = phy/64) \n"
+           " insn = phy:0x%x, logic:0x%x (logic = phy/16) \n\n",
+           phy_add_inpA, phy_add_inpA / 16, phy_add_wgtB, phy_add_wgtB / 256,
+           phy_add_outC, phy_add_outC / 16, phy_add_uop, phy_add_uop / 4,
+           phy_add_accX, phy_add_accX / 64, phy_add_insn, phy_add_insn / 16);
 
-    // Weight (B - WGT) -> read the weight.bin file (rb to read a binary file)
-    FILE * pFileWgt;
-    pFileWgt = fopen(fileWgtPath.c_str(), "rb"); 
+    // Copy data to VTA memory
+    VTAMemCopyFromHost(mem_inpA, inpA.data(), inpA.size() * sizeof(int8_t));
+    VTAMemCopyFromHost(mem_wgtB, wgtB.data(), wgtB.size() * sizeof(int8_t));
+    VTAMemCopyFromHost(mem_outC, outC.data(), outC_size * sizeof(int8_t)); // Use the actual size
+    VTAMemCopyFromHost(mem_uop, uop_buffer.data(), uop_buffer.size() * sizeof(uop_t));
+    VTAMemCopyFromHost(mem_accX, accX.data(), accX.size() * sizeof(int32_t));
+    VTAMemCopyFromHost(mem_insn, insn_buffer.data(), insn_buffer.size() * sizeof(instruction_t));
 
-    // Return an error if the file does not open:
-    if (pFileWgt == nullptr){
-        fclose(pFileWgt); // Close the file
-        perror("ERROR: program fails at opening the WGT binary file");
-        return 1;
-    }
-
-    // Move to the end of the file 
-    fseek(pFileWgt, 0, SEEK_END);
-    // Return the size of the file by returning the position of the cursor
-    file_size = ftell(pFileWgt);
-    // Come back to the beginning of the file
-    fseek(pFileWgt, 0, SEEK_SET);
-
-    // Read the file
-    int8_t wgtB[file_size/sizeof(int8_t)] = {0}; 
-    fread(&wgtB, sizeof(wgtB[0]), sizeof(wgtB)/sizeof(wgtB[0]), pFileWgt); // (ptr, size, count, stream)
-
-    // Close the file
-    fclose(pFileWgt);
-    
-
-    // ACCUMULATOR (X - ACC) -> read the accumulator.bin file (rb to read a binary file)
-    FILE * pFileAcc;
-    pFileAcc = fopen(fileAccPath.c_str(), "rb"); 
-
-    // Return an error if the file does not open:
-    if (pFileAcc == nullptr){
-        fclose(pFileAcc); // Close the file
-        perror("ERROR: program fails at opening the ACC binary file");
-        return 1;
-    }
-
-    // Move to the end of the file 
-    fseek(pFileAcc, 0, SEEK_END);
-    // Return the size of the file by returning the position of the cursor
-    file_size = ftell(pFileAcc);
-    // Come back to the beginning of the file
-    fseek(pFileAcc, 0, SEEK_SET);
-
-    // Read the file
-    int32_t accX[file_size/sizeof(int32_t)] = {0}; 
-    fread(&accX, sizeof(accX[0]), sizeof(accX)/sizeof(accX[0]), pFileAcc); // (ptr, size, count, stream)
-
-    // Close the file
-    fclose(pFileAcc);
-
-
-    // Output (C - OUT)
-    FILE * pFileExpectedOut;
-    pFileExpectedOut = fopen(fileExpectedOutPath.c_str(), "rb"); 
-
-    // No expected result if the file does not open:
-    if (pFileExpectedOut == nullptr){
-        // Give the biggest size to the out vector
-        file_size = 16*256; // 256 vectors of 16 elements maximum (= 4096 elements)
-    }
-    else { // Take the expected size file
-    // Move to the end of the file 
-    fseek(pFileExpectedOut, 0, SEEK_END);
-    // Return the size of the file by returning the position of the cursor
-    file_size = ftell(pFileExpectedOut);
-
-    // Close the file
-    fclose(pFileExpectedOut);
-    }
-
-    // Define the size:
-    int8_t outC[file_size/sizeof(int8_t)] = {0}; // (16*256 = MAX, else CORE DUMPED)
-    init_vector_values(outC, sizeof(outC), false, 0); // (vector, size, random_value, seed)
-
-
-    // UOP DEFINITION
-    // --------------
-    // Read the uop.bin file (rb to read a binary file)
-    FILE * pFileUop;
-    pFileUop = fopen(fileUopPath.c_str(), "rb"); 
-
-    // Return an error if the file does not open:
-    if (pFileUop == nullptr){
-        fclose(pFileUop); // Close the file
-        perror("ERROR: program fails at opening the UOP binary file");
-        return 1;
-    }
-
-    // Move to the end of the file 
-    fseek(pFileUop, 0, SEEK_END);
-    // Return the size of the file by returning the position of the cursor
-    file_size = ftell(pFileUop);
-    // Come back to the beginning of the file
-    fseek(pFileUop, 0, SEEK_SET);
-
-    // Read the file
-    uop_t uop_buffer[file_size/sizeof(uop_t)] = {0}; 
-    fread(&uop_buffer, sizeof(uop_buffer[0]), sizeof(uop_buffer)/sizeof(uop_buffer[0]), pFileUop); // (ptr, size, count, stream)
-
-    // Close the file
-    fclose(pFileUop);
-
-
-    // INSTRUCTION DEFINITION
-    // ----------------------
-    // Read the instructions.bin file (rb to read a binary file)
-    FILE * pFileInsn;
-    pFileInsn = fopen(fileInsnPath.c_str(), "rb"); 
-
-    // Return an error if the file does not open:
-    if (pFileInsn == nullptr){
-        fclose(pFileInsn); // Close the file
-        perror("ERROR: program fails at opening the INSN binary file");
-        return 1;
-    }
-
-    // Move to the end of the file 
-    fseek(pFileInsn, 0, SEEK_END);
-    // Return the size of the file by returning the position of the cursor
-    file_size = ftell(pFileInsn);
-    // Come back to the beginning of the file
-    fseek(pFileInsn, 0, SEEK_SET);
-
-    // Read the file
-    instruction_t insn_buffer[file_size/sizeof(instruction_t)] = {0}; 
-    fread(&insn_buffer, sizeof(insn_buffer[0]), sizeof(insn_buffer)/sizeof(insn_buffer[0]), pFileInsn); // (ptr, size, count, stream)
-
-    // Close the file
-    fclose(pFileInsn);
-
-
-    // SIMULATOR EXECUTION
-    // -------------------
-    // Allocate memory space
-    void * mem_inpA = VTAMemAlloc(sizeof(inpA), 1); // (size n Bytes, cached) 
-    void * mem_wgtB = VTAMemAlloc(sizeof(wgtB), 1); 
-    void * mem_outC = VTAMemAlloc(sizeof(outC), 1); 
-    void * mem_uop  = VTAMemAlloc(sizeof(uop_buffer), 1);
-    void * mem_accX = VTAMemAlloc(sizeof(accX), 1); 
-    void * mem_insn = VTAMemAlloc(sizeof(insn_buffer), 1); // (size n Bytes, cached) 
-
-    // Get the physical address of the allocation (used for INSTRUCTIONS)
-    vta_phy_addr_t phy_add_insn = VTAMemGetPhyAddr(mem_insn); // (buffer)
-    vta_phy_addr_t phy_add_inpA = VTAMemGetPhyAddr(mem_inpA); // (buffer)
-    vta_phy_addr_t phy_add_wgtB = VTAMemGetPhyAddr(mem_wgtB); // (buffer)
-    vta_phy_addr_t phy_add_outC = VTAMemGetPhyAddr(mem_outC); // (buffer)
-    vta_phy_addr_t phy_add_uop = VTAMemGetPhyAddr(mem_uop); // (buffer)
-    vta_phy_addr_t phy_add_accX = VTAMemGetPhyAddr(mem_accX); // (buffer)
-
-    printf("\nDEBUG: PHYSICAL (phy) vs LOGIC (logic) ADDRESS: \n \
-         inpA = phy:0x%x, logic:0x%x (logic = phy/16) \n \
-         wgtB = phy:0x%x, logic:0x%x (logic = phy/256) \n \
-         outC = phy:0x%x, logic:0x%x (logic = phy/16) \n \
-         uop = phy:0x%x, logic:0x%x (logic = phy/4) \n \
-         accX = phy:0x%x, logic:0x%x (logic = phy/64) \n \
-         insn = phy:0x%x, logic:0x%x (logic = phy/16) \n\n", \
-         phy_add_inpA, phy_add_inpA/16, phy_add_wgtB, phy_add_wgtB/256, phy_add_outC, phy_add_outC/16, phy_add_uop, phy_add_uop/4, phy_add_accX, phy_add_accX/64, phy_add_insn, phy_add_insn/16);
-
-    // Copy the data from host to allocated memories
-    VTAMemCopyFromHost(mem_inpA, &inpA, sizeof(inpA)); // (dst, src, size in Bytes) 
-    VTAMemCopyFromHost(mem_wgtB, &wgtB, sizeof(wgtB));
-    VTAMemCopyFromHost(mem_outC, &outC, sizeof(outC));
-    VTAMemCopyFromHost(mem_uop, &uop_buffer, sizeof(uop_buffer));
-    VTAMemCopyFromHost(mem_accX, &accX, sizeof(accX));
-    VTAMemCopyFromHost(mem_insn, &insn_buffer, sizeof(insn_buffer)); 
-
-    // Allocate device
+    // Run VTA device
     VTADeviceHandle vta_device = VTADeviceAlloc();
-
-    // Run device (0 = success, 1 = timeout) 
-    int execution_flag = VTADeviceRun(vta_device, phy_add_insn, sizeof(insn_buffer)/sizeof(insn_buffer[0]), 0); // (device, insn_phy_addr, insn_count, wait_cycles) // > wait_cycles not used!
+    int execution_flag = VTADeviceRun(vta_device, phy_add_insn, insn_buffer.size(), 0);
     printf("\nThe execution returns: %d \n\t(return 0 if running is successful, 1 if timeout)\n", execution_flag);
+    VTADeviceFree(vta_device);
 
-    // Free device
-    VTADeviceFree(vta_device); // (VTADeviceHandle)
+    // Copy result back
+    VTAMemCopyToHost(outC.data(), mem_outC, outC_size * sizeof(int8_t)); // Use the actual size
 
-    // Return the data to the host (update outC)
-    VTAMemCopyToHost(&outC, mem_outC, sizeof(outC)); // (dst, src, size)
-    
-    // Free memory space
-    VTAMemFree(mem_inpA); // (buffer)
-    VTAMemFree(mem_wgtB); 
+    // Free memory
+    VTAMemFree(mem_inpA);
+    VTAMemFree(mem_wgtB);
     VTAMemFree(mem_outC);
     VTAMemFree(mem_uop);
-    VTAMemFree(mem_accX); 
-    VTAMemFree(mem_insn); 
+    VTAMemFree(mem_accX);
+    VTAMemFree(mem_insn);
 
+    // Print results
+    printf("\n\nRESULT:\n");
 
-    // GET THE RESULT
-    // --------------
-    printf("\n\nRESULT:");
-
-    printf("\ninpA = {");
-    print_int8_vector(inpA, sizeof(inpA)/sizeof(inpA[0])); // (vector, size)
+    printf("inpA = {");
+    print_int8_vector(inpA.data(), inpA.size());
     printf("\n} \n");
 
-    printf("\nwgtB = {");
-    print_int8_vector(wgtB, sizeof(wgtB)/sizeof(wgtB[0])); // (vector, size)
+    printf("wgtB = {");
+    print_int8_vector(wgtB.data(), wgtB.size());
     printf("\n} \n\n");
 
-    printf("\naccX = {");
-    print_int32_vector(accX, sizeof(accX)/sizeof(accX[0])); // (vector, size)
+    printf("accX = {");
+    print_int32_vector(accX.data(), accX.size());
     printf("\n} \n\n");
 
-    printf("\noutC = {");
-    print_int8_vector(outC, sizeof(outC)/sizeof(outC[0])); // (vector, size)
+    printf("outC = {");
+    print_int8_vector(outC.data(), outC_size); // Use the actual size
     printf("\n} \n\n");
 
+    return 0;
+}
 
-    // END!
-    // ----
-    // Return no error code
+
+/****************
+    MAIN FUNCTION
+*****************/
+int main() {
+    execute_simulator();
     return 0;
 }

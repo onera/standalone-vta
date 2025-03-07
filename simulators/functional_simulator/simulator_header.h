@@ -11,6 +11,9 @@
   **********************/
   // System package
   #include <filesystem>
+  #include <iostream>
+  #include <fstream>
+  #include <vector>
 
   // Configuration
   #include "config/config_header.h" // Instruction and UOP types

@@ -12,10 +12,12 @@
 /**/build/
 /**/build/*
 
-# Do not consider OUTPUT repository
-# --------------------------------_
-/**/OUTPUT/
-/**/OUTPUT/*
+# Do not consider OUTPUTS repositories
+# ------------------------------------
+/**/compiler_output/
+/**/compiler_output/*
+/**/simulators_output/
+/**/simulators_output/*
 
 # Do not consider binary files (nor executable)
 # ----------------------------
