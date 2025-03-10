@@ -28,14 +28,32 @@ void dump_memory(void * ptr, const char * path, size_t size, size_t n_element){
 /*!
  * \brief Print a vector with 8-bit data
  */
-void print_vector(int8_t * vector, uint64_t size){
+void print_int8_vector(int8_t * vector, uint64_t size){
     // Loop over the vector elements
     for (uint64_t elem = 0; elem < size; elem++){
         // New line each 16 elements
         if (elem%16 == 0){
             printf("\n");
             if (elem%256 == 0){
-                printf("\n");
+                printf("\n \t(Element nb: %ld) \n", elem/256);
+            }
+        }
+        // Print the element
+        printf("\t %d", vector[elem]);
+    }
+}
+
+/*!
+ * \brief Print a vector with 32-bit data
+ */
+void print_int32_vector(int32_t * vector, uint64_t size){
+    // Loop over the vector elements
+    for (uint64_t elem = 0; elem < size; elem++){
+        // New line each 16 elements
+        if (elem%16 == 0){
+            printf("\n");
+            if (elem%256 == 0){
+                printf("\n \t(Element nb: %ld) \n", elem/256);
             }
         }
         // Print the element

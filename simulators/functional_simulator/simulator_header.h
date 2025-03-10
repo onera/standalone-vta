@@ -11,6 +11,9 @@
   **********************/
   // System package
   #include <filesystem>
+  #include <iostream>
+  #include <fstream>
+  #include <vector>
 
   // Configuration
   #include "config/config_header.h" // Instruction and UOP types
@@ -35,7 +38,10 @@
   void dump_memory(void * ptr, const char * path, size_t size, size_t n_element);
 
   // Print int8_t vector
-  void print_vector(int8_t * vector, uint64_t size);
+  void print_int8_vector(int8_t * vector, uint64_t size);
+
+  // Print int32_t vector
+  void print_int32_vector(int32_t * vector, uint64_t size);
 
   // Compare two 8-bit vectors
   bool compare_vector(int8_t * vector_A, int8_t * vector_B, uint64_t size);

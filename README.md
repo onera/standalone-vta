@@ -24,6 +24,12 @@ This project aims to improve the VTA's usability and applicability, particularly
         * `src/main/scala/core/`: The hardware description of the VTA.
         * `src/test/scala/simulator/`: The cycle-accurate simulator with different level of simulation (e.g., TensorAlu, Compute module, TensorGemm). The cycle-accurate simulator uses JSON files located in `src/test/scala/resources/`.
         * `src/test/scala/formal/`: The formal verification of the VTA hardware description using chiseltest.
+*   `Makefile`: To execute examples including compilation and simulation. The command `make list` give the list of the possible filename, then `make FILENAME=<filename>` enables to run an example. For example:
+    ```
+    make FILENAME=lenet5_layer1
+    ```
+    The result of the execution will be stored in `simulators_output/` and named `fsim_report.txt`.
+
 
 ## Getting Started
 
