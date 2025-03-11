@@ -3,11 +3,12 @@
 import os
 import sys
 import importlib
+import numpy as np
 import matrix_generator as MG
 import matrix_multiplication as MM
 import matrix_split as MS
 import json_generator as JG
-import numpy as np
+import memory_addresses as MA
 
 
 # MAIN FUNCTION
@@ -96,6 +97,7 @@ def main(config_file):
 
     # Print the matrices
     if (config.doPrint):
+        # INITIAL non-padded MATRICES
         print("\n INITIAL MATRICES:")
         print(f"A_matrix: ((h, w) = {np.shape(A_matrix)}) \n", A_matrix)
         print(f"\n x \n B_matrix: ((h, w) = {np.shape(B_matrix)}) \n", B_matrix)
@@ -104,6 +106,7 @@ def main(config_file):
             print("\n => cast into int8: \n C_matrix: \n", C_matrix)
         print(f"\n\n X_matrix: ((h, w) = {np.shape(X_matrix)}) \n", X_matrix)
 
+        # PADDED MATRICES
         print("\n\n\n PADDED MATRICES:")
         print(f"A_padded: ((h, w) = {np.shape(A_padded)}) \n", A_padded)
         print(f"\n x \n B_padded: ((h, w) = {np.shape(B_padded)}) \n", B_padded)
@@ -111,6 +114,7 @@ def main(config_file):
         print("\n => cast into int8: \n C_padded: \n", C_padded)
         print(f"\n\n X_padded: ((h, w) = {np.shape(X_padded)}) \n", X_padded)
 
+        # SPLITTED by blocks MATRICES
         print("\n\n\n SPLITTED MATRICES:")
         i = 0
         print(f"A_blocks: (blocks_col = {A_blocks_col})")
@@ -143,10 +147,6 @@ def main(config_file):
             print(block)
             i = i + 1
 
-        print("\n\nBlock computation combination:")
-        for combination in combinations:
-            print(combination)
-
         i = 0
         print(f"\n\n Resulting X_blocks: (blocks_col = {X_blocks_col})")
         for block in X_blocks:
@@ -154,8 +154,20 @@ def main(config_file):
             print(block)
             i = i + 1
 
+        # Check results consistency
         print("\n\n\n COMPARISON OF ACC_RECONSTRUCTED AND EXPECTED ACC_PADDED:")
         print("Does ACC_reconstructed == ACC_padded:", np.allclose(ACC_reconstructed, ACC_padded))
+
+        # Print block combination to perform the multiplication
+        print("\n\nBlock multiplication combination:")
+        for combination in combinations:
+            print(combination)
+
+        # Print the memory addresses
+        vta_addr = MA.calculate_memory_addresses(A_blocks, B_blocks, C_blocks, X_blocks, config.block_size)
+        print("\n\n DRAM 'physical' VTA ADDRESSES:\n")
+        for addr in vta_addr:
+            print(addr)
 
     # End of the execution
     return 0
