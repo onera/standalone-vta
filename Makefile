@@ -12,6 +12,17 @@ INSN_FILE := insn_$(FILENAME)
 
 
 # Default execution (when no argument is given)
+.PHONY: help
+help: 
+	@echo "To execute the command:"
+	@echo "  1 - Consult the list of available examples: make list"
+	@echo "  2 - Execute an examples: make FILENAME=<filename>"
+	@echo "  3 - Check within compiler_output/ folder to see the compiler result," 
+	@echo "      and within simulators_output/ folder to see the simulators results"
+	@echo "  4 - Clean the folders with: make clean"
+
+
+# Default example
 all: $(FILENAME)
 
 # Execution with specified FILENAME
@@ -44,6 +55,7 @@ list:
 	@for name in $(POSSIBLE_FILENAMES); do \
 		echo $$name; \
 	done
+	@echo "" && echo "Command line: make FILENAME=<filename>"
 
 
 # CREATE OUTPUTS DIRECTORIES
