@@ -3,41 +3,6 @@
 ****************************/
 #include "simulator_header.h"
 
-/********************
-    READ BINARY FILES
-*********************/
-template <typename T>
-std::vector<T> read_binary_file(const std::string& file_path) {
-    std::ifstream file(file_path, std::ios::binary);
-    if (!file) {
-        perror(("ERROR: Could not open file: " + file_path).c_str());
-        return {}; // Return an empty vector
-    }
-
-    // Determine file size
-    file.seekg(0, std::ios::end);
-    std::streamsize file_size = file.tellg();
-    file.seekg(0, std::ios::beg);
-
-    if (file_size == -1) {
-        std::cerr << "ERROR: Could not determine file size.\n";
-        return {};
-    }
-
-    size_t num_elements = static_cast<size_t>(file_size) / sizeof(T);
-    std::vector<T> buffer(num_elements);
-
-    // Read data
-    file.read(reinterpret_cast<char*>(buffer.data()), file_size);
-
-    if (file.gcount() != file_size) {
-        std::cerr << "Warning: Could only read " << file.gcount() << " bytes from file.\n";
-    }
-
-    file.close();
-    return buffer;
-}
-
 
 /********************
     EXECUTE_SIMULATOR
@@ -88,12 +53,18 @@ int execute_simulator() {
         } else {
             outC_size = static_cast<size_t>(fileSize) / sizeof(int8_t);
             outC.resize(outC_size);
-            expectedOutFile.read(reinterpret_cast<char*>(outC.data()), fileSize);
         }
         expectedOutFile.close();
     }
 
     // Memory allocation using VTA functions
+    printf("\n\nDEBUG: Allocation space:\n"
+           "\t INP: %lu Bytes (= %lu vectors) \n"
+           "\t WGT: %lu Bytes (= %lu vectors) \n"
+           "\t OUT: %lu Bytes (= %lu vectors) \n",
+           inpA.size() * sizeof(int8_t), inpA.size() * sizeof(int8_t) / 16,
+           wgtB.size() * sizeof(int8_t), wgtB.size() * sizeof(int8_t) / 256,
+           outC_size * sizeof(int8_t), outC_size * sizeof(int8_t) / 16);
     void* mem_inpA = VTAMemAlloc(inpA.size() * sizeof(int8_t), 1);
     void* mem_wgtB = VTAMemAlloc(wgtB.size() * sizeof(int8_t), 1);
     void* mem_outC = VTAMemAlloc(outC_size * sizeof(int8_t), 1); // Use the actual size

@@ -95,6 +95,22 @@ build/virtual_memory.o: src/virtual_memory.cc include/virtual_memory.h build/vta
 #build/%.o: src/%.cc build/vta_config_def.txt
 #	$(CC) $(VTA_DEFS) $(CFLAGS) -o $@ -c $<
 
+# Compile and link lenet5_implementation_simulator:
+build/lenet5_implementation_simulator.o: lenet5_implementation_simulator.cc simulator_header.h
+	$(CC) $(VTA_DEFS) $(CFLAGS) -o build/lenet5_implementation_simulator.o -c lenet5_implementation_simulator.cc
+
+build/lenet5_implementation_simulator: build/vta_config_def.txt $(OBJS) build/lenet5_implementation_simulator.o lib_tvm
+	$(CC) build/lenet5_implementation_simulator.o build/simulator_functions.o \
+	build/virtual_memory.o build/sim_tlpp.o \
+	build/sim_driver.o \
+	$(OBJ_LIB_TVM) -o $@
+	@echo
+	@echo "Successful link of lenet5_implementation_simulator!"
+	@echo "To run the executable: ./build/lenet5_implementation_simulator" 
+
+lenet5: build/lenet5_implementation_simulator
+	build/lenet5_implementation_simulator
+
 
 # COMPILING EXTERNAL LIBRARIES
 # ----------------------------

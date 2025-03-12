@@ -4,24 +4,6 @@
 #include "simulator_header.h"
 
 
-/**************
-    DUMP_MEMORY
-***************/
-/*!
- * \brief Dump memory into a binary file
- */
-void dump_memory(void * ptr, const char * path, size_t size, size_t n_element){
-    // Stream
-    FILE * pFile;
-    // Open and write the file
-    // FWRITE to write the binary content in a file 
-    pFile = fopen(path, "wb"); 
-    fwrite(ptr, size, n_element, pFile); 
-    // Close the file
-    fclose(pFile);
-}
-
-
 /***************
     PRINT_VECTOR
 ****************/
