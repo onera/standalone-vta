@@ -28,6 +28,12 @@ def calculate_memory_addresses(A_blocks, B_blocks, C_blocks, X_blocks, block_siz
         ('ACC', X_blocks)
     ]:
         if obj_type == 'UOP':
+            addresses.append({
+                'type': 'UOP',
+                'block': 'U0',
+                'phys_hex': hex(current_phys),
+                'logic_hex': hex(current_phys//4)
+            })
             current_phys = ((current_phys + 0x1000 - 1) // 0x1000) * 0x1000 + 0x1000
             continue
 
@@ -48,3 +54,4 @@ def calculate_memory_addresses(A_blocks, B_blocks, C_blocks, X_blocks, block_siz
         current_phys = ((current_phys + 0x1000 - 1) // 0x1000) * 0x1000
 
     return addresses
+

@@ -3,12 +3,12 @@
 
 """MATRIX GENERATION"""
 # Matrices initialised with random value? (True / False)
-isInitRandom = True
+isInitRandom = False
 # If yes, random_bound limit the value range (int8 = [-128; 127] -> random_bound = 128)
 random_bound = 4
 
 # A matrix size (INPUT)
-A_row = 1
+A_row = 16
 A_col = 1
 
 # B matrix size (WEIGHT)
@@ -24,10 +24,7 @@ X_col = 2
 block_size = 16
 
 # Use square matrix or not
-isSquare = True
-
-# Compute the non-padded matrix? (True / False)
-doMultiplyNonPadded = False
+isSquare = False
 
 # C matrix option
 # Reduction from int16 to int8: useClip (True / False)
@@ -38,8 +35,16 @@ useClip = False
 # Apply ReLU on the result
 useReLU = False
 
+# Add average pooling (for square tensor)
+doAvgPool = True
+Avg_kernel = 2
+Avg_stride = 2
+
 
 """PROMPTING AND DUMPING FILES FEATURES"""
+# Check if the result are consistent with reference computation? (True / False)
+doCompareWithReference = True
+
 # Print the data (True / False)
 doPrint = True
 

@@ -26,9 +26,6 @@ block_size = 16
 # Use square matrix or not
 isSquare = True
 
-# Compute the non-padded matrix? (True / False)
-doMultiplyNonPadded = False
-
 # C matrix option
 # Reduction from int16 to int8: useClip (True / False)
 # => True: if x > 0: clip => max(127, x)
@@ -38,8 +35,16 @@ useClip = False
 # Apply ReLU on the result
 useReLU = True
 
+# Add average pooling (for square tensor)
+doAvgPool = True
+Avg_kernel = 2
+Avg_stride = 2
+
 
 """PROMPTING AND DUMPING FILES FEATURES"""
+# Check if the result are consistent with reference computation? (True / False)
+doCompareWithReference = True
+
 # Print the data (True / False)
 doPrint = True
 
