@@ -191,7 +191,11 @@ def main(config_file):
             print(combination)
 
         # Print the memory addresses
-        vta_addr = MA.calculate_memory_addresses(A_blocks, B_blocks, C_blocks, X_blocks, config.block_size)
+        if (config.isSquare):
+            block = config.block_size
+        else:
+            block = 1
+        vta_addr = MA.calculate_memory_addresses(A_blocks, B_blocks, C_blocks, X_blocks, block)
         print("\n\n DRAM 'physical' VTA ADDRESSES:")
         for addr in vta_addr:
             print(addr)
