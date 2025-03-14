@@ -24,7 +24,7 @@ X_col = 1
 block_size = 16
 
 # Use square matrix or not
-isSquare = True
+isSquare = False
 
 # C matrix option
 # Reduction from int16 to int8: useClip (True / False)

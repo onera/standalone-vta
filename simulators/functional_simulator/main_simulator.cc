@@ -67,7 +67,7 @@ int execute_simulator() {
            outC_size * sizeof(int8_t), outC_size * sizeof(int8_t) / 16);
     void* mem_inpA = VTAMemAlloc(inpA.size() * sizeof(int8_t), 1);
     void* mem_wgtB = VTAMemAlloc(wgtB.size() * sizeof(int8_t), 1);
-    void* mem_outC = VTAMemAlloc(outC_size * sizeof(int8_t), 1); // Use the actual size
+    void* mem_outC = VTAMemAlloc(outC_size * sizeof(int8_t), 1);
     void* mem_uop = VTAMemAlloc(uop_buffer.size() * sizeof(uop_t), 1);
     void* mem_accX = VTAMemAlloc(accX.size() * sizeof(int32_t), 1);
     void* mem_insn = VTAMemAlloc(insn_buffer.size() * sizeof(instruction_t), 1);
@@ -94,7 +94,7 @@ int execute_simulator() {
     // Copy data to VTA memory
     VTAMemCopyFromHost(mem_inpA, inpA.data(), inpA.size() * sizeof(int8_t));
     VTAMemCopyFromHost(mem_wgtB, wgtB.data(), wgtB.size() * sizeof(int8_t));
-    VTAMemCopyFromHost(mem_outC, outC.data(), outC_size * sizeof(int8_t)); // Use the actual size
+    VTAMemCopyFromHost(mem_outC, outC.data(), outC_size * sizeof(int8_t)); 
     VTAMemCopyFromHost(mem_uop, uop_buffer.data(), uop_buffer.size() * sizeof(uop_t));
     VTAMemCopyFromHost(mem_accX, accX.data(), accX.size() * sizeof(int32_t));
     VTAMemCopyFromHost(mem_insn, insn_buffer.data(), insn_buffer.size() * sizeof(instruction_t));
@@ -106,7 +106,9 @@ int execute_simulator() {
     VTADeviceFree(vta_device);
 
     // Copy result back
-    VTAMemCopyToHost(outC.data(), mem_outC, outC_size * sizeof(int8_t)); // Use the actual size
+    VTAMemCopyToHost(inpA.data(), mem_inpA, inpA.size() * sizeof(int8_t));
+    VTAMemCopyToHost(wgtB.data(), mem_wgtB, wgtB.size() * sizeof(int8_t));
+    VTAMemCopyToHost(outC.data(), mem_outC, outC_size * sizeof(int8_t)); 
 
     // Free memory
     VTAMemFree(mem_inpA);
