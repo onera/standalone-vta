@@ -15,15 +15,15 @@ def matrix_int8_multiplication(A, B, useClip=False, useReLU=False):
     # Compute ACC in int16
     ACC = np.matmul(A.astype(np.int16), B.astype(np.int16))
 
+    # Apply ReLU
+    if (useReLU):
+        ACC = np.maximum(ACC, 0)
+
     # C is the cast of ACC into int8
     if (useClip): # clip: max(127, value) if value > 0
         C = np.clip(ACC, -128, 127).astype(np.int8) 
     else: # Truncate
         C = truncate_to_int8(ACC)
-
-    # Apply ReLU
-    if (useReLU):
-        C = np.maximum(C, 0)
 
     # Return ACC and C
     return ACC, C

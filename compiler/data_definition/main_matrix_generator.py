@@ -9,6 +9,7 @@ import matrix_multiplication as MM
 import matrix_split as MS
 import json_generator as JG
 import memory_addresses as MA
+import average_pooling as AP
 
 
 # MAIN FUNCTION
@@ -24,19 +25,24 @@ def main(config_file):
     A_matrix = MG.matrix_creation(n_row=config.A_row, n_col=config.A_col, isInitRandom=config.isInitRandom, random_bound=config.random_bound, dtype=np.int8)
     B_matrix = MG.matrix_creation(n_row=config.B_row, n_col=config.B_col, isInitRandom=config.isInitRandom, random_bound=config.random_bound, dtype=np.int8)
 
+    # Perform the reference computation 
+    ACC_matrix, C_matrix = MM.matrix_int8_multiplication(A=A_matrix, B=B_matrix, useClip=config.useClip, useReLU=config.useReLU)
+
     # Create the matrix X (the ACCUMULATOR VALUES) - int32
-    X_matrix = MG.matrix_creation(n_row=config.X_row, n_col=config.X_col, isInitRandom=config.isInitRandom, random_bound=config.random_bound, dtype=np.int32)
+    X_matrix = MG.matrix_creation(n_row=config.X_row, n_col=config.X_col, isInitRandom=(not config.isInitRandom), random_bound=config.random_bound, dtype=np.int32)
 
     # Pad the matrix to make n_row and n_col a multiple of block_size
     A_padded = MG.matrix_padding(matrix=A_matrix, block_size=config.block_size, isWeight=False, isSquare=config.isSquare)
     B_padded = MG.matrix_padding(matrix=B_matrix, block_size=config.block_size, isWeight=True, isSquare=config.isSquare)
     X_padded = MG.matrix_padding(matrix=X_matrix, block_size=config.block_size, isWeight=False, isSquare=config.isSquare)
 
-    # EXPECTED RESULTS (ACC: int16, C: ACC casted into int8)
-    if (config.doMultiplyNonPadded): # Compute non-padded matrices
-        ACC_matrix, C_matrix = MM.matrix_int8_multiplication(A=A_matrix, B=B_matrix, useClip=config.useClip, useReLU=config.useReLU)
-
+    # Perform the computation on the padded matrix
     ACC_padded, C_padded = MM.matrix_int8_multiplication(A=A_padded, B=B_padded, useClip=config.useClip, useReLU=config.useReLU)
+
+    # Check the result
+    if (config.doCompareWithReference):
+        ACC_ref = MG.matrix_padding(matrix=ACC_matrix, block_size=config.block_size, isWeight=False, isSquare=config.isSquare)
+        print(f"Check if the reference and the padded multiplication are equivalent: {np.allclose(ACC_ref, ACC_padded)} \n")
 
     # Split matrix into blocks
     A_blocks, A_blocks_col = MS.matrix_splitting(matrix=A_padded, block_size=config.block_size, isWeight=False, isSquare=config.isSquare)
@@ -45,17 +51,33 @@ def main(config_file):
 
     ## Multiply the blocks
     ACC_by_blocks, combinations = MM.block_matrix_multiply(A_blocks, B_blocks, A_blocks_col, B_blocks_col, block_size=config.block_size)
-    ACC_reconstructed = MM.reconstruct_matrix(ACC_by_blocks, (A_padded.shape[0], B_padded.shape[1]), block_size=config.block_size)
 
+    # Check the result
+    if (config.doCompareWithReference):
+        ACC_reconstructed = MM.reconstruct_matrix(ACC_by_blocks, (A_padded.shape[0], B_padded.shape[1]), block_size=config.block_size)
+        print(f"Check if the padded and the by-blocks multiplication are equivalent: {np.allclose(ACC_reconstructed, ACC_padded)} \n")
 
     # Split the results
-    ACC_blocks, ACC_blocks_row = MS.matrix_splitting(matrix=ACC_padded, block_size=config.block_size, isWeight=False, isSquare=config.isSquare)
-    C_blocks, C_blocks_row = MS.matrix_splitting(matrix=C_padded, block_size=config.block_size, isWeight=False, isSquare=config.isSquare)
+    ACC_blocks, ACC_blocks_col = MS.matrix_splitting(matrix=ACC_padded, block_size=config.block_size, isWeight=False, isSquare=config.isSquare)
+    C_blocks, C_blocks_col = MS.matrix_splitting(matrix=C_padded, block_size=config.block_size, isWeight=False, isSquare=config.isSquare)
 
     # Define the output repository
     output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'compiler_output')
     # Check if the OUTPUT dir exist, else create it
     os.makedirs(output_dir, exist_ok=True)
+
+    # Apply average pooling if necessary
+    if (config.doAvgPool):
+        if (config.isInitRandom):
+            ACC_pooled_ref, in_tensor, out_tensor = AP.reference_average_pooling(ACC_matrix, config.Avg_kernel, config.Avg_stride)
+        else:
+            ACC_pooled_ref, in_tensor, out_tensor = AP.reference_average_pooling(X_padded, config.Avg_kernel, config.Avg_stride)
+
+        # Overwrite the result
+        ACC_pooled = MG.matrix_padding(matrix=ACC_pooled_ref, block_size=config.block_size, isWeight=False, isSquare=config.isSquare)
+
+        #ACC_blocks, _ = MS.matrix_splitting(matrix=ACC_pooled, block_size=config.block_size, isWeight=False, isSquare=config.isSquare)
+        #ACC_blocks_pooled = AS.average_pooling_blocks(ACC_blocks, ACC_blocks_col, config.Avg_kernel, config.Avg_stride)
 
     # Write binary files
     if (config.doWriteBinaryFile):
@@ -85,7 +107,7 @@ def main(config_file):
         C_padded.tofile(C_padded_file_path)
 
         # Confirm the binary files generation
-        print("Binary files successfully generated.")
+        print("\nBinary files successfully generated.\n")
     
     # Write JSON files
     if (config.doWriteJSON):
@@ -101,7 +123,7 @@ def main(config_file):
         print("\n INITIAL MATRICES:")
         print(f"A_matrix: ((h, w) = {np.shape(A_matrix)}) \n", A_matrix)
         print(f"\n x \n B_matrix: ((h, w) = {np.shape(B_matrix)}) \n", B_matrix)
-        if (config.doMultiplyNonPadded):
+        if (config.doCompareWithReference):
             print(f"\n = \n ACC_matrix: ((h, w) = {np.shape(ACC_matrix)}) \n", ACC_matrix)
             print("\n => cast into int8: \n C_matrix: \n", C_matrix)
         print(f"\n\n X_matrix: ((h, w) = {np.shape(X_matrix)}) \n", X_matrix)
@@ -153,10 +175,13 @@ def main(config_file):
             print("\n X", i)
             print(block)
             i = i + 1
-
-        # Check results consistency
-        print("\n\n\n COMPARISON OF ACC_RECONSTRUCTED AND EXPECTED ACC_PADDED:")
-        print("Does ACC_reconstructed == ACC_padded:", np.allclose(ACC_reconstructed, ACC_padded))
+        
+        if (config.doAvgPool):
+            print(f"\n\n Average pooling result:\n{ACC_pooled}\n")
+            avg_indexes = AP.average_pooling_indexes(in_tensor_size=in_tensor, out_tensor_size=out_tensor, kernel_size=config.Avg_kernel, stride=config.Avg_stride)
+            print(f"\n\nAverage pooling final indexes:")
+            for index in avg_indexes:
+                print(index)
 
         # Print block combination to perform the multiplication
         print("\n\nBlock multiplication combination:")
@@ -165,7 +190,7 @@ def main(config_file):
 
         # Print the memory addresses
         vta_addr = MA.calculate_memory_addresses(A_blocks, B_blocks, C_blocks, X_blocks, config.block_size)
-        print("\n\n DRAM 'physical' VTA ADDRESSES:\n")
+        print("\n\n DRAM 'physical' VTA ADDRESSES:")
         for addr in vta_addr:
             print(addr)
 
