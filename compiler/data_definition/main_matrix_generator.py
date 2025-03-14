@@ -73,11 +73,12 @@ def main(config_file):
         else:
             ACC_pooled_ref, in_tensor, out_tensor = AP.reference_average_pooling(X_padded, config.Avg_kernel, config.Avg_stride)
 
-        # Overwrite the result
+        # Write the result
         ACC_pooled = MG.matrix_padding(matrix=ACC_pooled_ref, block_size=config.block_size, isWeight=False, isSquare=config.isSquare)
+        C_pooled = MM.truncate_to_int8(ACC_pooled)
 
-        #ACC_blocks, _ = MS.matrix_splitting(matrix=ACC_pooled, block_size=config.block_size, isWeight=False, isSquare=config.isSquare)
-        #ACC_blocks_pooled = AS.average_pooling_blocks(ACC_blocks, ACC_blocks_col, config.Avg_kernel, config.Avg_stride)
+        # Overwrite the result
+        C_blocks, _ = MS.matrix_splitting(matrix=C_pooled, block_size=config.block_size, isWeight=False, isSquare=config.isSquare)
 
     # Write binary files
     if (config.doWriteBinaryFile):
@@ -178,7 +179,8 @@ def main(config_file):
         
         if (config.doAvgPool):
             print(f"\n\n Average pooling result:\n{ACC_pooled}\n")
-            avg_indexes = AP.average_pooling_indexes(in_tensor_size=in_tensor, out_tensor_size=out_tensor, kernel_size=config.Avg_kernel, stride=config.Avg_stride)
+            avg_indexes = AP.average_pooling_indexes(in_tensor_size=in_tensor, out_tensor_size=out_tensor, 
+                                                     kernel_size=config.Avg_kernel, stride=config.Avg_stride)
             print(f"\n\nAverage pooling final indexes:")
             for index in avg_indexes:
                 print(index)
