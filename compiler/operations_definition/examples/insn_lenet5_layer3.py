@@ -70,7 +70,7 @@ insn_buffer.append(VTAMemInsn( # I0: LOAD UOP
     # Memory interaction
     buffer_id=0, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
     sram_base=0x0000,
-    dram_base=0x00004000, # TODO
+    dram_base=0x00004000, # TODO: modify to implement full LeNet-5
     unused=0, # UNUSED
     # Operation over the data
     y_size=1,
@@ -93,12 +93,12 @@ insn_buffer.append(VTAGemInsn( # I1: GEMM RESET
     reset=1, # 0-no, 1-reset
     uop_bgn=0, # UOP 0
     uop_end=1,
-    loop_out=1,
+    loop_out=8,
     loop_in=1,
     # UNUSED
     unused=0, # UNUSED
     # Index factors
-    dst_factor_out=0,
+    dst_factor_out=1,
     dst_factor_in=0,
     src_factor_out=0,
     src_factor_in=0,
@@ -138,7 +138,7 @@ insn_buffer.append(VTAMemInsn( # I3: LOAD WGT
     # Memory interaction
     buffer_id=1, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
     sram_base=0x0000,
-    dram_base=0x00000020, # TODO
+    dram_base=0x00000020, # TODO: modify to implement full LeNet-5
     unused=0, # UNUSED
     # Operation over the data
     y_size=1,
@@ -160,7 +160,7 @@ insn_buffer.append(VTAMemInsn( # I4: LOAD UOP
     # Memory interaction
     buffer_id=0, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
     sram_base=0x0001,
-    dram_base=0x00004001, # TODO
+    dram_base=0x00004001, # TODO: modify to implement full LeNet-5
     unused=0, # UNUSED
     # Operation over the data
     y_size=1,
@@ -214,7 +214,7 @@ insn_buffer.append(VTAAluInsn( # I6: ALU - MAX IMM 0 (relu)
     # Index factors
     dst_factor_out=1,
     dst_factor_in=0,
-    src_factor_out=0,
+    src_factor_out=1,
     src_factor_in=0,
     alu_opcode=1, # 0-MIN, 1-MAX, 2-ADD, 3-SHR, 4-MUL
     use_imm=1, # 0-no, 1-yes
@@ -231,7 +231,7 @@ insn_buffer.append(VTAMemInsn( # I7: STORE
     # Memory interaction
     buffer_id=4, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
     sram_base=0x0000,
-    dram_base=0x00000f00,
+    dram_base=0x00000f00, # TODO: modify to implement full LeNet-5
     unused=0, # UNUSED
     # Operation over the data
     y_size=1,

@@ -65,6 +65,7 @@ int execute_simulator() {
            inpA.size() * sizeof(int8_t), inpA.size() * sizeof(int8_t) / 16,
            wgtB.size() * sizeof(int8_t), wgtB.size() * sizeof(int8_t) / 256,
            outC_size * sizeof(int8_t), outC_size * sizeof(int8_t) / 16);
+           
     void* mem_inpA = VTAMemAlloc(inpA.size() * sizeof(int8_t), 1);
     void* mem_wgtB = VTAMemAlloc(wgtB.size() * sizeof(int8_t), 1);
     void* mem_outC = VTAMemAlloc(outC_size * sizeof(int8_t), 1);
