@@ -94,7 +94,7 @@ insn_buffer.append(VTAMemInsn( # I0: LOAD UOP
     # Memory interaction
     buffer_id=0, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
     sram_base=0x0000,
-    dram_base=0x00003400, # TODO
+    dram_base=0x00003400, # TODO: modify to implement full LeNet-5
     unused=0, # UNUSED
     # Operation over the data
     y_size=1,
@@ -162,7 +162,7 @@ insn_buffer.append(VTAMemInsn( # I3: LOAD WGT
     # Memory interaction
     buffer_id=1, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
     sram_base=0x0000,
-    dram_base=0x00000080, # TODO
+    dram_base=0x00000080, # TODO: modify to implement full LeNet-5
     unused=0, # UNUSED
     # Operation over the data
     y_size=1,
@@ -184,7 +184,7 @@ insn_buffer.append(VTAMemInsn( # I4: LOAD UOP
     # Memory interaction
     buffer_id=0, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
     sram_base=0x0001,
-    dram_base=0x00003401, # TODO
+    dram_base=0x00003401, # TODO: modify to implement full LeNet-5
     unused=0, # UNUSED
     # Operation over the data
     y_size=1,
@@ -354,7 +354,7 @@ for outer_loop in range(0,14):
             # Memory interaction
             buffer_id=4, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
             sram_base=0x0000 + 2*inner_loop + 56*outer_loop, 
-            dram_base=0x00000900 + inner_loop + 14*outer_loop, # TODO
+            dram_base=0x00000900 + inner_loop + 14*outer_loop, # TODO: modify to implement full LeNet-5
             unused=0, # UNUSED
             # Operation over the data
             y_size=1,
