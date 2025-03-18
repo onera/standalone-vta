@@ -55,3 +55,29 @@ def calculate_memory_addresses(A_blocks, B_blocks, C_blocks, X_blocks, block_siz
 
     return addresses
 
+# ANOTHER MEMORY ADDRESS
+def memory_base_address(object_info):
+    """Calculate the base memory addresses for each object, assuming each object is placed on a new page."""
+    current_phys = 0x1000  # Initial memory index
+    addresses = []
+
+    # Iterate on the object
+    for i, (size, logical_divisor) in enumerate(object_info):
+        # Generic name
+        alloc_name = f"Alloc{i+1}"
+
+        # Compute logical address
+        logical_address = current_phys // logical_divisor
+
+        # Physical address
+        addresses.append({
+            'object': alloc_name,
+            'phys_hex': hex(current_phys),
+            'logic_hex': hex(logical_address)
+        })
+
+        # Update address (each object on a new page)
+        current_phys = ((current_phys + size + 0x1000 - 1) // 0x1000) * 0x1000 
+
+    return addresses
+

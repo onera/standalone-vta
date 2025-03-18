@@ -81,4 +81,8 @@
   // Initialise vector with random values or with "-1" values
   int8_t * init_vector_values(int8_t * vector, uint64_t size, bool random_value, unsigned int seed);
 
+  // Reshape function
+  std::vector<int8_t> reshape(const std::vector<int8_t>& intermediate_result, int in_channel, int in_tensor_size, 
+    int out_tensor_size, int kernel_size, int stride, int block_size, int nb_elements);
+
 #endif  // SIMULATOR_HEADER_H_
