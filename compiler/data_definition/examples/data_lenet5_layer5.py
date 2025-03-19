@@ -33,7 +33,7 @@ isSquare = False
 useClip = False
 
 # Apply ReLU on the result
-useReLU = True
+useReLU = False
 
 # Add average pooling (for square tensor)
 doAvgPool = False
