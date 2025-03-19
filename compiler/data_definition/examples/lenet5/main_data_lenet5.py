@@ -25,25 +25,65 @@ def print_intermediate(matrix, isSquare=True, layer="1"):
         i = i + 1
 
 
-def main_data():
-    # CREATE THE MATRICES
-    # -------------------
+def main_data(isInputTensor=False, doExhaustivePrint=False):
+    if (isInputTensor):
+        # CREATE THE TENSORS
+        # ------------------
+        # Input
+        input_tensor = np.random.randint(0, 4, size=(1, 1, 32, 32), dtype=np.int8)
+        # Weight
+        L1_tensor = np.random.randint(0, 4, size=(6, 1, 5, 5), dtype=np.int8)
+        L2_tensor = np.random.randint(0, 4, size=(16, 6, 5, 5), dtype=np.int8)
+        L3_tensor = np.random.randint(0, 4, size=(120, 16, 5, 5), dtype=np.int8)
+        L4_tensor = np.random.randint(0, 4, size=(84, 120, 1, 1), dtype=np.int8)
+        L5_tensor = np.random.randint(0, 4, size=(10, 84, 1, 1), dtype=np.int8)
 
-    # Layer 1
-    input_matrix = MG.matrix_creation(n_row=784, n_col=25, isInitRandom=True, random_bound=4, dtype=np.int8, onlyPositive=True) # Must be positive
-    weight_L1 = MG.matrix_creation(n_row=25, n_col=6, isInitRandom=True, random_bound=4, dtype=np.int8, onlyPositive=True) # Must be positive
+        # Print the tensors
+        if (doExhaustivePrint):
+            print(f"Input tensor ({input_tensor.shape}): \n{input_tensor} \n")
+            print(f"Weight L1 tensor ({L1_tensor.shape}): \n{L1_tensor} \n")
+            print(f"Weight L2 tensor ({L2_tensor.shape}): \n{L2_tensor} \n")
+            print(f"Weight L3 tensor ({L3_tensor.shape}): \n{L3_tensor} \n")
+            print(f"Weight L4 tensor ({L4_tensor.shape}): \n{L4_tensor} \n")
+            print(f"Weight L5 tensor ({L5_tensor.shape}): \n{L5_tensor} \n\n")
 
-    # Layer 2
-    weight_L2 = MG.matrix_creation(n_row=150, n_col=16, isInitRandom=True, random_bound=4, dtype=np.int8, onlyPositive=True) # Must be positive
+        # Convert into matrix
+        input_matrix = reshape.im2row(input_tensor, (5, 5), 1) # (X, kernel_size, stride)
+        weight_L1 = reshape.ker2col(L1_tensor, (5, 5)) # (kernel, (h, w))
+        weight_L2 = reshape.ker2col(L2_tensor, (5, 5)) # (kernel, (h, w))
+        weight_L3 = reshape.ker2col(L3_tensor, (5, 5)) # (kernel, (h, w))
+        weight_L4 = reshape.ker2col(L4_tensor, (1, 1)) # (kernel, (h, w))
+        weight_L5 = reshape.ker2col(L5_tensor, (1, 1)) # (kernel, (h, w))
 
-    # Layer 3
-    weight_L3 = MG.matrix_creation(n_row=400, n_col=120, isInitRandom=True, random_bound=4, dtype=np.int8, onlyPositive=True)
+        # Print the resulting matrix
+        if (doExhaustivePrint):
+            print(f"Input im2row matrix ({input_matrix.shape}):")
+            print_intermediate(input_matrix, isSquare=True, layer="IM2ROW")
+            print(f"\nWeight L1 ker2col matrix ({weight_L1.shape}):")
+            print_intermediate(weight_L1, isSquare=True, layer="L1 KER2COL")
+            print(f"\nWeight L2 ker2col matrix ({weight_L2.shape}):")
+            print_intermediate(weight_L2, isSquare=True, layer="L2 KER2COL")
+            print(f"\nWeight L3 ker2col matrix ({weight_L3.shape}):")
+            print_intermediate(weight_L3, isSquare=True, layer="L3 KER2COL")
+            print(f"\nWeight L4 ker2col matrix ({weight_L4.shape}):")
+            print_intermediate(weight_L4, isSquare=True, layer="L4 KER2COL")
+            print(f"\nWeight L5 ker2col matrix ({weight_L5.shape}):")
+            print_intermediate(weight_L5, isSquare=True, layer="L5 KER2COL")
 
-    # Layer 4
-    weight_L4 = MG.matrix_creation(n_row=120, n_col=84, isInitRandom=True, random_bound=4, dtype=np.int8, onlyPositive=True)
-
-    # Layer 5
-    weight_L5 = MG.matrix_creation(n_row=84, n_col=10, isInitRandom=True, random_bound=4, dtype=np.int8, onlyPositive=True)
+    else:
+        # CREATE THE MATRICES
+        # -------------------
+        # Layer 1
+        input_matrix = MG.matrix_creation(n_row=784, n_col=25, isInitRandom=True, random_bound=4, dtype=np.int8, onlyPositive=True) # Must be positive
+        weight_L1 = MG.matrix_creation(n_row=25, n_col=6, isInitRandom=True, random_bound=4, dtype=np.int8, onlyPositive=True) # Must be positive
+        # Layer 2
+        weight_L2 = MG.matrix_creation(n_row=150, n_col=16, isInitRandom=True, random_bound=4, dtype=np.int8, onlyPositive=True) # Must be positive
+        # Layer 3
+        weight_L3 = MG.matrix_creation(n_row=400, n_col=120, isInitRandom=True, random_bound=4, dtype=np.int8, onlyPositive=True)
+        # Layer 4
+        weight_L4 = MG.matrix_creation(n_row=120, n_col=84, isInitRandom=True, random_bound=4, dtype=np.int8, onlyPositive=True)
+        # Layer 5
+        weight_L5 = MG.matrix_creation(n_row=84, n_col=10, isInitRandom=True, random_bound=4, dtype=np.int8, onlyPositive=True)
 
 
     # PAD THE MATRICES
@@ -77,7 +117,6 @@ def main_data():
     output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))), 'compiler_output')
     # Check if the OUTPUT dir exist, else create it
     os.makedirs(output_dir, exist_ok=True)
-    print(output_dir)
 
     # Define the filename
     input_file = os.path.join(output_dir, 'input.bin')
@@ -114,54 +153,49 @@ def main_data():
             transposed.tofile(f)
 
     
-    # COMPUTE REFERENCE COMPUTATION 
+    # COMPUTE REFERENCE COMPUTATION
     # -----------------------------
-    # Input: 
-    print_intermediate(input_matrix, isSquare=True, layer="Input")
-
     # Layer 1: 
     res1, _ = MM.matrix_int8_multiplication(A=input_matrix, B=weight_L1, useClip=False, useReLU=True) # Take ACC result
     res1, _, _ = AP.reference_average_pooling(res1, 2, 2)
     res1 = MM.truncate_to_int8(res1) # Truncate ACC to obtain OUT
-    # Print intermediate result
-    print_intermediate(res1, isSquare=True, layer="LAYER 1")
 
     # Reshape L1 -> L2
-    res1 = reshape.mat_to_tensor(res1, 1, 6, 14, 14) # (res, batch_size, output_channels, output_height, output_width)
-    res1 = reshape.im2row(res1, (5, 5), 1) # (X, kernel_size, stride)
-    # Print reshaped result
-    print_intermediate(res1, isSquare=True, layer="LAYER 1_reshaped")
+    res1_reshaped = reshape.mat_to_tensor(res1, 1, 6, 14, 14) # (res, batch_size, output_channels, output_height, output_width)
+    res1_reshaped = reshape.im2row(res1_reshaped, (5, 5), 1) # (X, kernel_size, stride)  
 
     # Layer 2:
-    res2, _ = MM.matrix_int8_multiplication(A=res1, B=weight_L2, useClip=False, useReLU=True) # Take ACC result
+    res2, _ = MM.matrix_int8_multiplication(A=res1_reshaped, B=weight_L2, useClip=False, useReLU=True) # Take ACC result
     res2, _, _ = AP.reference_average_pooling(res2, 2, 2)
     res2 = MM.truncate_to_int8(res2) # Truncate ACC to obtain OUT
-    # Print intermediate result
-    print_intermediate(res2, isSquare=True, layer="LAYER 2")
 
     # Reshape L2 -> L3
-    res2 = reshape.mat_to_tensor(res2, 1, 16, 5, 5) # (res, batch_size, output_channels, output_height, output_width)
-    res2 = reshape.im2row(res2, (5, 5), 1) # (X, kernel_size, stride)
-    # Print reshaped result
-    print_intermediate(res2, isSquare=False, layer="LAYER 2_reshaped")
+    res2_reshaped = reshape.mat_to_tensor(res2, 1, 16, 5, 5) # (res, batch_size, output_channels, output_height, output_width)
+    res2_reshaped = reshape.im2row(res2_reshaped, (5, 5), 1) # (X, kernel_size, stride)
 
     # Layer 3:
-    _, res3 = MM.matrix_int8_multiplication(A=res2, B=weight_L3, useClip=False, useReLU=True)
-    # Print intermediate result
-    print_intermediate(res3, isSquare=False, layer="LAYER 3")
+    _, res3 = MM.matrix_int8_multiplication(A=res2_reshaped, B=weight_L3, useClip=False, useReLU=True) 
 
     # Layer 4:
     _, res4 = MM.matrix_int8_multiplication(A=res3, B=weight_L4, useClip=False, useReLU=True)
-    # Print intermediate result
-    print_intermediate(res4, isSquare=False, layer="LAYER 4")
 
     # Layer 5:
     _, res5 = MM.matrix_int8_multiplication(A=res4, B=weight_L5, useClip=False, useReLU=False)
-    # Print intermediate result
-    print_intermediate(res5, isSquare=False, layer="LAYER 5")
+    
+
+    # Print the result
+    if (doExhaustivePrint):
+        print_intermediate(input_matrix, isSquare=True, layer="Input")
+        print_intermediate(res1, isSquare=True, layer="LAYER 1")
+        print_intermediate(res1_reshaped, isSquare=True, layer="LAYER 1_reshaped")
+        print_intermediate(res2, isSquare=True, layer="LAYER 2")
+        print_intermediate(res2_reshaped, isSquare=False, layer="LAYER 2_reshaped")
+        print_intermediate(res3, isSquare=False, layer="LAYER 3")
+        print_intermediate(res4, isSquare=False, layer="LAYER 4")
+        print_intermediate(res5, isSquare=False, layer="LAYER 5")
 
     # Print final result
-    print(f"\n\nLAYER 5: final result: \n{res5} \n\n")
+    print(f"\nFinal result: \n{res5} \n\n")
     
 
     # RETURN MEMORY ADDRESSES
@@ -192,5 +226,5 @@ def main_data():
 
 
 if __name__ == '__main__':
-    main_data()
+    main_data(isInputTensor=True, doExhaustivePrint=False)
     
