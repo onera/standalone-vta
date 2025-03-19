@@ -41,12 +41,6 @@ uop_buffer.append(VTAUop( # UOP 1 - GeMM
     wgt_idx=0
 ))
 
-uop_buffer.append(VTAUop( # UOP 2 - ALU
-    dst_idx=0, 
-    src_idx=0,
-    wgt_idx=0
-))
-
 # Write the UOP in the binary file
 with open(file_uop_path, "wb") as f:
     for uop in uop_buffer:
@@ -164,8 +158,8 @@ insn_buffer.append(VTAMemInsn( # I4: LOAD UOP
     unused=0, # UNUSED
     # Operation over the data
     y_size=1,
-    x_size=2, # 2 UOP (1 GEMM + 1 ALU)
-    x_stride=2,
+    x_size=1, # 1 UOP
+    x_stride=1,
     y_pad_top=0,
     y_pad_bottom=0,
     x_pad_left=0,
@@ -178,7 +172,7 @@ insn_buffer.append(VTAGemInsn( # I5: GEMM
     pop_prev_dep=0,
     pop_next_dep=0,
     push_prev_dep=0,
-    push_next_dep=0, 
+    push_next_dep=1, 
     # Operations
     reset=0, # 0-no, 1-reset
     uop_bgn=1, # UOP 1
@@ -196,32 +190,7 @@ insn_buffer.append(VTAGemInsn( # I5: GEMM
     wgt_factor_in=1
 ))
 
-insn_buffer.append(VTAAluInsn( # I6: ALU - MAX IMM 0 (relu)
-    opcode=4, # 4-ALU
-    # DEP FLAG
-    pop_prev_dep=0,
-    pop_next_dep=0,
-    push_prev_dep=0,
-    push_next_dep=1,
-    # Operations
-    reset=0, # 0-no, 1-reset
-    uop_bgn=2, # UOP 2
-    uop_end=3,
-    loop_out=1,
-    loop_in=1,
-    # UNUSED
-    unused=0, # UNUSED
-    # Index factors
-    dst_factor_out=1,
-    dst_factor_in=0,
-    src_factor_out=1,
-    src_factor_in=0,
-    alu_opcode=1, # 0-MIN, 1-MAX, 2-ADD, 3-SHR, 4-MUL
-    use_imm=1, # 0-no, 1-yes
-    imm=0
-))
-
-insn_buffer.append(VTAMemInsn( # I7: STORE
+insn_buffer.append(VTAMemInsn( # I6: STORE
     opcode=1, # 0-LOAD, 1-STORE, 3-FINISH
     # DEP FLAG
     pop_prev_dep=1, # Acknowledge COMPUTE ready signal
@@ -243,7 +212,7 @@ insn_buffer.append(VTAMemInsn( # I7: STORE
     x_pad_right=0
 ))
 
-insn_buffer.append(VTAMemInsn( # I8: NOP-MEMORY-STAGE (LOAD)
+insn_buffer.append(VTAMemInsn( # I7: NOP-MEMORY-STAGE (LOAD)
     opcode=0, # 0-LOAD, 1-STORE, 3-FINISH
     # DEP FLAG
     pop_prev_dep=0,
@@ -265,7 +234,7 @@ insn_buffer.append(VTAMemInsn( # I8: NOP-MEMORY-STAGE (LOAD)
     x_pad_right=0
 ))
 
-insn_buffer.append(VTAMemInsn( # I9: NOP-COMPUTE-STAGE
+insn_buffer.append(VTAMemInsn( # I8: NOP-COMPUTE-STAGE
     opcode=0, # 0-LOAD, 1-STORE, 3-FINISH
     # DEP FLAG
     pop_prev_dep=1, # Acknowledge LOAD ready signal
@@ -287,7 +256,7 @@ insn_buffer.append(VTAMemInsn( # I9: NOP-COMPUTE-STAGE
     x_pad_right=0
 ))
 
-insn_buffer.append(VTAMemInsn( # I10: FINISH
+insn_buffer.append(VTAMemInsn( # I9: FINISH
     opcode=3, # 0-LOAD, 1-STORE, 3-FINISH
     # DEP FLAG
     pop_prev_dep=0,

@@ -2,20 +2,35 @@ import os
 import sys
 import numpy as np
 
+import reshape
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 source_dir = os.path.join(current_dir, '../../')
 sys.path.insert(0, source_dir)
 
 import matrix_generator as MG
 import memory_addresses as MA
+import matrix_split as MS
+import matrix_multiplication as MM
+import average_pooling as AP
+
+def print_intermediate(matrix, isSquare=True, layer="1"):
+    res_to_print = MG.matrix_padding(matrix=matrix, block_size=16, isWeight=False, isSquare=isSquare)
+    res_to_print, res_col = MS.matrix_splitting(matrix=res_to_print, block_size=16, isWeight=False, isSquare=isSquare)
+    print(f"\nLAYER {layer}: intermediate result ({res_col} blocks on width)")
+    i = 0
+    for block in res_to_print:
+        print(f"\n L{layer} block", i)
+        print(block)
+        i = i + 1
 
 
 def main_data():
     # CREATE THE MATRICES
+    # -------------------
 
     # Layer 1
     input_matrix = MG.matrix_creation(n_row=784, n_col=25, isInitRandom=True, random_bound=4, dtype=np.int8)
-    #intermediate_matrix = MG.matrix_creation(n_row=196, n_col=16, isInitRandom=True, random_bound=4, dtype=np.int8) # Not used
     weight_L1 = MG.matrix_creation(n_row=25, n_col=6, isInitRandom=True, random_bound=4, dtype=np.int8)
 
     # Layer 2
@@ -29,13 +44,12 @@ def main_data():
 
     # Layer 5
     weight_L5 = MG.matrix_creation(n_row=84, n_col=10, isInitRandom=True, random_bound=4, dtype=np.int8)
-    #output_matrix = MG.matrix_creation(n_row=1, n_col=10, isInitRandom=False, random_bound=0, dtype=np.int8) # Not used
 
 
     # PAD THE MATRICES
+    # ----------------
 
     input_padded = MG.matrix_padding(matrix=input_matrix, block_size=16, isWeight=False, isSquare=True)
-    #intermediate_padded = MG.matrix_padding(matrix=intermediate_matrix, block_size=16, isWeight=False, isSquare=True) # Not used
 
     L1_padded = MG.matrix_padding(matrix=weight_L1, block_size=16, isWeight=True, isSquare=True)
     L2_padded = MG.matrix_padding(matrix=weight_L2, block_size=16, isWeight=True, isSquare=True)
@@ -43,10 +57,21 @@ def main_data():
     L4_padded = MG.matrix_padding(matrix=weight_L4, block_size=16, isWeight=True, isSquare=True)
     L5_padded = MG.matrix_padding(matrix=weight_L5, block_size=16, isWeight=True, isSquare=True)
 
-    #output_padded = MG.matrix_padding(matrix=output_matrix, block_size=16, isWeight=False, isSquare=False) # not used
+
+    # SPLIT THE MATRICES
+    # ------------------
+
+    input_blocks, input_blocks_col = MS.matrix_splitting(matrix=input_padded, block_size=16, isWeight=False, isSquare=True)
+
+    L1_blocks, L1_blocks_col = MS.matrix_splitting(matrix=L1_padded, block_size=16, isWeight=True, isSquare=True)
+    L2_blocks, L2_blocks_col = MS.matrix_splitting(matrix=L2_padded, block_size=16, isWeight=True, isSquare=True)
+    L3_blocks, L3_blocks_col = MS.matrix_splitting(matrix=L3_padded, block_size=16, isWeight=True, isSquare=True)
+    L4_blocks, L4_blocks_col = MS.matrix_splitting(matrix=L4_padded, block_size=16, isWeight=True, isSquare=True)
+    L5_blocks, L5_blocks_col = MS.matrix_splitting(matrix=L5_padded, block_size=16, isWeight=True, isSquare=True)
 
 
     # WRITE BINARIES
+    # --------------
 
     # Define the output repository
     output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))), 'compiler_output')
@@ -64,15 +89,82 @@ def main_data():
     L5_file = os.path.join(output_dir, 'weight_L5.bin')
 
     # Write 
-    input_padded.tofile(input_file)
-    L1_padded.tofile(L1_file)
-    L2_padded.tofile(L2_file)
-    L3_padded.tofile(L3_file)
-    L4_padded.tofile(L4_file)
-    L5_padded.tofile(L5_file)
+    with open(input_file, 'wb') as f:
+        for block in input_blocks:
+            block.tofile(f)
+    with open(L1_file, 'wb') as f:
+        for block in L1_blocks:
+            transposed = block.transpose()
+            transposed.tofile(f)
+    with open(L2_file, 'wb') as f:
+        for block in L2_blocks:
+            transposed = block.transpose()
+            transposed.tofile(f)
+    with open(L3_file, 'wb') as f:
+        for block in L3_blocks:
+            transposed = block.transpose()
+            transposed.tofile(f)
+    with open(L4_file, 'wb') as f:
+        for block in L4_blocks:
+            transposed = block.transpose()
+            transposed.tofile(f)
+    with open(L5_file, 'wb') as f:
+        for block in L5_blocks:
+            transposed = block.transpose()
+            transposed.tofile(f)
+
+    
+    # COMPUTE REFERENCE COMPUTATION
+    # -----------------------------
+    # Layer 1: 
+    _, res1 = MM.matrix_int8_multiplication(A=input_matrix, B=weight_L1, useClip=False, useReLU=True)
+    res1, _, _ = AP.reference_average_pooling(res1, 2, 2)
+    res1 = MM.truncate_to_int8(res1)
+    # Print intermediate result
+    print_intermediate(res1, isSquare=True, layer="1")
+
+    # Reshape L1 -> L2
+    res1 = reshape.mat_to_tensor(res1, 1, 6, 14, 14) # (res, batch_size, output_channels, output_height, output_width)
+    res1 = reshape.im2row(res1, (5, 5), 1) # (X, kernel_size, stride)
+    # Print reshaped result
+    print_intermediate(res1, isSquare=True, layer="1_reshaped")
+
+    # Layer 2:
+    _, res2 = MM.matrix_int8_multiplication(A=res1, B=weight_L2, useClip=False, useReLU=False) # TODO: ReLU true => res2 = 0
+    res2, _, _ = AP.reference_average_pooling(res2, 2, 2)
+    res2 = MM.truncate_to_int8(res2)
+    # Print intermediate result
+    print_intermediate(res2, isSquare=True, layer="2")
+
+    # Reshape L2 -> L3
+    res2 = reshape.mat_to_tensor(res2, 1, 16, 5, 5) # (res, batch_size, output_channels, output_height, output_width)
+    res2 = reshape.im2row(res2, (5, 5), 1) # (X, kernel_size, stride)
+    # Print reshaped result
+    print_intermediate(res2, isSquare=False, layer="2_reshaped")
+
+    # Layer 3:
+    _, res3 = MM.matrix_int8_multiplication(A=res2, B=weight_L3, useClip=False, useReLU=True)
+    # Print intermediate result
+    print_intermediate(res3, isSquare=False, layer="3")
+
+    # Layer 4:
+    _, res4 = MM.matrix_int8_multiplication(A=res3, B=weight_L4, useClip=False, useReLU=True)
+    # Print intermediate result
+    print_intermediate(res4, isSquare=False, layer="4")
+
+    # Layer 5:
+    _, res5 = MM.matrix_int8_multiplication(A=res4, B=weight_L5, useClip=False, useReLU=False)
+    # Print intermediate result
+    print_intermediate(res5, isSquare=False, layer="5")
+
+    # Print final result
+    print(f"\n\nLAYER 5: final result: \n{res5} \n\n")
+
+
+
 
     # RETURN MEMORY ADDRESSES
-
+    # -----------------------
     object_info = [
         (input_padded.size, 16), # Input
         (L1_padded.size, 256), # Weight
@@ -93,6 +185,9 @@ def main_data():
 
     for add in addresses:
         print(add)
+
+    # END
+    return 0
 
 
 if __name__ == '__main__':
