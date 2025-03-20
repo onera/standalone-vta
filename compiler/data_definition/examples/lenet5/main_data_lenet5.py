@@ -3,6 +3,7 @@ import sys
 import numpy as np
 
 import reshape
+from lenet5_reference import QuantizedLeNet5
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 source_dir = os.path.join(current_dir, '../../')
@@ -31,7 +32,7 @@ def main_data(isInputTensor=False, doExhaustivePrint=False):
         # ------------------
         # Input
         input_tensor = np.random.randint(0, 4, size=(1, 1, 32, 32), dtype=np.int8)
-        # Weight
+        # Weights
         L1_tensor = np.random.randint(0, 4, size=(6, 1, 5, 5), dtype=np.int8)
         L2_tensor = np.random.randint(0, 4, size=(16, 6, 5, 5), dtype=np.int8)
         L3_tensor = np.random.randint(0, 4, size=(120, 16, 5, 5), dtype=np.int8)
@@ -153,49 +154,88 @@ def main_data(isInputTensor=False, doExhaustivePrint=False):
             transposed.tofile(f)
 
     
-    # COMPUTE REFERENCE COMPUTATION
+    # COMPUTE REFERENCE COMPUTATION (matrix domain)
     # -----------------------------
     # Layer 1: 
-    res1, _ = MM.matrix_int8_multiplication(A=input_matrix, B=weight_L1, useClip=False, useReLU=True) # Take ACC result
-    res1, _, _ = AP.reference_average_pooling(res1, 2, 2)
-    res1 = MM.truncate_to_int8(res1) # Truncate ACC to obtain OUT
+    conv1, _ = MM.matrix_int8_multiplication(A=input_matrix, B=weight_L1, useClip=False, useReLU=True) # Take ACC result
+    L1_ACC, _, _ = AP.reference_average_pooling(conv1, 2, 2)
+    res1 = MM.truncate_to_int8(L1_ACC) # Truncate ACC to obtain OUT
 
     # Reshape L1 -> L2
     res1_reshaped = reshape.mat_to_tensor(res1, 1, 6, 14, 14) # (res, batch_size, output_channels, output_height, output_width)
     res1_reshaped = reshape.im2row(res1_reshaped, (5, 5), 1) # (X, kernel_size, stride)  
 
     # Layer 2:
-    res2, _ = MM.matrix_int8_multiplication(A=res1_reshaped, B=weight_L2, useClip=False, useReLU=True) # Take ACC result
-    res2, _, _ = AP.reference_average_pooling(res2, 2, 2)
-    res2 = MM.truncate_to_int8(res2) # Truncate ACC to obtain OUT
+    conv2, _ = MM.matrix_int8_multiplication(A=res1_reshaped, B=weight_L2, useClip=False, useReLU=True) # Take ACC result
+    L2_ACC, _, _ = AP.reference_average_pooling(conv2, 2, 2)
+    res2 = MM.truncate_to_int8(L2_ACC) # Truncate ACC to obtain OUT
 
     # Reshape L2 -> L3
     res2_reshaped = reshape.mat_to_tensor(res2, 1, 16, 5, 5) # (res, batch_size, output_channels, output_height, output_width)
     res2_reshaped = reshape.im2row(res2_reshaped, (5, 5), 1) # (X, kernel_size, stride)
 
     # Layer 3:
-    _, res3 = MM.matrix_int8_multiplication(A=res2_reshaped, B=weight_L3, useClip=False, useReLU=True) 
+    conv3, res3 = MM.matrix_int8_multiplication(A=res2_reshaped, B=weight_L3, useClip=False, useReLU=True) 
 
     # Layer 4:
-    _, res4 = MM.matrix_int8_multiplication(A=res3, B=weight_L4, useClip=False, useReLU=True)
+    L4_ACC, res4 = MM.matrix_int8_multiplication(A=res3, B=weight_L4, useClip=False, useReLU=True)
 
     # Layer 5:
-    _, res5 = MM.matrix_int8_multiplication(A=res4, B=weight_L5, useClip=False, useReLU=False)
+    L5_ACC, res5 = MM.matrix_int8_multiplication(A=res4, B=weight_L5, useClip=False, useReLU=False)
     
 
-    # Print the result
+    # Print the results
     if (doExhaustivePrint):
         print_intermediate(input_matrix, isSquare=True, layer="Input")
-        print_intermediate(res1, isSquare=True, layer="LAYER 1")
+
+        print_intermediate(conv1, isSquare=True, layer="CONV 1")
+        print_intermediate(L1_ACC, isSquare=True, layer="L1_ACC (pool)")
+        print_intermediate(res1, isSquare=True, layer="LAYER 1 (int8 out)")
         print_intermediate(res1_reshaped, isSquare=True, layer="LAYER 1_reshaped")
-        print_intermediate(res2, isSquare=True, layer="LAYER 2")
+
+        print_intermediate(conv2, isSquare=True, layer="CONV 2")
+        print_intermediate(L2_ACC, isSquare=True, layer="L2_ACC (pool)")
+        print_intermediate(res2, isSquare=True, layer="LAYER 2 (int8 out)")
         print_intermediate(res2_reshaped, isSquare=False, layer="LAYER 2_reshaped")
-        print_intermediate(res3, isSquare=False, layer="LAYER 3")
-        print_intermediate(res4, isSquare=False, layer="LAYER 4")
-        print_intermediate(res5, isSquare=False, layer="LAYER 5")
+
+        print_intermediate(conv3, isSquare=True, layer="CONV 3")
+        print_intermediate(res3, isSquare=True, layer="LAYER 3 (int8 out)")
+
+        print_intermediate(L4_ACC, isSquare=True, layer="L4_ACC (dense)")
+        print_intermediate(res4, isSquare=True, layer="LAYER 4 (int8 out)")
+
+        print_intermediate(L5_ACC, isSquare=True, layer="L5_ACC (dense)")
+        print_intermediate(res5, isSquare=True, layer="LAYER 5 (int8 out)")
 
     # Print final result
     print(f"\nFinal result: \n{res5} \n\n")
+
+    
+    # COMPUTE REFERENCE COMPUTATION (tensor domain)
+    # -----------------------------
+    if (isInputTensor):
+        print("TENSOR EXECUTION")
+        # Initialise the model with the weights
+        lenet5_model = QuantizedLeNet5(L1_tensor, L2_tensor, L3_tensor, L4_tensor, L5_tensor)
+
+        # Disable gradients for all parameters (inference mode only)
+        for param in lenet5_model.parameters():
+            param.requires_grad = False
+        # Set the model to evaluation mode
+        lenet5_model.eval()
+
+        # Initialise the input
+        output_tensor, intermediate_outputs = lenet5_model(input_tensor)
+
+        # Print the results
+        if (doExhaustivePrint):
+            for layer_name, output in intermediate_outputs.items():
+                print(f"\n{layer_name} output shape: {output.shape}")
+                print(f"{layer_name} output data type: {output.dtype}")
+                print(f"{layer_name} output: \n{output}\n")
+        # Print the final result
+        print(f"Final output tensor: \n{output_tensor}\n\n")
+
     
 
     # RETURN MEMORY ADDRESSES
@@ -226,5 +266,5 @@ def main_data(isInputTensor=False, doExhaustivePrint=False):
 
 
 if __name__ == '__main__':
-    main_data(isInputTensor=True, doExhaustivePrint=False)
+    main_data(isInputTensor=True, doExhaustivePrint=True)
     
