@@ -2,7 +2,7 @@ import os
 import sys
 import numpy as np
 
-import reshape
+import reshape_torch as reshape
 from lenet5_reference import QuantizedLeNet5
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -50,11 +50,11 @@ def main_data(isInputTensor=False, doExhaustivePrint=False):
 
         # Convert into matrix
         input_matrix = reshape.im2row(input_tensor, (5, 5), 1) # (X, kernel_size, stride)
-        weight_L1 = reshape.ker2col(L1_tensor, (5, 5)) # (kernel, (h, w))
-        weight_L2 = reshape.ker2col(L2_tensor, (5, 5)) # (kernel, (h, w))
-        weight_L3 = reshape.ker2col(L3_tensor, (5, 5)) # (kernel, (h, w))
-        weight_L4 = reshape.ker2col(L4_tensor, (1, 1)) # (kernel, (h, w))
-        weight_L5 = reshape.ker2col(L5_tensor, (1, 1)) # (kernel, (h, w))
+        weight_L1 = reshape.ker2col(L1_tensor)
+        weight_L2 = reshape.ker2col(L2_tensor)
+        weight_L3 = reshape.ker2col(L3_tensor)
+        weight_L4 = reshape.ker2col(L4_tensor)
+        weight_L5 = reshape.ker2col(L5_tensor)
 
         # Print the resulting matrix
         if (doExhaustivePrint):

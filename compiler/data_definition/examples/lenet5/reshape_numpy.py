@@ -1,6 +1,6 @@
 import numpy as np
 
-def im2row(X, kernel_size, stride):
+def im2row(X, kernel_size=2, stride=1):
     """
     Converts an input tensor X into a matrix (im2row).
     
@@ -36,13 +36,12 @@ def im2row(X, kernel_size, stride):
                 
     return result
 
-def ker2col(K, kernel_size):
+def ker2col(K):
     """
     Converts convolution weights (kernels) into a matrix (ker2col).
     
     Arguments:
     K -- Kernel weights of shape (output_channels, input_channels, kernel_height, kernel_width)
-    kernel_size -- Filter size (height, width)
     
     Returns:
     A matrix of shape (input_channels * kernel_height * kernel_width, output_channels)
@@ -82,12 +81,9 @@ def mat_to_tensor(res, batch_size, output_channels, output_height, output_width)
     """
     # Rearrange the matrix into a tensor of shape (batch_size, output_channels, output_height, output_width)
     # We need to manipulate the matrix so that the channels are correctly distributed
-    reshaped_res = res.T.reshape(output_channels, output_height, output_width)
-    
-    # Add the batch_size dimension
-    reshaped_res = reshaped_res[np.newaxis, :]
-    
+    reshaped_res = res.T.reshape(batch_size, output_channels, output_height, output_width)
     return reshaped_res
+
 
 if __name__ == '__main__':
     # Init tensor
