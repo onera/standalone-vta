@@ -2,7 +2,7 @@ import os
 import sys
 import numpy as np
 
-import reshape_torch as reshape
+import reshape_numpy as reshape
 from lenet5_reference import QuantizedLeNet5
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -198,14 +198,14 @@ def main_data(isInputTensor=False, doExhaustivePrint=False):
         print_intermediate(res2, isSquare=True, layer="LAYER 2 (int8 out)")
         print_intermediate(res2_reshaped, isSquare=False, layer="LAYER 2_reshaped")
 
-        print_intermediate(conv3, isSquare=True, layer="CONV 3")
-        print_intermediate(res3, isSquare=True, layer="LAYER 3 (int8 out)")
+        print_intermediate(conv3, isSquare=False, layer="CONV 3")
+        print_intermediate(res3, isSquare=False, layer="LAYER 3 (int8 out)")
 
-        print_intermediate(L4_ACC, isSquare=True, layer="L4_ACC (dense)")
-        print_intermediate(res4, isSquare=True, layer="LAYER 4 (int8 out)")
+        print_intermediate(L4_ACC, isSquare=False, layer="L4_ACC (dense)")
+        print_intermediate(res4, isSquare=False, layer="LAYER 4 (int8 out)")
 
-        print_intermediate(L5_ACC, isSquare=True, layer="L5_ACC (dense)")
-        print_intermediate(res5, isSquare=True, layer="LAYER 5 (int8 out)")
+        print_intermediate(L5_ACC, isSquare=False, layer="L5_ACC (dense)")
+        print_intermediate(res5, isSquare=False, layer="LAYER 5 (int8 out)")
 
     # Print final result
     print(f"\nFinal result: \n{res5} \n\n")
