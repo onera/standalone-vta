@@ -84,20 +84,124 @@ def mat_to_tensor(res, batch_size, output_channels, output_height, output_width)
     reshaped_res = res.T.reshape(batch_size, output_channels, output_height, output_width)
     return reshaped_res
 
+def to_blocks(vector, block_col, block_size):
+    """
+    Transforms a 1D vector into a 2D matrix of block matrices.
+    
+    Args:
+        vector: Input 1D array (will be converted to numpy array)
+        block_col: Number of blocks per row
+        block_size: Base size for square blocks (width for last row blocks)
+    
+    Returns:
+        List of lists containing numpy arrays representing blocks
+    """
+    vector = np.array(vector)
+    B = []
+    
+    # 1. Calculate full row count
+    elements_per_full_row = block_col * block_size**2
+    block_row = len(vector) // elements_per_full_row
+    
+    # 2. Calculate last row parameters
+    remaining = len(vector) % elements_per_full_row
+    last_row_exists = remaining > 0
+    
+    # 3. Process complete rows
+    for i in range(block_row):
+        row = []
+        for j in range(block_col):
+            start = (i * block_col + j) * block_size**2
+            end = start + block_size**2
+            row.append(vector[start:end].reshape(block_size, block_size))
+        B.append(row)
+    
+    # 4. Handle last incomplete row if needed
+    if last_row_exists:
+        elements_per_block = remaining // block_col
+        subheight = elements_per_block // block_size
+        last_row = []
+        base_index = block_row * elements_per_full_row
+        
+        for j in range(block_col):
+            start = base_index + j * elements_per_block
+            end = start + elements_per_block
+            block = vector[start:end]
+            
+            # Handle potential padding for reshape
+            if len(block) < subheight * block_size:
+                block = np.pad(block, (0, subheight*block_size - len(block)))
+            
+            last_row.append(block.reshape(subheight, block_size))
+        
+        B.append(last_row)
+    
+    return B
+
+def unsplit(list_block, block_size, matrix_height, matrix_width):
+    """
+    Reconstructs a matrix from blocks created by to_blocks(), removing padding.
+    
+    Args:
+        list_block: 2D list of blocks from to_blocks()
+        block_size: Original block size used for splitting
+        matrix_height: Original matrix height (without padding)
+        matrix_width: Original matrix width (without padding)
+    
+    Returns:
+        Reconstructed matrix as numpy array
+    """
+    # Initialize the final matrix
+    reconstructed = np.zeros((matrix_height, matrix_width))
+    
+    # Iterate over every element in the final matrix
+    for i in range(matrix_height):
+        for j in range(matrix_width):
+            # Calculate the indices of the block containing (i, j)
+            delta_height = i // block_size  # Row index of the block
+            delta_width = j // block_size  # Column index of the block
+            
+            # Calculate the position within the block
+            r = i % block_size  # Row inside the block
+            t = j % block_size  # Column inside the block
+            
+            # Access the corresponding block and copy the value
+            if delta_height < len(list_block) and delta_width < len(list_block[delta_height]):
+                block = list_block[delta_height][delta_width]
+                if r < block.shape[0] and t < block.shape[1]:  # Ensure no padding is copied
+                    reconstructed[i, j] = block[r, t]
+    
+    return reconstructed
 
 if __name__ == '__main__':
+    # TENSOR -> MATRIX
     # Init tensor
     im_tensor = np.random.randint(0, 4, size=(1, 1, 32, 32), dtype=np.int8)
     kernel_tensor = np.random.randint(0, 4, size=(6, 1, 5, 5), dtype=np.int8)
-
     # Convolution parameter
     kernel_size = (5, 5)
     stride = 1
-
     # Transformation
     im_matrix = im2row(im_tensor, kernel_size, stride)
-    kernel_matrix = ker2col(kernel_tensor, kernel_size)
-
+    kernel_matrix = ker2col(kernel_tensor)
     # Print matrix size
     print(im_matrix.shape)  # (output_height * output_width, input_channels * kernel_height * kernel_width)
     print(kernel_matrix.shape)  # (input_channels * kernel_height * kernel_width, output_channels)
+
+    # BIN -> BLOCKS
+    vector = np.arange(1152)
+    print(vector)
+    # Convert to blocks (3 columns, 2x2 blocks)
+    blocks = to_blocks(vector, block_col=2, block_size=16)
+    print(len(blocks))
+    i=0
+    for row in blocks:
+        for block in row:
+            print("\nB", i)
+            print(block)
+            i += 1
+    
+    # BLOCKS -> MATRIX
+    np.set_printoptions(threshold=np.inf, suppress=True, linewidth=np.inf)
+    matrix = unsplit(blocks, block_size=16, matrix_height=36, matrix_width=32)
+    print("\nThe reconstructed matrix\n", matrix)
