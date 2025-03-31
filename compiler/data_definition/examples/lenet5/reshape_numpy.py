@@ -152,7 +152,7 @@ def unsplit(list_block, block_size, matrix_height, matrix_width):
         Reconstructed matrix as numpy array
     """
     # Initialize the final matrix
-    reconstructed = np.zeros((matrix_height, matrix_width))
+    reconstructed = np.zeros((matrix_height, matrix_width), dtype=np.int8)
     
     # Iterate over every element in the final matrix
     for i in range(matrix_height):
