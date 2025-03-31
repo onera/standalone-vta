@@ -18,7 +18,7 @@ import average_pooling as AP
 def print_intermediate(matrix, isSquare=True, layer="1"):
     res_to_print = MG.matrix_padding(matrix=matrix, block_size=16, isWeight=False, isSquare=isSquare)
     res_to_print, res_col = MS.matrix_splitting(matrix=res_to_print, block_size=16, isWeight=False, isSquare=isSquare)
-    print(f"\n{layer}: intermediate result ({res_col} blocks on width)")
+    print(f"\n{layer}: intermediate result (shape = {matrix.shape}, {res_col} blocks on width)")
     i = 0
     for block in res_to_print:
         print(f"\n {layer} block", i)
