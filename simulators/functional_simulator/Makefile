@@ -23,6 +23,7 @@
 # Define the compilation option (compiler: gcc, flags: -Wall)
 CC := g++ 
 CFLAGS = -std=c++17 -Wall -g
+#-fsanitize=address 
 
 # Define the variables for the configuration (vta_config.json)
 CONFIG_PY := python config/vta_config.py --defs # The command to execute the python script
@@ -99,8 +100,11 @@ build/virtual_memory.o: src/virtual_memory.cc include/virtual_memory.h build/vta
 build/lenet5_implementation_simulator.o: lenet5_implementation_simulator.cc simulator_header.h
 	$(CC) $(VTA_DEFS) $(CFLAGS) -o build/lenet5_implementation_simulator.o -c lenet5_implementation_simulator.cc
 
-build/lenet5_implementation_simulator: build/vta_config_def.txt $(OBJS) build/lenet5_implementation_simulator.o lib_tvm
-	$(CC) build/lenet5_implementation_simulator.o build/simulator_functions.o \
+build/reshape.o: reshape.cc simulator_header.h
+	$(CC) $(VTA_DEFS) $(CFLAGS) -o build/reshape.o -c reshape.cc
+
+build/lenet5_implementation_simulator: build/vta_config_def.txt $(OBJS) build/lenet5_implementation_simulator.o build/reshape.o lib_tvm
+	$(CC) build/lenet5_implementation_simulator.o build/simulator_functions.o build/reshape.o \
 	build/virtual_memory.o build/sim_tlpp.o \
 	build/sim_driver.o \
 	$(OBJ_LIB_TVM) -o $@
@@ -108,7 +112,7 @@ build/lenet5_implementation_simulator: build/vta_config_def.txt $(OBJS) build/le
 	@echo "Successful link of lenet5_implementation_simulator!"
 	@echo "To run the executable: ./build/lenet5_implementation_simulator" 
 
-lenet5: build/lenet5_implementation_simulator
+lenet5: build/lenet5_implementation_simulator reshape.cc lenet5_implementation_simulator.cc
 	build/lenet5_implementation_simulator
 
 
