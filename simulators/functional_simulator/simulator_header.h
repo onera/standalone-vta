@@ -82,7 +82,9 @@
   int8_t * init_vector_values(int8_t * vector, uint64_t size, bool random_value, unsigned int seed);
 
   // Reshape function
-  std::vector<int8_t> reshape(const std::vector<int8_t>& intermediate_result, int in_channel, int in_tensor_size, 
-    int out_tensor_size, int kernel_size, int stride, int block_size, int nb_elements);
+  std::vector<int8_t> reshape(const std::vector<int8_t>& vector_std, int block_col = 1, int block_size = 16, 
+                              int out_matrix_height = 196, int out_matrix_width = 6,
+                              int batch_size = 1, int out_tensor_channel = 6, int out_tensor_height = 14, int out_tensor_width = 14,
+                              int kernel_size = 5, int stride = 1, bool isSquare = true);
 
 #endif  // SIMULATOR_HEADER_H_

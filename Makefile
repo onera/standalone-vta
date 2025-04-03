@@ -19,6 +19,21 @@ $(FILENAME): | compiler_output/ simulators_output/
 	python compiler/operations_definition/examples/$(INSN_FILE).py > compiler_output/prompt_insn.txt
 	cd simulators/functional_simulator && make -s execute > $(MAKEFILE_DIR)simulators_output/fsim_report.txt
 
+# Execution of LeNet-5
+lenet5: | compiler_output/ simulators_output/
+	python compiler/data_definition/examples/lenet5/main_data_lenet5.py > compiler_output/prompt_data.txt
+	@echo "LAYER 1:" > compiler_output/prompt_insn.txt
+	python compiler/operations_definition/examples/lenet5/layer1.py >> compiler_output/prompt_insn.txt
+	@echo "LAYER 2:" >> compiler_output/prompt_insn.txt
+	python compiler/operations_definition/examples/lenet5/layer2.py >> compiler_output/prompt_insn.txt
+	@echo "LAYER 3:" >> compiler_output/prompt_insn.txt
+	python compiler/operations_definition/examples/lenet5/layer3.py >> compiler_output/prompt_insn.txt
+	@echo "LAYER 4:" >> compiler_output/prompt_insn.txt
+	python compiler/operations_definition/examples/lenet5/layer4.py >> compiler_output/prompt_insn.txt
+	@echo "LAYER 5:" >> compiler_output/prompt_insn.txt
+	python compiler/operations_definition/examples/lenet5/layer5.py >> compiler_output/prompt_insn.txt
+#	cd simulators/functional_simulator && make -s lenet5 > $(MAKEFILE_DIR)simulators_output/fsim_report.txt
+
 
 # LIST THE POSSIBLE FILENAMES
 #############################
