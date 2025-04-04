@@ -32,7 +32,7 @@ lenet5: | compiler_output/ simulators_output/
 	python compiler/operations_definition/examples/lenet5/layer4.py >> compiler_output/prompt_insn.txt
 	@echo "LAYER 5:" >> compiler_output/prompt_insn.txt
 	python compiler/operations_definition/examples/lenet5/layer5.py >> compiler_output/prompt_insn.txt
-#	cd simulators/functional_simulator && make -s lenet5 > $(MAKEFILE_DIR)simulators_output/fsim_report.txt
+	cd simulators/functional_simulator && make -s lenet5 > $(MAKEFILE_DIR)simulators_output/fsim_report.txt
 
 
 # LIST THE POSSIBLE FILENAMES
