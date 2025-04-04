@@ -182,37 +182,53 @@ int lenet5_implementation() {
     // LAYER 1 EXECUTION
     // -----------------
     int execution_flag = VTADeviceRun(vta_device, phy_add_insnL1, insnL1.size(), 0);
-    
-    VTAMemCopyToHost(intermediate_result.data(), mem_intermediate, 196*16 * sizeof(int8_t));
-///*
-    // Reshape result
-    VTAMemCopyToHost(intermediate_result.data(), mem_intermediate, 196*16 * sizeof(int8_t));
 
-    // reshape(vector, block_col, block_size, out_matrix_height, out_matrix_width, batch_size, out_tensor_channel, out_tensor_height, out_tensor_width, kernel_size, stride, isSquare)
-    reshaped_result = reshape(intermediate_result, 1, 16, 196, 6, 1, 6, 14, 14, 5, 1, true); 
-    printf("\n\nRESHAPED:\n");
-    print_int8_vector(reshaped_result.data(), reshaped_result.size());
-    //VTAMemCopyFromHost(mem_inp, reshaped_result.data(), 112*160 * sizeof(int8_t));
-//*/
+    // Reshape result
+    VTAMemCopyToHost(intermediate_result.data(), mem_intermediate, intermediate_result.size() * sizeof(int8_t));
+
+    reshaped_result = reshape(
+        intermediate_result, //const std::vector<int8_t>& vector,
+        1, //int block_col = 1,
+        16, //int block_size = 16,
+        196, //int out_matrix_height = 196,
+        6, //int out_matrix_width = 6,
+        1, //int batch_size = 1,
+        6, //int out_tensor_channel = 6,
+        14, //int out_tensor_height = 14,
+        14,//int out_tensor_width = 14,
+        {5,5},//std::pair<int, int> kernel_size = {5, 5},
+        1,//int stride = 1,
+        true);//bool isSquare = true);
+    
+    VTAMemCopyFromHost(mem_inp, reshaped_result.data(), 112*160 * sizeof(int8_t));
+
 
     // LAYER 2 EXECUTION
     // -----------------
     execution_flag = VTADeviceRun(vta_device, phy_add_insnL2, insnL2.size(), 0);
-/*
+
     // Reshape result
-    VTAMemCopyToHost(intermediate_result.data(), mem_intermediate, 32*16 * sizeof(int8_t));
-    // reshape(vector, in_channel, in_tensor_size, out_tensor_size, kernel_size, stride, block_size, nb_elements);
+    intermediate_result.resize(25*16, 0);
+    reshaped_result.resize(25*16, 0);
+
+    VTAMemCopyToHost(intermediate_result.data(), mem_intermediate, intermediate_result.size() * sizeof(int8_t));
+
     reshaped_result = reshape(
-        intermediate_result,
-        25,
-        16,
-        1,
-        16,
-        5,
-        5
-    );
-    VTAMemCopyFromHost(mem_inp, reshaped_result.data(), 400 * sizeof(int8_t));
-//*/
+        intermediate_result, //const std::vector<int8_t>& vector,
+        1, //int block_col,
+        16, //int block_size,
+        25, //int out_matrix_height,
+        16, //int out_matrix_width,
+        1, //int batch_size,
+        16, //int out_tensor_channel,
+        5, //int out_tensor_height,
+        5,//int out_tensor_width,
+        {5,5},//std::pair<int, int> kernel_size,
+        1,//int stride = 1,
+        false);//bool isSquare = true);
+
+    VTAMemCopyFromHost(mem_inp, reshaped_result.data(), reshaped_result.size() * sizeof(int8_t));
+
 
     // LAYER 3 EXECUTION
     // -----------------
@@ -228,7 +244,7 @@ int lenet5_implementation() {
     printf("\nThe execution returns: %d \n\t(return 0 if running is successful, 1 if timeout)\n", execution_flag);
 
     // Copy the final output result
-    VTAMemCopyToHost(out.data(), mem_out, out_size * sizeof(int8_t)); 
+    VTAMemCopyToHost(out.data(), mem_out, out.size() * sizeof(int8_t)); 
 
 
     // FREE MEMORY
