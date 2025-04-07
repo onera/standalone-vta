@@ -13,9 +13,9 @@ from structures_insn_uop import *
 # FILE PATH
 # ---------
 # Define the files to write 
-output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'OUTPUT')
-file_uop_path = os.path.join(output_dir, "uop_matrix_32x32.bin")
-file_insn_path = os.path.join(output_dir, "instructions_matrix_32x32.bin")
+output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'compiler_output')
+file_uop_path = os.path.join(output_dir, "uop.bin")
+file_insn_path = os.path.join(output_dir, "instructions.bin")
 
 # Create the path if it does not exist
 def create_output_directory(path):

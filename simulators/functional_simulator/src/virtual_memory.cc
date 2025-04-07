@@ -45,7 +45,6 @@ namespace vmem {
  * \return The true virtual address;
  */
 void* VirtualMemoryManager::GetAddr(uint64_t phy_addr) {
-  //printf("\n VIRTUAL_MEMORY.CC: GetAddr() \n"); // (printf) ADDED
   CHECK_NE(phy_addr, 0)
       << "trying to get address that is nullptr";
   std::lock_guard<std::mutex> lock(mutex_);
@@ -65,7 +64,6 @@ void* VirtualMemoryManager::GetAddr(uint64_t phy_addr) {
  * \return The true physical address;
  */
 vta_phy_addr_t VirtualMemoryManager::GetPhyAddr(void* buf) {
-  //printf("\n VIRTUAL_MEMORY.CC: GetPhyAddr() \n"); // (printf) ADDED
   std::lock_guard<std::mutex> lock(mutex_);
   auto it = pmap_.find(buf);
   uint64_t offset = 0;
@@ -89,7 +87,6 @@ vta_phy_addr_t VirtualMemoryManager::GetPhyAddr(void* buf) {
  * \return The virtual address
  */
 void* VirtualMemoryManager::Alloc(size_t size) {
-  //printf("\n VIRTUAL_MEMORY.CC: Alloc() \n"); // (printf) ADDED
   std::lock_guard<std::mutex> lock(mutex_);
   size_t npage = (size + kPageSize - 1) / kPageSize;
   auto it = free_map_.lower_bound(npage);
@@ -113,7 +110,6 @@ void* VirtualMemoryManager::Alloc(size_t size) {
  * \return The virtual address
  */
 void VirtualMemoryManager::Free(void* data) {
-  //printf("\n VIRTUAL_MEMORY.CC: Free() \n"); // (printf) ADDED
   std::lock_guard<std::mutex> lock(mutex_);
   if (pmap_.size() == 0) return;
   auto it = pmap_.find(data);
@@ -129,7 +125,6 @@ void VirtualMemoryManager::Free(void* data) {
  * \param size The size of memory
  */
 void VirtualMemoryManager::MemCopyFromHost(void* dst, const void * src, size_t size) {
-  //printf("\n VIRTUAL_MEMORY.CC: MemCopyFromHost() \n"); // (printf) ADDED
   void * addr = this->GetAddr(reinterpret_cast<uint64_t>(dst));
   memcpy(addr, src, size);
 }
@@ -141,13 +136,11 @@ void VirtualMemoryManager::MemCopyFromHost(void* dst, const void * src, size_t s
  * \param size The size of memory
  */
 void VirtualMemoryManager::MemCopyToHost(void* dst, const void * src, size_t size) {
-  //printf("\n VIRTUAL_MEMORY.CC: MemCopyToHost() \n"); // (printf) ADDED
   void * addr = this->GetAddr(reinterpret_cast<uint64_t>(src));
   memcpy(dst, addr, size);
 }
 
 VirtualMemoryManager* VirtualMemoryManager::Global() {
-  //printf("\n VIRTUAL_MEMORY.CC: Global() \n"); // (printf) ADDED
   static VirtualMemoryManager inst;
   return &inst;
 }

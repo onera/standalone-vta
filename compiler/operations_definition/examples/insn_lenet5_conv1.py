@@ -12,9 +12,9 @@ from structures_insn_uop import *
 # FILE PATH
 # ---------
 # Define the files to write 
-output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'OUTPUT')
-file_uop_path = os.path.join(output_dir, "uop_lenet5_conv1.bin")
-file_insn_path = os.path.join(output_dir, "instructions_lenet5_conv1.bin")
+output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'compiler_output')
+file_uop_path = os.path.join(output_dir, "uop.bin")
+file_insn_path = os.path.join(output_dir, "instructions.bin")
 
 # Create the path if it does not exist
 def create_output_directory(path):
@@ -70,7 +70,7 @@ insn_buffer.append(VTAMemInsn( # I0: LOAD UOP
     # Memory interaction
     buffer_id=0, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
     sram_base=0x0000,
-    dram_base=0x00001000,
+    dram_base=0x00003400,
     unused=0, # UNUSED
     # Operation over the data
     y_size=1,
@@ -138,7 +138,7 @@ insn_buffer.append(VTAMemInsn( # I3: LOAD WGT
     # Memory interaction
     buffer_id=1, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
     sram_base=0x0000,
-    dram_base=0x00000020,
+    dram_base=0x00000080,
     unused=0, # UNUSED
     # Operation over the data
     y_size=1,
@@ -160,7 +160,7 @@ insn_buffer.append(VTAMemInsn( # I4: LOAD UOP
     # Memory interaction
     buffer_id=0, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
     sram_base=0x0001,
-    dram_base=0x00001001,
+    dram_base=0x00003401,
     unused=0, # UNUSED
     # Operation over the data
     y_size=1,
@@ -206,7 +206,7 @@ insn_buffer.append(VTAMemInsn( # I6: STORE
     # Memory interaction
     buffer_id=4, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
     sram_base=0x0000,
-    dram_base=0x00000300,
+    dram_base=0x00000900,
     unused=0, # UNUSED
     # Operation over the data
     y_size=1,

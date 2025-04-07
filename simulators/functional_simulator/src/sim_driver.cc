@@ -56,12 +56,10 @@ template<uint32_t bits>
 class BitPacker {
  public:
   explicit BitPacker(void* data) {
-    //printf("\n SIM_DRIVER.CC: BitPacker() \n"); // (printf) ADDED
     data_ = static_cast<uint32_t*>(data);
   }
 
   uint32_t GetUnsigned(uint32_t index) const {
-    //printf("\n SIM_DRIVER.CC: GetUnsigned() \n"); // (printf) ADDED
     if (bits == 32) {
       return data_[index];
     } else if (bits == 16) {
@@ -76,7 +74,6 @@ class BitPacker {
   }
 
   int32_t GetSigned(uint32_t index) const {
-    //printf("\n SIM_DRIVER.CC: GetSigned() \n"); // (printf) ADDED
     if (bits == 32) {
       return reinterpret_cast<int32_t*>(data_)[index];
     } else if (bits == 16) {
@@ -94,7 +91,6 @@ class BitPacker {
   }
 
   void SetUnsigned(uint32_t index, uint32_t value) {
-    //printf("\n SIM_DRIVER.CC: SetUnsigned() \n"); // (printf) ADDED
     if (bits == 32) {
       data_[index] = value;
     } else if (bits == 16) {
@@ -110,7 +106,6 @@ class BitPacker {
   }
 
   void SetSigned(uint32_t index, int32_t value) {
-    //printf("\n SIM_DRIVER.CC: SetSigned() \n"); // (printf) ADDED
     if (bits == 32) {
       reinterpret_cast<int32_t*>(data_)[index] = value;
     } else if (bits == 16) {
@@ -151,16 +146,13 @@ class SRAM {
   /*! \brief content data type */
   using DType = typename std::aligned_storage<kElemBytes, kElemBytes>::type;
   SRAM() {
-    //printf("\n SIM_DRIVER.CC: SRAM() \n"); // (printf) ADDED
     data_ = new DType[kMaxNumElem];
-    //printf("Data: %p \t kMaxNumElem: %d \n", data_, kMaxNumElem); // (printf) ADDED
   }
   ~SRAM() {
     delete [] data_;
   }
   // Get the i-th index
   void* BeginPtr(uint32_t index) {
-    //printf("\n SIM_DRIVER.CC: BeginPtr() \n"); // (printf) ADDED
     CHECK_LT(index, kMaxNumElem);
     return &(data_[index]);
   }
@@ -169,7 +161,6 @@ class SRAM {
             DRAM* dram,
             uint64_t* load_counter,
             bool skip_exec) {
-    //printf("\n SIM_DRIVER.CC: Load() \n"); // (printf) ADDED
     load_counter[0] += (op->x_size * op->y_size) * kElemBytes;
     if (skip_exec) return;
     DType* sram_ptr = data_ + op->sram_base;
@@ -199,7 +190,6 @@ class SRAM {
             DRAM* dram,
             uint64_t* load_counter,
             bool skip_exec) {
-    //printf("\n SIM_DRIVER.CC: Load_int8() to ACC only \n"); // (printf) ADDED
     CHECK_EQ(kBits, VTA_ACC_WIDTH);
 
     // TODO(zhanghao): extend to other width
@@ -243,7 +233,6 @@ class SRAM {
   // This relies on the elements is 32 bits
   template<int target_bits>
   void TruncStore(const VTAMemInsn* op, DRAM* dram) {
-    //printf("\n SIM_DRIVER.CC: TruncStore() \n"); // (printf) ADDED
     CHECK_EQ(op->x_pad_0, 0);
     CHECK_EQ(op->x_pad_1, 0);
     CHECK_EQ(op->y_pad_0, 0);
@@ -303,7 +292,6 @@ class Profiler {
   }
   /*! \return Whether we should skip execution. */
   bool SkipExec() const {
-    //printf("\n SIM_DRIVER.CC: SkipExec() \n"); // (printf) ADDED
     return (debug_flag & DebugFlagMask::kSkipExec) != 0;
   }
 
@@ -322,9 +310,7 @@ class Profiler {
   }
 
   static Profiler* ThreadLocal() {
-    //printf("\n SIM_DRIVER.CC: Profiler* ThreadLocal() \n"); // (printf) ADDED
     static thread_local Profiler inst;
-    //printf("Return inst: %p \n", &inst); // (printf) ADDED
     return &inst;
   }
 };
@@ -335,23 +321,18 @@ class Profiler {
 class Device {
  public:
   Device() {
-    //printf("\n SIM_DRIVER.CC: Device() \n"); // (printf) ADDED
     prof_ = Profiler::ThreadLocal();
     dram_ = DRAM::Global();
     ptlpp = TlppVerify::Global();
-    //printf("prof: %p \t dram: %p \t ptlpp: %p \n", prof_, dram_, ptlpp); // (printf) ADDED
   }
 
   int Run(vta_phy_addr_t insn_phy_addr,
           uint32_t insn_count,
           uint32_t wait_cycles) {
-    //printf("\n SIM_DRIVER.CC: Device.Run(insn_phy_addr = %u, insn_count = %u, wait_cycles = %u) \n", insn_phy_addr, insn_count, wait_cycles); // (printf) ADDED
     VTAGenericInsn* insn = static_cast<VTAGenericInsn*>(
         dram_->GetAddr(insn_phy_addr));
     finish_counter_ = 0;
     for (uint32_t i = 0; i < insn_count; ++i) {
-      printf("\nDEBUG Run: address insn (I%u) = %p",i, (insn+i)); //(printf) ADDED
-      printf("\nDEBUG Run: insn->opcode = %u \n (0 = LOAD, \t 1 = STORE, \t 2 = GEMM, \t 3 = FINISH, \t 4 = ALU)\n",(insn+i)->opcode); //(printf) ADDED
       this->Run(insn + i); // Enqueue the instructions
     }
     this->TlppSynchronization(); // Start the execution
@@ -361,7 +342,6 @@ class Device {
 
  private:
   static void Run_Insn(const VTAGenericInsn* insn, void * dev) {
-    //printf("\n SIM_DRIVER.CC: (private) Device.Run_Insn(insn = %p, dev = %p) \n", insn, dev); // (printf) ADDED
     Device * device = reinterpret_cast<Device *> (dev);
     const VTAMemInsn* mem = reinterpret_cast<const VTAMemInsn*>(insn);
     const VTAGemInsn* gem = reinterpret_cast<const VTAGemInsn*>(insn);
@@ -380,78 +360,26 @@ class Device {
 
  private:
   void Run(const VTAGenericInsn* insn) {
-    //printf("\n SIM_DRIVER.CC: (private) Device.Run(insn = %p) \n", insn); // (printf) ADDED
     ptlpp->TlppPushInsn(insn);
   }
 
   void TlppSynchronization(void) {
-    //printf("\n SIM_DRIVER.CC: (private) Device.TlppSynchronization() \n"); // (printf) ADDED
     ptlpp->TlppSynchronization(Run_Insn, reinterpret_cast<void *> (this));
   }
 
   void RunLoad(const VTAMemInsn* op) {
-    //printf("\n SIM_DRIVER.CC: (private) Device.RunLoad(op = %p) \n", op); // (printf) ADDED
     if (op->x_size == 0) return;
     if (op->memory_type == VTA_MEM_ID_INP) {
       inp_.Load(op, dram_, &(prof_->inp_load_nbytes), prof_->SkipExec());
-
-      /* ADDED SECTION TO PRINT THE INPUT */
-      #if DUMP_MEM==true
-        // FWRITE to write the binary content in a file
-        FILE * pFileInp; // ADDED
-        printf("\nINP op->x_size: \t %u \t op->y_size: \t %u \t => Element to load = %u (%d-Byte element) \n\n", op->x_size, op->y_size, 16 * op->x_size * op->y_size, VTA_INP_WIDTH/8); // (printf) ADDED
-        // Define the path
-        std::filesystem::path currentPath = std::filesystem::current_path(); // ADDED
-        std::filesystem::path DumpInpPath = currentPath.parent_path().parent_path() / "OUTPUT" / "dump_inp.bin"; // ADDED
-        // Write to the path
-        pFileInp = fopen(DumpInpPath.string().c_str(), "ab"); // ADDED
-        fwrite(inp_.BeginPtr(0), VTA_INP_WIDTH/8, 16*(op->x_size * op->y_size), pFileInp); // ADDED (ptr, size, count, stream)
-        fclose(pFileInp); // ADDED
-      #endif
-      /* END OF ADDED SECTION */
-
     } else if (op->memory_type == VTA_MEM_ID_WGT) {
       wgt_.Load(op, dram_, &(prof_->wgt_load_nbytes), prof_->SkipExec());
-
-      /* ADDED SECTION TO PRINT THE WEIGHT */
-      #if DUMP_MEM==true
-        // FWRITE to write the binary content in a file
-        FILE * pFileWgt; // ADDED
-        printf("\nWGT op->x_size: \t %u \t op->y_size: \t %u \t => Element to load = %u (%d-Byte element) \n\n", op->x_size, op->y_size, 256 * op->x_size * op->y_size, VTA_WGT_WIDTH/8); // ADDED
-        // Define the path
-        std::filesystem::path currentPath = std::filesystem::current_path(); // ADDED
-        std::filesystem::path DumpWgtPath = currentPath.parent_path().parent_path() / "OUTPUT" / "dump_wgt.bin"; // ADDED
-        // Write to the path
-        pFileWgt = fopen(DumpWgtPath.string().c_str(), "ab"); // ADDED
-        fwrite(wgt_.BeginPtr(0), VTA_WGT_WIDTH/8, 256*(op->x_size * op->y_size), pFileWgt); // ADDED (ptr, size, count, stream)
-        fclose(pFileWgt); // ADDED
-      #endif
-      /* END OF ADDED SECTION */
-
     } else if (op->memory_type == VTA_MEM_ID_ACC) {
       acc_.Load(op, dram_, &(prof_->acc_load_nbytes), prof_->SkipExec());
     } else if (op->memory_type == VTA_MEM_ID_UOP) {
       // always load in uop, since uop is stateful
       // subsequent non-debug mode exec can depend on it.
       uop_.Load(op, dram_, &(prof_->uop_load_nbytes), false);
-
-      /* ADDED SECTION TO PRINT THE UOP */
-      #if DUMP_MEM==true
-        // FWRITE to write the binary content in a file
-        FILE * pFileUop; // ADDED
-        printf("\nUOP op->x_size: \t %u \t op->y_size: \t %u \t => Element to load = %u (%d-Byte element) \n\n", op->x_size, op->y_size, op->x_size * op->y_size, VTA_UOP_WIDTH/8); // (printf) ADDED
-        // Define the path
-        std::filesystem::path currentPath = std::filesystem::current_path(); // ADDED
-        std::filesystem::path DumpUopPath = currentPath.parent_path().parent_path() / "OUTPUT" / "dump_uop.bin"; // ADDED
-        // Write to the path
-        pFileUop = fopen(DumpUopPath.string().c_str(), "ab"); // ADDED
-        fwrite(uop_.BeginPtr(0), sizeof(VTAUop), op->x_size * op->y_size, pFileUop); // ADDED (VTA_UOP_WIDTH/8)
-        fclose(pFileUop); // ADDED
-      #endif
-      /* END OF ADDED SECTION */
-
     } else if (op->memory_type == VTA_MEM_ID_ACC_8BIT) {
-      printf("\nWARNING: LOAD_INT8 executed => memory not dumped!\n\n"); // (printf) ADDED
       acc_.Load_int8(op, dram_, &(prof_->acc_load_nbytes), prof_->SkipExec());
     } else {
       LOG(FATAL) << "Unknown memory_type=" << op->memory_type;
@@ -459,7 +387,6 @@ class Device {
   }
 
   void RunStore(const VTAMemInsn* op) {
-    //printf("\n SIM_DRIVER.CC: (private) Device.RunStore(op = %p) \n", op); // (printf) ADDED
     if (op->x_size == 0) return;
     if (op->memory_type == VTA_MEM_ID_OUT) {
       prof_->out_store_nbytes += (
@@ -467,39 +394,6 @@ class Device {
       if (!prof_->SkipExec()) {
         acc_.TruncStore<VTA_OUT_WIDTH>(op, dram_);
       }
-
-      /* ADDED SECTION TO PRINT THE ACCUMULATOR (before Truncation) */ 
-      #if DUMP_MEM==true
-        // => TEMPO, try to dump in 1 Byte (acc_.TruncStore<VTA_OUT_WIDTH>)
-        // FWRITE to write the binary content in a file
-        FILE * pFileAcc; // ADDED
-        printf("\nACC op->x_size: \t %u \t op->y_size: \t %u \t => Element to load = %u (%d-Byte element) \n\n", op->x_size, op->y_size, 16 * op->x_size * op->y_size, VTA_ACC_WIDTH/8); // (printf) ADDED
-        // Define the path
-        std::filesystem::path currentPath = std::filesystem::current_path(); // ADDED
-        std::filesystem::path DumpAccPath = currentPath.parent_path().parent_path() / "OUTPUT" / "dump_acc.bin"; // ADDED
-        // Write to the path
-        pFileAcc = fopen(DumpAccPath.string().c_str(), "ab"); // ADDED
-        fwrite(acc_.BeginPtr(0), VTA_ACC_WIDTH/8, 16*(op->x_size * op->y_size), pFileAcc); // ADDED (ptr, size, count, stream)
-        fclose(pFileAcc); // ADDED
-      #endif
-      /* END OF ADDED SECTION */
-
-      /* ADDED SECTION TO PRINT THE OUTPUT */ 
-      #if DUMP_MEM==true
-        // FWRITE to write the binary content in a file
-        FILE * pFileOut; // ADDED
-        printf("\nOUT op->x_size: \t %u \t op->y_size: \t %u \t => Element to load = %u (%d-Byte element) \n\n", op->x_size, op->y_size, 16 * op->x_size * op->y_size, VTA_OUT_WIDTH/8); // (printf) ADDED
-        // Define the path
-        std::filesystem::path currentPath = std::filesystem::current_path(); // ADDED
-        std::filesystem::path DumpOutPath = currentPath.parent_path().parent_path() / "OUTPUT" / "dump_out.bin"; // ADDED
-        // Write to the path
-        pFileOut = fopen(DumpOutPath.string().c_str(), "ab"); // ADDED
-        //fwrite(dram_, VTA_OUT_WIDTH/8, 16*(op->x_size * op->y_size), pFileOut); // ADDED (ptr, size, count, stream) // Size=VTA_OUT_WIDTH/8
-        fwrite(dram_, 1, sizeof(dram_), pFileOut); // ADDED (ptr, size, count, stream) // Size=VTA_OUT_WIDTH/8
-        fclose(pFileOut); // ADDED
-      #endif
-      /* END OF ADDED SECTION */
-
     } else {
       LOG(FATAL) << "Store do not support memory_type="
                  << op->memory_type;
@@ -507,10 +401,7 @@ class Device {
   }
 
   void RunGEMM(const VTAGemInsn* op) {
-    //printf("\n SIM_DRIVER.CC: (private) Device.RunGEMM(op = %p) \n", op); // (printf) ADDED
-    //printf("\nDEBUG RunGemm: op->reset_reg = %u (0 = no reset, 1+ = reset)\n", op->reset_reg); // (printf) ADDED
     if (!op->reset_reg) {
-      //printf("\nDEBUG RunGemm: NO RESET!\n");
       prof_->gemm_counter += op->iter_out * op->iter_in * (op->uop_end - op->uop_bgn);
       if (prof_->SkipExec()) return;
       for (uint32_t y = 0; y < op->iter_out; ++y) {
@@ -521,21 +412,16 @@ class Device {
             uint32_t acc_idx = uop_ptr->dst_idx;
             uint32_t inp_idx = uop_ptr->src_idx;
             uint32_t wgt_idx = uop_ptr->wgt_idx;
-            //printf("\nDEBUG RunGEMM: (UOP VALUE)\n\t acc_idx = %u \t inp_idx = %u \t wgt_inp = %u \n", acc_idx, inp_idx, wgt_idx); // (printf) ADDED
 
             acc_idx += y * op->dst_factor_out + x * op->dst_factor_in;
             inp_idx += y * op->src_factor_out + x * op->src_factor_in;
             wgt_idx += y * op->wgt_factor_out + x * op->wgt_factor_in;
-            //printf("\nDEBUG RunGEMM: (INSTRUCTION)\n\t LP = (%u, %u) \t acc_factor = (%u, %u) \t src_factor = (%u, %u) \t wgt_factor = (%u, %u) \n", op->iter_out, op->iter_in, op->dst_factor_out, op->dst_factor_in, op->src_factor_out, op->src_factor_in, op->wgt_factor_out, op->wgt_factor_in); // (printf) ADDED
-            //printf("\nDEBUG RunGEMM: (CURRENT IDX)\n\t acc_idx = %u \t inp_idx = %u \t wgt_inp = %u \n", acc_idx, inp_idx, wgt_idx); // (printf) ADDED
 
             BitPacker<VTA_ACC_WIDTH> acc(acc_.BeginPtr(acc_idx));
             BitPacker<VTA_INP_WIDTH> inp(inp_.BeginPtr(inp_idx));
             BitPacker<VTA_WGT_WIDTH> wgt(wgt_.BeginPtr(wgt_idx));
 
             // gemm loop
-            printf("\nDEBUG GeMM operation: lp_0=%d, lp_1=%d, uop_idx=%d \n\t acc_idx=%d, inp_idx=%d, wgt_idx=%d\n", y, x, uindex, acc_idx, inp_idx, wgt_idx); // (printf) ADDED
-            //printf("\nDEBUG RunGEMM: (GeMM loop ACC)\n"); // (printf) ADDED
             for (uint32_t i = 0; i < VTA_BATCH; ++i) {
               for (uint32_t j = 0; j < VTA_BLOCK_OUT; ++j) {
                 uint32_t acc_offset = i * VTA_BLOCK_OUT + j;
@@ -546,9 +432,7 @@ class Device {
                       wgt.GetSigned(j * VTA_BLOCK_IN + k);
                 }
                 acc.SetSigned(acc_offset, sum);
-                //printf("\t %d", sum); // (printf) ADDED
               }
-              //printf("\n"); //(printf) ADDED
             }
           }
         }
@@ -563,7 +447,6 @@ class Device {
             uint32_t acc_idx = uop_ptr->dst_idx;
             acc_idx += y * op->dst_factor_out + x * op->dst_factor_in;
             BitPacker<VTA_ACC_WIDTH> acc(acc_.BeginPtr(acc_idx));
-            //printf("\nDEBUG RunGEMM: (UOP reset VALUE)\n\t acc_idx = %u \n", acc_idx); // (printf) ADDED
             for (uint32_t i = 0; i < VTA_BATCH * VTA_BLOCK_OUT; ++i) {
               acc.SetSigned(i, 0);
             }
@@ -574,7 +457,6 @@ class Device {
   }
 
   void RunALU(const VTAAluInsn* op) {
-    //printf("\n SIM_DRIVER.CC: (private) Device.RunALU(op = %p) \n", op); // (printf) ADDED
     if (op->use_imm) {
       RunALU_<true>(op);
     } else {
@@ -584,7 +466,6 @@ class Device {
 
   template<bool use_imm>
   void RunALU_(const VTAAluInsn* op) {
-    //printf("\n SIM_DRIVER.CC: (template use_imm) Device.RunALU(op = %p) \n", op); // (printf) ADDED
     switch (op->alu_opcode) {
       case VTA_ALU_OPCODE_ADD: {
         return RunALULoop<use_imm>(op, [](int32_t x, int32_t y) {
@@ -623,7 +504,6 @@ class Device {
 
   template<bool use_imm, typename F>
   void RunALULoop(const VTAAluInsn* op, F func) {
-    //printf("\n SIM_DRIVER.CC: (template use_imm + func) Device.RunALULoop(op = %p, func = ?) \n", op); // (printf) ADDED
     prof_->alu_counter += op->iter_out * op->iter_in * (op->uop_end - op->uop_bgn);
     if (prof_->SkipExec()) return;
     for (int y = 0; y < op->iter_out; ++y) {
@@ -667,65 +547,50 @@ using tvm::runtime::TVMArgs;
 
 TVM_REGISTER_GLOBAL("vta.simulator.profiler_clear")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    //printf("\n SIM_DRIVER.CC: TVM_REGISTER_GLOBAL.profiler_clear() \n"); // (printf) ADDED
     Profiler::ThreadLocal()->Clear();
   });
 TVM_REGISTER_GLOBAL("vta.simulator.profiler_status")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    //printf("\n SIM_DRIVER.CC: TVM_REGISTER_GLOBAL.profiler_status() \n"); // (printf) ADDED
     *rv = Profiler::ThreadLocal()->AsJSON();
   });
 TVM_REGISTER_GLOBAL("vta.simulator.profiler_debug_mode")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    //printf("\n SIM_DRIVER.CC: TVM_REGISTER_GLOBAL.profiler_debug_mode() \n"); // (printf) ADDED
     Profiler::ThreadLocal()->debug_flag = args[0];
   });
 }  // namespace sim
 }  // namespace vta
 
 void* VTAMemAlloc(size_t size, int cached) {
-  void* add_mem = vta::sim::DRAM::Global()->Alloc(size); // ADDED
-  //printf("\n SIM_DRIVER.CC: VTAMemAlloc(size = %lu, cached = %d) => MemAlloc = %p \n", size, cached, add_mem); // (printf) ADDED
-  return add_mem; //vta::sim::DRAM::Global()->Alloc(size);
+  return vta::sim::DRAM::Global()->Alloc(size);
 }
 
 void VTAMemFree(void* buf) {
-  //printf("\n SIM_DRIVER.CC: VTAMemFree(buf = %p) \n", buf); // (printf) ADDED
   vta::sim::DRAM::Global()->Free(buf);
 }
 
 vta_phy_addr_t VTAMemGetPhyAddr(void* buf) {
-  vta_phy_addr_t vta_phy_addr = vta::sim::DRAM::Global()->GetPhyAddr(buf); // ADDED
-  //printf("\n SIM_DRIVER.CC: VTAMemGetPhyAddr(buf = %p) => add = %u \n", buf, vta_phy_addr); // (printf) ADDED
-  return vta_phy_addr; //vta::sim::DRAM::Global()->GetPhyAddr(buf);
+  return vta::sim::DRAM::Global()->GetPhyAddr(buf);
 }
 
 void VTAMemCopyFromHost(void* dst, const void* src, size_t size) {
-  //printf("\n SIM_DRIVER.CC: VTAMemCopyFromHost(dst = %p, src = %p, size = %lu) \n", dst, src, size); // (printf) ADDED
   memcpy(dst, src, size);
 }
 
 void VTAMemCopyToHost(void* dst, const void* src, size_t size) {
-  //printf("\n SIM_DRIVER.CC: VTAMemCopyToHost(dst = %p, src = %p, size = %lu) \n", dst, src, size); // (printf) ADDED
   memcpy(dst, src, size);
 }
 
 void VTAFlushCache(void* vir_addr, vta_phy_addr_t phy_addr, int size) {
-  //printf("\n SIM_DRIVER.CC: VTAFlushCache() - DO NOTHING \n"); // (printf) ADDED
 }
 
 void VTAInvalidateCache(void* vir_addr, vta_phy_addr_t phy_addr, int size) {
-  //printf("\n SIM_DRIVER.CC: VTAInvalidateCache() - DO NOTHING \n"); // (printf) ADDED
 }
 
 VTADeviceHandle VTADeviceAlloc() {
-  VTADeviceHandle handle = new vta::sim::Device(); // ADDED
-  //printf("\n SIM_DRIVER.CC: VTADeviceAlloc() => handle = %p \n", handle); // (printf) ADDED
-  return handle; //new vta::sim::Device();
+  return new vta::sim::Device();
 }
 
 void VTADeviceFree(VTADeviceHandle handle) {
-  //printf("\n SIM_DRIVER.CC: VTADeviceFree(VTADeviceHandle = %p) \n", handle); // (printf) ADDED
   delete static_cast<vta::sim::Device*>(handle);
 }
 
@@ -733,13 +598,11 @@ int VTADeviceRun(VTADeviceHandle handle,
                  vta_phy_addr_t insn_phy_addr,
                  uint32_t insn_count,
                  uint32_t wait_cycles) {
-  //printf("\n SIM_DRIVER.CC: VTADeviceRun(VTADeviceHandle = %p, insn_phy_addr = %u, insn_count = %u, wait_cycles = %u) \n", handle, insn_phy_addr, insn_count, wait_cycles); // (printf) ADDED
   return static_cast<vta::sim::Device*>(handle)->Run(
       insn_phy_addr, insn_count, wait_cycles);
 }
 
 void VTAProgram(const char* bitstream) {
-  //printf("\n SIM_DRIVER.CC: VTAProgram() - DO NOTHING \n"); // (printf) ADDED
 }
 
 /* ADDED FUNCTION */

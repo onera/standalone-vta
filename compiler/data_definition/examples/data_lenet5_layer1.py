@@ -7,11 +7,11 @@ isInitRandom = True
 # If yes, random_bound limit the value range (int8 = [-128; 127] -> random_bound = 128)
 random_bound = 4
 
-# A matrix size (INPUT)
+# A matrix size
 A_row = 784
 A_col = 25
 
-# B matrix size (WEIGHT)
+# B matrix size
 B_row = A_col # Required by matrix multiplication
 B_col = 6
 
@@ -36,7 +36,7 @@ doMultiplyNonPadded = False
 useClip = False
 
 # Apply ReLU on the result
-useReLU = False
+useReLU = True
 
 
 """PROMPTING AND DUMPING FILES FEATURES"""
@@ -44,7 +44,7 @@ useReLU = False
 doPrint = True
 
 # Write matrices in binary files in OUTPUT dir (True / False)
-doWriteBinaryFile = False
+doWriteBinaryFile = True
 
 # Write a JSON file for CHISEL Compute in OUTPUT dir (True / False)
 doWriteJSON = True
