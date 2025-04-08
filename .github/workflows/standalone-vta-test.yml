@@ -1,5 +1,4 @@
 # Workflow executing VTA simulator and perform basic tests
-# The command sbt test should end successfully to perform your branch merge on main
 
 name: Standalone VTA CI
 
@@ -14,9 +13,7 @@ permissions:
 
 jobs:
   checks:
-
     runs-on: ubuntu-latest
-    
     steps:
       - uses: actions/checkout@v4
       - uses: conda-incubator/setup-miniconda@v3
@@ -29,5 +26,7 @@ jobs:
           auto-activate-base: false
           environment-file: environment_setup/standalone-vta.yml
           activate-environment: standalone-vta
-      - name: perform checks
+      - name: List packages
+        run: conda list
+      - name: Build Lenet5 instructions and data
         run: make lenet5
