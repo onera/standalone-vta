@@ -1,7 +1,7 @@
 # Workflow executing VTA simulator and perform basic tests
 # The command sbt test should end successfully to perform your branch merge on master
 
-name: Scala CI
+name: Standalone VTA CI
 
 on:
   push:
