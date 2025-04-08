@@ -20,6 +20,8 @@ jobs:
         with:
           environment-file: environment_setup/standalone-vta.yml
           activate-environment: standalone-vta
+      - name: Activate env
+        run: conda activate standalone-vta
       - name: List packages
         run: |
           echo $CONDA_DEFAULT_ENV
