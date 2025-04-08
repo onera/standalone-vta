@@ -85,4 +85,3 @@ dependencies:
   - pip:
       - scipy==1.13.1
       - torch==1.12.1+cpu
-prefix: /home/afauregi/miniconda3/envs/standalone-vta
