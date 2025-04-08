@@ -1,13 +1,13 @@
 # Workflow executing VTA simulator and perform basic tests
-# The command sbt test should end successfully to perform your branch merge on master
+# The command sbt test should end successfully to perform your branch merge on main
 
 name: Standalone VTA CI
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ "master" ]
+    branches: [ "main" ]
 
 permissions:
   contents: read
