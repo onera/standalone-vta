@@ -1,0 +1,33 @@
+# Workflow executing VTA simulator and perform basic tests
+# The command sbt test should end successfully to perform your branch merge on master
+
+name: Scala CI
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v2
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
+          miniconda-version: 'latest'
+          channels: conda-forge
+          mamba-version: "*"
+          channel-priority: true
+          auto-update-conda: false
+          auto-activate-base: false
+          environment-file: environment_setup/standalone-vta.yml
+          activate-environment: standalone-vta
+      - name: List package
+        run: conda list
