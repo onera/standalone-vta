@@ -29,5 +29,5 @@ jobs:
           auto-activate-base: false
           environment-file: environment_setup/standalone-vta.yml
           activate-environment: standalone-vta
-      - name: List package
-        run: conda list
+      - name: perform checks
+        run: make lenet5
