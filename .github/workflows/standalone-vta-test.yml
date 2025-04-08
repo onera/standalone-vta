@@ -1,33 +1,32 @@
 # Workflow executing VTA simulator and perform basic tests
-# The command sbt test should end successfully to perform your branch merge on master
 
-name: Scala CI
+name: Standalone VTA CI
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ "master" ]
+    branches: [ "main" ]
 
 permissions:
   contents: read
 
 jobs:
   checks:
-
     runs-on: ubuntu-latest
-    
+    defaults:
+      run:
+        shell: bash -el {0}
     steps:
-      - uses: actions/checkout@v2
-      - uses: conda-incubator/setup-miniconda@v2
+      - uses: actions/checkout@v4
+      - uses: conda-incubator/setup-miniconda@v3
         with:
-          miniconda-version: 'latest'
-          channels: conda-forge
-          mamba-version: "*"
-          channel-priority: true
-          auto-update-conda: false
           auto-activate-base: false
           environment-file: environment_setup/standalone-vta.yml
           activate-environment: standalone-vta
-      - name: List package
-        run: conda list
+      - name: Build Lenet5 instructions and data
+        run: make lenet5
+      - name: Display compiler results
+        run: cat compiler_output/prompt_data.txt
+      - name: Display simulator results
+        run: cat simulators_output/fsim_report.txt

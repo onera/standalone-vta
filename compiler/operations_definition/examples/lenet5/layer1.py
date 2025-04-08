@@ -4,7 +4,10 @@ import os
 import sys
 
 # Parent folder
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+current_dir = os.path.dirname(os.path.abspath(__file__))
+source_dir = os.path.join(current_dir, '../../')
+sys.path.insert(0, source_dir)
+
 from structures_insn_uop import *
 
 # -----------------------------------------------------------
@@ -12,9 +15,9 @@ from structures_insn_uop import *
 # FILE PATH
 # ---------
 # Define the files to write 
-output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'compiler_output')
-file_uop_path = os.path.join(output_dir, "uop.bin")
-file_insn_path = os.path.join(output_dir, "instructions.bin")
+output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))), 'compiler_output')
+file_uop_path = os.path.join(output_dir, "uop_L1.bin")
+file_insn_path = os.path.join(output_dir, "instructions_L1.bin")
 
 # Create the path if it does not exist
 def create_output_directory(path):
@@ -94,7 +97,7 @@ insn_buffer.append(VTAMemInsn( # I0: LOAD UOP
     # Memory interaction
     buffer_id=0, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
     sram_base=0x0000,
-    dram_base=0x00003400, # TODO: modify to implement full LeNet-5
+    dram_base=0x00007000, # TODO: modify to implement full LeNet-5
     unused=0, # UNUSED
     # Operation over the data
     y_size=1,
@@ -184,7 +187,7 @@ insn_buffer.append(VTAMemInsn( # I4: LOAD UOP
     # Memory interaction
     buffer_id=0, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
     sram_base=0x0001,
-    dram_base=0x00003401, # TODO: modify to implement full LeNet-5
+    dram_base=0x00007001, # TODO: modify to implement full LeNet-5
     unused=0, # UNUSED
     # Operation over the data
     y_size=1,
@@ -354,7 +357,7 @@ for outer_loop in range(0,14):
             # Memory interaction
             buffer_id=4, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
             sram_base=0x0000 + 2*inner_loop + 56*outer_loop, 
-            dram_base=0x00000900 + inner_loop + 14*outer_loop, # TODO: modify to implement full LeNet-5
+            dram_base=0x00002100 + inner_loop + 14*outer_loop, # TODO: modify to implement full LeNet-5 # TODO: 0x00002100
             unused=0, # UNUSED
             # Operation over the data
             y_size=1,

@@ -8,12 +8,12 @@ isInitRandom = True
 random_bound = 4
 
 # A matrix size
-A_row = 784
-A_col = 25
+A_row = 100
+A_col = 150
 
 # B matrix size
 B_row = A_col # Required by matrix multiplication
-B_col = 6
+B_col = 16
 
 # X matrix size (ACCUMULATOR)
 X_row = 1
@@ -33,10 +33,10 @@ isSquare = True
 useClip = False
 
 # Apply ReLU on the result
-useReLU = False
+useReLU = True
 
 # Add average pooling (for square tensor)
-doAvgPool = False
+doAvgPool = True
 Avg_kernel = 2
 Avg_stride = 2
 

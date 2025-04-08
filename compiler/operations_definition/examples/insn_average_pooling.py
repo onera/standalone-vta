@@ -179,22 +179,67 @@ insn_buffer.append(VTAAluInsn( # I4: ALU - SHR 2
     imm=2 # Divide by 4
 ))
 
-insn_buffer.append(VTAMemInsn( # I5: STORE
+insn_buffer.append(VTAMemInsn( # I10: NOP-MEMORY-STAGE (STORE)
     opcode=1, # 0-LOAD, 1-STORE, 3-FINISH
     # DEP FLAG
     pop_prev_dep=1, # Acknowledge COMPUTE ready signal
+    pop_next_dep=0,
+    push_prev_dep=0, 
+    push_next_dep=0,
+    # Memory interaction
+    buffer_id=4, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
+    sram_base=0x0000,
+    dram_base=0x00000000,
+    unused=0, # UNUSED
+    # Operation over the data
+    y_size=0,
+    x_size=0,
+    x_stride=0,
+    y_pad_top=0,
+    y_pad_bottom=0,
+    x_pad_left=0,
+    x_pad_right=0
+))
+# I11 -> I206: STORE
+for outer_loop in range(0, 2):
+    for inner_loop in range(0, 2):
+        insn_buffer.append(VTAMemInsn( # I10: STORE
+            opcode=1, # 0-LOAD, 1-STORE, 3-FINISH
+            # DEP FLAG
+            pop_prev_dep=0,
+            pop_next_dep=0,
+            push_prev_dep=0,
+            push_next_dep=0,
+            # Memory interaction
+            buffer_id=4, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
+            sram_base=0x0000 + 2*inner_loop + 8*outer_loop, 
+            dram_base=0x00000300 + inner_loop + 2*outer_loop, # TODO
+            unused=0, # UNUSED
+            # Operation over the data
+            y_size=1,
+            x_size=1, 
+            x_stride=1,
+            y_pad_top=0,
+            y_pad_bottom=0,
+            x_pad_left=0,
+            x_pad_right=0
+        ))
+insn_buffer.append(VTAMemInsn( # I207: NOP-MEMORY-STAGE (STORE)
+    opcode=1, # 0-LOAD, 1-STORE, 3-FINISH
+    # DEP FLAG
+    pop_prev_dep=0,
     pop_next_dep=0,
     push_prev_dep=1, # Ready signal to COMPUTE
     push_next_dep=0,
     # Memory interaction
     buffer_id=4, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
     sram_base=0x0000,
-    dram_base=0x00000300,
+    dram_base=0x00000000,
     unused=0, # UNUSED
     # Operation over the data
-    y_size=1,
-    x_size=16, # Store 16 OUT
-    x_stride=16,
+    y_size=0,
+    x_size=0,
+    x_stride=0,
     y_pad_top=0,
     y_pad_bottom=0,
     x_pad_left=0,
