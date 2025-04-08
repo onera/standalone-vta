@@ -36,7 +36,7 @@ jobs:
           use-only-tar-bz2: true
       - name: Build Lenet5 instructions and data
         run: make lenet5
-      - name: Display Results
-        run: |
-          cat compiler_output/prompt_data.txt
-          cat simulators_output/fsim_report.txt
+      - name: Display compiler results
+        run: cat compiler_output/prompt_data.txt
+      - name: Display simulator results
+        run: cat simulators_output/fsim_report.txt
