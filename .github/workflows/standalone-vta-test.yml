@@ -14,14 +14,15 @@ permissions:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -el {0}
     steps:
       - uses: actions/checkout@v4
       - uses: conda-incubator/setup-miniconda@v3
         with:
           environment-file: environment_setup/standalone-vta.yml
           activate-environment: standalone-vta
-      - name: Activate env
-        run: conda activate standalone-vta
       - name: List packages
         run: |
           echo $CONDA_DEFAULT_ENV
