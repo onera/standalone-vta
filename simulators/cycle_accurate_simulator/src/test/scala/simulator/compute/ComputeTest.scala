@@ -20,6 +20,7 @@ import vta.core._
 import vta.shell.VMEReadMaster
 import vta.util.config.Parameters
 
+//FIXME modify compute to take all the binary file pathes as inpue
 class ComputeTest(c: Compute, fn: String = "/x.json", doCompare: Boolean = false)
   extends PeekPokeTester(c) {
 
@@ -53,6 +54,11 @@ class ComputeTest(c: Compute, fn: String = "/x.json", doCompare: Boolean = false
 //    print(s"$key \n")
 //  }
 
+  //FIXME Replace this implementation by a reader of binary files compatible
+  //with ones used by the fuctional simulator
+  //- First define the types of data that you should process (in package simulator)
+  //- Second read the bin file and perform the reverse litte Indian
+  //- Third compute adrresses and organize the date in the map
   // Scratchpad memory (emulate the buffers / registers)
   def build_scratchpad(tag: String): Map[BigInt, Array[BigInt]] = {
     val arr = archState(tag).asInstanceOf[Seq[Map[String, Object]]]
@@ -452,7 +458,7 @@ class ComputeTest(c: Compute, fn: String = "/x.json", doCompare: Boolean = false
 /*************************************************************************************************************
  * TEST EXECUTION
  *************************************************************************************************************/
-
+//FIXME Modify the test to use binary files instead
 /* Test JSON files */
 class ComputeApp extends GenericTest("ComputeApp", (p:Parameters) =>
   new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_investigation.json", false))
