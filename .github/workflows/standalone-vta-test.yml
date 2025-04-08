@@ -19,21 +19,11 @@ jobs:
         shell: bash -el {0}
     steps:
       - uses: actions/checkout@v4
-#      - name: Cache
-#        uses: actions/cache@v3
-#        env:
-#          CACHE_NUMBER: 0
-#        with:
-#          path: ~/conda_pkgs_dir
-#          key:
-#            ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{
-#            hashFiles('environment_setup/standalone-vta.yml') }}
       - uses: conda-incubator/setup-miniconda@v3
         with:
           auto-activate-base: false
           environment-file: environment_setup/standalone-vta.yml
           activate-environment: standalone-vta
-#          use-only-tar-bz2: true
       - name: Build Lenet5 instructions and data
         run: make lenet5
       - name: Display compiler results
