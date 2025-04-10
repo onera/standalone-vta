@@ -42,7 +42,10 @@ jobs:
           java-version: 8
           cache: sbt
       - uses: sbt/setup-sbt@v1
+      - name: Setup Z3
+        id: z3
+        uses: cda-tum/setup-z3@v1
       - name: Run tests
         run: |
           cd simulators/cycle_accurate_simulator
-          sbt test
+          sbt testOnly unittest.* formal.*
