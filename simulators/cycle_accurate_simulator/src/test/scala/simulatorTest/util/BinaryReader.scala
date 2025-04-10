@@ -24,7 +24,7 @@ object BinaryReader {
    * @param filePath the path of the resource file
    * @return the ...
    */
-  def readBinaryFile(filePath: String): (Array[Byte], Int) = {
+  def readBinaryFile(filePath: String): Array[Byte] = {
     try {
       val inputStreamFile = new FileInputStream(getClass.getClassLoader.getResource(filePath).getFile)
       val fileSize = inputStreamFile.available()
@@ -32,21 +32,20 @@ object BinaryReader {
 
       inputStreamFile.read(fileContent)
       inputStreamFile.close()
-      (fileContent, fileSize) // à modifier en fileContent
+      fileContent
 
     } catch {
       case e: IOException => {
         println(s"Error while reading file : $e")
-        (Array.empty, 0)
+        Array.empty
       }
     }
   }
 
   // Print the Bytes in the binary file (before reversal) : ok
   def printMapLELE(filePath: String) = {
-    val (fileContent, fileSize) = readBinaryFile(filePath)
+    val fileContent = readBinaryFile(filePath)
     // print en dec
-    println(s"Content of binary file ($fileSize octets) :")
     fileContent.foreach(octet => print(s"$octet, "))
     println("\n")
 
@@ -61,9 +60,9 @@ object BinaryReader {
     for {
       inst <- binaryData.sliding(16, 16).toArray
     } yield {
-      println(s"Instruction : ${inst.mkString(" ")}")
+      //println(s"Instruction : ${inst.mkString(" ")}")
       val r = inst.reverse
-      println(s"Instruction : ${r.mkString(" ")}")
+      //println(s"Instruction : ${r.mkString(" ")}")
       r
     }
 
@@ -87,7 +86,7 @@ object BinaryReader {
 
   // Compute the logical addresses associated with each instruction in a Map : ok
   def computeAddresses(filePath: String): Map[BigInt, Array[BigInt]] = { // signature à modifier
-    val groupedBinaryData = reverseLE(readBinaryFile(filePath)._1)
+    val groupedBinaryData = reverseLE(readBinaryFile(filePath))
     // Definition of Map
     val addresses = collection.mutable.Map[BigInt, Array[Byte]]()
     // Filling the Map
@@ -113,9 +112,9 @@ object BinaryReader {
       println("---")
     }
     // print en hex
-    map.foreach { case (key, values) =>
-      println(s"Logical address (Hex) : ${key.toInt & 0xFF}%02x")
-      println(s"Values (Hex) : ${values.map(_.toInt & 0xFF).map("%02x".format(_)).mkString(", ")}")
-    }
+//    map.foreach { case (key, values) =>
+//      println(s"Logical address (Hex) : ${key.toInt & 0xFF}%02x")
+//      println(s"Values (Hex) : ${values.map(_.toInt & 0xFF).map("%02x".format(_)).mkString(", ")}")
+//    }
   }
 }

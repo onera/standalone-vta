@@ -468,7 +468,7 @@ class ComputeApp extends GenericTest("ComputeApp", (p:Parameters) =>
 
 /* Test binary file */
 class BinaryFile_Instructions extends GenericTest("BinaryFile_Instructions", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/instructions.bin", true))
+  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/instructions_lenet5_layer1.bin", true))
 
 /* Vector x matrix multiplication (Simple Matrix Multiply) */
 class ComputeApp_Smm extends GenericTest("ComputeApp_Smm", (p:Parameters) =>
