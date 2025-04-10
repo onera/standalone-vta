@@ -23,7 +23,7 @@ import java.util
 import java.io.FileInputStream // Import for binary file reading
 import java.io.IOException // Import for raising exceptions in case of misreading
 
-//FIXME modify compute to take all the binary file pathes as inpue
+//FIXME modify compute to take all the binary file paths as inputs
 class ComputeTest(c: Compute, fn: String = "/x.json", doCompare: Boolean = false)
   extends PeekPokeTester(c) {
 
@@ -206,7 +206,7 @@ class ComputeTest(c: Compute, fn: String = "/x.json", doCompare: Boolean = false
     step(1)
   }
 
-  /* Function to loop for each instructions */
+  /* Function to loop for each instruction */
   def loop(prev_signal: Boolean, next_signal: Boolean): Unit = {
     val end = 10000 // Timeout
     var count = 0
@@ -543,6 +543,13 @@ class ComputeTest(c: Compute, fn: String = "/x.json", doCompare: Boolean = false
   print(s"\n\t END COMPUTE TESTS! \n\t (done in ${cycle_counter} cycles)\n\n")
 }
 
+//object BinaryReader {
+//  def main(args: Array[String]) = {
+//    val filePath = getClass.getClassLoader.getResource("instructions.bin").getFile
+//    printMapLELE(filePath) // Print the instructions directly extracted from binary file
+//    printMapLE(computeAddresses(filePath)) // Print the instructions encoded correctly, associated with a logical address
+//  }
+//}
 
 /*************************************************************************************************************
  * TEST EXECUTION
@@ -554,7 +561,7 @@ class ComputeApp extends GenericTest("ComputeApp", (p:Parameters) =>
 
 /* Test binary file */
 class BinaryFile_Instructions extends GenericTest("BinaryFile_Instructions", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/resources/instructions.bin", true))
+  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/instructions.bin", true))
 
 /* Vector x matrix multiplication (Simple Matrix Multiply) */
 class ComputeApp_Smm extends GenericTest("ComputeApp_Smm", (p:Parameters) =>
