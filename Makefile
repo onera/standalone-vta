@@ -10,8 +10,7 @@ FILENAME ?= lenet5_layer1
 DATA_FILE := examples.data_$(FILENAME)
 INSN_FILE := insn_$(FILENAME)
 
-
-# Default execution (when no argument is given)
+# Default example
 all: $(FILENAME)
 
 # Execution with specified FILENAME
@@ -19,6 +18,21 @@ $(FILENAME): | compiler_output/ simulators_output/
 	python compiler/data_definition/main_matrix_generator.py $(DATA_FILE) > compiler_output/prompt_data.txt
 	python compiler/operations_definition/examples/$(INSN_FILE).py > compiler_output/prompt_insn.txt
 	cd simulators/functional_simulator && make -s execute > $(MAKEFILE_DIR)simulators_output/fsim_report.txt
+
+# Execution of LeNet-5
+lenet5: | compiler_output/ simulators_output/
+	python compiler/data_definition/examples/lenet5/main_data_lenet5.py > compiler_output/prompt_data.txt
+	@echo "LAYER 1:" > compiler_output/prompt_insn.txt
+	python compiler/operations_definition/examples/lenet5/layer1.py >> compiler_output/prompt_insn.txt
+	@echo "LAYER 2:" >> compiler_output/prompt_insn.txt
+	python compiler/operations_definition/examples/lenet5/layer2.py >> compiler_output/prompt_insn.txt
+	@echo "LAYER 3:" >> compiler_output/prompt_insn.txt
+	python compiler/operations_definition/examples/lenet5/layer3.py >> compiler_output/prompt_insn.txt
+	@echo "LAYER 4:" >> compiler_output/prompt_insn.txt
+	python compiler/operations_definition/examples/lenet5/layer4.py >> compiler_output/prompt_insn.txt
+	@echo "LAYER 5:" >> compiler_output/prompt_insn.txt
+	python compiler/operations_definition/examples/lenet5/layer5.py >> compiler_output/prompt_insn.txt
+	cd simulators/functional_simulator && make -s lenet5 > $(MAKEFILE_DIR)simulators_output/fsim_report.txt
 
 
 # LIST THE POSSIBLE FILENAMES
@@ -44,6 +58,17 @@ list:
 	@for name in $(POSSIBLE_FILENAMES); do \
 		echo $$name; \
 	done
+	@echo "" && echo "Command line: make FILENAME=<filename>"
+
+# Provide some help
+.PHONY: help
+help: 
+	@echo "To execute the command:"
+	@echo "  1 - Consult the list of available examples: make list"
+	@echo "  2 - Execute an examples: make FILENAME=<filename>"
+	@echo "  3 - Check within compiler_output/ folder to see the compiler result," 
+	@echo "      and within simulators_output/ folder to see the simulators results"
+	@echo "  4 - Clean the folders with: make clean"
 
 
 # CREATE OUTPUTS DIRECTORIES
