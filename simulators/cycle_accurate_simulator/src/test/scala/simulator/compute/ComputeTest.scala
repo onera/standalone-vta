@@ -129,7 +129,9 @@ class ComputeTest(c: Compute, fn: String = "/x.json", doCompare: Boolean = false
   // Compute the logical addresses associated with each instruction in a Map : ok
   def computeAddresses(filePath: String): Map[BigInt, Array[BigInt]] = { // signature à modifier
     val groupedBinaryData = reverseLE(readBinaryFile(filePath)._1)
+    // Definition of Map
     val addresses = collection.mutable.Map[BigInt, Array[Byte]]()
+    // Filling the Map
     for (i <- groupedBinaryData.indices) {
       addresses += (BigInt(i) -> groupedBinaryData(i))
     }
@@ -160,9 +162,26 @@ class ComputeTest(c: Compute, fn: String = "/x.json", doCompare: Boolean = false
 
 
   // Scratchpad memory (emulate the buffers / registers)
-  def build_scratchpad(filePath: String): Map[BigInt, Array[BigInt]] = {
+  def build_scratchpad(tag: String): Map[BigInt, Array[BigInt]] = {
+    val arr = archState(tag).asInstanceOf[Seq[Map[String, Object]]]
+    (
+      for {m <- arr} yield {
+        val idx = BigInt(m("idx").asInstanceOf[String], 16)
+        val vec = m("vec").asInstanceOf[Seq[String]]
+        idx -> (
+          for {v <- vec} yield {
+            BigInt(v, 16)
+          }
+          ).toArray
+      }
+      ).toMap
+  }
+
+  def build_scratchpad_binary(filePath: String): Map[BigInt, Array[BigInt]] = {
     computeAddresses(filePath)
   }
+
+
 
   // Print scratchpad
   def print_scratchpad(scratchpad: Map[BigInt, Array[BigInt]], index: BigInt, name : String = "?"): Unit = {
@@ -543,13 +562,6 @@ class ComputeTest(c: Compute, fn: String = "/x.json", doCompare: Boolean = false
   print(s"\n\t END COMPUTE TESTS! \n\t (done in ${cycle_counter} cycles)\n\n")
 }
 
-//object BinaryReader {
-//  def main(args: Array[String]) = {
-//    val filePath = getClass.getClassLoader.getResource("instructions.bin").getFile
-//    printMapLELE(filePath) // Print the instructions directly extracted from binary file
-//    printMapLE(computeAddresses(filePath)) // Print the instructions encoded correctly, associated with a logical address
-//  }
-//}
 
 /*************************************************************************************************************
  * TEST EXECUTION
