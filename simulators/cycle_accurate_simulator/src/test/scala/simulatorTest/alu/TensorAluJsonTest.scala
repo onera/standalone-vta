@@ -1,4 +1,4 @@
-package simulator.alu
+package simulatorTest.alu
 
 import chisel3._
 import chiseltest.iotesters.PeekPokeTester

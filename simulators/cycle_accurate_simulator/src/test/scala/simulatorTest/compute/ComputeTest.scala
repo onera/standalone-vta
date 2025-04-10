@@ -1,4 +1,4 @@
-package simulator.compute
+package simulatorTest.compute
 
 import chisel3._
 import chisel3.util._
@@ -18,9 +18,10 @@ import unittest.GenericTest
 import vta.core._
 import vta.shell.VMEReadMaster
 import vta.util.config.Parameters
+import simulatorTest.util.BinaryReader
 
 import java.util
-import java.io.FileInputStream // Import for binary file reading
+import java.io.FileInputStream
 import java.io.IOException // Import for raising exceptions in case of misreading
 
 //FIXME modify compute to take all the binary file paths as inputs
@@ -57,109 +58,9 @@ class ComputeTest(c: Compute, fn: String = "/x.json", doCompare: Boolean = false
 //    print(s"$key \n")
 //  }
 
-  //FIXME Replace this implementation by a reader of binary files compatible
-  //with ones used by the functional simulator
-  //- First define the types of data that you should process (in package simulator)
-  //- Second read the bin file and perform the reverse little Endian
-  //- Third compute addresses and organize the data in the map
-
-  // Open and read the binary file, write the data in an Array[Byte]
-  def readBinaryFile(filePath: String): (Array[Byte], Int) = {
-    try {
-      val inputStreamFile = new FileInputStream(filePath)
-      val fileSize = inputStreamFile.available()
-      val fileContent = new Array[Byte](fileSize)
-
-      inputStreamFile.read(fileContent)
-      inputStreamFile.close()
-      (fileContent, fileSize) // à modifier en fileContent
-
-    } catch {
-      case e: IOException => {
-        println(s"Error while reading file : $e")
-        (Array[Byte](), 0)
-      }
-    }}
-
-  // Print the Bytes in the binary file (before reversal) : ok
-  def printMapLELE(filePath: String) = {
-    val (fileContent, fileSize) = readBinaryFile(filePath)
-    // print en dec
-    println(s"Content of binary file ($fileSize octets) :")
-    fileContent.foreach(octet => print(s"$octet, "))
-    println("\n")
-
-    // print en hex : ok
-    fileContent.foreach { byte =>
-      println(f"$byte%02x ")
-    }
+  def build_scratchpad_binary(filePath: String): Map[BigInt, Array[BigInt]] = {
+    BinaryReader.computeAddresses(filePath)
   }
-
-
-  // Group the instructions in 16-Byte groups, reverse Little Endian for each instruction : ok
-  def reverseLE(binaryData: Array[Byte]): Array[Array[Byte]] = {
-    val nbGroups = (binaryData.length + 15) / 16 // '+ 15' pour arrondir au supérieur
-    val groupedBinaryData = binaryData.sliding(16, 16).toArray
-    // print the groups of 16 Bytes
-    groupedBinaryData.foreach { insn =>
-      println(s"Instruction : ${insn.mkString(" ")}")
-    }
-    var size = 0
-    for (i <- groupedBinaryData.indices) {
-      size = groupedBinaryData(i).length
-      // We switch the values from indexes 0 -> 7 with the ones from 15 -> 8
-      for (j <- 0 until (size / 2)) {
-        val currElem = groupedBinaryData(i)(j)
-        groupedBinaryData(i)(j) = groupedBinaryData(i)(size - 1 - j)
-        groupedBinaryData(i)(size - 1 - j) = currElem
-      }
-    }
-    // print the instructions reversed
-    groupedBinaryData.foreach { insn =>
-      println(s"Instruction : ${insn.mkString(" ")}")
-    }
-    groupedBinaryData
-  }
-
-  // Enumeration for data type
-  object dataType extends Enumeration {
-    val INP, WGT, OUT, UOP, INSN, ACC = Value
-  }
-
-  // Compute the logical addresses associated with each instruction in a Map : ok
-  def computeAddresses(filePath: String): Map[BigInt, Array[BigInt]] = { // signature à modifier
-    val groupedBinaryData = reverseLE(readBinaryFile(filePath)._1)
-    // Definition of Map
-    val addresses = collection.mutable.Map[BigInt, Array[Byte]]()
-    // Filling the Map
-    for (i <- groupedBinaryData.indices) {
-      addresses += (BigInt(i) -> groupedBinaryData(i))
-    }
-    // Values type conversion from Byte to BigInt
-    val bigIntMap = addresses.map { case (key, byteValue) =>
-      key -> byteValue.flatMap { byte => Some(BigInt(byte))
-      }.toArray
-    }.toMap
-    bigIntMap
-  }
-
-
-  // Print the Map with the instructions encoded correctly
-  def printMapLE(map: Map[BigInt, Array[BigInt]]) = {
-    println("Content of the Map :")
-    // print en dec
-    map.foreach { case (key, values) =>
-      println(s"Instruction index : $key")
-      println(s"Values : ${values.mkString(", ")}")
-      println("---")
-    }
-    // print en hex
-    map.foreach { case (key, values) =>
-      println(s"Logical address (Hex) : ${key.toInt & 0xFF}%02x")
-      println(s"Values (Hex) : ${values.map(_.toInt & 0xFF).map("%02x".format(_)).mkString(", ")}")
-    }
-  }
-
 
   // Scratchpad memory (emulate the buffers / registers)
   def build_scratchpad(tag: String): Map[BigInt, Array[BigInt]] = {
@@ -176,12 +77,6 @@ class ComputeTest(c: Compute, fn: String = "/x.json", doCompare: Boolean = false
       }
       ).toMap
   }
-
-  def build_scratchpad_binary(filePath: String): Map[BigInt, Array[BigInt]] = {
-    computeAddresses(filePath)
-  }
-
-
 
   // Print scratchpad
   def print_scratchpad(scratchpad: Map[BigInt, Array[BigInt]], index: BigInt, name : String = "?"): Unit = {
