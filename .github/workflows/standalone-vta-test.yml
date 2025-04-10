@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 jobs:
-  functiona-simutator-test:
+  functional-simutator-test:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -43,4 +43,6 @@ jobs:
           cache: sbt
       - uses: sbt/setup-sbt@v1
       - name: Run tests
-        run: sbt test
+        run: |
+          cd simulators/cycle_accurate_simulator
+          sbt test
