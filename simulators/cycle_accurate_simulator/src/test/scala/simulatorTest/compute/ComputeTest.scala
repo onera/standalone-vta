@@ -58,9 +58,9 @@ class ComputeTest(c: Compute, fn: String = "/x.json", doCompare: Boolean = false
 //    print(s"$key \n")
 //  }
 
-  def build_scratchpad_binary(filePath: String): Map[BigInt, Array[BigInt]] = {
-    BinaryReader.computeAddresses(filePath)
-  }
+//  def build_scratchpad_binary(filePath: String): Map[BigInt, Array[BigInt]] = {
+//    BinaryReader.computeAddresses(filePath)
+//  }
 
   // Scratchpad memory (emulate the buffers / registers)
   def build_scratchpad(tag: String): Map[BigInt, Array[BigInt]] = {

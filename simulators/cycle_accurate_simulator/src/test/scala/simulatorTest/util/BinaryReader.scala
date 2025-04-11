@@ -19,10 +19,36 @@ object BinaryReader {
 //    }
 //  }
 
+  // Enumeration for data type
+  //FIXME add parameters to values
+  object DataType extends Enumeration {
+    class DataTypeValue(val id: Int, val bytes: Int, val doReversal: Boolean) extends Value
+    val INP: DataTypeValue = new DataTypeValue(0, 16, false)
+    val WGT: DataTypeValue = new DataTypeValue(1, 256, false)
+    val OUT: DataTypeValue = new DataTypeValue(2, 16, false)
+    val UOP: DataTypeValue = new DataTypeValue(3, 4, true)
+    val ACC: DataTypeValue = new DataTypeValue(4, 64, true)
+    val INSN: DataTypeValue = new DataTypeValue(5, 16, true)
+
+    //val INP, WGT, OUT, UOP, INSN, ACC = Value
+  }
+
+  import DataType._
+
+  //exemple enum
+  def toto(d: DataType.Value): Unit= d match {
+    case INP => ???
+    case WGT => ???
+    case OUT => ???
+    case UOP => ???
+    case INSN => ???
+    case ACC => ???
+  }
+
   /**
    * Open and read the binary file, write the data in an Array[Byte]
    * @param filePath the path of the resource file
-   * @return the ...
+   * @return an Array[Byte] of all the bytes inside the file
    */
   def readBinaryFile(filePath: String): Array[Byte] = {
     try {
@@ -42,7 +68,10 @@ object BinaryReader {
     }
   }
 
-  // Print the Bytes in the binary file (before reversal) : ok
+  /**
+   * Print the Bytes of the input binary file (before Little Endian reversal)
+   * @param filePath the path of the resource file
+   */
   def printMapLELE(filePath: String) = {
     val fileContent = readBinaryFile(filePath)
     // print en dec
@@ -55,38 +84,30 @@ object BinaryReader {
     }
   }
 
-  // Group the instructions in 16-Byte groups, reverse Little Endian for each instruction : ok
-  def reverseLE(binaryData: Array[Byte]): Array[Array[Byte]] =
+  /**
+   * Group the instructions in 16-Byte groups, reverse Little Endian for each instruction
+   * @param binaryData an array containing the bytes extracted from the binary file
+   * @param dataType the type of data in the binary file
+   * @return an array containing the data grouped together according to its byte size
+   */
+  def reverseLE(binaryData: Array[Byte], dataType: DataTypeValue): Array[Array[Byte]] =
     for {
-      inst <- binaryData.sliding(16, 16).toArray
+      inst <- binaryData.grouped(dataType.bytes).toArray
     } yield {
       //println(s"Instruction : ${inst.mkString(" ")}")
-      val r = inst.reverse
+      val r = inst.reverse // pour ACC à modifier probablement
       //println(s"Instruction : ${r.mkString(" ")}")
       r
     }
 
-
-  // Enumeration for data type
-  //FIXME add parameters to values
-  object DataType extends Enumeration {
-    val INP, WGT, OUT, UOP, INSN, ACC = Value
-  }
-
-  import DataType._
-
-  def toto(d: DataType.Value): Unit= d match {
-    case INP => ???
-    case WGT => ???
-    case OUT => ???
-    case UOP => ???
-    case INSN => ???
-    case ACC => ???
-  }
-
   // Compute the logical addresses associated with each instruction in a Map : ok
-  def computeAddresses(filePath: String): Map[BigInt, Array[BigInt]] = { // signature à modifier
-    val groupedBinaryData = reverseLE(readBinaryFile(filePath))
+  def computeAddresses(filePath: String, dataType: DataTypeValue, offset: Int): Map[BigInt, Array[BigInt]] = { // signature à modifier
+    val groupedBinaryData = if (dataType.doReversal) {
+      reverseLE(readBinaryFile(filePath), dataType)
+    }
+    else {
+      readBinaryFile(filePath).grouped(dataType.bytes).toArray
+    }
     // Definition of Map
     val addresses = collection.mutable.Map[BigInt, Array[Byte]]()
     // Filling the Map
