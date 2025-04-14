@@ -36,7 +36,7 @@ object BinaryReader {
 
   /**
    * Open and read the binary file, write the data in an Array[Byte]
-   * @param filePath the path of the resource file
+   * @param filePath the path to the resource file
    * @return an Array[Byte] of all the bytes inside the file
    */
   def readBinaryFile(filePath: String): Try[Array[Byte]] = {
@@ -53,7 +53,7 @@ object BinaryReader {
 
   /**
    * Print the Bytes of the input binary file (before Little Endian reversal)
-   * @param filePath the path of the resource file
+   * @param filePath the path to the resource file
    */
   def printMapLELE(filePath: String): Try[Unit] = {
     readBinaryFile(filePath) match {
@@ -91,9 +91,9 @@ object BinaryReader {
 
   /**
    * Compute the logical addresses associated with each instruction in a Map
-   * @param filePath the path of the resource file
+   * @param filePath the path to the resource file
    * @param dataType the type of data in the binary file
-   * @param offset distance between the addresses of different data types
+   * @param offset base address of a data type
    * @return a Map(Address, Array) that associates the logical address of a vector with its values
    */
 //  def computeAddresses(filePath: String, dataType: DataTypeValue, offset: String): Map[BigInt, Array[BigInt]] = { // signature à modifier
@@ -166,7 +166,6 @@ object BinaryReader {
    */
   def printMapLE(map: Try[Map[BigInt, Array[BigInt]]], dataType: DataTypeValue): Try[Unit] = {
     println("Content of the Map :")
-
     map match {
       case Success(data) =>
         // Print in decimals for Instructions and UOPs

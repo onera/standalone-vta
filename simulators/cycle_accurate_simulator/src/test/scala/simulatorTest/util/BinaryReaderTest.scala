@@ -19,7 +19,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   }
 
   it should "print the INP data encoded in a format computable by CHISEL" in {
-    printMapLE(computeAddressesTry("examples_compute/input_lenet5_layer1.bin", DataType.INP, "00000000"), DataType.INP)
+    printMapLE(computeAddressesTry("examples_compute/input_lenet5_layer1.bin", DataType.INP, "00001000"), DataType.INP)
   }
 
   it should "decode correctly the first vector of INP (16 Bytes) in a binary file" in {
@@ -235,6 +235,20 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     }
   }
 
+  it should "decode correctly the UOPs (4 Bytes each) in a binary file" in {
+    val result =  computeAddressesTry("examples_compute/uop_lenet5_layer1.bin", DataType.UOP, "00000000")
+    result match {
+      case Success(data) =>
+        Success(data(0) should equal (Array(0, 0, 0, 0)),
+          data(1) should equal (Array(0, 0, 0, 0)),
+          data(2) should equal (Array(0, 64, -128, 0)),
+          data(3) should equal (Array(0, 0, 0, 0)))
+      case Failure(exception) =>
+        println(s"Error while computing addresses for UOPs : ${exception.getMessage}")
+        Failure(exception)
+    }
+  }
+
   it should "decode correctly the first instruction (16 Bytes) in a binary file" in {
     val result = computeAddressesTry("examples_compute/instructions_lenet5_layer1.bin", DataType.INSN, "00000000")
     result match {
@@ -257,7 +271,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     }
   }
 
-  it should "return the same value if an offset is or isn't used" in {
+  it should "return the same value if an offset is or isn't used for the first vector of INP" in {
     val resultOffset = computeAddressesTry("examples_compute/instructions_lenet5_layer1.bin", DataType.INSN, "00001000")
     val resultWithoutOffset = computeAddressesTry("examples_compute/instructions_lenet5_layer1.bin", DataType.INSN, "00000000")
     resultOffset match {
@@ -266,6 +280,26 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
           case Success(dataWithoutOffset) =>
             val idx = java.lang.Integer.parseInt("00001000", 16)
             Success(dataOffset(idx) should equal (dataWithoutOffset(0)))
+          case Failure(exception) =>
+            println(s"Error while computing addresses for INP without an offset : ${exception.getMessage}")
+            Failure(exception)
+        }
+      case Failure(exception) =>
+        println(s"Error while computing addresses for INP with an offset : ${exception.getMessage}")
+        Failure(exception)
+    }
+  }
+
+  it should "return the same value if an offset is or isn't used for the second vector of INP" in {
+    val offset = "00001000"
+    val resultOffset = computeAddressesTry("examples_compute/instructions_lenet5_layer1.bin", DataType.INSN, offset)
+    val resultWithoutOffset = computeAddressesTry("examples_compute/instructions_lenet5_layer1.bin", DataType.INSN, "00000000")
+    resultOffset match {
+      case Success(dataOffset) =>
+        resultWithoutOffset match {
+          case Success(dataWithoutOffset) =>
+            val idx = java.lang.Integer.parseInt(offset, 16)
+            Success(dataOffset(idx + 1) should equal (dataWithoutOffset(1)))
           case Failure(exception) =>
             println(s"Error while computing addresses for INP without an offset : ${exception.getMessage}")
             Failure(exception)

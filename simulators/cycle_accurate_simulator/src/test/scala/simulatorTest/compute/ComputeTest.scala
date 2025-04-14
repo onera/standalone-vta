@@ -19,10 +19,12 @@ import vta.core._
 import vta.shell.VMEReadMaster
 import vta.util.config.Parameters
 import simulatorTest.util.BinaryReader
+import simulatorTest.util.BinaryReader.DataType._
 
 import java.util
 import java.io.FileInputStream
 import java.io.IOException // Import for raising exceptions in case of misreading
+
 
 //FIXME modify compute to take all the binary file paths as inputs
 class ComputeTest(c: Compute, fn: String = "/x.json", doCompare: Boolean = false)
@@ -58,9 +60,13 @@ class ComputeTest(c: Compute, fn: String = "/x.json", doCompare: Boolean = false
 //    print(s"$key \n")
 //  }
 
-//  def build_scratchpad_binary(filePath: String): Map[BigInt, Array[BigInt]] = {
-//    BinaryReader.computeAddresses(filePath)
-//  }
+
+
+  def build_scratchpad_binary(filePath: String, dataType: DataTypeValue, offset: String): Map[BigInt, Array[BigInt]] = {
+    BinaryReader.computeAddressesTry(filePath, dataType, offset)
+  }
+
+  val inst_bin = build_scratchpad_binary()
 
   // Scratchpad memory (emulate the buffers / registers)
   def build_scratchpad(tag: String): Map[BigInt, Array[BigInt]] = {
