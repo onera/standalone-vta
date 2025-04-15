@@ -19,15 +19,19 @@ import vta.core._
 import vta.shell.VMEReadMaster
 import vta.util.config.Parameters
 import simulatorTest.util.BinaryReader
+import simulatorTest.util.BinaryReader.DataType
 import simulatorTest.util.BinaryReader.DataType._
 
 import java.util
 import java.io.FileInputStream
-import java.io.IOException // Import for raising exceptions in case of misreading
+import java.io.IOException
+import scala.util.{Failure, Success, Try} // Import for raising exceptions in case of misreading
 
 
 //FIXME modify compute to take all the binary file paths as inputs
-class ComputeTest(c: Compute, fn: String = "/x.json", doCompare: Boolean = false)
+class ComputeTest(c: Compute, fn: String, insn: String, doCompare: Boolean = false)
+//class ComputeTest(c: Compute, inst: String, uop: String, input: String, weight: String, expected_out: String,
+//                  doCompare: Boolean = false)
   extends PeekPokeTester(c) {
 
   // Print the test name
@@ -62,11 +66,23 @@ class ComputeTest(c: Compute, fn: String = "/x.json", doCompare: Boolean = false
 
 
 
-  def build_scratchpad_binary(filePath: String, dataType: DataTypeValue, offset: String): Map[BigInt, Array[BigInt]] = {
-    BinaryReader.computeAddressesTry(filePath, dataType, offset)
+  def build_scratchpad_binary(filePath: String, dataType: DataTypeValue, offset: String): Try[Map[BigInt, Array[BigInt]]] = {
+    BinaryReader.computeAddressesTry(filePath, dataType, offset) match {
+      case Success(scratchpad) =>
+        Success(scratchpad)
+      case Failure(exception) =>
+        println(s"Error while building scratchpad : ${exception.getMessage}")
+        Failure(exception)
+    }
   }
 
-  val inst_bin = build_scratchpad_binary()
+//  val inst = build_scratchpad_binary(insn, DataType.INSN, "00000000")
+//
+//
+//  val convertedMap = inst.map { data => data.map { case (key, value) => (key.toString, value.toString)}.toMap }
+//  val sortedInst = convertedMap.map { data => data.map { case (key, value) => key -> BigInt(value, 16) }
+//                                                  .keys.toList.sortBy(key => key.substring(1).toInt) }
+
 
   // Scratchpad memory (emulate the buffers / registers)
   def build_scratchpad(tag: String): Map[BigInt, Array[BigInt]] = {
@@ -429,6 +445,12 @@ class ComputeTest(c: Compute, fn: String = "/x.json", doCompare: Boolean = false
   val out_scratchpad = build_scratchpad("out")
   val out_expect_scratchpad = build_scratchpad("out_expect") // Expected
 
+//  val dram_scratchpad_bin = ??? // uop ?
+//  val inp_scratchpad_bin = build_scratchpad_binary(input, DataType.INP, "00001000")
+//  val wgt_scratchpad_bin = build_scratchpad_binary(weight, DataType.WGT, "00002000")
+//  val out_scratchpad_bin = ???
+//  val out_expect_scratchpad_bin = build_scratchpad_binary(expected_out, DataType.OUT, ???)
+
   // Create the mocks
   val mocks = new Mocks
 
@@ -452,6 +474,21 @@ class ComputeTest(c: Compute, fn: String = "/x.json", doCompare: Boolean = false
     mocks.logical_step()
   }
 
+//  sortedInst match {
+//    case Success(instValues) =>
+//      for (key <- instValues) {
+//        // Send the instruction
+//        poke(c.io.inst.bits, key)
+//        // Instruction is valid
+//        poke(c.io.inst.valid, 1)
+//        print(s"Send instruction: $key\n")
+//        // Increment the step
+//        mocks.logical_step()
+//      }
+//    case Failure(ex) =>
+//      println(s"error : $ex")
+//  }
+
   // Loop until is finish
   loop(true, true)
 
@@ -469,72 +506,79 @@ class ComputeTest(c: Compute, fn: String = "/x.json", doCompare: Boolean = false
  *************************************************************************************************************/
 //FIXME Modify the test to use binary files instead
 /* Test JSON files */
-class ComputeApp extends GenericTest("ComputeApp", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_investigation.json", false))
+//class ComputeApp extends GenericTest("ComputeApp", (p:Parameters) =>
+//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_investigation.json", false))
 
 /* Test binary file */
-class BinaryFile_Instructions extends GenericTest("BinaryFile_Instructions", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/instructions_lenet5_layer1.bin", true))
+//class BinaryFile_Input extends GenericTest("BinaryFile_Input", (p:Parameters) =>
+//  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
+//  "/examples_compute/lenet5_layer1/instructions_lenet5_layer1.bin",
+//  "/examples_compute/lenet5_layer1/uop_lenet5_layer1.bin",
+//  "/examples_compute/lenet5_layer1/input_lenet5_layer1.bin",
+//  "/examples_compute/lenet5_layer1/weight_lenet5_layer1.bin",
+//  "/examples_compute/lenet5_layer1/expected_out_lenet5_layer1.bin",
+//  true))
 
 /* Vector x matrix multiplication (Simple Matrix Multiply) */
 class ComputeApp_Smm extends GenericTest("ComputeApp_Smm", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_smm.json", true))
+  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_smm.json",
+  "/examples_compute/lenet5_layer1/instructions.bin", true))
 
-/* Matrix 16x16 multiply with matrix 16x16 */
-class ComputeApp_Matrix_16x16 extends GenericTest("ComputeApp_Matrix_16x16", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_matrix_16x16.json", true))
-
-/* Matrix 32x32 multiply with matrix 32x32 */
-class ComputeApp_Matrix_32x32 extends GenericTest("ComputeApp_Matrix_32x32", (p: Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_matrix_32x32.json", true))
-
-/* ALTERNATIVE INSTRUCTION INVESTIGATION:
- * Batches with 2 UOP and 1 GeMM loop */
-class ComputeApp_Batches_2uop_1loop extends GenericTest("ComputeApp_Batches_2uop_1loop", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/alternative_instructions/batches_2uop_1loop.json", true))
-/* Batches with 1 UOP and 2 GeMM loop */
-class ComputeApp_Batches_1uop_2loops extends GenericTest("ComputeApp_Batches_1uop_2loops", (p: Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/alternative_instructions/batches_1uop_2loops.json", true))
-/* Batches with 2 instructions */
-class ComputeApp_Batches_2insn extends GenericTest("ComputeApp_Batches_2insn", (p: Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/alternative_instructions/batches_2insn.json", true))
-
-/* ALTERNATIVE INSTRUCTION INVESTIGATION:
- * Load 4 UOP using 1 instruction */
-class ComputeApp_LoadUop_1insn extends GenericTest("ComputeApp_LoadUop_1insn", (p: Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/alternative_instructions/loadUop_1insn.json"))
-class ComputeApp_LoadUop_2insn extends GenericTest("ComputeApp_LoadUop_2insn", (p: Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/alternative_instructions/loadUop_2insn.json"))
-
-/* ALU
- * ReLU */
-class ComputeApp_relu extends GenericTest("ComputeApp_relu", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_relu.json", true))
-/* ReLU - ReLU in one instruction */
-class ComputeApp_relu_relu extends GenericTest("ComputeApp_relu_relu", (p: Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_relu_relu.json", true))
-
-/* Matrix 16x16 multiply with matrix 16x16 followed by a ReLU (MAX with 0) */
-class ComputeApp_16x16_relu extends GenericTest("ComputeApp_16x16_relu", (p: Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_16x16_relu.json", true))
-/* Matrix 32x32 multiply with matrix 32x32 followed by a ReLU (MAX with 0) */
-class ComputeApp_32x32_relu extends GenericTest("ComputeApp_32x32_relu", (p: Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_32x32_relu.json", true))
-
-/* Average pooling (first part - add only) */
-class ComputeApp_add_acc_vectors extends GenericTest("ComputeApp_add_acc_vectors", (p: Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_add_acc_vectors.json", true))
-/* Average pooling (full - add + division), the division round down */
-class ComputeApp_average_pooling extends GenericTest("ComputeApp_average_pooling", (p: Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_average_pooling.json", true))
-
-/* CONVOLUTIONAL NEURAL NETWORK
- * LeNet-5: Convolution 1 */
-class ComputeApp_lenet5_conv1 extends GenericTest("ComputeApp_lenet5_conv1", (p: Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_lenet5_conv1.json", true))
-/* LeNet-5: Conv1 + ReLU */
-class ComputeApp_lenet5_conv1_relu extends GenericTest("ComputeApp_lenet5_conv1_relu", (p: Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_lenet5_conv1_relu.json", true))
-/* LeNet-5: Conv1 + ReLU + Average Pooling */
-class ComputeApp_lenet5_conv1_relu_AvgPool extends GenericTest("ComputeApp_lenet5_conv1_relu_AvgPool", (p: Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_lenet5_conv1_relu_average_pooling.json", false))
+///* Matrix 16x16 multiply with matrix 16x16 */
+//class ComputeApp_Matrix_16x16 extends GenericTest("ComputeApp_Matrix_16x16", (p:Parameters) =>
+//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_matrix_16x16.json", true))
+//
+///* Matrix 32x32 multiply with matrix 32x32 */
+//class ComputeApp_Matrix_32x32 extends GenericTest("ComputeApp_Matrix_32x32", (p: Parameters) =>
+//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_matrix_32x32.json", true))
+//
+///* ALTERNATIVE INSTRUCTION INVESTIGATION:
+// * Batches with 2 UOP and 1 GeMM loop */
+//class ComputeApp_Batches_2uop_1loop extends GenericTest("ComputeApp_Batches_2uop_1loop", (p:Parameters) =>
+//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/alternative_instructions/batches_2uop_1loop.json", true))
+///* Batches with 1 UOP and 2 GeMM loop */
+//class ComputeApp_Batches_1uop_2loops extends GenericTest("ComputeApp_Batches_1uop_2loops", (p: Parameters) =>
+//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/alternative_instructions/batches_1uop_2loops.json", true))
+///* Batches with 2 instructions */
+//class ComputeApp_Batches_2insn extends GenericTest("ComputeApp_Batches_2insn", (p: Parameters) =>
+//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/alternative_instructions/batches_2insn.json", true))
+//
+///* ALTERNATIVE INSTRUCTION INVESTIGATION:
+// * Load 4 UOP using 1 instruction */
+//class ComputeApp_LoadUop_1insn extends GenericTest("ComputeApp_LoadUop_1insn", (p: Parameters) =>
+//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/alternative_instructions/loadUop_1insn.json"))
+//class ComputeApp_LoadUop_2insn extends GenericTest("ComputeApp_LoadUop_2insn", (p: Parameters) =>
+//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/alternative_instructions/loadUop_2insn.json"))
+//
+///* ALU
+// * ReLU */
+//class ComputeApp_relu extends GenericTest("ComputeApp_relu", (p:Parameters) =>
+//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_relu.json", true))
+///* ReLU - ReLU in one instruction */
+//class ComputeApp_relu_relu extends GenericTest("ComputeApp_relu_relu", (p: Parameters) =>
+//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_relu_relu.json", true))
+//
+///* Matrix 16x16 multiply with matrix 16x16 followed by a ReLU (MAX with 0) */
+//class ComputeApp_16x16_relu extends GenericTest("ComputeApp_16x16_relu", (p: Parameters) =>
+//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_16x16_relu.json", true))
+///* Matrix 32x32 multiply with matrix 32x32 followed by a ReLU (MAX with 0) */
+//class ComputeApp_32x32_relu extends GenericTest("ComputeApp_32x32_relu", (p: Parameters) =>
+//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_32x32_relu.json", true))
+//
+///* Average pooling (first part - add only) */
+//class ComputeApp_add_acc_vectors extends GenericTest("ComputeApp_add_acc_vectors", (p: Parameters) =>
+//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_add_acc_vectors.json", true))
+///* Average pooling (full - add + division), the division round down */
+//class ComputeApp_average_pooling extends GenericTest("ComputeApp_average_pooling", (p: Parameters) =>
+//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_average_pooling.json", true))
+//
+///* CONVOLUTIONAL NEURAL NETWORK
+// * LeNet-5: Convolution 1 */
+//class ComputeApp_lenet5_conv1 extends GenericTest("ComputeApp_lenet5_conv1", (p: Parameters) =>
+//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_lenet5_conv1.json", true))
+///* LeNet-5: Conv1 + ReLU */
+//class ComputeApp_lenet5_conv1_relu extends GenericTest("ComputeApp_lenet5_conv1_relu", (p: Parameters) =>
+//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_lenet5_conv1_relu.json", true))
+///* LeNet-5: Conv1 + ReLU + Average Pooling */
+//class ComputeApp_lenet5_conv1_relu_AvgPool extends GenericTest("ComputeApp_lenet5_conv1_relu_AvgPool", (p: Parameters) =>
+//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_lenet5_conv1_relu_average_pooling.json", false))
