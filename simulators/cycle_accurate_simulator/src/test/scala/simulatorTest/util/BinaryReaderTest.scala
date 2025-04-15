@@ -8,22 +8,8 @@ import scala.util.{Success, Failure}
 
 class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
 
-  //FIXME organize the resource files
-  "BinaryReader" should "print the decoded instructions in console" in {
-    val result = computeAddressesTry("examples_compute/lenet5_layer1/instructions.bin", DataType.INSN, "00000000")
-    printMapLE(result, DataType.INSN)
-  }
-
-  it should "print the INP data extracted from the binary file" in {
-    printMapLELE("examples_compute/lenet5_layer1/input.bin")
-  }
-
-  it should "print the INP data encoded in a format computable by CHISEL" in {
-    printMapLE(computeAddressesTry("examples_compute/lenet5_layer1/input.bin", DataType.INP, "00001000"), DataType.INP)
-  }
-
-  it should "decode correctly the first vector of INP (16 Bytes) in a binary file" in {
-    val result =  computeAddressesTry("examples_compute/lenet5_layer1/input.bin", DataType.INP, "00000000")
+  "BinaryReader" should "decode correctly the first vector of INP (16 Bytes) in a binary file" in {
+    val result =  computeAddressesTry("examples_compute/lenet5_layer1/input.bin", DataType.INP, "00000000", isDRAM = false)
     val hexa = Array("FD",
       "FE",
       "FC",
@@ -46,15 +32,14 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     }
     result match {
       case Success(data) =>
-        Success(data(0) should equal (inpFirstVector))
+        data(0) should equal (inpFirstVector)
       case Failure(exception) =>
-        println(s"Error while computing addresses for INP : ${exception.getMessage}")
-        Failure(exception)
+        fail(s"Error while computing addresses for INP : ${exception.getMessage}")
     }
   }
 
   it should "decode correctly the first vector of WGT (256 Bytes) in a binary file" in {
-    val result =  computeAddressesTry("examples_compute/lenet5_layer1/weight.bin", DataType.WGT, "00000000")
+    val result =  computeAddressesTry("examples_compute/lenet5_layer1/weight.bin", DataType.WGT, "00000000", isDRAM = false)
     val inputWGTHex = Array("00",
       "FE",
       "FF",
@@ -318,18 +303,17 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     }
     result match {
       case Success(data) =>
-        Success(data(0) should equal (wgtFirstBlock))
+        data(0) should equal (wgtFirstBlock)
       case Failure(exception) =>
-        println(s"Error while computing addresses for WGT : ${exception.getMessage}")
-        Failure(exception)
+        fail(s"Error while computing addresses for WGT : ${exception.getMessage}")
     }
   }
 
+  //FIXME remove success and failure in results and replace failure by fail (see example above)
   it should "decode correctly the first vector of EXPECT_OUT (16 Bytes) in a binary file" in {
-    val result =  computeAddressesTry("examples_compute/16x16_relu/expected_out.bin", DataType.OUT, "00000000")
+    val result =  computeAddressesTry("examples_compute/16x16_relu/expected_out.bin", DataType.OUT, "00000000", isDRAM = false)
     result match {
       case Success(data) =>
-        //val decimal = tableau.map(hex => Integer.parseInt(hex, 16))
         Success(data(0) should equal (Array(43,-5,25,10,35,25,5,64,43,-5,35,39,28,-2,1,34)))
       case Failure(exception) =>
         println(s"Error while computing addresses for EXPECT_OUT : ${exception.getMessage}")
@@ -338,13 +322,14 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   }
 
   it should "decode correctly the UOPs (4 Bytes each) in a binary file" in {
-    val result =  computeAddressesTry("examples_compute/lenet5_layer1/uop.bin", DataType.UOP, "00000000")
+    val result =  computeAddressesTry("examples_compute/lenet5_layer1/uop.bin", DataType.UOP, "00000000", isDRAM = true)
     result match {
       case Success(data) =>
-        Success(data(0) should equal (Array(0, 0, 0, 0)),
-          data(1) should equal (Array(0, 0, 0, 0)),
-          data(2) should equal (Array(0, 64, -128, 0)),
-          data(3) should equal (Array(0, 0, 0, 0)))
+        Success(data(0) should equal (Array(0, 0, 0)),
+          data(1) should equal (Array(0, 0, 0)),
+//          data(2) should equal (Array(0, 64, -128, 0)),
+          data(2) should equal (Array[Int](???, ???, ???)),
+          data(3) should equal (Array(0, 0, 0)))
       case Failure(exception) =>
         println(s"Error while computing addresses for UOPs : ${exception.getMessage}")
         Failure(exception)
@@ -352,10 +337,11 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   }
 
   it should "decode correctly the first instruction (16 Bytes) in a binary file" in {
-    val result = computeAddressesTry("examples_compute/lenet5_layer1/instructions.bin", DataType.INSN, "00000000")
+    val result = computeAddressesTry("examples_compute/lenet5_layer1/instructions.bin", DataType.INSN, "00000000", isDRAM = false)
     result match {
       case Success(data) =>
-        Success(data(0) should equal (Array(0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, -48, 0, 0, 0, 0)))
+//        Success(data(0) should equal (Array(0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, -48, 0, 0, 0, 0)))
+        Success(data(0) should equal (Array[Int](???)))
       case Failure(exception) =>
         println(s"Error while computing addresses for instructions : ${exception.getMessage}")
         Failure(exception)
@@ -363,7 +349,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   }
 
   it should "decode correctly the last instruction in a binary file" in {
-    val result = computeAddressesTry("examples_compute/lenet5_layer1/instructions.bin", DataType.INSN, "00000000")
+    val result = computeAddressesTry("examples_compute/lenet5_layer1/instructions.bin", DataType.INSN, "00000000", isDRAM = false)
     result match {
       case Success(data) =>
         Success(data(data.size - 1) should equal (Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3)))
@@ -374,28 +360,26 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   }
 
   it should "return the same value if an offset is or isn't used for the first vector of INP" in {
-    val resultOffset = computeAddressesTry("examples_compute/lenet5_layer1/instructions.bin", DataType.INSN, "00001000")
-    val resultWithoutOffset = computeAddressesTry("examples_compute/lenet5_layer1/instructions.bin", DataType.INSN, "00000000")
+    val resultOffset = computeAddressesTry("examples_compute/lenet5_layer1/instructions.bin", DataType.INSN, "00001000", isDRAM = false)
+    val resultWithoutOffset = computeAddressesTry("examples_compute/lenet5_layer1/instructions.bin", DataType.INSN, "00000000", isDRAM = false)
+
     resultOffset match {
       case Success(dataOffset) =>
-        resultWithoutOffset match {
-          case Success(dataWithoutOffset) =>
-            val idx = java.lang.Integer.parseInt("00001000", 16)
-            Success(dataOffset(idx) should equal (dataWithoutOffset(0)))
-          case Failure(exception) =>
-            println(s"Error while computing addresses for INP without an offset : ${exception.getMessage}")
-            Failure(exception)
+        for {
+          withoutOffset <- resultWithoutOffset
+        }{
+          val idx = java.lang.Integer.parseInt("00001000", 16)
+          dataOffset(idx) should equal (withoutOffset(0))
         }
       case Failure(exception) =>
-        println(s"Error while computing addresses for INP with an offset : ${exception.getMessage}")
-        Failure(exception)
+        fail(s"Error while computing addresses for INP with an offset : ${exception.getMessage}")
     }
   }
 
   it should "return the same value if an offset is or isn't used for the second vector of INP" in {
     val offset = "00001000"
-    val resultOffset = computeAddressesTry("examples_compute/lenet5_layer1/input.bin", DataType.INP, offset)
-    val resultWithoutOffset = computeAddressesTry("examples_compute/lenet5_layer1/input.bin", DataType.INP, "00000000")
+    val resultOffset = computeAddressesTry("examples_compute/lenet5_layer1/input.bin", DataType.INP, offset, isDRAM = false)
+    val resultWithoutOffset = computeAddressesTry("examples_compute/lenet5_layer1/input.bin", DataType.INP, "00000000", isDRAM = false)
     resultOffset match {
       case Success(dataOffset) =>
         resultWithoutOffset match {
@@ -412,11 +396,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     }
   }
 
-
-
   it should "return an error if the file formatting is wrong" in {
-    val result = computeAddressesTry("examples_compute/compute_smm.json", DataType.INSN, "00000000")
-
-
+    val result = computeAddressesTry("examples_compute/compute_smm.json", DataType.INSN, "00000000", isDRAM = false)
   }
 }

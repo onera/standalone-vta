@@ -1,104 +1,38 @@
 package simulatorTest.compute
 
 import chisel3._
-import chisel3.util._
-import chiseltest._
-import chiseltest.formal._
-import chiseltest.experimental.observe
-import chiseltest.simulator.WriteVcdAnnotation
-import org.scalatest.flatspec.AnyFlatSpec
-import _root_.circt.stage.ChiselStage
 import chiseltest.iotesters._
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.scala.DefaultScalaModule
-
-import scala.io._
-import scala.language.postfixOps
+import simulatorTest.util.BinaryReader
+import simulatorTest.util.BinaryReader.DataType
+import simulatorTest.util.BinaryReader.DataType._
 import unittest.GenericTest
 import vta.core._
 import vta.shell.VMEReadMaster
 import vta.util.config.Parameters
-import simulatorTest.util.BinaryReader
-import simulatorTest.util.BinaryReader.DataType
-import simulatorTest.util.BinaryReader.DataType._
 
-import java.util
-import java.io.FileInputStream
-import java.io.IOException
-import scala.util.{Failure, Success, Try} // Import for raising exceptions in case of misreading
+import scala.language.postfixOps
+import scala.util.{Failure, Success} // Import for raising exceptions in case of misreading
 
 
 //FIXME modify compute to take all the binary file paths as inputs
-class ComputeTest(c: Compute, fn: String, insn: String, doCompare: Boolean = false)
-//class ComputeTest(c: Compute, inst: String, uop: String, input: String, weight: String, expected_out: String,
-//                  doCompare: Boolean = false)
+//class ComputeTest(c: Compute, fn: String, insn: String, doCompare: Boolean = false)
+class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: String, acc:String, expected_out: String,
+                  doCompare: Boolean = false)
   extends PeekPokeTester(c) {
 
-  // Print the test name
-  print("\nTEST NAME: \n\t ComputeInvestigation (take a JSON in input)\n")
-  print(s"\tJSON: ${fn} \n\n")
-
-
   /* COMMON PART - MANAGE VIRTUAL MEMORIES */
-  // READ the JSON file
-  val bufferedSource = Source.fromURL(getClass.getResource(fn))
-  val mapper = new ObjectMapper()
-  mapper.registerModule(DefaultScalaModule)
-  val archState = mapper.readValue(bufferedSource.reader(), classOf[Map[String, Object]])
-  bufferedSource.close
 
-  // DECODE the INSTRUCTIONS
-  def instruction_scratchpad(tag: String): Map[String, BigInt] = {
-    // Read the JSON file
-    val instMap = archState(tag).asInstanceOf[Map[String, String]]
-    // Associate each instruction to a key
-    instMap.map { case (key, value) =>
-      key -> BigInt(value, 16)
-    }
-  }
-  // Create the instruction scratchpad
-  val inst = instruction_scratchpad("inst")
-  // Order the keys of the instructions (to have I0 before I1, ...)
-  val sortedInst = inst.keys.toList.sortBy(key => key.substring(1).toInt)
-//  for (key <- sortedInst) {
-//    print(s"$key \n")
-//  }
-
-
-
-  def build_scratchpad_binary(filePath: String, dataType: DataTypeValue, offset: String): Try[Map[BigInt, Array[BigInt]]] = {
-    BinaryReader.computeAddressesTry(filePath, dataType, offset) match {
+  def build_scratchpad_binary(filePath: String, dataType: DataTypeValue, offset: String, isDRAM: Boolean): Map[BigInt, Array[BigInt]] = {
+    BinaryReader.computeAddressesTry(filePath, dataType, offset, isDRAM) match {
       case Success(scratchpad) =>
-        Success(scratchpad)
+        scratchpad
       case Failure(exception) =>
         println(s"Error while building scratchpad : ${exception.getMessage}")
-        Failure(exception)
+        Map.empty
     }
   }
 
-//  val inst = build_scratchpad_binary(insn, DataType.INSN, "00000000")
-//
-//
-//  val convertedMap = inst.map { data => data.map { case (key, value) => (key.toString, value.toString)}.toMap }
-//  val sortedInst = convertedMap.map { data => data.map { case (key, value) => key -> BigInt(value, 16) }
-//                                                  .keys.toList.sortBy(key => key.substring(1).toInt) }
-
-
-  // Scratchpad memory (emulate the buffers / registers)
-  def build_scratchpad(tag: String): Map[BigInt, Array[BigInt]] = {
-    val arr = archState(tag).asInstanceOf[Seq[Map[String, Object]]]
-    (
-      for {m <- arr} yield {
-        val idx = BigInt(m("idx").asInstanceOf[String], 16)
-        val vec = m("vec").asInstanceOf[Seq[String]]
-        idx -> (
-          for {v <- vec} yield {
-            BigInt(v, 16)
-          }
-          ).toArray
-      }
-      ).toMap
-  }
+  val inst = build_scratchpad_binary(insn, DataType.INSN, "00000000", isDRAM = false)
 
   // Print scratchpad
   def print_scratchpad(scratchpad: Map[BigInt, Array[BigInt]], index: BigInt, name : String = "?"): Unit = {
@@ -439,17 +373,20 @@ class ComputeTest(c: Compute, fn: String, insn: String, doCompare: Boolean = fal
 
   /* BEGIN USER CUSTOMABLE SECTION */
   // Build memory
-  val dram_scratchpad = build_scratchpad("dram")
-  val inp_scratchpad = build_scratchpad("inp")
-  val wgt_scratchpad = build_scratchpad("wgt")
-  val out_scratchpad = build_scratchpad("out")
-  val out_expect_scratchpad = build_scratchpad("out_expect") // Expected
+//  val dram_scratchpad = build_scratchpad("dram")
+//  val inp_scratchpad = build_scratchpad("inp")
+//  val wgt_scratchpad = build_scratchpad("wgt")
+//  val out_scratchpad = build_scratchpad("out")
+//  val out_expect_scratchpad = build_scratchpad("out_expect") // Expected
 
-//  val dram_scratchpad_bin = ??? // uop ?
-//  val inp_scratchpad_bin = build_scratchpad_binary(input, DataType.INP, "00001000")
-//  val wgt_scratchpad_bin = build_scratchpad_binary(weight, DataType.WGT, "00002000")
-//  val out_scratchpad_bin = ???
-//  val out_expect_scratchpad_bin = build_scratchpad_binary(expected_out, DataType.OUT, ???)
+  val dram_scratchpad =
+    build_scratchpad_binary(uop, DataType.UOP, "00002800", isDRAM = true) ++
+      build_scratchpad_binary(acc, DataType.ACC, "000002C0", isDRAM = true)
+  // base address is zero because we are storing the values directly in the INP buffer
+  val inp_scratchpad = build_scratchpad_binary(input, DataType.INP, "00000000", isDRAM = false)
+  val wgt_scratchpad = build_scratchpad_binary(weight, DataType.WGT, "00000000", isDRAM = false)
+  val out_scratchpad = build_scratchpad_binary(weight, DataType.OUT, "00000000", isDRAM = false)
+  val out_expect_scratchpad = build_scratchpad_binary(expected_out, DataType.OUT, "00000000", isDRAM = false)
 
   // Create the mocks
   val mocks = new Mocks
@@ -464,30 +401,15 @@ class ComputeTest(c: Compute, fn: String, insn: String, doCompare: Boolean = fal
   print(s"\nCycle ${cycle_counter}:\n")
 
   // Send instructions
-  for (key <- sortedInst) {
+  for ((key,Array(value)) <- inst.toSeq.sortBy(_._1)) {
     // Send the instruction
-    poke(c.io.inst.bits, inst(key))
+    poke(c.io.inst.bits, value)
     // Instruction is valid
     poke(c.io.inst.valid, 1)
-    print(s"Send instruction: ${key}\n")
+    print(s"Send instruction: $key\n")
     // Increment the step
     mocks.logical_step()
   }
-
-//  sortedInst match {
-//    case Success(instValues) =>
-//      for (key <- instValues) {
-//        // Send the instruction
-//        poke(c.io.inst.bits, key)
-//        // Instruction is valid
-//        poke(c.io.inst.valid, 1)
-//        print(s"Send instruction: $key\n")
-//        // Increment the step
-//        mocks.logical_step()
-//      }
-//    case Failure(ex) =>
-//      println(s"error : $ex")
-//  }
 
   // Loop until is finish
   loop(true, true)
@@ -510,19 +432,20 @@ class ComputeTest(c: Compute, fn: String, insn: String, doCompare: Boolean = fal
 //  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_investigation.json", false))
 
 /* Test binary file */
-//class BinaryFile_Input extends GenericTest("BinaryFile_Input", (p:Parameters) =>
-//  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
-//  "/examples_compute/lenet5_layer1/instructions_lenet5_layer1.bin",
-//  "/examples_compute/lenet5_layer1/uop_lenet5_layer1.bin",
-//  "/examples_compute/lenet5_layer1/input_lenet5_layer1.bin",
-//  "/examples_compute/lenet5_layer1/weight_lenet5_layer1.bin",
-//  "/examples_compute/lenet5_layer1/expected_out_lenet5_layer1.bin",
-//  true))
+class BinaryFile_Input extends GenericTest("BinaryFile_Input", (p:Parameters) =>
+  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
+  "/examples_compute/lenet5_layer1/instructions.bin",
+  "/examples_compute/lenet5_layer1/uop.bin",
+  "/examples_compute/lenet5_layer1/input.bin",
+  "/examples_compute/lenet5_layer1/weight.bin",
+  ???,
+  "/examples_compute/lenet5_layer1/expected_out.bin",
+  true))
 
 /* Vector x matrix multiplication (Simple Matrix Multiply) */
-class ComputeApp_Smm extends GenericTest("ComputeApp_Smm", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_smm.json",
-  "/examples_compute/lenet5_layer1/instructions.bin", true))
+//class ComputeApp_Smm extends GenericTest("ComputeApp_Smm", (p:Parameters) =>
+//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_smm.json",
+//  "/examples_compute/lenet5_layer1/instructions.bin", true))
 
 ///* Matrix 16x16 multiply with matrix 16x16 */
 //class ComputeApp_Matrix_16x16 extends GenericTest("ComputeApp_Matrix_16x16", (p:Parameters) =>
