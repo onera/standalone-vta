@@ -4,8 +4,6 @@ import java.io.{FileInputStream, IOException}
 import scala.util.{Try, Success, Failure}
 
 object BinaryReader {
-  //FIXME essayer d'utiliser Success/Failure
-  //FIXME add parameters to values
 
   /**
    * Definition of an Enumeration listing the data types. The attributes of each type are
@@ -23,16 +21,6 @@ object BinaryReader {
   }
 
   import DataType._
-
-//  //exemple enum
-//  def toto(d: DataType.Value): Unit= d match {
-//    case INP => ???
-//    case WGT => ???
-//    case OUT => ???
-//    case UOP => ???
-//    case INSN => ???
-//    case ACC => ???
-//  }
 
   /**
    * Open and read the binary file, write the data in an Array[Byte]
