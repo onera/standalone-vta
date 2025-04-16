@@ -93,7 +93,7 @@ object BinaryReader {
     val groupedBinaryData =
       readBinaryFile(filePath) match {
         case Success(fileContent) =>
-            Success(reverseLE(fileContent, dataType))
+          Success(reverseLE(fileContent, dataType))
         case Failure(exception) =>
           println(s"Error while grouping data (if reversal) : ${exception.getMessage}")
           Failure(exception)
@@ -106,17 +106,78 @@ object BinaryReader {
     // and adapt the computation of the address with isDRAM
     groupedBinaryData match {
       case Success(data) =>
-        val result =
+        val fileSize = data
+        val ungroupedData =
           for {
-            (d,i) <- data.zipWithIndex
+            arr <- data
+            byte <- arr
           } yield
-            (BigInt(i) + baseAddrBigInt) -> d.map(x => BigInt(x))
-
+            byte
+        val arrayGroupBit =
+          for {
+            byte <- ungroupedData
+          } yield {
+            "0" * (8 - byte.toBinaryString.length) + byte.toBinaryString
+          }
+        val sizeOfElement =
+          (for {
+            i <- 0 until dataType.nbValues
+            s = dataType.precision(i)
+          } yield
+            s).sum
+        // ["0","1",...]
+        val arrayBit = arrayGroupBit.flatMap(_.toList.map(_.toString)).grouped(sizeOfElement).toArray
+        def groupByElemSize(arr: Array[String], index: Int): Array[String] = {
+          if (index < dataType.nbValues)
+            Array(arr.take(dataType.precision(index)).mkString) ++ groupByElemSize(arr.drop(dataType.precision(index)), index + 1)
+          else
+            arr
+        }
+        // [ ["11 bits", "11 bits", "10 bits"], [...], ... ]
+        val groupedArrayBit =
+          for {
+            elem <- arrayBit
+          } yield
+            groupByElemSize(elem, 0)
+        val groupedByElemSizeBI = groupedArrayBit.map(_.map(BigInt(_, 2)))
+        // [ (address, [11 bits, 11 bits, 10 bits]), (...), ... ]
+        val result = {
+          val resultMap = groupedByElemSizeBI.zipWithIndex
+          for {
+            (d, i) <- resultMap
+          } yield {
+            if (!isDRAM)
+              (BigInt(i) + baseAddrBigInt) -> d
+            else {
+              (baseAddrBigInt + BigInt(sizeOfElement)) -> d
+            }
+          }
+        }
         Success(result.toMap)
       case Failure(exception) =>
         println(s"Error while computing addresses : ${exception.getMessage}")
         Failure(exception)
     }
+
+//    groupedBinaryData match {
+//      case Success(data) =>
+//        val result =
+//          for {
+//            (d,i) <- data.zipWithIndex
+//          } yield
+//            (BigInt(i) + baseAddrBigInt) -> d.map(x => BigInt(x))
+//
+//        Success(result.toMap)
+//      case Failure(exception) =>
+//        println(s"Error while computing addresses : ${exception.getMessage}")
+//        Failure(exception)
+//    }
+  }
+
+  def byteToBits(byte: Byte): String = {
+    val binaryString = byte.toBinaryString
+    // Ajouter des zéros à gauche pour atteindre 8 bits
+    "0" * (8 - binaryString.length) + binaryString
   }
 
   /**
