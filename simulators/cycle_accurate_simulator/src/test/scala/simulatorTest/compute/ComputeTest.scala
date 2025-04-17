@@ -23,7 +23,7 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
   /* COMMON PART - MANAGE VIRTUAL MEMORIES */
 
   def build_scratchpad_binary(filePath: String, dataType: DataTypeValue, offset: String, isDRAM: Boolean): Map[BigInt, Array[BigInt]] = {
-    BinaryReader.computeAddressesTry(filePath, dataType, offset, isDRAM) match {
+    BinaryReader.computeAddresses(filePath, dataType, offset, isDRAM) match {
       case Success(scratchpad) =>
         scratchpad
       case Failure(exception) =>
@@ -434,12 +434,12 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
 /* Test binary file */
 class BinaryFile_Input extends GenericTest("BinaryFile_Input", (p:Parameters) =>
   new Compute(true)(p), (c: Compute) => new ComputeTest(c,
-  "/examples_compute/lenet5_layer1/instructions.bin",
-  "/examples_compute/lenet5_layer1/uop.bin",
-  "/examples_compute/lenet5_layer1/input.bin",
-  "/examples_compute/lenet5_layer1/weight.bin",
-  ???,
-  "/examples_compute/lenet5_layer1/expected_out.bin",
+  "/examples_compute/16x16_relu/instructions.bin",
+  "/examples_compute/16x16_relu/uop.bin",
+  "/examples_compute/16x16_relu/input.bin",
+  "/examples_compute/16x16_relu/weight.bin",
+  "examples_compute/16x16_relu/accumulator.bin",
+  "/examples_compute/16x16_relu/expected_out.bin",
   true))
 
 /* Vector x matrix multiplication (Simple Matrix Multiply) */
