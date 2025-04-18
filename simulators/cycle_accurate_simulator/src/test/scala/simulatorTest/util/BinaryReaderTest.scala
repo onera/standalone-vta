@@ -391,7 +391,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   }
 
   it should "print the decoded data" in {
-    val result = computeAddresses("examples_compute/lenet5_layer1/uop.bin", DataType.UOP, "00001000", isDRAM = true)
+    val result = computeAddresses("examples_compute/average_pooling/uop.bin", DataType.UOP, "00004000", isDRAM = true)
     result match {
       case Success(data) =>
         printMap(data, DataType.UOP)
@@ -437,6 +437,4 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
         Failure(exception)
     }
   }
-
-  it should ""
 }

@@ -154,10 +154,9 @@ object BinaryReader {
           if (bigInt >= 128 && dataType.id != INSN.id) bigInt - 256 else bigInt})
         // [ (address, [11 bits, 11 bits, 10 bits]), (...), ... ]
         // Assigns an address to each element
-        val result = {
-          val resultMap = groupedByElemSizeBI.zipWithIndex
+        val map = {
           for {
-            (d, i) <- resultMap
+            (d, i) <- groupedByElemSizeBI.zipWithIndex
           } yield {
             if (!isDRAM) { // Logical address for data types INP, WGT, OUT, INSN
               //println(d(0).toString(2))
@@ -166,8 +165,16 @@ object BinaryReader {
               (baseAddrBigInt + BigInt(sizeOfElement/8 * i)) -> d
             }
           }
+        }.toMap
+        val result = {
+          if (map.size % 2 != 0 && dataType.id == UOP.id) { // If the number of UOPs is odd, add an empty one to the map
+            map + (baseAddrBigInt + BigInt(4 * map.size) -> Array(0, 0, 0).map(BigInt(_)))
+          }
+          else {
+            map
+          }
         }
-        Success(result.toMap)
+        Success(result)
       case Failure(exception) =>
         println(s"Error while computing addresses : ${exception.getMessage}")
         Failure(exception)
