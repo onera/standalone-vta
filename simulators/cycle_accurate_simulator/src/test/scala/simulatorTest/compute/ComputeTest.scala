@@ -6,6 +6,7 @@ import simulatorTest.util.BinaryReader
 import simulatorTest.util.BinaryReader.DataType
 import simulatorTest.util.BinaryReader.DataType._
 import unittest.GenericTest
+import vta.core.ISA.{FNSH, GEMM, LACC, LINP, LUOP, LWGT, SOUT, VADD, VMAX, VMIN, VSHX}
 import vta.core._
 import vta.shell.VMEReadMaster
 import vta.util.config.Parameters
@@ -29,6 +30,24 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
       case Failure(exception) =>
         println(s"Error while building scratchpad : ${exception.getMessage}")
         Map.empty
+    }
+  }
+
+  // Check if it is compute instruction
+  def isComputeInstruction(instruction: BigInt): Boolean = {
+    // List of BitPats that FetchDecode maps to OP_G (Compute group)
+    val computeBitPats = Seq(
+      LUOP, LACC, GEMM, FNSH, VMIN, VMAX, VADD, VSHX
+    )
+
+    // Check if the instruction matches any of the compute BitPats
+    // A match occurs if (instruction & mask) == value for the BitPat
+    computeBitPats.exists { bitPat =>
+      // Extract the mask and value from the BitPat object
+      val mask = bitPat.mask
+      val value = bitPat.value
+      // Perform the comparison
+      (instruction & mask) == value
     }
   }
 
@@ -397,15 +416,33 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
   // Print cycle 0
   print(s"\nCycle ${cycle_counter}:\n")
 
-  // Send instructions
+//  // Send instructions
+//  for ((key,Array(value)) <- inst.toSeq.sortBy(_._1)) {
+//    // Send the instruction
+//    poke(c.io.inst.bits, value)
+//    // Instruction is valid
+//    poke(c.io.inst.valid, 1)
+//    print(s"Send instruction: $key\n")
+//    // Increment the step
+//    mocks.logical_step()
+//  }
+
   for ((key,Array(value)) <- inst.toSeq.sortBy(_._1)) {
-    // Send the instruction
-    poke(c.io.inst.bits, value)
-    // Instruction is valid
-    poke(c.io.inst.valid, 1)
-    print(s"Send instruction: $key\n")
-    // Increment the step
-    mocks.logical_step()
+    // Get instruction mnemonic for better logging (optional but helpful)
+    val mnemonic = ISAHelper.getMnemonic(value) // Assuming ISA has a helper like this
+    // Check the instruction
+    if (isComputeInstruction(value)) {
+      print(s"Instruction ${key} (${mnemonic}) is Compute type. Sending...\n")
+      // Send the instruction
+      poke(c.io.inst.bits, value)
+      // Instruction is valid for this cycle
+      poke(c.io.inst.valid, 1)
+      // Increment the step (handles clock cycle and mock logic)
+      mocks.logical_step()
+    } else {
+      // --- Optional: Log skipped instructions ---
+      print(s"Instruction ${key} is NOT Compute type. Skipping...\n")
+    }
   }
 
   // Loop until is finish
@@ -417,6 +454,31 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
   }
 
   print(s"\n\t END COMPUTE TESTS! \n\t (done in ${cycle_counter} cycles)\n\n")
+}
+
+object ISAHelper { // Or place inside ISA object if preferred
+  // Basic example, might need refinement based on actual ISA definitions
+  def getMnemonic(instruction: BigInt): String = {
+    val computeBitPats = Map(
+      LUOP -> "LUOP", LACC -> "LACC", GEMM -> "GEMM", FNSH -> "FNSH",
+      VMIN -> "VMIN", VMAX -> "VMAX", VADD -> "VADD", VSHX -> "VSHX"
+    )
+    // Add other instruction types if needed (LWGT, LINP, SOUT, etc.)
+    val otherBitPats = Map(
+      LWGT -> "LWGT", LINP -> "LINP", SOUT -> "SOUT"
+      // Potentially add others like NOP if defined
+    )
+
+    val allBitPats = computeBitPats ++ otherBitPats
+
+    allBitPats.find { case (bitPat, _) =>
+      (instruction & bitPat.mask) == bitPat.value
+    }.map(_._2).getOrElse("UNKNOWN") // Return mnemonic or "UNKNOWN"
+  }
+
+  // Add this call inside the loop for logging:
+  // val mnemonic = ISAHelper.getMnemonic(currentInstruction)
+  // print(s"Instruction ${key} (${mnemonic}) ...")
 }
 
 
