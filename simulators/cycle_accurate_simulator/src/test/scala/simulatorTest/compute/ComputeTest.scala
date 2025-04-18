@@ -204,8 +204,11 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
 
         // Read the data from the scratchpad (2 UOP read at once)
         val uop_acc_0 = scratchpad(addr + 8 * nb_uop)(0) // 11 bits
+        println(uop_acc_0.toString(2))
         val uop_inp_0 = scratchpad(addr + 8 * nb_uop)(1) // 11 bits
+        println(uop_inp_0.toString(2))
         val uop_wgt_0 = scratchpad(addr + 8 * nb_uop)(2) // 10 bits
+        println(uop_wgt_0.toString(2))
         // Read the second UOP
         val uop_acc_1 = scratchpad(addr + 8 * nb_uop + 4)(0)
         val uop_inp_1 = scratchpad(addr + 8 * nb_uop + 4)(1)
@@ -373,15 +376,9 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
 
   /* BEGIN USER CUSTOMABLE SECTION */
   // Build memory
-//  val dram_scratchpad = build_scratchpad("dram")
-//  val inp_scratchpad = build_scratchpad("inp")
-//  val wgt_scratchpad = build_scratchpad("wgt")
-//  val out_scratchpad = build_scratchpad("out")
-//  val out_expect_scratchpad = build_scratchpad("out_expect") // Expected
-
   val dram_scratchpad =
-    build_scratchpad_binary(uop, DataType.UOP, "00002800", isDRAM = true) ++
-      build_scratchpad_binary(acc, DataType.ACC, "000002C0", isDRAM = true)
+    build_scratchpad_binary(uop, DataType.UOP, "00004000", isDRAM = true) ++
+      build_scratchpad_binary(acc, DataType.ACC, "00005000", isDRAM = true)
   // base address is zero because we are storing the values directly in the INP buffer
   val inp_scratchpad = build_scratchpad_binary(input, DataType.INP, "00000000", isDRAM = false)
   val wgt_scratchpad = build_scratchpad_binary(weight, DataType.WGT, "00000000", isDRAM = false)
@@ -431,15 +428,26 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
 //class ComputeApp extends GenericTest("ComputeApp", (p:Parameters) =>
 //  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_investigation.json", false))
 
-/* Test binary file */
-class BinaryFile_Input extends GenericTest("BinaryFile_Input", (p:Parameters) =>
+/* Test 16x16 & ReLU - binary file */
+class BinaryFile_16x16_relu extends GenericTest("BinaryFile_16x16_relu", (p:Parameters) =>
   new Compute(true)(p), (c: Compute) => new ComputeTest(c,
-  "/examples_compute/16x16_relu/instructions.bin",
-  "/examples_compute/16x16_relu/uop.bin",
-  "/examples_compute/16x16_relu/input.bin",
-  "/examples_compute/16x16_relu/weight.bin",
+  "examples_compute/16x16_relu/instructions.bin",
+  "examples_compute/16x16_relu/uop.bin",
+  "examples_compute/16x16_relu/input.bin",
+  "examples_compute/16x16_relu/weight.bin",
   "examples_compute/16x16_relu/accumulator.bin",
-  "/examples_compute/16x16_relu/expected_out.bin",
+  "examples_compute/16x16_relu/expected_out.bin",
+  true))
+
+/* Test average pooling - binary file */
+class BinaryFile_average_pooling extends GenericTest("BinaryFile_average_pooling", (p:Parameters) =>
+  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
+  "examples_compute/average_pooling/instructions.bin",
+  "examples_compute/average_pooling/uop.bin",
+  "examples_compute/average_pooling/input.bin",
+  "examples_compute/average_pooling/weight.bin",
+  "examples_compute/average_pooling/accumulator.bin",
+  "examples_compute/average_pooling/expected_out.bin",
   true))
 
 /* Vector x matrix multiplication (Simple Matrix Multiply) */

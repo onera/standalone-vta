@@ -44,7 +44,7 @@ object BinaryReader {
    * Print the Bytes of the input binary file (before Little Endian reversal)
    * @param filePath the path to the resource file
    */
-  def printMapLELE(filePath: String): Unit = {
+  def printBytes(filePath: String): Unit = {
     readBinaryFile(filePath) match {
       case Success(fileContent) =>
         // Print in decimals
@@ -81,15 +81,14 @@ object BinaryReader {
         else
           inst
       }
-    else {
-      val groupedACC = {
+    else { // For ACC, data size is 32 bits instead of 8
+      {
         for {
           inst <- binaryData.grouped(4).toArray
         } yield {
           inst.reverse
         }
-      }.flatten.grouped(64).toArray
-      groupedACC
+      }.flatten.grouped(64).toArray // Size of 1 ACC vector = 4 Bytes * 16 = 64 Bytes
     }
   }
 
@@ -105,44 +104,36 @@ object BinaryReader {
     val groupedBinaryData =
       readBinaryFile(filePath) match {
         case Success(fileContent) =>
-          Success(reverseLE(fileContent, dataType))
+          Success(reverseLE(fileContent, dataType)) // Bytes are extracted (and reversed depending on data type) from binary file
         case Failure(exception) =>
           println(s"Error while grouping data (if reversal) : ${exception.getMessage}")
           Failure(exception)
       }
-    val baseAddrBigInt = BigInt(baseAddress,16)
+    val baseAddrBigInt = BigInt(baseAddress,16) // Value of base address in BigInt
     //FIXME for each address should have dataType.nbElement
     // recompose the full value and then split according to precision
     // and adapt the computation of the address with isDRAM
     groupedBinaryData match {
       case Success(data) =>
-        // Array containing all the Bytes of the binary file after reversal
-        val ungroupedData =
+        // Flattened array containing all the bits of the binary file after reversal
+        val arrayGroupedBits =
           for {
-            arr <- data
-            byte <- arr
-          } yield {
-            byte
-          }
-        // Converting all the Bytes into bits, ok pour ACC ? 8 ou 32 ? je crois ok car 1 byte = 8 bits
-        val arrayGroupBit =
-          for {
-            byte <- ungroupedData
+            byte <- data.flatten
           } yield {
             //println(String.format("%8s", java.lang.Integer.toBinaryString(byte & 0xFF)).replace(' ', '0'))
             //"0" * (8 - byte.toBinaryString.length) + byte.toBinaryString
             String.format("%8s", java.lang.Integer.toBinaryString(byte & 0xFF)).replace(' ', '0')
           }
-        // nb of bits in an element (32 bits for 1 UOP...)
+        // Number of bits in 1 element (32 bits for 1 UOP...)
         val sizeOfElement =
           (for {
             i <- 0 until dataType.nbValues
             s = dataType.precision(i)
           } yield
             s).sum
-        // ["0","1",...]
-        // Séparation individuelle des bits
-        val arrayBit = arrayGroupBit.flatMap(_.toList.map(_.toString)).grouped(sizeOfElement).toArray
+        // An array containing all the individual bits in groups of the size of the element (ex. 1 UOP)
+        val arrayBits = arrayGroupedBits.flatMap(_.toList.map(_.toString)).grouped(sizeOfElement).toArray
+        // Returns an array with nbValues groups of size precision
         def groupByElemSize(arr: Array[String], index: Int): Array[String] = {
           if (index < dataType.nbValues)
             Array(arr.take(dataType.precision(index)).mkString) ++ groupByElemSize(arr.drop(dataType.precision(index)), index + 1)
@@ -152,20 +143,23 @@ object BinaryReader {
         // [ ["11 bits", "11 bits", "10 bits"], [...], ... ]
         val groupedArrayBit =
           for {
-            elem <- arrayBit
+            elem <- arrayBits
           } yield {
             //println(elem.mkString("Array(", ", ", ")"))
             //println(groupByElemSize(elem, 0).mkString("Array(", ", ", ")"))
             groupByElemSize(elem, 0)
-          } // ok
-        val groupedByElemSizeBI = groupedArrayBit.map(_.map(BigInt(_, 2)).map {bigInt => if (bigInt >= 128 && dataType.id != INSN.id) bigInt - 256 else bigInt})
+          }
+        // Converts the values to BigInt (included in [-128, 128], except for ACC)
+        val groupedByElemSizeBI = groupedArrayBit.map(_.map(BigInt(_, 2)).map {bigInt =>
+          if (bigInt >= 128 && dataType.id != INSN.id) bigInt - 256 else bigInt})
         // [ (address, [11 bits, 11 bits, 10 bits]), (...), ... ]
+        // Assigns an address to each element
         val result = {
           val resultMap = groupedByElemSizeBI.zipWithIndex
           for {
             (d, i) <- resultMap
           } yield {
-            if (!isDRAM) { // Logical address for data types INP, WGT, OUT
+            if (!isDRAM) { // Logical address for data types INP, WGT, OUT, INSN
               //println(d(0).toString(2))
               (BigInt(i) + baseAddrBigInt) -> d
             } else { // Physical address if data type is UOP or ACC
@@ -181,10 +175,10 @@ object BinaryReader {
   }
 
   /**
-   * Print the Map with the instructions encoded in a format CHISEL can read
-   * @param map a Map that associates the logical addresses of a vector and its values
+   * Print the addresses and values of a Map with the data encoded in a format CHISEL can read
+   * @param map a Map that associates the addresses of a vector and its values
    */
-  def printMapLE(map: Map[BigInt, Array[BigInt]], dataType: DataTypeValue): Unit = {
+  def printMap(map: Map[BigInt, Array[BigInt]], dataType: DataTypeValue): Unit = {
     println("Content of the Map :")
     val toPrint = map.toSeq.sortBy(_._1)
     // Print in decimals for instructions
@@ -194,13 +188,12 @@ object BinaryReader {
         println(s"Values : ${values.mkString(", ")}")
       }
     }
-    // Print in hexadecimals for other types of data
+    // Print the hexadecimal addresses for other types of data
     else {
       toPrint.foreach { case (key, values) =>
         val hexKey = Integer.toHexString(key.toInt)
         println(s"Logical address (Hex) : ${"0" * (8 - hexKey.length)}$hexKey")
-        //println(s"Values (Hex) : ${values.map(_.toInt & 0xFF).map("%02x".format(_)).mkString(", ")}")
-        println(s"Values (Bits) : ${values.map(_.toInt & 0xFF).map("%8s".format(_).replace(' ', '0')).mkString(", ")}")
+        println(s"Values : ${values.mkString(", ")}")
       }
     }
   }
