@@ -396,8 +396,8 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
   /* BEGIN USER CUSTOMABLE SECTION */
   // Build memory
   val dram_scratchpad =
-    build_scratchpad_binary(uop, DataType.UOP, "00004000", isDRAM = true) ++
-      build_scratchpad_binary(acc, DataType.ACC, "00005000", isDRAM = true)
+    build_scratchpad_binary(uop, DataType.UOP, "0000d000", isDRAM = true) ++
+      build_scratchpad_binary(acc, DataType.ACC, "0000b000", isDRAM = true)
   // base address is zero because we are storing the values directly in the INP buffer
   val inp_scratchpad = build_scratchpad_binary(input, DataType.INP, "00000000", isDRAM = false)
   val wgt_scratchpad = build_scratchpad_binary(weight, DataType.WGT, "00000000", isDRAM = false)
@@ -493,12 +493,12 @@ object ISAHelper { // Or place inside ISA object if preferred
 /* Test 16x16 & ReLU - binary file */
 class BinaryFile_16x16_relu extends GenericTest("BinaryFile_16x16_relu", (p:Parameters) =>
   new Compute(true)(p), (c: Compute) => new ComputeTest(c,
-  "examples_compute/16x16_relu_new/instructions.bin",
-  "examples_compute/16x16_relu_new/uop.bin",
-  "examples_compute/16x16_relu_new/input.bin",
-  "examples_compute/16x16_relu_new/weight.bin",
-  "examples_compute/16x16_relu_new/accumulator.bin",
-  "examples_compute/16x16_relu_new/expected_out.bin",
+  "examples_compute/16x16_relu/instructions.bin",
+  "examples_compute/16x16_relu/uop.bin",
+  "examples_compute/16x16_relu/input.bin",
+  "examples_compute/16x16_relu/weight.bin",
+  "examples_compute/16x16_relu/accumulator.bin",
+  "examples_compute/16x16_relu/expected_out.bin",
   true))
 
 /* Test 16x16 - binary file */
