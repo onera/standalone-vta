@@ -186,7 +186,7 @@ class MacFormalTester extends AnyFlatSpec with ChiselScalatestTester with Formal
   }
   "MAC" should "not pass (fail example)" taggedAs(FormalTests) in {
     intercept[chiseltest.formal.FailedBoundedCheckException] {
-      verify(new MacFormalSpec_Overflow(new MAC(8, 8, 16, false)), Seq(BoundedCheck(10), WriteVcdAnnotation))
+      verify(new MacFormalSpec_FailExample(new MAC(8, 8, 16, false)), Seq(BoundedCheck(10), WriteVcdAnnotation))
     }
   }
   "MAC" should "pass overflow properties" taggedAs(FormalTests) in {
