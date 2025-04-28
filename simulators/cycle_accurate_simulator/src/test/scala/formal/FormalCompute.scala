@@ -38,7 +38,7 @@ class ComputeFormalTester extends AnyFlatSpec with ChiselScalatestTester with Fo
   implicit val p: Parameters = SimParam.config
 
 //  // Formal Verification
-//  "Compute" should "pass formal properties" in {
+//  "Compute" should "pass formal properties" taggedAs(FormalTests) in {
 //    verify(new ComputeFormalSpec(new Compute()(p)), Seq(BoundedCheck(10), WriteVcdAnnotation))
 //  }
 }

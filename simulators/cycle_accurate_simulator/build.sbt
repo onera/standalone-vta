@@ -41,3 +41,4 @@ lazy val chiseltest = (project in file("."))
   .settings(commonSettings)
   .settings(chiseltestSettings)
 
+Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-n", "UnitTests", "-n", "FormalTests")

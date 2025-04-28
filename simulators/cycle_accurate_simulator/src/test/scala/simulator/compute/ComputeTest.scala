@@ -512,10 +512,10 @@ class ComputeApp_average_pooling extends GenericTest("ComputeApp_average_pooling
 /* CONVOLUTIONAL NEURAL NETWORK
  * LeNet-5: Convolution 1 */
 class ComputeApp_lenet5_conv1 extends GenericTest("ComputeApp_lenet5_conv1", (p: Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_lenet5_conv1.json", true))
+  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_lenet5_conv1.json", true), true)
 /* LeNet-5: Conv1 + ReLU */
 class ComputeApp_lenet5_conv1_relu extends GenericTest("ComputeApp_lenet5_conv1_relu", (p: Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_lenet5_conv1_relu.json", true))
+  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_lenet5_conv1_relu.json", true), true)
 /* LeNet-5: Conv1 + ReLU + Average Pooling */
 class ComputeApp_lenet5_conv1_relu_AvgPool extends GenericTest("ComputeApp_lenet5_conv1_relu_AvgPool", (p: Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_lenet5_conv1_relu_average_pooling.json", false))
+  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_lenet5_conv1_relu_average_pooling.json", false), true)
