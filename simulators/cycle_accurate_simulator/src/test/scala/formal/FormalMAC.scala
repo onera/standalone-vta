@@ -180,8 +180,10 @@ class MacFormalTester extends AnyFlatSpec with ChiselScalatestTester with Formal
   "MAC_flopIn" should "pass computation properties" in {
     verify(new MacFormalSpec_Computation_flopIn, Seq(BoundedCheck(10), WriteVcdAnnotation))
   }
-  "MAC" should "not pass these properties" in {
-    verify(new MacFormalSpec_FailExample(new MAC(8, 8, 16, false)), Seq(BoundedCheck(10), WriteVcdAnnotation))
+  "MAC" should "not pass (fail example)" in {
+    intercept[chiseltest.formal.FailedBoundedCheckException] {
+      verify(new MacFormalSpec_FailExample(new MAC(8, 8, 16, false)), Seq(BoundedCheck(10), WriteVcdAnnotation))
+    }
   }
   "MAC" should "pass overflow properties" in {
     verify(new MacFormalSpec_Overflow(new MAC), Seq(BoundedCheck(10)))
