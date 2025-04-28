@@ -64,6 +64,7 @@ def memory_base_address(object_info):
     # Iterate on the object
     for i, (size, logical_divisor) in enumerate(object_info):
         # Generic name
+        print(hex(size))
         alloc_name = f"Alloc{i+1}"
 
         # Compute logical address
@@ -78,6 +79,8 @@ def memory_base_address(object_info):
 
         # Update address (each object on a new page)
         current_phys = ((current_phys + size + 0x1000 - 1) // 0x1000) * 0x1000 
+        print(hex(current_phys))
+        print('\n')
 
     return addresses
 

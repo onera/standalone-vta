@@ -2,6 +2,7 @@
 # --------------
 import os
 import sys
+from ...data_definition.memory_addresses import memory_base_address
 
 # Parent folder
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -15,6 +16,7 @@ from structures_insn_uop import *
 output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'compiler_output')
 file_uop_path = os.path.join(output_dir, "uop.bin")
 file_insn_path = os.path.join(output_dir, "instructions.bin")
+memory_addresses_insn_path = os.path.join(output_dir, "memory_addresses_insn.txt")
 
 # Create the path if it does not exist
 def create_output_directory(path):
@@ -471,3 +473,16 @@ for insn in insn_buffer:
     print(f"\nI{i}:")
     print_hex_128bit(insn)
     i = i + 1
+    
+
+# Compute memory addresses for instructions and UOPs
+
+object_info = [(len(insn_buffer) * 8, 8),     # Instructions
+               (len(uop_buffer) * 4, 4)]      # UOP
+
+memory_addresses = memory_base_address(object_info)
+
+# Write memory addresses
+with open(memory_addresses_insn_path, 'w') as f:
+    for elem in memory_addresses :
+        f.write(str(elem) + '\n')
