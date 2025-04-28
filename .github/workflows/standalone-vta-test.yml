@@ -48,4 +48,4 @@ jobs:
       - name: Run tests
         run: |
           cd simulators/cycle_accurate_simulator
-          sbt testOnly unittest.* formal.*
+          sbt test

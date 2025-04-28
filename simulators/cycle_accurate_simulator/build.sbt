@@ -1,7 +1,8 @@
 lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
   scalaVersion := "2.13.12",
-  crossScalaVersions := Seq("2.13.12")
+  crossScalaVersions := Seq("2.13.12"),
+  Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-n", "UnitTests", "-n", "FormalTests")
 )
 
 val chiselVersion = "6.0.0"
@@ -40,5 +41,3 @@ lazy val chiseltestSettings = Seq(
 lazy val chiseltest = (project in file("."))
   .settings(commonSettings)
   .settings(chiseltestSettings)
-
-Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-n", "UnitTests", "-n", "FormalTests")
