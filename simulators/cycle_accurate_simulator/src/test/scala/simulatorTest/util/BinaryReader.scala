@@ -110,9 +110,6 @@ object BinaryReader {
           Failure(exception)
       }
     val baseAddrBigInt = BigInt(baseAddress,16) // Value of base address in BigInt
-    //FIXME for each address should have dataType.nbElement
-    // recompose the full value and then split according to precision
-    // and adapt the computation of the address with isDRAM
     groupedBinaryData match {
       case Success(data) =>
         // Flattened array containing all the bits of the binary file after reversal
