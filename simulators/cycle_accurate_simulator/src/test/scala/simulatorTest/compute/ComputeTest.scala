@@ -15,8 +15,6 @@ import scala.language.postfixOps
 import scala.util.{Failure, Success} // Import for raising exceptions in case of misreading
 
 
-//FIXME modify compute to take all the binary file paths as inputs
-//class ComputeTest(c: Compute, fn: String, insn: String, doCompare: Boolean = false)
 class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: String, acc:String, expected_out: String,
                   doCompare: Boolean = false)
   extends PeekPokeTester(c) {
@@ -397,7 +395,7 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
   // Build memory
   val dram_scratchpad =
     build_scratchpad_binary(uop, DataType.UOP, "0000d000", isDRAM = true) ++
-      build_scratchpad_binary(acc, DataType.ACC, "0000b000", isDRAM = true)
+      build_scratchpad_binary(acc, DataType.ACC, "0000e000", isDRAM = true)
   // base address is zero because we are storing the values directly in the INP buffer
   val inp_scratchpad = build_scratchpad_binary(input, DataType.INP, "00000000", isDRAM = false)
   val wgt_scratchpad = build_scratchpad_binary(weight, DataType.WGT, "00000000", isDRAM = false)
@@ -555,19 +553,37 @@ class lenet5_layer1 extends GenericTest("lenet5_layer1", (p:Parameters) =>
   "examples_compute/lenet5_layer1/expected_out.bin",
   true))
 
+/* Test Lenet-5 conv1 - binary file */
+class lenet5_conv1 extends GenericTest("lenet5_conv1", (p:Parameters) =>
+  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
+  "examples_compute/lenet5_conv1/instructions.bin",
+  "examples_compute/lenet5_conv1/uop.bin",
+  "examples_compute/lenet5_conv1/input.bin",
+  "examples_compute/lenet5_conv1/weight.bin",
+  "examples_compute/lenet5_conv1/accumulator.bin",
+  "examples_compute/lenet5_conv1/expected_out.bin",
+  true))
+
 /* Vector x matrix multiplication (Simple Matrix Multiply) */
 //class ComputeApp_Smm extends GenericTest("ComputeApp_Smm", (p:Parameters) =>
 //  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_smm.json",
 //  "/examples_compute/lenet5_layer1/instructions.bin", true))
 
-///* Matrix 16x16 multiply with matrix 16x16 */
-//class ComputeApp_Matrix_16x16 extends GenericTest("ComputeApp_Matrix_16x16", (p:Parameters) =>
-//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_matrix_16x16.json", true))
 //
 ///* Matrix 32x32 multiply with matrix 32x32 */
 //class ComputeApp_Matrix_32x32 extends GenericTest("ComputeApp_Matrix_32x32", (p: Parameters) =>
 //  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_matrix_32x32.json", true))
 //
+/* Test 32x32 & ReLU - binary file */
+class BinaryFile_32x32_relu extends GenericTest("BinaryFile_32x32_relu", (p:Parameters) =>
+  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
+  "examples_compute/32x32_relu/instructions.bin",
+  "examples_compute/32x32_relu/uop.bin",
+  "examples_compute/32x32_relu/input.bin",
+  "examples_compute/32x32_relu/weight.bin",
+  "examples_compute/32x32_relu/accumulator.bin",
+  "examples_compute/32x32_relu/expected_out.bin",
+  true))
 ///* ALTERNATIVE INSTRUCTION INVESTIGATION:
 // * Batches with 2 UOP and 1 GeMM loop */
 //class ComputeApp_Batches_2uop_1loop extends GenericTest("ComputeApp_Batches_2uop_1loop", (p:Parameters) =>
