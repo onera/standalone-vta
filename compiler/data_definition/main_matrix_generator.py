@@ -80,15 +80,6 @@ def main(config_file):
         # Overwrite the result
         C_blocks, _ = MS.matrix_splitting(matrix=C_pooled, block_size=config.block_size, isWeight=False, isSquare=config.isSquare)
 
-    # Compute memory addresses for data (ajouter UOP ?)
-
-    object_info = [(A_padded.shape[0] * A_blocks_col * 16, 16),      # INP
-                   (B_padded.shape[0] * B_blocks_col * 16, 256),     # WGT
-                   (C_padded.shape[0] * C_blocks_col * 16, 16),      # OUT 
-                   (X_padded.shape[0] * X_blocks_col * 64, 64)       # ACC
-                   ]     
-    memory_addresses = MA.memory_base_address(object_info)
-
     # Write binary files
     if (config.doWriteBinaryFile):
         # Define the complete path of the files
@@ -96,12 +87,6 @@ def main(config_file):
         B_blocks_file_path = os.path.join(output_dir, 'weight.bin')
         X_blocks_file_path = os.path.join(output_dir, 'accumulator.bin')
         C_padded_file_path = os.path.join(output_dir, 'expected_out.bin')
-        memory_addresses_data_file_path = os.path.join(output_dir, 'memory_addresses_data.txt')
-
-        # Write memory addresses
-        with open(memory_addresses_data_file_path, 'w') as f:
-            for elem in memory_addresses :
-                f.write(str(elem) + '\n')
         
         # Write A_block matrix
         with open(A_blocks_file_path, 'wb') as f:
@@ -134,76 +119,76 @@ def main(config_file):
         JG.generate_json(A_blocks, B_blocks, X_blocks, C_blocks, json_file_path, block_size=config.block_size,)
 
     # Print the matrices
-    # if (config.doPrint):
-    #     # INITIAL non-padded MATRICES
-    #     print("\n INITIAL MATRICES:")
-    #     print(f"A_matrix: ((h, w) = {np.shape(A_matrix)}) \n", A_matrix)
-    #     print(f"\n x \n B_matrix: ((h, w) = {np.shape(B_matrix)}) \n", B_matrix)
-    #     if (config.doCompareWithReference):
-    #         print(f"\n = \n ACC_matrix: ((h, w) = {np.shape(ACC_matrix)}) \n", ACC_matrix)
-    #         print("\n => cast into int8: \n C_matrix: \n", C_matrix)
-    #     print(f"\n\n X_matrix: ((h, w) = {np.shape(X_matrix)}) \n", X_matrix)
+    if (config.doPrint):
+        # INITIAL non-padded MATRICES
+        print("\n INITIAL MATRICES:")
+        print(f"A_matrix: ((h, w) = {np.shape(A_matrix)}) \n", A_matrix)
+        print(f"\n x \n B_matrix: ((h, w) = {np.shape(B_matrix)}) \n", B_matrix)
+        if (config.doCompareWithReference):
+            print(f"\n = \n ACC_matrix: ((h, w) = {np.shape(ACC_matrix)}) \n", ACC_matrix)
+            print("\n => cast into int8: \n C_matrix: \n", C_matrix)
+        print(f"\n\n X_matrix: ((h, w) = {np.shape(X_matrix)}) \n", X_matrix)
 
-    #     # PADDED MATRICES
-    #     print("\n\n\n PADDED MATRICES:")
-    #     print(f"A_padded: ((h, w) = {np.shape(A_padded)}) \n", A_padded)
-    #     print(f"\n x \n B_padded: ((h, w) = {np.shape(B_padded)}) \n", B_padded)
-    #     print(f"\n = \n ACC_padded: ((h, w) = {np.shape(ACC_padded)}) \n", ACC_padded)
-    #     print("\n => cast into int8: \n C_padded: \n", C_padded)
-    #     print(f"\n\n X_padded: ((h, w) = {np.shape(X_padded)}) \n", X_padded)
+        # PADDED MATRICES
+        print("\n\n\n PADDED MATRICES:")
+        print(f"A_padded: ((h, w) = {np.shape(A_padded)}) \n", A_padded)
+        print(f"\n x \n B_padded: ((h, w) = {np.shape(B_padded)}) \n", B_padded)
+        print(f"\n = \n ACC_padded: ((h, w) = {np.shape(ACC_padded)}) \n", ACC_padded)
+        print("\n => cast into int8: \n C_padded: \n", C_padded)
+        print(f"\n\n X_padded: ((h, w) = {np.shape(X_padded)}) \n", X_padded)
 
-    #     # SPLITTED by blocks MATRICES
-    #     print("\n\n\n SPLITTED MATRICES:")
-    #     i = 0
-    #     print(f"A_blocks: (blocks_col = {A_blocks_col})")
-    #     for block in A_blocks:
-    #         print("\n A", i)
-    #         print(block)
-    #         i = i + 1
-    #     i = 0
-    #     print(f"\n\n B_blocks: (blocks_col = {B_blocks_col})")
-    #     for block in B_blocks:
-    #         print("\n B", i)
-    #         print(block)
-    #         i = i + 1
-    #     i = 0
-    #     print("\n\n Transposed B_blocks:")
-    #     for block in B_blocks:
-    #         print("\n Transposed B", i)
-    #         print(block.transpose())
-    #         i = i + 1
-    #     i = 0
-    #     print("\n\n Resulting ACC_blocks:")
-    #     for block in ACC_blocks:
-    #         print("\n ACC", i)
-    #         print(block)
-    #         i = i + 1
-    #     i = 0
-    #     print(f"\n\n Resulting C_blocks: (blocks_col = {B_blocks_col})")
-    #     for block in C_blocks:
-    #         print("\n C", i)
-    #         print(block)
-    #         i = i + 1
+        # SPLITTED by blocks MATRICES
+        print("\n\n\n SPLITTED MATRICES:")
+        i = 0
+        print(f"A_blocks: (blocks_col = {A_blocks_col})")
+        for block in A_blocks:
+            print("\n A", i)
+            print(block)
+            i = i + 1
+        i = 0
+        print(f"\n\n B_blocks: (blocks_col = {B_blocks_col})")
+        for block in B_blocks:
+            print("\n B", i)
+            print(block)
+            i = i + 1
+        i = 0
+        print("\n\n Transposed B_blocks:")
+        for block in B_blocks:
+            print("\n Transposed B", i)
+            print(block.transpose())
+            i = i + 1
+        i = 0
+        print("\n\n Resulting ACC_blocks:")
+        for block in ACC_blocks:
+            print("\n ACC", i)
+            print(block)
+            i = i + 1
+        i = 0
+        print(f"\n\n Resulting C_blocks: (blocks_col = {B_blocks_col})")
+        for block in C_blocks:
+            print("\n C", i)
+            print(block)
+            i = i + 1
 
-    #     i = 0
-    #     print(f"\n\n Resulting X_blocks: (blocks_col = {X_blocks_col})")
-    #     for block in X_blocks:
-    #         print("\n X", i)
-    #         print(block)
-    #         i = i + 1
+        i = 0
+        print(f"\n\n Resulting X_blocks: (blocks_col = {X_blocks_col})")
+        for block in X_blocks:
+            print("\n X", i)
+            print(block)
+            i = i + 1
         
-    #     if (config.doAvgPool):
-    #         print(f"\n\n Average pooling result:\n{ACC_pooled}\n")
-    #         avg_indexes = AP.average_pooling_indexes(in_tensor_size=in_tensor, out_tensor_size=out_tensor, 
-    #                                                  kernel_size=config.Avg_kernel, stride=config.Avg_stride)
-    #         print(f"\n\nAverage pooling final indexes:")
-    #         for index in avg_indexes:
-    #             print(index)
+        if (config.doAvgPool):
+            print(f"\n\n Average pooling result:\n{ACC_pooled}\n")
+            avg_indexes = AP.average_pooling_indexes(in_tensor_size=in_tensor, out_tensor_size=out_tensor, 
+                                                     kernel_size=config.Avg_kernel, stride=config.Avg_stride)
+            print(f"\n\nAverage pooling final indexes:")
+            for index in avg_indexes:
+                print(index)
 
-    #     # Print block combination to perform the multiplication
-    #     print("\n\nBlock multiplication combination:")
-    #     for combination in combinations:
-    #         print(combination)
+        # Print block combination to perform the multiplication
+        print("\n\nBlock multiplication combination:")
+        for combination in combinations:
+            print(combination)
 
         # Print the memory addresses
         if (config.isSquare):
@@ -215,7 +200,6 @@ def main(config_file):
         for addr in vta_addr:
             print(addr)
 
-    print(hex(A_padded.shape[0] * A_blocks_col * 16))
     # End of the execution
     return 0
 

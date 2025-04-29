@@ -474,15 +474,3 @@ for insn in insn_buffer:
     print_hex_128bit(insn)
     i = i + 1
     
-
-# Compute memory addresses for instructions and UOPs
-
-object_info = [(len(insn_buffer) * 8, 8),     # Instructions
-               (len(uop_buffer) * 4, 4)]      # UOP
-
-memory_addresses = memory_base_address(object_info)
-
-# Write memory addresses
-with open(memory_addresses_insn_path, 'w') as f:
-    for elem in memory_addresses :
-        f.write(str(elem) + '\n')
