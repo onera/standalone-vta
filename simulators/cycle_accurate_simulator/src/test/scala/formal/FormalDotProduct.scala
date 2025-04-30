@@ -18,7 +18,7 @@ import vta.core.DotProduct
 class DotProductTest extends AnyFlatSpec with ChiselScalatestTester {
   behavior of "DotProduct"
 
-  it should "compute dot product correctly" in {
+  it should "compute dot product correctly" taggedAs(UnitTests) in {
     test(new DotProduct).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
       // Test case 1: Y = 2
       dut.io.a(0).poke(2.S)
@@ -170,10 +170,10 @@ class DotProductFormalSpec_Decomposed(makeDut: => DotProduct) extends Module {
  * Execute Formal test
  */
 class DotProductFormalTester extends AnyFlatSpec with ChiselScalatestTester with Formal {
-  "DotProduct" should "pass formal properties" in {
+  "DotProduct" should "pass formal properties" taggedAs(FormalTests) in {
     verify(new DotProductFormalSpec(new DotProduct), Seq(BoundedCheck(5), WriteVcdAnnotation))
   }
-  "DotProduct" should "pass decomposed formal properties" in {
+  "DotProduct" should "pass decomposed formal properties" taggedAs(FormalTests) in {
     verify(new DotProductFormalSpec_Decomposed(new DotProduct), Seq(BoundedCheck(5), WriteVcdAnnotation))
   }
 }
