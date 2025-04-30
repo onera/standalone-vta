@@ -157,7 +157,8 @@ object BinaryReader {
           } yield {
             if (!isDRAM) { // Logical address for data types INP, WGT, OUT, INSN
               //println(d(0).toString(2))
-              (BigInt(i) + baseAddrBigInt) -> d
+              println(sizeOfElement/8 * i)
+              (BigInt(sizeOfElement/8 * i) + baseAddrBigInt) -> d // BigInt(i) normalement
             } else { // Physical address if data type is UOP or ACC
               (baseAddrBigInt + BigInt(sizeOfElement/8 * i)) -> d
             }

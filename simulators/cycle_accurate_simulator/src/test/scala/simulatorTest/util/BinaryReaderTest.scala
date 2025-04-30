@@ -310,6 +310,16 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     }
   }
 
+  it should "decode four wgt vectors of 32x32_relu" in {
+    val result = computeAddresses("examples_compute/32x32_relu/input.bin", DataType.INP, "00000000", isDRAM = false)
+    result match {
+      case Success(data) =>
+        printMap(data, DataType.INP)
+      case Failure(exception) =>
+        fail(s"Error while computing addresses for WGT : ${exception.getMessage}")
+    }
+  }
+
   it should "decode correctly the first vector of EXPECT_OUT (16 Bytes) in a binary file" in {
     val result = computeAddresses("examples_compute/16x16/expected_out.bin", DataType.OUT, "00000000", isDRAM = false)
     val hexa = Array("14",

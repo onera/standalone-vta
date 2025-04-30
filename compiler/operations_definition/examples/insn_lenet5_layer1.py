@@ -2,7 +2,6 @@
 # --------------
 import os
 import sys
-from ...data_definition.memory_addresses import memory_base_address
 
 # Parent folder
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

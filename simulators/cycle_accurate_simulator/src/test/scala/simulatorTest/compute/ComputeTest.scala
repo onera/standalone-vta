@@ -15,7 +15,7 @@ import scala.language.postfixOps
 import scala.util.{Failure, Success} // Import for raising exceptions in case of misreading
 
 
-class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: String, acc:String, expected_out: String,
+class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: String, out: String, acc: String, expected_out: String,
                   doCompare: Boolean = false)
   extends PeekPokeTester(c) {
 
@@ -128,7 +128,7 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
         // Set the data validity signal
         poke(tm.rd(0).data.valid, 1)
 
-//        print(s"\n\nDEBUG: READ SCRATCHPAD IDX: ${idx}\n\n")
+        print(s"\n\nDEBUG: READ SCRATCHPAD IDX: ${idx}\n\n")
 
         // Go through the scratchpad and send the data
         val cols = tm.rd(0).data.bits(0).size
@@ -394,12 +394,12 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
   /* BEGIN USER CUSTOMABLE SECTION */
   // Build memory
   val dram_scratchpad =
-    build_scratchpad_binary(uop, DataType.UOP, "0000d000", isDRAM = true) ++
-      build_scratchpad_binary(acc, DataType.ACC, "0000e000", isDRAM = true)
+    build_scratchpad_binary(uop, DataType.UOP, "00004000", isDRAM = true) ++
+      build_scratchpad_binary(acc, DataType.ACC, "00005000", isDRAM = true)
   // base address is zero because we are storing the values directly in the INP buffer
   val inp_scratchpad = build_scratchpad_binary(input, DataType.INP, "00000000", isDRAM = false)
   val wgt_scratchpad = build_scratchpad_binary(weight, DataType.WGT, "00000000", isDRAM = false)
-  val out_scratchpad = build_scratchpad_binary(weight, DataType.OUT, "00000000", isDRAM = false)
+  val out_scratchpad = build_scratchpad_binary(out, DataType.OUT, "00000000", isDRAM = false)
   val out_expect_scratchpad = build_scratchpad_binary(expected_out, DataType.OUT, "00000000", isDRAM = false)
 
   // Create the mocks
@@ -495,6 +495,7 @@ class BinaryFile_16x16_relu extends GenericTest("BinaryFile_16x16_relu", (p:Para
   "examples_compute/16x16_relu/uop.bin",
   "examples_compute/16x16_relu/input.bin",
   "examples_compute/16x16_relu/weight.bin",
+  "examples_compute/16x16_relu/out.bin",
   "examples_compute/16x16_relu/accumulator.bin",
   "examples_compute/16x16_relu/expected_out.bin",
   true))
@@ -506,6 +507,7 @@ class BinaryFile_16x16 extends GenericTest("BinaryFile_16x16", (p:Parameters) =>
   "examples_compute/16x16/uop.bin",
   "examples_compute/16x16/input.bin",
   "examples_compute/16x16/weight.bin",
+  "examples_compute/16x16/out.bin",
   "examples_compute/16x16/accumulator.bin",
   "examples_compute/16x16/expected_out.bin",
   true))
@@ -516,6 +518,7 @@ class BinaryFile_16x16_average_pooling extends GenericTest("BinaryFile_16x16_ave
   "examples_compute/16x16_average_pooling/uop.bin",
   "examples_compute/16x16_average_pooling/input.bin",
   "examples_compute/16x16_average_pooling/weight.bin",
+  "examples_compute/16x16_average_pooling/out.bin", // réduire taille par 4 ?
   "examples_compute/16x16_average_pooling/accumulator.bin",
   "examples_compute/16x16_average_pooling/expected_out.bin",
   true))
@@ -527,6 +530,7 @@ class BinaryFile_average_pooling extends GenericTest("BinaryFile_average_pooling
   "examples_compute/average_pooling/uop.bin",
   "examples_compute/average_pooling/input.bin",
   "examples_compute/average_pooling/weight.bin",
+  "examples_compute/average_pooling/out.bin",
   "examples_compute/average_pooling/accumulator.bin",
   "examples_compute/average_pooling/expected_out.bin",
   true))
@@ -536,10 +540,11 @@ class BinaryFile_relu extends GenericTest("BinaryFile_relu", (p:Parameters) =>
   new Compute(true)(p), (c: Compute) => new ComputeTest(c,
   "examples_compute/relu/instructions.bin",
   "examples_compute/relu/uop.bin",
-  "examples_compute/relu/input.bin",
-  "examples_compute/relu/weight.bin",
-  "examples_compute/relu/accumulator.bin",
-  "examples_compute/relu/expected_out.bin",
+  ???,
+  ???,
+  ???,
+  ???,
+  ???,
   true))
 
 /* Test Lenet-5 layer1 - binary file */
@@ -549,6 +554,7 @@ class lenet5_layer1 extends GenericTest("lenet5_layer1", (p:Parameters) =>
   "examples_compute/lenet5_layer1/uop.bin",
   "examples_compute/lenet5_layer1/input.bin",
   "examples_compute/lenet5_layer1/weight.bin",
+  "examples_compute/lenet5_layer1/out.bin",
   "examples_compute/lenet5_layer1/accumulator.bin",
   "examples_compute/lenet5_layer1/expected_out.bin",
   true))
@@ -560,6 +566,7 @@ class lenet5_conv1 extends GenericTest("lenet5_conv1", (p:Parameters) =>
   "examples_compute/lenet5_conv1/uop.bin",
   "examples_compute/lenet5_conv1/input.bin",
   "examples_compute/lenet5_conv1/weight.bin",
+  "examples_compute/lenet5_conv1/out.bin",
   "examples_compute/lenet5_conv1/accumulator.bin",
   "examples_compute/lenet5_conv1/expected_out.bin",
   true))
@@ -581,6 +588,7 @@ class BinaryFile_32x32_relu extends GenericTest("BinaryFile_32x32_relu", (p:Para
   "examples_compute/32x32_relu/uop.bin",
   "examples_compute/32x32_relu/input.bin",
   "examples_compute/32x32_relu/weight.bin",
+  "examples_compute/32x32_relu/out.bin",
   "examples_compute/32x32_relu/accumulator.bin",
   "examples_compute/32x32_relu/expected_out.bin",
   true))
