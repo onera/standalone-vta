@@ -37,7 +37,7 @@ class MatrixVectorMultiplicationBypassFormalTester extends AnyFlatSpec with Chis
   implicit val p: Parameters = SimParam.config
 
   // Formal Verification
-  "MatrixVectorMultiplication" should "pass formal properties" in {
+  "MatrixVectorMultiplication" should "pass formal properties" taggedAs(FormalTests) in {
     verify(new MatrixVectorMultiplicationBypassFormalSpec(new MatrixVectorMultiplicationBypass()(p)), Seq(BoundedCheck(10), WriteVcdAnnotation))
   }
 }

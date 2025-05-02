@@ -5,6 +5,11 @@ import vta.interface.axi.AXIParams
 import vta.shell.{ShellKey, ShellParams, VCRParams, VMEParams}
 import vta.util.config.Config
 
+import org.scalatest.Tag
+
+object UnitTests extends Tag("UnitTests")
+object FormalTests extends Tag("FormalTests")
+
 /**
  * VTA HARDWARE CONFIGURATION
  */

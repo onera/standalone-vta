@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 jobs:
-  checks:
+  functional-simutator-test:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -30,3 +30,22 @@ jobs:
         run: cat compiler_output/prompt_data.txt
       - name: Display simulator results
         run: cat simulators_output/fsim_report.txt
+
+  cycle-accurate-simulator-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 8
+          cache: sbt
+      - uses: sbt/setup-sbt@v1
+      - name: Setup Z3
+        id: z3
+        uses: cda-tum/setup-z3@v1
+      - name: Run tests
+        run: |
+          cd simulators/cycle_accurate_simulator
+          sbt test
