@@ -128,14 +128,16 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
         // Set the data validity signal
         poke(tm.rd(0).data.valid, 1)
 
-        print(s"\n\nDEBUG: READ SCRATCHPAD IDX: ${idx}\n\n")
+        print(s"\n\nDEBUG: READ SCRATCHPAD ${scratchpad.size} IDX: ${idx}\n\n")
 
         // Go through the scratchpad and send the data
         val cols = tm.rd(0).data.bits(0).size
+        print(cols)
         for {
           i <- 0 until tm.rd(0).data.bits.size
           j <- 0 until cols
         } {
+          //print(s"\n\nDEBUG: READ SCRATCHPAD ${scratchpad(idx).length} IDX: ${idx} vect: ${i * cols + j}\n\n")
           poke(tm.rd(0).data.bits(i)(j), scratchpad(idx)(i * cols + j))
         }
       } else { // If index is not valid => data is not valid

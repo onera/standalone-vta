@@ -42,6 +42,24 @@ uop_buffer.append(VTAUop(
     wgt_idx=0
 ))
 
+uop_buffer.append(VTAUop( # UOP 0
+    dst_idx=0, 
+    src_idx=1,
+    wgt_idx=0
+))
+
+uop_buffer.append(VTAUop( # UOP 1
+    dst_idx=0, 
+    src_idx=4,
+    wgt_idx=0
+))
+
+uop_buffer.append(VTAUop( # UOP 2
+    dst_idx=0, 
+    src_idx=0,
+    wgt_idx=0
+))
+
 # Write the UOP in the binary file
 with open(file_uop_path, "wb") as f:
     for uop in uop_buffer:
@@ -158,8 +176,8 @@ insn_buffer.append(VTAMemInsn( # I4: LOAD UOP
     unused=0, # UNUSED
     # Operation over the data
     y_size=1,
-    x_size=1,
-    x_stride=1,
+    x_size=4,
+    x_stride=4,
     y_pad_top=0,
     y_pad_bottom=0,
     x_pad_left=0,
@@ -199,8 +217,8 @@ insn_buffer.append(VTAAluInsn( # I2: ALU - ADD
     push_next_dep=0,
     # Operations
     reset=0, # 0-no, 1-reset
-    uop_bgn=0, # UOP 0
-    uop_end=1,
+    uop_bgn=2, # UOP 0
+    uop_end=3,
     loop_out=1,
     loop_in=8,
     # UNUSED
@@ -224,8 +242,8 @@ insn_buffer.append(VTAAluInsn( # I3: ALU - ADD
     push_next_dep=0,
     # Operations
     reset=0, # 0-no, 1-reset
-    uop_bgn=1, # UOP 1
-    uop_end=2,
+    uop_bgn=3, # UOP 1
+    uop_end=4,
     loop_out=2,
     loop_in=2,
     # UNUSED
@@ -249,8 +267,8 @@ insn_buffer.append(VTAAluInsn( # I4: ALU - SHR 2
     push_next_dep=1, # Ready signal to STORE
     # Operations
     reset=0, # 0-no, 1-reset
-    uop_bgn=2, # UOP 2
-    uop_end=3,
+    uop_bgn=4, # UOP 2
+    uop_end=5,
     loop_out=2,
     loop_in=2,
     # UNUSED

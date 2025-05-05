@@ -157,8 +157,8 @@ object BinaryReader {
           } yield {
             if (!isDRAM) { // Logical address for data types INP, WGT, OUT, INSN
               //println(d(0).toString(2))
-              println(sizeOfElement/8 * i)
-              (BigInt(sizeOfElement/8 * i) + baseAddrBigInt) -> d // BigInt(i) normalement
+              println(BigInt(i) + baseAddrBigInt)
+              (BigInt(i) + baseAddrBigInt) -> d // BigInt(i) normalement
             } else { // Physical address if data type is UOP or ACC
               (baseAddrBigInt + BigInt(sizeOfElement/8 * i)) -> d
             }
@@ -172,6 +172,7 @@ object BinaryReader {
             map
           }
         }
+        println(result.size + " " + dataType)
         Success(result)
       case Failure(exception) =>
         println(s"Error while computing addresses : ${exception.getMessage}")

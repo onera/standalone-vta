@@ -446,12 +446,12 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   }
 
   it should "print the decoded data" in {
-    val result = computeAddresses("examples_compute/average_pooling/uop.bin", DataType.UOP, "00004000", isDRAM = true)
+    val result = computeAddresses("examples_compute/32x32_relu/weight.bin", DataType.WGT, "00000000", isDRAM = false)
     result match {
       case Success(data) =>
-        printMap(data, DataType.UOP)
+        printMap(data, DataType.WGT)
       case Failure(exception) =>
-        fail(s"Error while computing addresses for UOPs : ${exception.getMessage}")
+        fail(s"Error while computing addresses for WGT : ${exception.getMessage}")
     }
   }
 
