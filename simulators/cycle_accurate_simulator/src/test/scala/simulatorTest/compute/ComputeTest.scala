@@ -129,10 +129,9 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
         poke(tm.rd(0).data.valid, 1)
 
         print(s"\n\nDEBUG: READ SCRATCHPAD ${scratchpad.size} IDX: ${idx}\n\n")
-
+        print(idx + "\n")
         // Go through the scratchpad and send the data
         val cols = tm.rd(0).data.bits(0).size
-        print(cols)
         for {
           i <- 0 until tm.rd(0).data.bits.size
           j <- 0 until cols
@@ -145,7 +144,12 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
       }
       // Update the values
       valid = peek(tm.rd(0).idx.valid)
-      idx = peek(tm.rd(0).idx.bits).toInt
+      idx =
+        if (peek(tm.rd(0).idx.bits).toInt != 16 && peek(tm.rd(0).idx.bits).toInt != 64) peek(tm.rd(0).idx.bits).toInt
+        else if (peek(tm.rd(0).idx.bits).toInt == 16) 1
+        else if (peek(tm.rd(0).idx.bits).toInt == 64) 32
+        else
+          peek(tm.rd(0).idx.bits).toInt
     }
   }
 
@@ -396,8 +400,9 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
   /* BEGIN USER CUSTOMABLE SECTION */
   // Build memory
   val dram_scratchpad =
-    build_scratchpad_binary(uop, DataType.UOP, "00004000", isDRAM = true) ++
-      build_scratchpad_binary(acc, DataType.ACC, "00005000", isDRAM = true)
+    build_scratchpad_binary(acc, DataType.ACC, "00005000", isDRAM = true) ++
+      build_scratchpad_binary(uop, DataType.UOP, "00004000", isDRAM = true)
+
   // base address is zero because we are storing the values directly in the INP buffer
   val inp_scratchpad = build_scratchpad_binary(input, DataType.INP, "00000000", isDRAM = false)
   val wgt_scratchpad = build_scratchpad_binary(weight, DataType.WGT, "00000000", isDRAM = false)
@@ -583,6 +588,19 @@ class lenet5_conv1 extends GenericTest("lenet5_conv1", (p:Parameters) =>
 //class ComputeApp_Matrix_32x32 extends GenericTest("ComputeApp_Matrix_32x32", (p: Parameters) =>
 //  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_matrix_32x32.json", true))
 //
+
+/* Test 32x32 - binary file */
+class BinaryFile_32x32 extends GenericTest("BinaryFile_32x32", (p:Parameters) =>
+  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
+  "examples_compute/32x32/instructions.bin",
+  "examples_compute/32x32/uop.bin",
+  "examples_compute/32x32/input.bin",
+  "examples_compute/32x32/weight.bin",
+  "examples_compute/32x32/out.bin",
+  "examples_compute/32x32/accumulator.bin",
+  "examples_compute/32x32/expected_out.bin",
+  true))
+
 /* Test 32x32 & ReLU - binary file */
 class BinaryFile_32x32_relu extends GenericTest("BinaryFile_32x32_relu", (p:Parameters) =>
   new Compute(true)(p), (c: Compute) => new ComputeTest(c,
@@ -594,6 +612,7 @@ class BinaryFile_32x32_relu extends GenericTest("BinaryFile_32x32_relu", (p:Para
   "examples_compute/32x32_relu/accumulator.bin",
   "examples_compute/32x32_relu/expected_out.bin",
   true))
+
 ///* ALTERNATIVE INSTRUCTION INVESTIGATION:
 // * Batches with 2 UOP and 1 GeMM loop */
 //class ComputeApp_Batches_2uop_1loop extends GenericTest("ComputeApp_Batches_2uop_1loop", (p:Parameters) =>
