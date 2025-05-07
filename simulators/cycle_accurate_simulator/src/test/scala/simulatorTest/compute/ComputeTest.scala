@@ -495,17 +495,7 @@ object ISAHelper { // Or place inside ISA object if preferred
 //class ComputeApp extends GenericTest("ComputeApp", (p:Parameters) =>
 //  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_investigation.json", false))
 
-/* Test 16x16 & ReLU - binary file */
-class BinaryFile_16x16_relu extends GenericTest("BinaryFile_16x16_relu", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
-  "examples_compute/16x16_relu/instructions.bin",
-  "examples_compute/16x16_relu/uop.bin",
-  "examples_compute/16x16_relu/input.bin",
-  "examples_compute/16x16_relu/weight.bin",
-  "examples_compute/16x16_relu/out.bin",
-  "examples_compute/16x16_relu/accumulator.bin",
-  "examples_compute/16x16_relu/expected_out.bin",
-  true))
+
 
 /* Test 16x16 - binary file */
 class BinaryFile_16x16 extends GenericTest("BinaryFile_16x16", (p:Parameters) =>
@@ -530,56 +520,16 @@ class BinaryFile_16x16_average_pooling extends GenericTest("BinaryFile_16x16_ave
   "examples_compute/16x16_average_pooling/expected_out.bin",
   true))
 
-/* Test average pooling - binary file */
-class BinaryFile_average_pooling extends GenericTest("BinaryFile_average_pooling", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
-  "examples_compute/average_pooling/instructions.bin",
-  "examples_compute/average_pooling/uop.bin",
-  "examples_compute/average_pooling/input.bin",
-  "examples_compute/average_pooling/weight.bin",
-  "examples_compute/average_pooling/out.bin",
-  "examples_compute/average_pooling/accumulator.bin",
-  "examples_compute/average_pooling/expected_out.bin",
-  true))
 
-/* Test ReLU - binary file */
-class BinaryFile_relu extends GenericTest("BinaryFile_relu", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
-  "examples_compute/relu/instructions.bin",
-  "examples_compute/relu/uop.bin",
-  ???,
-  ???,
-  ???,
-  ???,
-  ???,
-  true))
 
-/* Test Lenet-5 layer1 - binary file */
-class lenet5_layer1 extends GenericTest("lenet5_layer1", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
-  "examples_compute/lenet5_layer1/instructions.bin",
-  "examples_compute/lenet5_layer1/uop.bin",
-  "examples_compute/lenet5_layer1/input.bin",
-  "examples_compute/lenet5_layer1/weight.bin",
-  "examples_compute/lenet5_layer1/out.bin",
-  "examples_compute/lenet5_layer1/accumulator.bin",
-  "examples_compute/lenet5_layer1/expected_out.bin",
-  true))
 
-/* Test Lenet-5 conv1 - binary file */
-class lenet5_conv1 extends GenericTest("lenet5_conv1", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
-  "examples_compute/lenet5_conv1/instructions.bin",
-  "examples_compute/lenet5_conv1/uop.bin",
-  "examples_compute/lenet5_conv1/input.bin",
-  "examples_compute/lenet5_conv1/weight.bin",
-  "examples_compute/lenet5_conv1/out.bin",
-  "examples_compute/lenet5_conv1/accumulator.bin",
-  "examples_compute/lenet5_conv1/expected_out.bin",
-  true))
+
+
+
+
 
 /* Vector x matrix multiplication (Simple Matrix Multiply) */
-//class ComputeApp_Smm extends GenericTest("ComputeApp_Smm", (p:Parameters) =>
+//class ComputeApp_Smm extends GenericTest("ComputeApp_Smm", (p:Parameters) =>Il n'y a
 //  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_smm.json",
 //  "/examples_compute/lenet5_layer1/instructions.bin", true))
 
@@ -601,17 +551,7 @@ class BinaryFile_32x32 extends GenericTest("BinaryFile_32x32", (p:Parameters) =>
   "examples_compute/32x32/expected_out.bin",
   true))
 
-/* Test 32x32 & ReLU - binary file */
-class BinaryFile_32x32_relu extends GenericTest("BinaryFile_32x32_relu", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
-  "examples_compute/32x32_relu/instructions.bin",
-  "examples_compute/32x32_relu/uop.bin",
-  "examples_compute/32x32_relu/input.bin",
-  "examples_compute/32x32_relu/weight.bin",
-  "examples_compute/32x32_relu/out.bin",
-  "examples_compute/32x32_relu/accumulator.bin",
-  "examples_compute/32x32_relu/expected_out.bin",
-  true))
+
 
 ///* ALTERNATIVE INSTRUCTION INVESTIGATION:
 // * Batches with 2 UOP and 1 GeMM loop */
@@ -639,13 +579,46 @@ class BinaryFile_32x32_relu extends GenericTest("BinaryFile_32x32_relu", (p:Para
 //class ComputeApp_relu_relu extends GenericTest("ComputeApp_relu_relu", (p: Parameters) =>
 //  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_relu_relu.json", true))
 //
+/* Test ReLU - binary file */
+class BinaryFile_relu extends GenericTest("BinaryFile_relu", (p:Parameters) =>
+  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
+  "examples_compute/relu/instructions.bin",
+  "examples_compute/relu/uop.bin",
+  ???,
+  ???,
+  ???,
+  ???,
+  ???,
+  true))
 ///* Matrix 16x16 multiply with matrix 16x16 followed by a ReLU (MAX with 0) */
 //class ComputeApp_16x16_relu extends GenericTest("ComputeApp_16x16_relu", (p: Parameters) =>
 //  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_16x16_relu.json", true))
+/* Test 16x16 & ReLU - binary file */
+class BinaryFile_16x16_relu extends GenericTest("BinaryFile_16x16_relu", (p:Parameters) =>
+  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
+  "examples_compute/16x16_relu/instructions.bin",
+  "examples_compute/16x16_relu/uop.bin",
+  "examples_compute/16x16_relu/input.bin",
+  "examples_compute/16x16_relu/weight.bin",
+  "examples_compute/16x16_relu/out.bin",
+  "examples_compute/16x16_relu/accumulator.bin",
+  "examples_compute/16x16_relu/expected_out.bin",
+  true))
 ///* Matrix 32x32 multiply with matrix 32x32 followed by a ReLU (MAX with 0) */
 //class ComputeApp_32x32_relu extends GenericTest("ComputeApp_32x32_relu", (p: Parameters) =>
 //  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_32x32_relu.json", true))
 //
+/* Test 32x32 & ReLU - binary file */
+class BinaryFile_32x32_relu extends GenericTest("BinaryFile_32x32_relu", (p:Parameters) =>
+  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
+  "examples_compute/32x32_relu/instructions.bin",
+  "examples_compute/32x32_relu/uop.bin",
+  "examples_compute/32x32_relu/input.bin",
+  "examples_compute/32x32_relu/weight.bin",
+  "examples_compute/32x32_relu/out.bin",
+  "examples_compute/32x32_relu/accumulator.bin",
+  "examples_compute/32x32_relu/expected_out.bin",
+  true))
 ///* Average pooling (first part - add only) */
 //class ComputeApp_add_acc_vectors extends GenericTest("ComputeApp_add_acc_vectors", (p: Parameters) =>
 //  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_add_acc_vectors.json", true))
@@ -653,13 +626,54 @@ class BinaryFile_32x32_relu extends GenericTest("BinaryFile_32x32_relu", (p:Para
 //class ComputeApp_average_pooling extends GenericTest("ComputeApp_average_pooling", (p: Parameters) =>
 //  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_average_pooling.json", true))
 //
+/* Test average pooling - binary file */
+class BinaryFile_average_pooling extends GenericTest("BinaryFile_average_pooling", (p:Parameters) =>
+  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
+  "examples_compute/average_pooling/instructions.bin",
+  "examples_compute/average_pooling/uop.bin",
+  "examples_compute/average_pooling/input.bin",
+  "examples_compute/average_pooling/weight.bin",
+  "examples_compute/average_pooling/out.bin",
+  "examples_compute/average_pooling/accumulator.bin",
+  "examples_compute/average_pooling/expected_out.bin",
+  true))
 ///* CONVOLUTIONAL NEURAL NETWORK
 // * LeNet-5: Convolution 1 */
 //class ComputeApp_lenet5_conv1 extends GenericTest("ComputeApp_lenet5_conv1", (p: Parameters) =>
 //  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_lenet5_conv1.json", true))
+class lenet5_conv1 extends GenericTest("lenet5_conv1", (p:Parameters) =>
+  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
+  "examples_compute/lenet5_conv1/instructions.bin",
+  "examples_compute/lenet5_conv1/uop.bin",
+  "examples_compute/lenet5_conv1/input.bin",
+  "examples_compute/lenet5_conv1/weight.bin",
+  "examples_compute/lenet5_conv1/out.bin",
+  "examples_compute/lenet5_conv1/accumulator.bin",
+  "examples_compute/lenet5_conv1/expected_out.bin",
+  true))
 ///* LeNet-5: Conv1 + ReLU */
 //class ComputeApp_lenet5_conv1_relu extends GenericTest("ComputeApp_lenet5_conv1_relu", (p: Parameters) =>
 //  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_lenet5_conv1_relu.json", true))
+class lenet5_conv1_relu extends GenericTest("lenet5_conv1_relu", (p:Parameters) =>
+  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
+  "examples_compute/lenet5_conv1_relu/instructions.bin",
+  "examples_compute/lenet5_conv1_relu/uop.bin",
+  "examples_compute/lenet5_conv1_relu/input.bin",
+  "examples_compute/lenet5_conv1_relu/weight.bin",
+  "examples_compute/lenet5_conv1_relu/out.bin",
+  "examples_compute/lenet5_conv1_relu/accumulator.bin",
+  "examples_compute/lenet5_conv1_relu/expected_out.bin",
+  true))
 ///* LeNet-5: Conv1 + ReLU + Average Pooling */
 //class ComputeApp_lenet5_conv1_relu_AvgPool extends GenericTest("ComputeApp_lenet5_conv1_relu_AvgPool", (p: Parameters) =>
 //  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_lenet5_conv1_relu_average_pooling.json", false))
+class lenet5_layer1 extends GenericTest("lenet5_layer1", (p:Parameters) =>
+  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
+  "examples_compute/lenet5_layer1/instructions.bin",
+  "examples_compute/lenet5_layer1/uop.bin",
+  "examples_compute/lenet5_layer1/input.bin",
+  "examples_compute/lenet5_layer1/weight.bin",
+  "examples_compute/lenet5_layer1/out.bin",
+  "examples_compute/lenet5_layer1/accumulator.bin",
+  "examples_compute/lenet5_layer1/expected_out.bin",
+  true))

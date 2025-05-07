@@ -111,7 +111,9 @@ def main(config_file):
                 block.tofile(f)
         
         # Write C_padded (expected result)
-        C_padded.tofile(C_padded_file_path)
+        with open(C_padded_file_path, 'wb') as f:
+            for block in C_blocks:
+                block.tofile(f)
 
         # Confirm the binary files generation
         print("\nBinary files successfully generated.\n")

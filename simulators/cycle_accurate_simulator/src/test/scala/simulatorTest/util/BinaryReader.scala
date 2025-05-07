@@ -130,24 +130,49 @@ object BinaryReader {
             s).sum
         // An array containing all the individual bits in groups of the size of the element (ex. 1 UOP)
         val arrayBits = arrayGroupedBits.flatMap(_.toList.map(_.toString)).grouped(sizeOfElement).toArray
+        //arrayBits.map(_.mkString(", ")).foreach(println)
         // Returns an array with nbValues groups of size precision
+        val reversePrecision = Map(0 -> 10, 1 -> 11, 2 -> 11)
+//        def groupAndReverse(arr: Array[String], index: Int): Array[String] = {
+//          if (index > 0) {
+//            //println(Array(arr.take(dataType.precision(index)).mkString).mkString("Array(", ", ", ")"))
+//            Array(arr.take(dataType.precision(index)).mkString) ++ groupAndReverse(arr.drop(dataType.precision(index)), index - 1)
+//          } else
+//            arr
+//        }
         def groupByElemSize(arr: Array[String], index: Int): Array[String] = {
-          if (index < dataType.nbValues)
-            Array(arr.take(dataType.precision(index)).mkString) ++ groupByElemSize(arr.drop(dataType.precision(index)), index + 1)
-          else
+          if (index < dataType.nbValues) {
+            if (dataType.id == UOP.id)
+              Array(arr.take(reversePrecision(index)).mkString) ++ groupByElemSize(arr.drop(reversePrecision(index)), index + 1)
+            else
+              Array(arr.take(dataType.precision(index)).mkString) ++ groupByElemSize(arr.drop(dataType.precision(index)), index + 1)
+          } else
             arr
         }
         // [ ["11 bits", "11 bits", "10 bits"], [...], ... ]
-        val groupedArrayBit =
+        val groupedArrayBit = {
           for {
             elem <- arrayBits
           } yield {
             //println(elem.mkString("Array(", ", ", ")"))
             //println(groupByElemSize(elem, 0).mkString("Array(", ", ", ")"))
             groupByElemSize(elem, 0)
+//            if (dataType.id == UOP.id) {
+//              //println(groupAndReverse(elem, 2).reverse.mkString("Array(", ", ", ")"))
+//              groupAndReverse(elem, 2).reverse
+//            } else
+//              groupAndReverse(elem, 2)
           }
+        }
+        //groupedArrayBit.map(_.mkString(", ")).foreach(println)
+        val groupedArrayBit2 =
+          if (dataType.id == UOP.id)
+            groupedArrayBit.map(_.reverse)
+          else
+            groupedArrayBit
+        //groupedArrayBit2.map(_.mkString(", ")).foreach(println)
         // Converts the values to BigInt (included in [-128, 128], except for ACC)
-        val groupedByElemSizeBI = groupedArrayBit.map(_.map(BigInt(_, 2)).map {bigInt =>
+        val groupedByElemSizeBI = groupedArrayBit2.map(_.map(BigInt(_, 2)).map {bigInt =>
           if (bigInt >= 128 && dataType.id != INSN.id) bigInt - 256 else bigInt})
         // [ (address, [11 bits, 11 bits, 10 bits]), (...), ... ]
         // Assigns an address to each element
@@ -157,7 +182,7 @@ object BinaryReader {
           } yield {
             if (!isDRAM) { // Logical address for data types INP, WGT, OUT, INSN
               //println(d(0).toString(2))
-              println(BigInt(i) + baseAddrBigInt)
+              //println(BigInt(i) + baseAddrBigInt)
               (BigInt(i) + baseAddrBigInt) -> d // BigInt(i) normalement
             } else { // Physical address if data type is UOP or ACC
               (baseAddrBigInt + BigInt(sizeOfElement/8 * i)) -> d
@@ -172,7 +197,7 @@ object BinaryReader {
             map
           }
         }
-        println(result.size + " " + dataType)
+        //println(result.size + " " + dataType)
         Success(result)
       case Failure(exception) =>
         println(s"Error while computing addresses : ${exception.getMessage}")
