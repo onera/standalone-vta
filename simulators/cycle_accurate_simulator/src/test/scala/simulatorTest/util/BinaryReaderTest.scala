@@ -39,6 +39,16 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     }
   }
 
+  it should "decode ACC in average_pooling" in {
+    val acc = computeAddresses("examples_compute/average_pooling/accumulator.bin", DataType.ACC, "00000000", isDRAM = true)
+    acc match {
+      case Success(data) =>
+        printMap(data, DataType.ACC)
+      case Failure(exception) =>
+        fail(s"Error while computing addresses for INP : ${exception.getMessage}")
+    }
+  }
+
   it should "print the data of 32x32_relu" in {
     val inp = computeAddresses("examples_compute/32x32_relu/input.bin", DataType.INP, "00000000", isDRAM = false)
     inp match {
@@ -1489,7 +1499,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     }
   }
 
-  it should "decode vector of INP in 32x32" in {
+  it should "decode vector of INP in 32x32" in { // valeurs modifiées dans folder
     val result = computeAddresses("examples_compute/32x32/input.bin", DataType.INP, "00000000", isDRAM = false)
     val hexa = Array("00",
       "FD",

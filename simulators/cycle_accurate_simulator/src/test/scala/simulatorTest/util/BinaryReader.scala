@@ -173,12 +173,18 @@ object BinaryReader {
         //groupedArrayBit2.map(_.mkString(", ")).foreach(println)
         // Converts the values to BigInt (included in [-128, 128], except for ACC)
         val groupedByElemSizeBI = groupedArrayBit2.map(_.map(BigInt(_, 2)).map {bigInt =>
-          if (bigInt >= 128 && dataType.id != INSN.id) bigInt - 256 else bigInt})
+          if (bigInt >= 128 && dataType.id != INSN.id && dataType.id != ACC.id) bigInt - 256 else bigInt})
+        val correctedGrouped = groupedByElemSizeBI.map(_.map {bigInt =>
+          if (dataType.id == ACC.id && bigInt >= 128)
+            BigInt(bigInt.intValue)
+          else
+            bigInt
+        })
         // [ (address, [11 bits, 11 bits, 10 bits]), (...), ... ]
         // Assigns an address to each element
         val map = {
           for {
-            (d, i) <- groupedByElemSizeBI.zipWithIndex
+            (d, i) <- correctedGrouped.zipWithIndex
           } yield {
             if (!isDRAM) { // Logical address for data types INP, WGT, OUT, INSN
               //println(d(0).toString(2))

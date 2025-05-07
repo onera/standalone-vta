@@ -143,12 +143,7 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
       }
       // Update the values
       valid = peek(tm.rd(0).idx.valid)
-      idx =
-        if (peek(tm.rd(0).idx.bits).toInt != 16 && peek(tm.rd(0).idx.bits).toInt != 64) peek(tm.rd(0).idx.bits).toInt
-        else if (peek(tm.rd(0).idx.bits).toInt == 16) 1
-        else if (peek(tm.rd(0).idx.bits).toInt == 64) 32
-        else
-          peek(tm.rd(0).idx.bits).toInt
+      idx = peek(tm.rd(0).idx.bits).toInt
     }
   }
 
@@ -399,8 +394,8 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
   /* BEGIN USER CUSTOMABLE SECTION */
   // Build memory
   val dram_scratchpad =
-    build_scratchpad_binary(acc, DataType.ACC, "0000e000", isDRAM = true) ++
-      build_scratchpad_binary(uop, DataType.UOP, "0000d000", isDRAM = true)
+    build_scratchpad_binary(acc, DataType.ACC, "00005000", isDRAM = true) ++
+      build_scratchpad_binary(uop, DataType.UOP, "00004000", isDRAM = true)
 
   // base address is zero because we are storing the values directly in the INP buffer
   val inp_scratchpad = build_scratchpad_binary(input, DataType.INP, "00000000", isDRAM = false)
@@ -508,16 +503,7 @@ class BinaryFile_16x16 extends GenericTest("BinaryFile_16x16", (p:Parameters) =>
   "examples_compute/16x16/expected_out.bin",
   true))
 
-class BinaryFile_16x16_average_pooling extends GenericTest("BinaryFile_16x16_average_pooling", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
-  "examples_compute/16x16_average_pooling/instructions.bin",
-  "examples_compute/16x16_average_pooling/uop.bin",
-  "examples_compute/16x16_average_pooling/input.bin",
-  "examples_compute/16x16_average_pooling/weight.bin",
-  "examples_compute/16x16_average_pooling/out.bin", // réduire taille par 4 ?
-  "examples_compute/16x16_average_pooling/accumulator.bin",
-  "examples_compute/16x16_average_pooling/expected_out.bin",
-  true))
+
 
 
 
@@ -635,6 +621,17 @@ class BinaryFile_average_pooling extends GenericTest("BinaryFile_average_pooling
   "examples_compute/average_pooling/out.bin",
   "examples_compute/average_pooling/accumulator.bin",
   "examples_compute/average_pooling/expected_out.bin",
+  true))
+
+class BinaryFile_16x16_average_pooling extends GenericTest("BinaryFile_16x16_average_pooling", (p:Parameters) =>
+  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
+  "examples_compute/16x16_average_pooling/instructions.bin",
+  "examples_compute/16x16_average_pooling/uop.bin",
+  "examples_compute/16x16_average_pooling/input.bin",
+  "examples_compute/16x16_average_pooling/weight.bin",
+  "examples_compute/16x16_average_pooling/out.bin",
+  "examples_compute/16x16_average_pooling/accumulator.bin",
+  "examples_compute/16x16_average_pooling/expected_out.bin",
   true))
 ///* CONVOLUTIONAL NEURAL NETWORK
 // * LeNet-5: Convolution 1 */
