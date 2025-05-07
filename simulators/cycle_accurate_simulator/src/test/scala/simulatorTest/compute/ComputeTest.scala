@@ -129,7 +129,6 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
         poke(tm.rd(0).data.valid, 1)
 
         print(s"\n\nDEBUG: READ SCRATCHPAD ${scratchpad.size} IDX: ${idx}\n\n")
-        print(idx + "\n")
         // Go through the scratchpad and send the data
         val cols = tm.rd(0).data.bits(0).size
         for {
@@ -400,8 +399,8 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
   /* BEGIN USER CUSTOMABLE SECTION */
   // Build memory
   val dram_scratchpad =
-    build_scratchpad_binary(acc, DataType.ACC, "00005000", isDRAM = true) ++
-      build_scratchpad_binary(uop, DataType.UOP, "00004000", isDRAM = true)
+    build_scratchpad_binary(acc, DataType.ACC, "0000e000", isDRAM = true) ++
+      build_scratchpad_binary(uop, DataType.UOP, "0000d000", isDRAM = true)
 
   // base address is zero because we are storing the values directly in the INP buffer
   val inp_scratchpad = build_scratchpad_binary(input, DataType.INP, "00000000", isDRAM = false)
