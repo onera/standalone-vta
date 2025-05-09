@@ -16,7 +16,7 @@ import scala.util.{Failure, Success} // Import for raising exceptions in case of
 
 
 class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: String, out: String, acc: String, expected_out: String,
-                  doCompare: Boolean = false)
+                  doCompare: Boolean = false, debug: Boolean = false)
   extends PeekPokeTester(c) {
 
   /* COMMON PART - MANAGE VIRTUAL MEMORIES */
@@ -77,7 +77,9 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
       }
     }
     assert(noDifference)
-    print("\n\t Output match expectation!\n")
+    if (debug) {
+      print("\n\t Output match expectation!\n")
+    }
   }
 
   /* DEFINE GLOBAL VARIABLE */
@@ -89,7 +91,9 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
   // cycle_step function
   def cycle_step() = {
     cycle_counter = cycle_counter + 1
-    print(s"\n\nCycle ${cycle_counter}:\n")
+    if (debug) {
+      print(s"\n\nCycle ${cycle_counter}:\n")
+    }
     step(1)
   }
 
@@ -128,7 +132,9 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
         // Set the data validity signal
         poke(tm.rd(0).data.valid, 1)
 
-        print(s"\n\nDEBUG: READ SCRATCHPAD ${scratchpad.size} IDX: ${idx}\n\n")
+        if (debug) {
+          print(s"\n\nDEBUG: READ SCRATCHPAD ${scratchpad.size} IDX: ${idx}\n\n")
+        }
         // Go through the scratchpad and send the data
         val cols = tm.rd(0).data.bits(0).size
         for {
@@ -161,8 +167,10 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
         } {
           scratchpad(idx)(i * cols + j) = peek(tm.wr(0).bits.data(i)(j))
         }
-        // Print the scratchpad after the update
-        print_scratchpad(out_scratchpad, idx, "OUT")
+        if (debug) {
+          // Print the scratchpad after the update
+          print_scratchpad(out_scratchpad, idx, "OUT")
+        }
       }
     }
   }
@@ -221,11 +229,17 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
 
         // Read the data from the scratchpad (2 UOP read at once)
         val uop_acc_0 = scratchpad(addr + 8 * nb_uop)(0) // 11 bits
-        println(uop_acc_0.toString(2))
+        if (debug) {
+          println(uop_acc_0.toString(2))
+        }
         val uop_inp_0 = scratchpad(addr + 8 * nb_uop)(1) // 11 bits
-        println(uop_inp_0.toString(2))
+        if (debug) {
+          println(uop_inp_0.toString(2))
+        }
         val uop_wgt_0 = scratchpad(addr + 8 * nb_uop)(2) // 10 bits
-        println(uop_wgt_0.toString(2))
+        if (debug) {
+          println(uop_wgt_0.toString(2))
+        }
         // Read the second UOP
         val uop_acc_1 = scratchpad(addr + 8 * nb_uop + 4)(0)
         val uop_inp_1 = scratchpad(addr + 8 * nb_uop + 4)(1)
@@ -412,8 +426,10 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
   val acc_baddr = BigInt("00000000", 16) // We do not take any offset
   poke(c.io.acc_baddr, acc_baddr)
 
-  // Print cycle 0
-  print(s"\nCycle ${cycle_counter}:\n")
+  // Cycle 0
+  if (debug) {
+    print(s"\nCycle ${cycle_counter}:\n")
+  }
 
 //  // Send instructions
 //  for ((key,Array(value)) <- inst.toSeq.sortBy(_._1)) {
@@ -431,7 +447,9 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
     val mnemonic = ISAHelper.getMnemonic(value) // Assuming ISA has a helper like this
     // Check the instruction
     if (isComputeInstruction(value)) {
-      print(s"Instruction ${key} (${mnemonic}) is Compute type. Sending...\n")
+      if (debug) {
+        print(s"Instruction ${key} (${mnemonic}) is Compute type. Sending...\n")
+      }
       // Send the instruction
       poke(c.io.inst.bits, value)
       // Instruction is valid for this cycle
@@ -440,7 +458,9 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
       mocks.logical_step()
     } else {
       // --- Optional: Log skipped instructions ---
-      print(s"Instruction ${key} is NOT Compute type. Skipping...\n")
+      if (debug) {
+        print(s"Instruction ${key} is NOT Compute type. Skipping...\n")
+      }
     }
   }
 
@@ -452,7 +472,9 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
     compare_scratchpad(out_expect_scratchpad, out_scratchpad)
   }
 
-  print(s"\n\t END COMPUTE TESTS! \n\t (done in ${cycle_counter} cycles)\n\n")
+  if (debug) {
+    print(s"\n\t END COMPUTE TESTS! \n\t (done in ${cycle_counter} cycles)\n\n")
+  }
 }
 
 object ISAHelper { // Or place inside ISA object if preferred
