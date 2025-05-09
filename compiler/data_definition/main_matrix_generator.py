@@ -80,6 +80,8 @@ def main(config_file):
         # Overwrite the result
         C_blocks, _ = MS.matrix_splitting(matrix=C_pooled, block_size=config.block_size, isWeight=False, isSquare=config.isSquare)
 
+    C_empty = MG.matrix_creation(n_row=C_padded.shape[0], n_col=C_padded.shape[1], isInitRandom=False, dtype=np.int8)
+
     # Write binary files
     if (config.doWriteBinaryFile):
         # Define the complete path of the files
@@ -87,7 +89,11 @@ def main(config_file):
         B_blocks_file_path = os.path.join(output_dir, 'weight.bin')
         X_blocks_file_path = os.path.join(output_dir, 'accumulator.bin')
         C_padded_file_path = os.path.join(output_dir, 'expected_out.bin')
-
+        C_empty_file_path = os.path.join(output_dir, 'out.bin')
+        
+        # Write C empty matrix
+        C_empty.tofile(C_empty_file_path)
+        
         # Write A_block matrix
         with open(A_blocks_file_path, 'wb') as f:
             for block in A_blocks:
@@ -105,7 +111,9 @@ def main(config_file):
                 block.tofile(f)
         
         # Write C_padded (expected result)
-        C_padded.tofile(C_padded_file_path)
+        with open(C_padded_file_path, 'wb') as f:
+            for block in C_blocks:
+                block.tofile(f)
 
         # Confirm the binary files generation
         print("\nBinary files successfully generated.\n")
