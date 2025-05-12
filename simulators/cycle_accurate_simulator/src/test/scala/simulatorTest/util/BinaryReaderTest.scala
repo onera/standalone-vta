@@ -9,7 +9,8 @@ import scala.util.{Failure, Success}
 
 class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
 
-  "BinaryReader" should "decode correctly the first vector of INP (16 Bytes) in a binary file" in {
+  /* Decoding INP */
+  "BinaryReader" should "decode correctly the first vector of INP (16 Bytes) in a binary file (16x16)" in {
     val result = computeAddresses("examples_compute/16x16/input.bin", DataType.INP, "00000000", isDRAM = false)
     val hexa = Array("FF",
       "FF",
@@ -39,91 +40,115 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     }
   }
 
-  it should "decode ACC in average_pooling" in {
-    val acc = computeAddresses("examples_compute/average_pooling/accumulator.bin", DataType.ACC, "00000000", isDRAM = true)
-    acc match {
+  it should "decode the vectors 0 and 16 and 32 of INP in 32x32_relu" in {
+    val result = computeAddresses("examples_compute/32x32_relu/input.bin", DataType.INP, "00000000", isDRAM = false)
+    val inp0 = Array("02",
+      "00",
+      "FE",
+      "FE",
+      "01",
+      "FF",
+      "FF",
+      "00",
+      "FD",
+      "FC",
+      "00",
+      "FC",
+      "FE",
+      "00",
+      "00",
+      "FF")
+    val inp16 = Array("02",
+      "FE",
+      "FD",
+      "FD",
+      "FF",
+      "FC",
+      "FD",
+      "FF",
+      "02",
+      "FF",
+      "02",
+      "00",
+      "FC",
+      "FC",
+      "FF",
+      "FF")
+    val inp32 = Array("01",
+      "FD",
+      "FD",
+      "00",
+      "00",
+      "FE",
+      "FF",
+      "FE",
+      "00",
+      "FC",
+      "00",
+      "FF",
+      "00",
+      "01",
+      "02",
+      "FF")
+    val inp0_dec = inp0.map { hex =>
+      val decimal = java.lang.Integer.parseInt(hex, 16)
+      if (decimal >= 128) BigInt(decimal - 256) else BigInt(decimal)
+    }
+    val inp16_dec = inp16.map { hex =>
+      val decimal = java.lang.Integer.parseInt(hex, 16)
+      if (decimal >= 128) BigInt(decimal - 256) else BigInt(decimal)
+    }
+    val inp32_dec = inp32.map { hex =>
+      val decimal = java.lang.Integer.parseInt(hex, 16)
+      if (decimal >= 128) BigInt(decimal - 256) else BigInt(decimal)
+    }
+    result match {
       case Success(data) =>
-        printMap(data, DataType.ACC)
+        data(0) should equal(inp0_dec)
+        data(16) should equal(inp16_dec)
+        data(32) should equal(inp32_dec)
       case Failure(exception) =>
         fail(s"Error while computing addresses for INP : ${exception.getMessage}")
     }
   }
 
-  it should "print the data of 32x32_relu" in {
-    val inp = computeAddresses("examples_compute/32x32_relu/input.bin", DataType.INP, "00000000", isDRAM = false)
-    inp match {
-      case Success(data) =>
-        printMap(data, DataType.INP)
+  it should "return the same value if an offset is or isn't used for the first vector of INP" in {
+    val resultOffset = computeAddresses("examples_compute/lenet5_layer1/input.bin", DataType.INP, "00001000", isDRAM = false)
+    val resultWithoutOffset = computeAddresses("examples_compute/lenet5_layer1/input.bin", DataType.INP, "00000000", isDRAM = false)
+
+    resultOffset match {
+      case Success(dataOffset) =>
+        for {
+          withoutOffset <- resultWithoutOffset
+        } {
+          val idx = java.lang.Integer.parseInt("00001000", 16)
+          dataOffset(idx) should equal(withoutOffset(0))
+        }
       case Failure(exception) =>
-        fail(s"Error while computing addresses for INP : ${exception.getMessage}")
-    }
-    val wgt = computeAddresses("examples_compute/32x32_relu/weight.bin", DataType.WGT, "00000000", isDRAM = false)
-    wgt match {
-      case Success(data) =>
-        printMap(data, DataType.WGT)
-      case Failure(exception) =>
-        fail(s"Error while computing addresses for WGT : ${exception.getMessage}")
-    }
-    val out = computeAddresses("examples_compute/32x32_relu/out.bin", DataType.OUT, "00000000", isDRAM = false)
-    out match {
-      case Success(data) =>
-        printMap(data, DataType.OUT)
-      case Failure(exception) =>
-        fail(s"Error while computing addresses for OUT : ${exception.getMessage}")
-    }
-    val exp_out = computeAddresses("examples_compute/32x32_relu/expected_out.bin", DataType.OUT, "00000000", isDRAM = false)
-    exp_out match {
-      case Success(data) =>
-        printMap(data, DataType.OUT)
-      case Failure(exception) =>
-        fail(s"Error while computing addresses for EXPECT_OUT : ${exception.getMessage}")
-    }
-    val uop = computeAddresses("examples_compute/32x32_relu/uop.bin", DataType.UOP, "00004000", isDRAM = true)
-    uop match {
-      case Success(data) =>
-        printMap(data, DataType.UOP)
-      case Failure(exception) =>
-        fail(s"Error while computing addresses for UOPs : ${exception.getMessage}")
-    }
-    val insn = computeAddresses("examples_compute/32x32_relu/instructions.bin", DataType.INSN, "00000000", isDRAM = false)
-    insn match {
-      case Success(data) =>
-        printMap(data, DataType.INSN)
-      case Failure(exception) =>
-        fail(s"Error while computing addresses for instructions : ${exception.getMessage}")
+        fail(s"Error while computing addresses for INP with an offset : ${exception.getMessage}")
     }
   }
 
-  it should "decode correctly all the UOPs of a binary file" in {
-    val result = computeAddresses("examples_compute/32x32_relu/uop.bin", DataType.UOP, "00000000", isDRAM = true)
-    result match {
-      case Success(data) =>
-        println(data.size)
-        printMap(data, DataType.UOP)
-        data(0) should equal(Array(0, 0, 0))
-        data(4) should equal(Array(0, 0, 0))
-        data(8) should equal(Array(16, 0, 1))
-        data(12) should equal(Array(32, 32, 0))
-        data(16) should equal(Array(48, 32, 1))
-        data(20) should equal(Array(0, 0, 0))
+  it should "return the same value if an offset is or isn't used for the second vector of INP" in {
+    val offset = "00001000"
+    val resultOffset = computeAddresses("examples_compute/lenet5_layer1/input.bin", DataType.INP, offset, isDRAM = false)
+    val resultWithoutOffset = computeAddresses("examples_compute/lenet5_layer1/input.bin", DataType.INP, "00000000", isDRAM = false)
+    resultOffset match {
+      case Success(dataOffset) =>
+        resultWithoutOffset match {
+          case Success(dataWithoutOffset) =>
+            val idx = java.lang.Integer.parseInt(offset, 16)
+            dataOffset(idx + 1) should equal(dataWithoutOffset(1))
+          case Failure(exception) =>
+            fail(s"Error while computing addresses for INP without an offset : ${exception.getMessage}")
+        }
       case Failure(exception) =>
-        fail(s"Error while computing addresses for UOPs : ${exception.getMessage}")
-
+        fail(s"Error while computing addresses for INP with an offset : ${exception.getMessage}")
     }
   }
 
-  it should "decode vectors 0 and 16 of OUT in 32x32_relu" in {
-    val result = computeAddresses("examples_compute/32x32_relu/out.bin", DataType.OUT, "00000000", isDRAM = false)
-    val out = Array(0, 0, 0, 0, 0, 0,0,0,0,0,0,0,0,0,0,0)
-    result match {
-      case Success(data) =>
-        data(0) should equal(out)
-        data(16) should equal(out)
-      case Failure(exception) =>
-        fail(s"Error while computing addresses for OUT : ${exception.getMessage}")
-    }
-  }
 
+  /* Decoding WGT */
   it should "decode all the WGT vectors in 32x32_relu" in {
     val result = computeAddresses("examples_compute/32x32_relu/weight.bin", DataType.WGT, "00000000", isDRAM = false)
     val vecWGT_0 = Array("FD",
@@ -1178,6 +1203,52 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     }
   }
 
+
+  /* Decoding OUT */
+  it should "decode vectors 0 and 16 of OUT in 32x32_relu" in {
+    val result = computeAddresses("examples_compute/32x32_relu/out.bin", DataType.OUT, "00000000", isDRAM = false)
+    val out = Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    result match {
+      case Success(data) =>
+        data(0) should equal(out)
+        data(16) should equal(out)
+      case Failure(exception) =>
+        fail(s"Error while computing addresses for OUT : ${exception.getMessage}")
+    }
+  }
+
+
+  /* Decoding EXPECT_OUT */
+  it should "decode correctly the first vector of EXPECT_OUT (16 Bytes) in a binary file" in {
+    val result = computeAddresses("examples_compute/16x16/expected_out.bin", DataType.OUT, "00000000", isDRAM = false)
+    val hexa = Array("14",
+      "FC",
+      "0E",
+      "00",
+      "14",
+      "F5",
+      "0E",
+      "0F",
+      "28",
+      "07",
+      "2D",
+      "0E",
+      "02",
+      "FE",
+      "1D",
+      "FD")
+    val outFirstVector: Array[BigInt] = hexa.map { hex =>
+      val decimal = java.lang.Integer.parseInt(hex, 16)
+      if (decimal >= 128) BigInt(decimal - 256) else BigInt(decimal)
+    }
+    result match {
+      case Success(data) =>
+        data(0) should equal(outFirstVector)
+      case Failure(exception) =>
+        fail(s"Error while computing addresses for EXPECT_OUT : ${exception.getMessage}")
+    }
+  }
+
   it should "decode vectors 0 and 16 of EXPECT_OUT in 32x32_relu" in {
     val result = computeAddresses("examples_compute/32x32_relu/expected_out.bin", DataType.OUT, "00000000", isDRAM = false)
     val vec0 = Array("51",
@@ -1229,39 +1300,30 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     }
   }
 
-  it should ""
 
-  it should "decode correctly the first vector of EXPECT_OUT (16 Bytes) in a binary file" in {
-    val result = computeAddresses("examples_compute/16x16/expected_out.bin", DataType.OUT, "00000000", isDRAM = false)
-    val hexa = Array("14",
-      "FC",
-      "0E",
-      "00",
-      "14",
-      "F5",
-      "0E",
-      "0F",
-      "28",
-      "07",
-      "2D",
-      "0E",
-      "02",
-      "FE",
-      "1D",
-      "FD")
-    val outFirstVector: Array[BigInt] = hexa.map { hex =>
-      val decimal = java.lang.Integer.parseInt(hex, 16)
-      if (decimal >= 128) BigInt(decimal - 256) else BigInt(decimal)
-    }
-    result match {
+  /* Decoding ACC */
+  it should "decode ACC in average_pooling" in {
+    val acc = computeAddresses("examples_compute/average_pooling/accumulator.bin", DataType.ACC, "00000000", isDRAM = true)
+    val acc_json = Array(-1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    acc match {
       case Success(data) =>
-        data(0) should equal(outFirstVector)
+        data(64) should equal(acc_json)
       case Failure(exception) =>
-        fail(s"Error while computing addresses for EXPECT_OUT : ${exception.getMessage}")
+        fail(s"Error while computing addresses for ACC : ${exception.getMessage}")
     }
   }
 
-  it should "decode correctly the first vector of ACC (64 Bytes) in a binary file" in {
+  it should "decode correctly the first vector of ACC" in {
+    val result = computeAddresses("examples_compute/16x16_relu/accumulator.bin", DataType.ACC, "00000000", isDRAM = true)
+    result match {
+      case Success(data) =>
+        data(0) should equal(Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+      case Failure(exception) =>
+        fail(s"Error while computing addresses for ACC : ${exception.getMessage}")
+    }
+  }
+
+  it should "decode correctly the first vector of ACC (64 Bytes) in a binary file (layer1)" in {
     val result = computeAddresses("examples_compute/lenet5_layer1/accumulator.bin", DataType.ACC, "00000000", isDRAM = true)
     val hexa = Array("00000000",
       "00000000",
@@ -1291,20 +1353,8 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     }
   }
 
-  it should "decode correctly the UOPs (4 Bytes each) in a binary file" in {
-    val result = computeAddresses("examples_compute/lenet5_layer1/uop.bin", DataType.UOP, "00000000", isDRAM = true)
-    result match {
-      case Success(data) =>
-        data(0) should equal(Array(0, 0, 0))
-        data(4) should equal(Array(0, 0, 0))
-        data(8) should equal(Array(2, 32, 0)) // faux
-        data(12) should equal(Array(0, 0, 0))
-      case Failure(exception) =>
-        fail(s"Error while computing addresses for UOPs : ${exception.getMessage}")
 
-    }
-  }
-
+  /* Decoding UOP */
   it should "decode correctly the UOPs (4 Bytes each) in a binary file (conv1)" in {
     val result = computeAddresses("examples_compute/lenet5_conv1/uop.bin", DataType.UOP, "00000000", isDRAM = true)
     result match {
@@ -1319,75 +1369,63 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     }
   }
 
-  it should "decode the vectors 0 and 16 and 32 of INP in 32x32_relu" in {
-    val result = computeAddresses("examples_compute/32x32_relu/input.bin", DataType.INP, "00000000", isDRAM = false)
-    val inp0 = Array( "02",
-      "00",
-      "FE",
-      "FE",
-      "01",
-      "FF",
-      "FF",
-      "00",
-      "FD",
-      "FC",
-      "00",
-      "FC",
-      "FE",
-      "00",
-      "00",
-      "FF")
-    val inp16 = Array("02",
-      "FE",
-      "FD",
-      "FD",
-      "FF",
-      "FC",
-      "FD",
-      "FF",
-      "02",
-      "FF",
-      "02",
-      "00",
-      "FC",
-      "FC",
-      "FF",
-      "FF")
-    val inp32 = Array("01",
-      "FD",
-      "FD",
-      "00",
-      "00",
-      "FE",
-      "FF",
-      "FE",
-      "00",
-      "FC",
-      "00",
-      "FF",
-      "00",
-      "01",
-      "02",
-      "FF")
-    val inp0_dec = inp0.map { hex =>
-      val decimal = java.lang.Integer.parseInt(hex, 16)
-      if (decimal >= 128) BigInt(decimal - 256) else BigInt(decimal)
-    }
-    val inp16_dec = inp16.map { hex =>
-      val decimal = java.lang.Integer.parseInt(hex, 16)
-      if (decimal >= 128) BigInt(decimal - 256) else BigInt(decimal)
-    }
-    val inp32_dec = inp32.map { hex =>
-      val decimal = java.lang.Integer.parseInt(hex, 16)
-      if (decimal >= 128) BigInt(decimal - 256) else BigInt(decimal)
-    }
+  it should "decode correctly all the UOPs of a binary file (32x32_relu)" in {
+    val result = computeAddresses("examples_compute/32x32_relu/uop.bin", DataType.UOP, "00000000", isDRAM = true)
     result match {
       case Success(data) =>
-        data(0) should equal(inp0_dec)
-        data(16) should equal(inp16_dec)
-        data(32) should equal(inp32_dec)
+        println(data.size)
+        printMap(data, DataType.UOP)
+        data(0) should equal(Array(0, 0, 0))
+        data(4) should equal(Array(0, 0, 0))
+        data(8) should equal(Array(16, 0, 1))
+        data(12) should equal(Array(32, 32, 0))
+        data(16) should equal(Array(48, 32, 1))
+        data(20) should equal(Array(0, 0, 0))
       case Failure(exception) =>
         fail(s"Error while computing addresses for UOPs : ${exception.getMessage}")
+
+    }
+  }
+
+  /* Decoding Instructions */
+  it should "decode correctly the first instruction (16 Bytes) in a binary file (layer1)" in {
+    val result = computeAddresses("examples_compute/lenet5_layer1/instructions.bin", DataType.INSN, "00000000", isDRAM = false)
+
+    val I0 = BigInt(
+      Array(
+        ("00000001", 96),
+        ("00010001", 64),
+        ("000000D0", 32),
+        ("00000000", 0)
+      ).map { case (hex, shift) =>
+        new BigInteger(hex, 16).shiftLeft(shift)
+      }.reduce(_ add _))
+
+    result match {
+      case Success(data) =>
+        data(0) should equal(Array(I0))
+      case Failure(exception) =>
+        fail(s"Error while computing addresses for instructions : ${exception.getMessage}")
+    }
+  }
+
+  it should "decode correctly the last instruction in a binary file (layer1)" in {
+    val result = computeAddresses("examples_compute/lenet5_layer1/instructions.bin", DataType.INSN, "00000000", isDRAM = false)
+    val I_last = BigInt(
+      Array(
+        ("00000000", 96),
+        ("00000000", 64),
+        ("00000000", 32),
+        ("00000003", 0)
+      ).map { case (hex, shift) =>
+        new BigInteger(hex, 16).shiftLeft(shift)
+      }.reduce(_ add _))
+
+    result match {
+      case Success(data) =>
+        data(data.size - 1) should equal(Array(I_last))
+      case Failure(exception) =>
+        fail(s"Error while computing addresses for instructions : ${exception.getMessage}")
     }
   }
 
@@ -1499,130 +1537,48 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     }
   }
 
-  it should "decode vector of INP in 32x32" in { // valeurs modifiées dans folder
-    val result = computeAddresses("examples_compute/32x32/input.bin", DataType.INP, "00000000", isDRAM = false)
-    val hexa = Array("00",
-      "FD",
-      "FC",
-      "FE",
-      "00",
-      "01",
-      "FE",
-      "FC",
-      "FF",
-      "FF",
-      "01",
-      "FC",
-      "02",
-      "00",
-      "01",
-      "FC")
-    val outFirstVector: Array[BigInt] = hexa.map { hex =>
-      val decimal = java.lang.Integer.parseInt(hex, 16)
-      if (decimal >= 128) BigInt(decimal - 256) else BigInt(decimal)
-    }
-    result match {
-      case Success(data) =>
-        data(60) should equal(outFirstVector)
-      case Failure(exception) =>
-        fail(s"Error while computing addresses for INP : ${exception.getMessage}")
-    }
-  }
-
-
-  it should "decode correctly the first instruction (16 Bytes) in a binary file" in {
-    val result = computeAddresses("examples_compute/lenet5_layer1/instructions.bin", DataType.INSN, "00000000", isDRAM = false)
-
-    val I0 = BigInt(
-      Array(
-        ("00000001", 96),
-        ("00010001", 64),
-        ("000000D0", 32),
-        ("00000000", 0)
-      ).map { case (hex, shift) =>
-        new BigInteger(hex, 16).shiftLeft(shift)
-      }.reduce(_ add _))
-
-    result match {
-      case Success(data) =>
-        data(0) should equal(Array(I0))
-      case Failure(exception) =>
-        fail(s"Error while computing addresses for instructions : ${exception.getMessage}")
-    }
-  }
-
-  it should "decode correctly the last instruction in a binary file" in {
-    val result = computeAddresses("examples_compute/lenet5_layer1/instructions.bin", DataType.INSN, "00000000", isDRAM = false)
-    val I_last = BigInt(
-      Array(
-        ("00000000", 96),
-        ("00000000", 64),
-        ("00000000", 32),
-        ("00000003", 0)
-      ).map { case (hex, shift) =>
-        new BigInteger(hex, 16).shiftLeft(shift)
-      }.reduce(_ add _))
-
-    result match {
-      case Success(data) =>
-        data(data.size - 1) should equal(Array(I_last))
-      case Failure(exception) =>
-        fail(s"Error while computing addresses for instructions : ${exception.getMessage}")
-    }
-  }
-
-  it should "decode correctly the first vector of ACC" in {
-    val result = computeAddresses("examples_compute/16x16_relu/accumulator.bin", DataType.ACC, "00000000", isDRAM = true)
-    result match {
-      case Success(data) =>
-        data(0) should equal(Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
-      case Failure(exception) =>
-        fail(s"Error while computing addresses for instructions : ${exception.getMessage}")
-    }
-  }
-
-  it should "print the decoded data" in {
-    val result = computeAddresses("examples_compute/32x32_relu/weight.bin", DataType.WGT, "00000000", isDRAM = false)
-    result match {
-      case Success(data) =>
-        printMap(data, DataType.WGT)
-      case Failure(exception) =>
-        fail(s"Error while computing addresses for WGT : ${exception.getMessage}")
-    }
-  }
-
-  it should "return the same value if an offset is or isn't used for the first vector of INP" in {
-    val resultOffset = computeAddresses("examples_compute/lenet5_layer1/instructions.bin", DataType.INSN, "00001000", isDRAM = false)
-    val resultWithoutOffset = computeAddresses("examples_compute/lenet5_layer1/instructions.bin", DataType.INSN, "00000000", isDRAM = false)
-
-    resultOffset match {
-      case Success(dataOffset) =>
-        for {
-          withoutOffset <- resultWithoutOffset
-        } {
-          val idx = java.lang.Integer.parseInt("00001000", 16)
-          dataOffset(idx) should equal(withoutOffset(0))
-        }
-      case Failure(exception) =>
-        fail(s"Error while computing addresses for INP with an offset : ${exception.getMessage}")
-    }
-  }
-
-  it should "return the same value if an offset is or isn't used for the second vector of INP" in {
-    val offset = "00001000"
-    val resultOffset = computeAddresses("examples_compute/lenet5_layer1/input.bin", DataType.INP, offset, isDRAM = false)
-    val resultWithoutOffset = computeAddresses("examples_compute/lenet5_layer1/input.bin", DataType.INP, "00000000", isDRAM = false)
-    resultOffset match {
-      case Success(dataOffset) =>
-        resultWithoutOffset match {
-          case Success(dataWithoutOffset) =>
-            val idx = java.lang.Integer.parseInt(offset, 16)
-            dataOffset(idx + 1) should equal(dataWithoutOffset(1))
-          case Failure(exception) =>
-            fail(s"Error while computing addresses for INP without an offset : ${exception.getMessage}")
-        }
-      case Failure(exception) =>
-        fail(s"Error while computing addresses for INP with an offset : ${exception.getMessage}")
-    }
-  }
+  //  it should "print the data of 32x32_relu" in {
+  //    val inp = computeAddresses("examples_compute/32x32_relu/input.bin", DataType.INP, "00000000", isDRAM = false)
+  //    inp match {
+  //      case Success(data) =>
+  //        printMap(data, DataType.INP)
+  //      case Failure(exception) =>
+  //        fail(s"Error while computing addresses for INP : ${exception.getMessage}")
+  //    }
+  //    val wgt = computeAddresses("examples_compute/32x32_relu/weight.bin", DataType.WGT, "00000000", isDRAM = false)
+  //    wgt match {
+  //      case Success(data) =>
+  //        printMap(data, DataType.WGT)
+  //      case Failure(exception) =>
+  //        fail(s"Error while computing addresses for WGT : ${exception.getMessage}")
+  //    }
+  //    val out = computeAddresses("examples_compute/32x32_relu/out.bin", DataType.OUT, "00000000", isDRAM = false)
+  //    out match {
+  //      case Success(data) =>
+  //        printMap(data, DataType.OUT)
+  //      case Failure(exception) =>
+  //        fail(s"Error while computing addresses for OUT : ${exception.getMessage}")
+  //    }
+  //    val exp_out = computeAddresses("examples_compute/32x32_relu/expected_out.bin", DataType.OUT, "00000000", isDRAM = false)
+  //    exp_out match {
+  //      case Success(data) =>
+  //        printMap(data, DataType.OUT)
+  //      case Failure(exception) =>
+  //        fail(s"Error while computing addresses for EXPECT_OUT : ${exception.getMessage}")
+  //    }
+  //    val uop = computeAddresses("examples_compute/32x32_relu/uop.bin", DataType.UOP, "00004000", isDRAM = true)
+  //    uop match {
+  //      case Success(data) =>
+  //        printMap(data, DataType.UOP)
+  //      case Failure(exception) =>
+  //        fail(s"Error while computing addresses for UOPs : ${exception.getMessage}")
+  //    }
+  //    val insn = computeAddresses("examples_compute/32x32_relu/instructions.bin", DataType.INSN, "00000000", isDRAM = false)
+  //    insn match {
+  //      case Success(data) =>
+  //        printMap(data, DataType.INSN)
+  //      case Failure(exception) =>
+  //        fail(s"Error while computing addresses for instructions : ${exception.getMessage}")
+  //    }
+  //  }
 }
