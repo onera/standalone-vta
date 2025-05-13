@@ -92,23 +92,25 @@ object BinaryReader {
     }
   }
 
+  /**
+   * Reads the base memory addresses of the data and UOP inside a .csv file and returns a Map that associates the data type and its base address
+   * @param filePath the path to the resource CSV file
+   * @return a Map[String, String] of the data type and its base address
+   */
   def readBaseAddresses(filePath: String): Try[Map[String, String]] = {
     Try {
       val inputStreamFile = new FileInputStream(getClass.getClassLoader.getResource(filePath).getFile)
       val fileContent = scala.io.Source.fromInputStream(inputStreamFile, "UTF-8").mkString
-      print(fileContent)
       inputStreamFile.close()
 
-      fileContent.split("\n").foreach { ligne =>
-        println(ligne)
-      }
       fileContent.split("\n").map { ligne =>
         val tableau = ligne.split(",")
-        (tableau(0), tableau(1))
+        (tableau(0), tableau(1).trim
+                               .replaceAll("\n", "")
+                               .replaceAll("\r", ""))
       }.toMap
     }
   }
-
 
   /**
    * Compute the logical addresses associated with each instruction in a Map

@@ -3,7 +3,7 @@ package simulatorTest.compute
 import chisel3._
 import chiseltest.iotesters._
 import simulatorTest.util.BinaryReader
-import simulatorTest.util.BinaryReader.DataType
+import simulatorTest.util.BinaryReader.{DataType, readBaseAddresses}
 import simulatorTest.util.BinaryReader.DataType._
 import unittest.GenericTest
 import vta.core.ISA.{FNSH, GEMM, LACC, LINP, LUOP, LWGT, SOUT, VADD, VMAX, VMIN, VSHX}
@@ -16,7 +16,7 @@ import scala.util.{Failure, Success} // Import for raising exceptions in case of
 
 
 class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: String, out: String, acc: String, expected_out: String,
-                  doCompare: Boolean = false, debug: Boolean = false)
+                  base_addresses: String, doCompare: Boolean = false, debug: Boolean = false)
   extends PeekPokeTester(c) {
 
   /* COMMON PART - MANAGE VIRTUAL MEMORIES */
@@ -407,6 +407,8 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
 
   /* BEGIN USER CUSTOMABLE SECTION */
   // Build memory
+  val base_addr = readBaseAddresses(base_addresses)
+
   val dram_scratchpad =
     build_scratchpad_binary(acc, DataType.ACC, "0000e000", isDRAM = true) ++
       build_scratchpad_binary(uop, DataType.UOP, "0000d000", isDRAM = true)
