@@ -2,6 +2,7 @@
 # ---------------
 import os
 import sys
+import csv
 import importlib
 import numpy as np
 import matrix_generator as MG
@@ -82,6 +83,18 @@ def main(config_file):
 
     C_empty = MG.matrix_creation(n_row=C_padded.shape[0], n_col=C_padded.shape[1], isInitRandom=False, dtype=np.int8)
 
+    # Compute memory addresses for data
+
+    object_info = [(A_padded.shape[0] * A_blocks_col * 16, 16),      # INP
+                   (B_padded.shape[0] * B_blocks_col * 16, 256),     # WGT
+                   ((C_pooled if config.doAvgPool else C_padded).shape[0] * C_blocks_col * 16, 16),      # OUT
+                   (20 * 4, 4),                                      # UOP - 20 chosen arbitrarily as number of UOPs rarely exceeds 10
+                   (X_padded.shape[0] * X_blocks_col * 64, 64)]      # ACC     
+
+
+    memory_addresses = MA.memory_base_address(object_info)
+
+
     # Write binary files
     if (config.doWriteBinaryFile):
         # Define the complete path of the files
@@ -90,6 +103,23 @@ def main(config_file):
         X_blocks_file_path = os.path.join(output_dir, 'accumulator.bin')
         C_padded_file_path = os.path.join(output_dir, 'expected_out.bin')
         C_empty_file_path = os.path.join(output_dir, 'out.bin')
+        memory_addresses_data_file_path = os.path.join(output_dir, 'memory_addresses.csv')
+        
+        alloc_names = {
+            'Alloc1': 'inp',
+            'Alloc2': 'wgt',
+            'Alloc3': 'out',
+            'Alloc4': 'uop',
+            'Alloc5': 'acc'}
+        
+        # Write memory addresses
+        with open(memory_addresses_data_file_path, 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            for ligne in memory_addresses:
+                if alloc_names[ligne['object']] in ['inp', 'wgt', 'out']:
+                    writer.writerow([alloc_names[ligne['object']], '0x0000'])
+                else:
+                    writer.writerow([alloc_names[ligne['object']], ligne['phys_hex']])
         
         # Write C empty matrix
         C_empty.tofile(C_empty_file_path)
@@ -207,7 +237,6 @@ def main(config_file):
         print("\n\n DRAM 'physical' VTA ADDRESSES:")
         for addr in vta_addr:
             print(addr)
-
     # End of the execution
     return 0
 

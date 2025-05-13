@@ -92,6 +92,23 @@ object BinaryReader {
     }
   }
 
+  def readBaseAddresses(filePath: String): Try[Map[String, String]] = {
+    Try {
+      val inputStreamFile = new FileInputStream(getClass.getClassLoader.getResource(filePath).getFile)
+      val fileContent = scala.io.Source.fromInputStream(inputStreamFile, "UTF-8").mkString
+      print(fileContent)
+      inputStreamFile.close()
+
+      fileContent.split("\n").foreach { ligne =>
+        println(ligne)
+      }
+      fileContent.split("\n").map { ligne =>
+        val tableau = ligne.split(",")
+        (tableau(0), tableau(1))
+      }.toMap
+    }
+  }
+
 
   /**
    * Compute the logical addresses associated with each instruction in a Map
