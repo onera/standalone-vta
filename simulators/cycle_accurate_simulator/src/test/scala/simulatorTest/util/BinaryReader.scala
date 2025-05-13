@@ -113,7 +113,7 @@ object BinaryReader {
     groupedBinaryData match {
       case Success(data) =>
         // Flattened array containing all the bits of the binary file after reversal
-        val arrayGroupedBits =
+        val ungroupedBits =
           for {
             byte <- data.flatten
           } yield {
@@ -129,17 +129,10 @@ object BinaryReader {
           } yield
             s).sum
         // An array containing all the individual bits in groups of the size of the element (ex. 1 UOP)
-        val arrayBits = arrayGroupedBits.flatMap(_.toList.map(_.toString)).grouped(sizeOfElement).toArray
+        val arrayBits = ungroupedBits.flatMap(_.toList.map(_.toString)).grouped(sizeOfElement).toArray
         //arrayBits.map(_.mkString(", ")).foreach(println)
         // Returns an array with nbValues groups of size precision
         val reversePrecision = Map(0 -> 10, 1 -> 11, 2 -> 11)
-//        def groupAndReverse(arr: Array[String], index: Int): Array[String] = {
-//          if (index > 0) {
-//            //println(Array(arr.take(dataType.precision(index)).mkString).mkString("Array(", ", ", ")"))
-//            Array(arr.take(dataType.precision(index)).mkString) ++ groupAndReverse(arr.drop(dataType.precision(index)), index - 1)
-//          } else
-//            arr
-//        }
         def groupByElemSize(arr: Array[String], index: Int): Array[String] = {
           if (index < dataType.nbValues) {
             if (dataType.id == UOP.id)
@@ -157,11 +150,6 @@ object BinaryReader {
             //println(elem.mkString("Array(", ", ", ")"))
             //println(groupByElemSize(elem, 0).mkString("Array(", ", ", ")"))
             groupByElemSize(elem, 0)
-//            if (dataType.id == UOP.id) {
-//              //println(groupAndReverse(elem, 2).reverse.mkString("Array(", ", ", ")"))
-//              groupAndReverse(elem, 2).reverse
-//            } else
-//              groupAndReverse(elem, 2)
           }
         }
         //groupedArrayBit.map(_.mkString(", ")).foreach(println)
