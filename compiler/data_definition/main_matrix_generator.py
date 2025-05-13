@@ -71,15 +71,20 @@ def main(config_file):
     if (config.doAvgPool):
         if (config.isInitRandom):
             ACC_pooled_ref, in_tensor, out_tensor = AP.reference_average_pooling(ACC_matrix, config.Avg_kernel, config.Avg_stride)
+            ACC_pooled_sram, _, _ = AP.avg_pool_sram(ACC_matrix, config.Avg_kernel, config.Avg_stride)
         else:
             ACC_pooled_ref, in_tensor, out_tensor = AP.reference_average_pooling(X_padded, config.Avg_kernel, config.Avg_stride)
+            ACC_pooled_sram, _, _ = AP.avg_pool_sram(X_padded, config.Avg_kernel, config.Avg_stride)
 
         # Write the result
         ACC_pooled = MG.matrix_padding(matrix=ACC_pooled_ref, block_size=config.block_size, isWeight=False, isSquare=config.isSquare)
         C_pooled = MM.truncate_to_int8(ACC_pooled)
+        ACC_pooled_sram2 = MG.matrix_padding(matrix=ACC_pooled_sram, block_size=config.block_size, isWeight=False, isSquare=config.isSquare)
+        C_pooled_sram = MM.truncate_to_int8(ACC_pooled_sram2)
 
         # Overwrite the result
         C_blocks, _ = MS.matrix_splitting(matrix=C_pooled, block_size=config.block_size, isWeight=False, isSquare=config.isSquare)
+        C_blocks_sram, _ = MS.matrix_splitting(matrix=C_pooled_sram, block_size=config.block_size, isWeight=False, isSquare=config.isSquare)
 
     C_empty = MG.matrix_creation(n_row=C_padded.shape[0], n_col=C_padded.shape[1], isInitRandom=False, dtype=np.int8)
 
@@ -102,6 +107,7 @@ def main(config_file):
         B_blocks_file_path = os.path.join(output_dir, 'weight.bin')
         X_blocks_file_path = os.path.join(output_dir, 'accumulator.bin')
         C_padded_file_path = os.path.join(output_dir, 'expected_out.bin')
+        C_padded_sram_file_path = os.path.join(output_dir, 'expected_out_sram.bin')
         C_empty_file_path = os.path.join(output_dir, 'out.bin')
         memory_addresses_data_file_path = os.path.join(output_dir, 'memory_addresses.csv')
         
@@ -143,6 +149,11 @@ def main(config_file):
         # Write C_padded (expected result)
         with open(C_padded_file_path, 'wb') as f:
             for block in C_blocks:
+                block.tofile(f)
+                
+        # Write C_padded_sram (expected result with all vectors)
+        with open(C_padded_sram_file_path, 'wb') as f:
+            for block in C_blocks_sram:
                 block.tofile(f)
 
         # Confirm the binary files generation
