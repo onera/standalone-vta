@@ -7,10 +7,12 @@ import vta.util.config.Parameters
 
 import scala.language.postfixOps
 
-class LoadDecodeTest(c: LoadDecode)
+class LoadDecodeTest(c: LoadDecode, debug: Boolean = false)
   extends PeekPokeTester(c) {
-  // Print the test name
-  println("TEST NAME: \n\t LoadDecodeTester")
+  if (debug) {
+    // Print the test name
+    println("TEST NAME: \n\t LoadDecodeTester")
+  }
 
   // Instructions
 
@@ -129,16 +131,11 @@ class LoadDecodeTest(c: LoadDecode)
 
   // INTERACT WITH THE MODULE
   // ------------------------
-  // Decode I0 = LOAD UOP
-  print("\n\n Decode I0 (load UOP): => ComputeDecode\n")
-
-
-  // Decode I1 = GEMM RESET
-  print("\n\n Decode I1 (gemm reset): => ComputeDecode\n")
-
 
   // Decode I2 = LOAD INP
-  print("\n\n Decode I2 (load INP):\n")
+  if (debug) {
+    print("\n\n Decode I2 (load INP):\n")
+  }
   poke(c.io.inst, R2)
   // Expected output:
   expect(c.io.pop_next, 1)
@@ -149,7 +146,9 @@ class LoadDecodeTest(c: LoadDecode)
 
 
   // Decode I3 = LOAD WGT => LoadDecode
-  print("\n\n Decode I3 (load WGT):\n")
+  if (debug) {
+    print("\n\n Decode I3 (load WGT):\n")
+  }
   poke(c.io.inst, R3)
   // Expected output:
   expect(c.io.pop_next, 0)
@@ -158,47 +157,17 @@ class LoadDecodeTest(c: LoadDecode)
   expect(c.io.isWeight, 1)
   expect(c.io.isSync, 0)
 
-
-  // Decode I4 = LOAD UOP
-  print("\n\n Decode I4 (load UOP): => ComputeDecode\n")
-
-
-  // Decode I5 = GEMM
-  print("\n\n Decode I5 (gemm): => ComputeDecode\n")
-
-
-  // Decode I6 = STORE
-  print("\n\n Decode I6 (store): => StoreDecode \n")
-  //  poke(st.io.inst, R6)
-  //  // Expected output:
-  //  expect(st.io.pop_prev, 1)
-  //  expect(st.io.pop_next, 0)
-  //  expect(st.io.isStore, 1)
-  //  expect(st.io.isSync, 0)
-
-
   // Decode I7 = NOP-MEMORY-STAGE
-  print("\n\n Decode I7 (nop-memory-stage):\n")
+  if (debug) {
+    print("\n\n Decode I7 (nop-memory-stage):\n")
+  }
   poke(c.io.inst, R7)
-  // Expected output:
   // Expected output:
   expect(c.io.pop_next, 0)
   expect(c.io.push_next, 1)
   expect(c.io.isInput, 0) // Inp but size = 0
   expect(c.io.isWeight, 0)
   expect(c.io.isSync, 1)
-
-
-  // Decode I8 = NOP-COMPUTE-STAGE
-  print("\n\n Decode I8 (nop-compute-stage): => ComputeDecode\n")
-
-
-  // Decode I9 = FINISH
-  print("\n\n Decode I9 (finish):  => ComputeDecode\n")
-
-
-  // END OF THE TESTS
-  print("\n\t END LOAD DECODE! \n\n")
 }
 
 

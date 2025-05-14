@@ -514,7 +514,7 @@ object ISAHelper { // Or place inside ISA object if preferred
 
 /* Vector x matrix multiplication (Simple Matrix Multiply) */
 class ComputeApp_smm extends GenericTest("ComputeApp_smm", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
+  new Compute(false)(p), (c: Compute) => new ComputeTest(c,
   "examples_compute/smm/instructions.bin",
   "examples_compute/smm/uop.bin",
   "examples_compute/smm/input.bin",
@@ -527,7 +527,7 @@ class ComputeApp_smm extends GenericTest("ComputeApp_smm", (p:Parameters) =>
 
 /* Matrix 16x16 multiply with matrix 16x16 */
 class ComputeApp_16x16 extends GenericTest("ComputeApp_16x16", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
+  new Compute(false)(p), (c: Compute) => new ComputeTest(c,
   "examples_compute/16x16/instructions.bin",
   "examples_compute/16x16/uop.bin",
   "examples_compute/16x16/input.bin",
@@ -540,7 +540,7 @@ class ComputeApp_16x16 extends GenericTest("ComputeApp_16x16", (p:Parameters) =>
 
 /* Matrix 32x32 multiply with matrix 32x32 */
 class ComputeApp_32x32 extends GenericTest("ComputeApp_32x32", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
+  new Compute(false)(p), (c: Compute) => new ComputeTest(c,
   "examples_compute/32x32/instructions.bin",
   "examples_compute/32x32/uop.bin",
   "examples_compute/32x32/input.bin",
@@ -574,7 +574,7 @@ class ComputeApp_32x32 extends GenericTest("ComputeApp_32x32", (p:Parameters) =>
 //* ALU
 /* ReLU */
 class ComputeApp_relu extends GenericTest("ComputeApp_relu", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
+  new Compute(false)(p), (c: Compute) => new ComputeTest(c,
   "examples_compute/relu/instructions.bin",
   "examples_compute/relu/uop.bin",
   "examples_compute/relu/input.bin",
@@ -587,7 +587,7 @@ class ComputeApp_relu extends GenericTest("ComputeApp_relu", (p:Parameters) =>
 
 /* Matrix 16x16 multiply with matrix 16x16 followed by a ReLU (MAX with 0) */
 class ComputeApp_16x16_relu extends GenericTest("ComputeApp_16x16_relu", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
+  new Compute(false)(p), (c: Compute) => new ComputeTest(c,
   "examples_compute/16x16_relu/instructions.bin",
   "examples_compute/16x16_relu/uop.bin",
   "examples_compute/16x16_relu/input.bin",
@@ -600,7 +600,7 @@ class ComputeApp_16x16_relu extends GenericTest("ComputeApp_16x16_relu", (p:Para
 
 /* Matrix 32x32 multiply with matrix 32x32 followed by a ReLU (MAX with 0) */
 class ComputeApp_32x32_relu extends GenericTest("ComputeApp_32x32_relu", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
+  new Compute(false)(p), (c: Compute) => new ComputeTest(c,
   "examples_compute/32x32_relu/instructions.bin",
   "examples_compute/32x32_relu/uop.bin",
   "examples_compute/32x32_relu/input.bin",
@@ -617,7 +617,7 @@ class ComputeApp_32x32_relu extends GenericTest("ComputeApp_32x32_relu", (p:Para
 
 /* Average pooling (full - add + division), the division round down */
 class ComputeApp_average_pooling extends GenericTest("ComputeApp_average_pooling", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
+  new Compute(false)(p), (c: Compute) => new ComputeTest(c,
   "examples_compute/average_pooling/instructions.bin",
   "examples_compute/average_pooling/uop.bin",
   "examples_compute/average_pooling/input.bin",

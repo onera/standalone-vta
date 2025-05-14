@@ -7,10 +7,12 @@ import vta.util.config.Parameters
 
 import scala.language.postfixOps
 
-class ComputeDecodeTest(c: ComputeDecode)
+class ComputeDecodeTest(c: ComputeDecode, debug:Boolean = false)
   extends PeekPokeTester(c) {
-  // Print the test name
-  println("TEST NAME: \n\t ComputeDecodeTester")
+  if (debug) {
+    // Print the test name
+    println("TEST NAME: \n\t ComputeDecodeTester")
+  }
 
   // Instructions
 
@@ -130,7 +132,9 @@ class ComputeDecodeTest(c: ComputeDecode)
   // INTERACT WITH THE MODULE
   // ------------------------
   // Decode I0 = LOAD UOP
-  print("\n\n Decode I0 (load UOP):\n")
+  if (debug) {
+    print("\n\n Decode I0 (load UOP):\n")
+  }
   poke(c.io.inst, R0)
   // Expected output:
   expect(c.io.pop_prev, 0)
@@ -146,7 +150,9 @@ class ComputeDecodeTest(c: ComputeDecode)
 
 
   // Decode I1 = GEMM RESET
-  print("\n\n Decode I1 (gemm reset):\n")
+  if (debug) {
+    print("\n\n Decode I1 (gemm reset):\n")
+  }
   poke(c.io.inst, R1)
   // Expected output:
   expect(c.io.pop_prev, 0)
@@ -160,17 +166,10 @@ class ComputeDecodeTest(c: ComputeDecode)
   expect(c.io.isGemm, 1)
   expect(c.io.isFinish, 0)
 
-
-  // Decode I2 = LOAD INP
-  print("\n\n Decode I2 (load INP): => LoadDecode\n")
-
-
-  // Decode I3 = LOAD WGT => LoadDecode
-  print("\n\n Decode I3 (load WGT): => LoadDecode\n")
-
-
   // Decode I4 = LOAD UOP
-  print("\n\n Decode I4 (load UOP):\n")
+  if (debug) {
+    print("\n\n Decode I4 (load UOP):\n")
+  }
   poke(c.io.inst, R4)
   // Expected output:
   expect(c.io.pop_prev, 1)
@@ -186,7 +185,9 @@ class ComputeDecodeTest(c: ComputeDecode)
 
 
   // Decode I5 = GEMM
-  print("\n\n Decode I5 (gemm):\n")
+  if(debug) {
+    print("\n\n Decode I5 (gemm):\n")
+  }
   poke(c.io.inst, R5)
   // Expected output:
   expect(c.io.pop_prev, 0)
@@ -200,13 +201,10 @@ class ComputeDecodeTest(c: ComputeDecode)
   expect(c.io.isGemm, 1)
   expect(c.io.isFinish, 0)
 
-
-  // Decode I6 = STORE
-  print("\n\n Decode I6 (store): => StoreDecode \n")
-
-
   // Decode I7 = NOP-MEMORY-STAGE
-  print("\n\n Decode I7 (nop-memory-stage):\n")
+  if (debug) {
+    print("\n\n Decode I7 (nop-memory-stage):\n")
+  }
   poke(c.io.inst, R7) // LOAD DECODE ...
   // Expected output:
   expect(c.io.pop_prev, 0)
@@ -222,7 +220,9 @@ class ComputeDecodeTest(c: ComputeDecode)
 
 
   // Decode I8 = NOP-COMPUTE-STAGE
-  print("\n\n Decode I8 (nop-compute-stage):\n")
+  if (debug) {
+    print("\n\n Decode I8 (nop-compute-stage):\n")
+  }
   poke(c.io.inst, R8)
   // Expected output:
   expect(c.io.pop_prev, 1)
@@ -238,7 +238,9 @@ class ComputeDecodeTest(c: ComputeDecode)
 
 
   // Decode I9 = FINISH
-  print("\n\n Decode I9 (finish):\n")
+  if (debug) {
+    print("\n\n Decode I9 (finish):\n")
+  }
   poke(c.io.inst, R9)
   // Expected output:
   expect(c.io.pop_prev, 0)
@@ -254,31 +256,35 @@ class ComputeDecodeTest(c: ComputeDecode)
 
 
   // OTHERS INSTRUCTIONS (alternative)
-  // Alternative INSN test
-  //val Itest = BigInt("00000100010001000000040000000000", 16) // test
-  print("\n\n Decode Itest:\n")
-  poke(c.io.inst, I0)
-  // Read:
-  println(s"POP_PREV = ${peek(c.io.pop_prev)}")
-  println(s"POP_NEXT = ${peek(c.io.pop_next)}")
-  println(s"PUSH_PREV = ${peek(c.io.push_prev)}")
-  println(s"PUSH_NEXT = ${peek(c.io.push_next)}")
-  println(s"isLoadAcc = ${peek(c.io.isLoadAcc)}")
-  println(s"isLoadUop = ${peek(c.io.isLoadUop)}")
-  println(s"isSync = ${peek(c.io.isSync)}")
-  println(s"isAlu = ${peek(c.io.isAlu)}")
-  println(s"isGemm = ${peek(c.io.isGemm)}")
-  println(s"isFinish = ${peek(c.io.isFinish)}")
-  print("\n")
+  if (debug) {
+    // Alternative INSN test
+    //val Itest = BigInt("00000100010001000000040000000000", 16) // test
+    print("\n\n Decode Itest:\n")
+    poke(c.io.inst, I0)
+    // Read:
+    println(s"POP_PREV = ${peek(c.io.pop_prev)}")
+    println(s"POP_NEXT = ${peek(c.io.pop_next)}")
+    println(s"PUSH_PREV = ${peek(c.io.push_prev)}")
+    println(s"PUSH_NEXT = ${peek(c.io.push_next)}")
+    println(s"isLoadAcc = ${peek(c.io.isLoadAcc)}")
+    println(s"isLoadUop = ${peek(c.io.isLoadUop)}")
+    println(s"isSync = ${peek(c.io.isSync)}")
+    println(s"isAlu = ${peek(c.io.isAlu)}")
+    println(s"isGemm = ${peek(c.io.isGemm)}")
+    println(s"isFinish = ${peek(c.io.isFinish)}")
+    print("\n")
 
-  // END OF THE TESTS
-  print("\n\t END COMPUTE DECODE! \n\n")
+    // END OF THE TESTS
+    print("\n\t END COMPUTE DECODE! \n\n")
+  }
 }
 
-class AlternativeComputeMemDecodeTest(c: AlternativeComputeMemDecode)
+class AlternativeComputeMemDecodeTest(c: AlternativeComputeMemDecode, debug: Boolean = false)
   extends PeekPokeTester(c) {
-  // Print the test name
-  println("TEST NAME: \n\t AlternativeComputeMemDecodeTester")
+  if (debug) {
+    // Print the test name
+    println("TEST NAME: \n\t AlternativeComputeMemDecodeTester")
+  }
 
   // Instructions
 
@@ -310,7 +316,9 @@ class AlternativeComputeMemDecodeTest(c: AlternativeComputeMemDecode)
   // INTERACT WITH THE MODULE
   // ------------------------
   // Decode I0 = LOAD UOP
-  print("\n\n Decode I0 (load UOP):\n")
+  if (debug) {
+    print("\n\n Decode I0 (load UOP):\n")
+  }
   poke(c.io.inst, R0)
   // Expected output:
   expect(c.io.op, 0)
@@ -331,7 +339,9 @@ class AlternativeComputeMemDecodeTest(c: AlternativeComputeMemDecode)
 
 
   // Decode I2 = LOAD INP
-  print("\n\n Decode I2 (load INP):\n")
+  if (debug) {
+    print("\n\n Decode I2 (load INP):\n")
+  }
   poke(c.io.inst, R2)
   // Expected output:
   expect(c.io.op, 0)
@@ -351,13 +361,17 @@ class AlternativeComputeMemDecodeTest(c: AlternativeComputeMemDecode)
   expect(c.io.xpad_1, 0)
 
   // END OF THE TESTS
-  print("\n\t END ALTERNATIVE COMPUTE MEM DECODE! \n\n")
+  if (debug) {
+    print("\n\t END ALTERNATIVE COMPUTE MEM DECODE! \n\n")
+  }
 }
 
-class AlternativeComputeGemmDecodeTest(c: AlternativeComputeGemmDecode)
+class AlternativeComputeGemmDecodeTest(c: AlternativeComputeGemmDecode, debug:Boolean = false)
   extends PeekPokeTester(c) {
-  // Print the test name
-  println("TEST NAME: \n\t AlternativeComputeGemmDecodeTester")
+  if (debug) {
+    // Print the test name
+    println("TEST NAME: \n\t AlternativeComputeGemmDecodeTester")
+  }
 
   // Instructions
   // INSTRUCTION 0: LOAD UOP
@@ -373,7 +387,9 @@ class AlternativeComputeGemmDecodeTest(c: AlternativeComputeGemmDecode)
   // INTERACT WITH THE MODULE
   // ------------------------
   // Decode I0 = LOAD UOP
-  print("\n\n Decode I1 (GEMM reset):\n")
+  if (debug) {
+    print("\n\n Decode I1 (GEMM reset):\n")
+  }
   poke(c.io.inst, R1)
   // Expected output:
   expect(c.io.op, 2)
@@ -396,7 +412,9 @@ class AlternativeComputeGemmDecodeTest(c: AlternativeComputeGemmDecode)
 
 
   // Decode I2 = LOAD INP
-  print("\n\n Decode I5 (GEMM):\n")
+  if (debug) {
+    print("\n\n Decode I5 (GEMM):\n")
+  }
   poke(c.io.inst, R5)
   // Expected output:
   expect(c.io.op, 2)
@@ -417,8 +435,10 @@ class AlternativeComputeGemmDecodeTest(c: AlternativeComputeGemmDecode)
   expect(c.io.wgt_0, 0)
   expect(c.io.wgt_1, 0)
 
-  // END OF THE TESTS
-  print("\n\t END ALTERNATIVE COMPUTE GEMM DECODE! \n\n")
+  if (debug) {
+    // END OF THE TESTS
+    print("\n\t END ALTERNATIVE COMPUTE GEMM DECODE! \n\n")
+  }
 }
 
 
