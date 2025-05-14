@@ -1304,10 +1304,10 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   /* Decoding ACC */
   it should "decode ACC in average_pooling" in {
     val acc = computeAddresses("examples_compute/average_pooling/accumulator.bin", DataType.ACC, "00000000", isDRAM = true)
-    val acc_json = Array(-1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    val acc_json = Array(-4, -4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
     acc match {
       case Success(data) =>
-        data(64) should equal(acc_json)
+        data(0) should equal(acc_json)
       case Failure(exception) =>
         fail(s"Error while computing addresses for ACC : ${exception.getMessage}")
     }
