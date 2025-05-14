@@ -1,73 +1,55 @@
-package simulator.compute
+package simulatorTest.compute
 
 import chisel3._
-import chisel3.util._
-import chiseltest._
-import chiseltest.formal._
-import chiseltest.experimental.observe
-import chiseltest.simulator.WriteVcdAnnotation
-import org.scalatest.flatspec.AnyFlatSpec
-import _root_.circt.stage.ChiselStage
-
 import chiseltest.iotesters._
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.scala.DefaultScalaModule
-import scala.io._
-import scala.language.postfixOps
-
+import simulatorTest.util.BinaryReader
+import simulatorTest.util.BinaryReader.{DataType, computeBaseAddresses, readBaseAddresses}
+import simulatorTest.util.BinaryReader.DataType._
 import unittest.GenericTest
+import vta.core.ISA.{FNSH, GEMM, LACC, LINP, LUOP, LWGT, SOUT, VADD, VMAX, VMIN, VSHX}
 import vta.core._
 import vta.shell.VMEReadMaster
 import vta.util.config.Parameters
 
-class ComputeTest(c: Compute, fn: String = "/x.json", doCompare: Boolean = false)
+import scala.language.postfixOps
+import scala.util.{Failure, Success} // Import for raising exceptions in case of misreading
+
+
+class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: String, out: String, acc: String, expected_out: String,
+                  base_addresses: String, doCompare: Boolean = false, debug: Boolean = false)
   extends PeekPokeTester(c) {
 
-  // Print the test name
-  print("\nTEST NAME: \n\t ComputeInvestigation (take a JSON in input)\n")
-  print(s"\tJSON: ${fn} \n\n")
-
-
   /* COMMON PART - MANAGE VIRTUAL MEMORIES */
-  // READ the JSON file
-  val bufferedSource = Source.fromURL(getClass.getResource(fn))
-  val mapper = new ObjectMapper()
-  mapper.registerModule(DefaultScalaModule)
-  val archState = mapper.readValue(bufferedSource.reader(), classOf[Map[String, Object]])
-  bufferedSource.close
 
-  // DECODE the INSTRUCTIONS
-  def instruction_scratchpad(tag: String): Map[String, BigInt] = {
-    // Read the JSON file
-    val instMap = archState(tag).asInstanceOf[Map[String, String]]
-    // Associate each instruction to a key
-    instMap.map { case (key, value) =>
-      key -> BigInt(value, 16)
+  def build_scratchpad_binary(filePath: String, dataType: DataTypeValue, offset: String, isDRAM: Boolean): Map[BigInt, Array[BigInt]] = {
+    BinaryReader.computeAddresses(filePath, dataType, offset, isDRAM) match {
+      case Success(scratchpad) =>
+        scratchpad
+      case Failure(exception) =>
+        println(s"Error while building scratchpad : ${exception.getMessage}")
+        Map.empty
     }
   }
-  // Create the instruction scratchpad
-  val inst = instruction_scratchpad("inst")
-  // Order the keys of the instructions (to have I0 before I1, ...)
-  val sortedInst = inst.keys.toList.sortBy(key => key.substring(1).toInt)
-//  for (key <- sortedInst) {
-//    print(s"$key \n")
-//  }
 
-  // Scratchpad memory (emulate the buffers / registers)
-  def build_scratchpad(tag: String): Map[BigInt, Array[BigInt]] = {
-    val arr = archState(tag).asInstanceOf[Seq[Map[String, Object]]]
-    (
-      for {m <- arr} yield {
-        val idx = BigInt(m("idx").asInstanceOf[String], 16)
-        val vec = m("vec").asInstanceOf[Seq[String]]
-        idx -> (
-          for {v <- vec} yield {
-            BigInt(v, 16)
-          }
-          ).toArray
-      }
-      ).toMap
+  // Check if it is compute instruction
+  def isComputeInstruction(instruction: BigInt): Boolean = {
+    // List of BitPats that FetchDecode maps to OP_G (Compute group)
+    val computeBitPats = Seq(
+      LUOP, LACC, GEMM, FNSH, VMIN, VMAX, VADD, VSHX
+    )
+
+    // Check if the instruction matches any of the compute BitPats
+    // A match occurs if (instruction & mask) == value for the BitPat
+    computeBitPats.exists { bitPat =>
+      // Extract the mask and value from the BitPat object
+      val mask = bitPat.mask
+      val value = bitPat.value
+      // Perform the comparison
+      (instruction & mask) == value
+    }
   }
+
+  val inst = build_scratchpad_binary(insn, DataType.INSN, "00000000", isDRAM = false)
 
   // Print scratchpad
   def print_scratchpad(scratchpad: Map[BigInt, Array[BigInt]], index: BigInt, name : String = "?"): Unit = {
@@ -95,7 +77,9 @@ class ComputeTest(c: Compute, fn: String = "/x.json", doCompare: Boolean = false
       }
     }
     assert(noDifference)
-    print("\n\t Output match expectation!\n")
+    if (debug) {
+      print("\n\t Output match expectation!\n")
+    }
   }
 
   /* DEFINE GLOBAL VARIABLE */
@@ -107,11 +91,13 @@ class ComputeTest(c: Compute, fn: String = "/x.json", doCompare: Boolean = false
   // cycle_step function
   def cycle_step() = {
     cycle_counter = cycle_counter + 1
-    print(s"\n\nCycle ${cycle_counter}:\n")
+    if (debug) {
+      print(s"\n\nCycle ${cycle_counter}:\n")
+    }
     step(1)
   }
 
-  /* Function to loop for each instructions */
+  /* Function to loop for each instruction */
   def loop(prev_signal: Boolean, next_signal: Boolean): Unit = {
     val end = 10000 // Timeout
     var count = 0
@@ -146,14 +132,16 @@ class ComputeTest(c: Compute, fn: String = "/x.json", doCompare: Boolean = false
         // Set the data validity signal
         poke(tm.rd(0).data.valid, 1)
 
-//        print(s"\n\nDEBUG: READ SCRATCHPAD IDX: ${idx}\n\n")
-
+        if (debug) {
+          print(s"\n\nDEBUG: READ SCRATCHPAD ${scratchpad.size} IDX: ${idx}\n\n")
+        }
         // Go through the scratchpad and send the data
         val cols = tm.rd(0).data.bits(0).size
         for {
           i <- 0 until tm.rd(0).data.bits.size
           j <- 0 until cols
         } {
+          //print(s"\n\nDEBUG: READ SCRATCHPAD ${scratchpad(idx).length} IDX: ${idx} vect: ${i * cols + j}\n\n")
           poke(tm.rd(0).data.bits(i)(j), scratchpad(idx)(i * cols + j))
         }
       } else { // If index is not valid => data is not valid
@@ -179,8 +167,10 @@ class ComputeTest(c: Compute, fn: String = "/x.json", doCompare: Boolean = false
         } {
           scratchpad(idx)(i * cols + j) = peek(tm.wr(0).bits.data(i)(j))
         }
-        // Print the scratchpad after the update
-        print_scratchpad(out_scratchpad, idx, "OUT")
+        if (debug) {
+          // Print the scratchpad after the update
+          print_scratchpad(out_scratchpad, idx, "OUT")
+        }
       }
     }
   }
@@ -239,8 +229,17 @@ class ComputeTest(c: Compute, fn: String = "/x.json", doCompare: Boolean = false
 
         // Read the data from the scratchpad (2 UOP read at once)
         val uop_acc_0 = scratchpad(addr + 8 * nb_uop)(0) // 11 bits
+        if (debug) {
+          println(uop_acc_0.toString(2))
+        }
         val uop_inp_0 = scratchpad(addr + 8 * nb_uop)(1) // 11 bits
+        if (debug) {
+          println(uop_inp_0.toString(2))
+        }
         val uop_wgt_0 = scratchpad(addr + 8 * nb_uop)(2) // 10 bits
+        if (debug) {
+          println(uop_wgt_0.toString(2))
+        }
         // Read the second UOP
         val uop_acc_1 = scratchpad(addr + 8 * nb_uop + 4)(0)
         val uop_inp_1 = scratchpad(addr + 8 * nb_uop + 4)(1)
@@ -408,11 +407,16 @@ class ComputeTest(c: Compute, fn: String = "/x.json", doCompare: Boolean = false
 
   /* BEGIN USER CUSTOMABLE SECTION */
   // Build memory
-  val dram_scratchpad = build_scratchpad("dram")
-  val inp_scratchpad = build_scratchpad("inp")
-  val wgt_scratchpad = build_scratchpad("wgt")
-  val out_scratchpad = build_scratchpad("out")
-  val out_expect_scratchpad = build_scratchpad("out_expect") // Expected
+  val base_addr = computeBaseAddresses(base_addresses)
+
+  val dram_scratchpad =
+    build_scratchpad_binary(acc, DataType.ACC, base_addr("acc"), isDRAM = true) ++
+      build_scratchpad_binary(uop, DataType.UOP, base_addr("uop"), isDRAM = true)
+  // base address is zero because we are storing the values directly in the INP buffer
+  val inp_scratchpad = build_scratchpad_binary(input, DataType.INP, base_addr("inp"), isDRAM = false)
+  val wgt_scratchpad = build_scratchpad_binary(weight, DataType.WGT, base_addr("wgt"), isDRAM = false)
+  val out_scratchpad = build_scratchpad_binary(out, DataType.OUT, base_addr("out"), isDRAM = false)
+  val out_expect_scratchpad = build_scratchpad_binary(expected_out, DataType.OUT, base_addr("out"), isDRAM = false) // FIXME: adresse différente ?
 
   // Create the mocks
   val mocks = new Mocks
@@ -423,18 +427,42 @@ class ComputeTest(c: Compute, fn: String = "/x.json", doCompare: Boolean = false
   val acc_baddr = BigInt("00000000", 16) // We do not take any offset
   poke(c.io.acc_baddr, acc_baddr)
 
-  // Print cycle 0
-  print(s"\nCycle ${cycle_counter}:\n")
+  // Cycle 0
+  if (debug) {
+    print(s"\nCycle ${cycle_counter}:\n")
+  }
 
-  // Send instructions
-  for (key <- sortedInst) {
-    // Send the instruction
-    poke(c.io.inst.bits, inst(key))
-    // Instruction is valid
-    poke(c.io.inst.valid, 1)
-    print(s"Send instruction: ${key}\n")
-    // Increment the step
-    mocks.logical_step()
+//  // Send instructions
+//  for ((key,Array(value)) <- inst.toSeq.sortBy(_._1)) {
+//    // Send the instruction
+//    poke(c.io.inst.bits, value)
+//    // Instruction is valid
+//    poke(c.io.inst.valid, 1)
+//    print(s"Send instruction: $key\n")
+//    // Increment the step
+//    mocks.logical_step()
+//  }
+
+  for ((key,Array(value)) <- inst.toSeq.sortBy(_._1)) {
+    // Get instruction mnemonic for better logging (optional but helpful)
+    val mnemonic = ISAHelper.getMnemonic(value) // Assuming ISA has a helper like this
+    // Check the instruction
+    if (isComputeInstruction(value)) {
+      if (debug) {
+        print(s"Instruction ${key} (${mnemonic}) is Compute type. Sending...\n")
+      }
+      // Send the instruction
+      poke(c.io.inst.bits, value)
+      // Instruction is valid for this cycle
+      poke(c.io.inst.valid, 1)
+      // Increment the step (handles clock cycle and mock logic)
+      mocks.logical_step()
+    } else {
+      // --- Optional: Log skipped instructions ---
+      if (debug) {
+        print(s"Instruction ${key} is NOT Compute type. Skipping...\n")
+      }
+    }
   }
 
   // Loop until is finish
@@ -445,77 +473,200 @@ class ComputeTest(c: Compute, fn: String = "/x.json", doCompare: Boolean = false
     compare_scratchpad(out_expect_scratchpad, out_scratchpad)
   }
 
-  print(s"\n\t END COMPUTE TESTS! \n\t (done in ${cycle_counter} cycles)\n\n")
+  if (debug) {
+    print(s"\n\t END COMPUTE TESTS! \n\t (done in ${cycle_counter} cycles)\n\n")
+  }
+}
+
+object ISAHelper { // Or place inside ISA object if preferred
+  // Basic example, might need refinement based on actual ISA definitions
+  def getMnemonic(instruction: BigInt): String = {
+    val computeBitPats = Map(
+      LUOP -> "LUOP", LACC -> "LACC", GEMM -> "GEMM", FNSH -> "FNSH",
+      VMIN -> "VMIN", VMAX -> "VMAX", VADD -> "VADD", VSHX -> "VSHX"
+    )
+    // Add other instruction types if needed (LWGT, LINP, SOUT, etc.)
+    val otherBitPats = Map(
+      LWGT -> "LWGT", LINP -> "LINP", SOUT -> "SOUT"
+      // Potentially add others like NOP if defined
+    )
+
+    val allBitPats = computeBitPats ++ otherBitPats
+
+    allBitPats.find { case (bitPat, _) =>
+      (instruction & bitPat.mask) == bitPat.value
+    }.map(_._2).getOrElse("UNKNOWN") // Return mnemonic or "UNKNOWN"
+  }
+
+  // Add this call inside the loop for logging:
+  // val mnemonic = ISAHelper.getMnemonic(currentInstruction)
+  // print(s"Instruction ${key} (${mnemonic}) ...")
 }
 
 
 /*************************************************************************************************************
  * TEST EXECUTION
  *************************************************************************************************************/
-
+//FIXME Modify the test to use binary files instead
 /* Test JSON files */
-class ComputeApp extends GenericTest("ComputeApp", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_investigation.json", false))
+//class ComputeApp extends GenericTest("ComputeApp", (p:Parameters) =>
+//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_investigation.json", false))
 
 /* Vector x matrix multiplication (Simple Matrix Multiply) */
-class ComputeApp_Smm extends GenericTest("ComputeApp_Smm", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_smm.json", true))
+class ComputeApp_smm extends GenericTest("ComputeApp_smm", (p:Parameters) =>
+  new Compute(false)(p), (c: Compute) => new ComputeTest(c,
+  "examples_compute/smm/instructions.bin",
+  "examples_compute/smm/uop.bin",
+  "examples_compute/smm/input.bin",
+  "examples_compute/smm/weight.bin",
+  "examples_compute/smm/out.bin",
+  "examples_compute/smm/accumulator.bin",
+  "examples_compute/smm/expected_out.bin",
+  "examples_compute/smm/memory_addresses.csv",
+  true))
 
 /* Matrix 16x16 multiply with matrix 16x16 */
-class ComputeApp_Matrix_16x16 extends GenericTest("ComputeApp_Matrix_16x16", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_matrix_16x16.json", true))
+class ComputeApp_16x16 extends GenericTest("ComputeApp_16x16", (p:Parameters) =>
+  new Compute(false)(p), (c: Compute) => new ComputeTest(c,
+  "examples_compute/16x16/instructions.bin",
+  "examples_compute/16x16/uop.bin",
+  "examples_compute/16x16/input.bin",
+  "examples_compute/16x16/weight.bin",
+  "examples_compute/16x16/out.bin",
+  "examples_compute/16x16/accumulator.bin",
+  "examples_compute/16x16/expected_out.bin",
+  "examples_compute/16x16/memory_addresses.csv",
+  true))
 
 /* Matrix 32x32 multiply with matrix 32x32 */
-class ComputeApp_Matrix_32x32 extends GenericTest("ComputeApp_Matrix_32x32", (p: Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_matrix_32x32.json", true))
+class ComputeApp_32x32 extends GenericTest("ComputeApp_32x32", (p:Parameters) =>
+  new Compute(false)(p), (c: Compute) => new ComputeTest(c,
+  "examples_compute/32x32/instructions.bin",
+  "examples_compute/32x32/uop.bin",
+  "examples_compute/32x32/input.bin",
+  "examples_compute/32x32/weight.bin",
+  "examples_compute/32x32/out.bin",
+  "examples_compute/32x32/accumulator.bin",
+  "examples_compute/32x32/expected_out.bin",
+  "examples_compute/32x32/memory_addresses.csv",
+  true))
 
-/* ALTERNATIVE INSTRUCTION INVESTIGATION:
- * Batches with 2 UOP and 1 GeMM loop */
-class ComputeApp_Batches_2uop_1loop extends GenericTest("ComputeApp_Batches_2uop_1loop", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/alternative_instructions/batches_2uop_1loop.json", true))
-/* Batches with 1 UOP and 2 GeMM loop */
-class ComputeApp_Batches_1uop_2loops extends GenericTest("ComputeApp_Batches_1uop_2loops", (p: Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/alternative_instructions/batches_1uop_2loops.json", true))
-/* Batches with 2 instructions */
-class ComputeApp_Batches_2insn extends GenericTest("ComputeApp_Batches_2insn", (p: Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/alternative_instructions/batches_2insn.json", true))
 
-/* ALTERNATIVE INSTRUCTION INVESTIGATION:
- * Load 4 UOP using 1 instruction */
-class ComputeApp_LoadUop_1insn extends GenericTest("ComputeApp_LoadUop_1insn", (p: Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/alternative_instructions/loadUop_1insn.json"))
-class ComputeApp_LoadUop_2insn extends GenericTest("ComputeApp_LoadUop_2insn", (p: Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/alternative_instructions/loadUop_2insn.json"))
+///* ALTERNATIVE INSTRUCTION INVESTIGATION:
+// * Batches with 2 UOP and 1 GeMM loop */
+//class ComputeApp_Batches_2uop_1loop extends GenericTest("ComputeApp_Batches_2uop_1loop", (p:Parameters) =>
+//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/alternative_instructions/batches_2uop_1loop.json", true))
+///* Batches with 1 UOP and 2 GeMM loop */
+//class ComputeApp_Batches_1uop_2loops extends GenericTest("ComputeApp_Batches_1uop_2loops", (p: Parameters) =>
+//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/alternative_instructions/batches_1uop_2loops.json", true))
+///* Batches with 2 instructions */
+//class ComputeApp_Batches_2insn extends GenericTest("ComputeApp_Batches_2insn", (p: Parameters) =>
+//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/alternative_instructions/batches_2insn.json", true))
+//
+///* ALTERNATIVE INSTRUCTION INVESTIGATION:
+// * Load 4 UOP using 1 instruction */
+//class ComputeApp_LoadUop_1insn extends GenericTest("ComputeApp_LoadUop_1insn", (p: Parameters) =>
+//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/alternative_instructions/loadUop_1insn.json"))
+//class ComputeApp_LoadUop_2insn extends GenericTest("ComputeApp_LoadUop_2insn", (p: Parameters) =>
+//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/alternative_instructions/loadUop_2insn.json"))
 
-/* ALU
- * ReLU */
+
+//* ALU
+/* ReLU */
 class ComputeApp_relu extends GenericTest("ComputeApp_relu", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_relu.json", true))
-/* ReLU - ReLU in one instruction */
-class ComputeApp_relu_relu extends GenericTest("ComputeApp_relu_relu", (p: Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_relu_relu.json", true))
+  new Compute(false)(p), (c: Compute) => new ComputeTest(c,
+  "examples_compute/relu/instructions.bin",
+  "examples_compute/relu/uop.bin",
+  "examples_compute/relu/input.bin",
+  "examples_compute/relu/weight.bin",
+  "examples_compute/relu/out.bin",
+  "examples_compute/relu/accumulator.bin",
+  "examples_compute/relu/expected_out.bin",
+  "examples_compute/relu/memory_addresses.csv",
+  true))
 
 /* Matrix 16x16 multiply with matrix 16x16 followed by a ReLU (MAX with 0) */
-class ComputeApp_16x16_relu extends GenericTest("ComputeApp_16x16_relu", (p: Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_16x16_relu.json", true))
+class ComputeApp_16x16_relu extends GenericTest("ComputeApp_16x16_relu", (p:Parameters) =>
+  new Compute(false)(p), (c: Compute) => new ComputeTest(c,
+  "examples_compute/16x16_relu/instructions.bin",
+  "examples_compute/16x16_relu/uop.bin",
+  "examples_compute/16x16_relu/input.bin",
+  "examples_compute/16x16_relu/weight.bin",
+  "examples_compute/16x16_relu/out.bin",
+  "examples_compute/16x16_relu/accumulator.bin",
+  "examples_compute/16x16_relu/expected_out.bin",
+  "examples_compute/16x16_relu/memory_addresses.csv",
+  true))
+
 /* Matrix 32x32 multiply with matrix 32x32 followed by a ReLU (MAX with 0) */
-class ComputeApp_32x32_relu extends GenericTest("ComputeApp_32x32_relu", (p: Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_32x32_relu.json", true))
+class ComputeApp_32x32_relu extends GenericTest("ComputeApp_32x32_relu", (p:Parameters) =>
+  new Compute(false)(p), (c: Compute) => new ComputeTest(c,
+  "examples_compute/32x32_relu/instructions.bin",
+  "examples_compute/32x32_relu/uop.bin",
+  "examples_compute/32x32_relu/input.bin",
+  "examples_compute/32x32_relu/weight.bin",
+  "examples_compute/32x32_relu/out.bin",
+  "examples_compute/32x32_relu/accumulator.bin",
+  "examples_compute/32x32_relu/expected_out.bin",
+  "examples_compute/32x32_relu/memory_addresses.csv",
+  true))
 
-/* Average pooling (first part - add only) */
-class ComputeApp_add_acc_vectors extends GenericTest("ComputeApp_add_acc_vectors", (p: Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_add_acc_vectors.json", true))
+///* Average pooling (first part - add only) */
+//class ComputeApp_add_acc_vectors extends GenericTest("ComputeApp_add_acc_vectors", (p: Parameters) =>
+//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_add_acc_vectors.json", true))
+
 /* Average pooling (full - add + division), the division round down */
-class ComputeApp_average_pooling extends GenericTest("ComputeApp_average_pooling", (p: Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_average_pooling.json", true))
+class ComputeApp_average_pooling extends GenericTest("ComputeApp_average_pooling", (p:Parameters) =>
+  new Compute(false)(p), (c: Compute) => new ComputeTest(c,
+  "examples_compute/average_pooling/instructions.bin",
+  "examples_compute/average_pooling/uop.bin",
+  "examples_compute/average_pooling/input.bin",
+  "examples_compute/average_pooling/weight.bin",
+  "examples_compute/average_pooling/out.bin",
+  "examples_compute/average_pooling/accumulator.bin",
+  "examples_compute/average_pooling/expected_out_sram.bin",
+  "examples_compute/average_pooling/memory_addresses.csv",
+  true, false))
 
-/* CONVOLUTIONAL NEURAL NETWORK
- * LeNet-5: Convolution 1 */
-class ComputeApp_lenet5_conv1 extends GenericTest("ComputeApp_lenet5_conv1", (p: Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_lenet5_conv1.json", true), true)
+//* CONVOLUTIONAL NEURAL NETWORK:
+/* LeNet-5: Convolution 1 */
+class ComputeApp_lenet5_conv1 extends GenericTest("ComputeApp_lenet5_conv1", (p:Parameters) =>
+  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
+  "examples_compute/lenet5_conv1/instructions.bin",
+  "examples_compute/lenet5_conv1/uop.bin",
+  "examples_compute/lenet5_conv1/input.bin",
+  "examples_compute/lenet5_conv1/weight.bin",
+  "examples_compute/lenet5_conv1/out.bin",
+  "examples_compute/lenet5_conv1/accumulator.bin",
+  "examples_compute/lenet5_conv1/expected_out.bin",
+  "examples_compute/lenet5_conv1/memory_addresses.csv",
+  true),
+  true)
+
 /* LeNet-5: Conv1 + ReLU */
-class ComputeApp_lenet5_conv1_relu extends GenericTest("ComputeApp_lenet5_conv1_relu", (p: Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_lenet5_conv1_relu.json", true), true)
+class ComputeApp_lenet5_conv1_relu extends GenericTest("ComputeApp_lenet5_conv1_relu", (p:Parameters) =>
+  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
+  "examples_compute/lenet5_conv1_relu/instructions.bin",
+  "examples_compute/lenet5_conv1_relu/uop.bin",
+  "examples_compute/lenet5_conv1_relu/input.bin",
+  "examples_compute/lenet5_conv1_relu/weight.bin",
+  "examples_compute/lenet5_conv1_relu/out.bin",
+  "examples_compute/lenet5_conv1_relu/accumulator.bin",
+  "examples_compute/lenet5_conv1_relu/expected_out.bin",
+  "examples_compute/lenet5_conv1_relu/memory_addresses.csv",
+  true),
+  true)
+
 /* LeNet-5: Conv1 + ReLU + Average Pooling */
-class ComputeApp_lenet5_conv1_relu_AvgPool extends GenericTest("ComputeApp_lenet5_conv1_relu_AvgPool", (p: Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_lenet5_conv1_relu_average_pooling.json", false), true)
+class ComputeApp_lenet5_layer1 extends GenericTest("ComputeApp_lenet5_layer1", (p:Parameters) =>
+  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
+  "examples_compute/lenet5_layer1/instructions.bin",
+  "examples_compute/lenet5_layer1/uop.bin",
+  "examples_compute/lenet5_layer1/input.bin",
+  "examples_compute/lenet5_layer1/weight.bin",
+  "examples_compute/lenet5_layer1/out.bin",
+  "examples_compute/lenet5_layer1/accumulator.bin",
+  "examples_compute/lenet5_layer1/expected_out_sram.bin",
+  "examples_compute/lenet5_layer1/memory_addresses.csv",
+  true, false),
+  true)

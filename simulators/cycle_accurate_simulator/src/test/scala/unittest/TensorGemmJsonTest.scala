@@ -33,7 +33,8 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 //import com.fasterxml.jackson.module.scala.experimental.ScalaObjectMapper // No more needed (deprecated)
 
-class TensorGemmJsonTester(c: TensorGemmPipelinedSplit, fn : String = "/x.json")
+class TensorGemmJsonTester(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
+                           debug:Boolean = false)
   extends PeekPokeTester(c) {
 
   val bufferedSource = Source.fromURL(getClass.getResource(fn))
@@ -249,7 +250,7 @@ class TensorGemmJsonTester(c: TensorGemmPipelinedSplit, fn : String = "/x.json")
   val max_count = 100 + 4*total_steps
   var count = 0
   while (peek(c.io.done) == 0 && count < max_count) {
-    if (count % 100 == 0) {
+    if (count % 100 == 0 && debug==true) {
       println(s"logical_step $count")
     }
     mocks.logical_step()
@@ -260,17 +261,23 @@ class TensorGemmJsonTester(c: TensorGemmPipelinedSplit, fn : String = "/x.json")
   }
 
   assert(peek(c.io.done) == 1, s"Signal done never high even after $count steps.")
-  println(s"Signal done high after $count steps.")
+  if (debug) {
+    println(s"Signal done high after $count steps.")
+  }
 
   mocks.logical_step()
   expect(c.io.done, 0)
 
   val cc = mocks.check()
-  println(s"Checking acc with acc_o ${cc}")
+  if (debug) {
+    println(s"Checking acc with acc_o ${cc}")
+  }
   assert(cc)
 
   println(s"Total active steps: ${total_steps}")
-  mocks.test_if_done()
+  if (debug) {
+    mocks.test_if_done()
+  }
 }
 
 class TensorGemmJsonTestSingleUopOverflowOffset extends GenericTest("TensorGemmJson", (p:Parameters) =>

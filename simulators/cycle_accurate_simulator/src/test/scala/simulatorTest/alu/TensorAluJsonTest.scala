@@ -1,4 +1,4 @@
-package simulator.alu
+package simulatorTest.alu
 
 import chisel3._
 import chiseltest.iotesters.PeekPokeTester
@@ -10,12 +10,15 @@ import vta.core._
 import vta.util.config._
 import unittest.GenericTest
 
-class TensorAluJsonTest(c: TensorAlu, fn : String = "/x.json")
+class TensorAluJsonTest(c: TensorAlu, fn : String = "/x.json",
+                        debug : Boolean = false)
   extends PeekPokeTester(c) {
 
-  // Print the test name
-  println("TEST NAME: \n\t TensorAluJsonTester (take a JSON in input)")
-  print(s"\tJSON: ${fn} \n\n")
+  if (debug) {
+    // Print the test name
+    println("TEST NAME: \n\t TensorAluJsonTester (take a JSON in input)")
+    print(s"\tJSON: ${fn} \n\n")
+  }
 
   // READ the JSON file
   val bufferedSource = Source.fromURL(getClass.getResource(fn))
@@ -97,46 +100,46 @@ class TensorAluJsonTest(c: TensorAlu, fn : String = "/x.json")
   val imm = BigInt(inst("imm"), 16)
 
   // Read instructions
-  println("Read instructions:")
-
   // RESET
   poke(c.io.dec.reset, dec_reset)
-  print(s"\t RESET: ${peek(c.io.dec.reset)} \n")
   // UOP_BGN
   poke(c.io.dec.uop_begin, uop_begin)
-  print(s"\t UOP_BEGIN: ${peek(c.io.dec.uop_begin)} \n")
   // UOP_END
   poke(c.io.dec.uop_end, uop_end)
-  print(s"\t UOP_END: ${peek(c.io.dec.uop_end)} \n")
   // LOOP_EXTENT_0
   poke(c.io.dec.lp_0, lp_0)
-  print(s"\t LP_0: ${peek(c.io.dec.lp_0)} \n")
   // LOOP_EXTENT_1
   poke(c.io.dec.lp_1, lp_1)
-  print(s"\t LP_1: ${peek(c.io.dec.lp_1)} \n")
   // DST_IDX_FACTOR_0 (Y0)
   poke(c.io.dec.dst_0, dst_0)
-  print(s"\t DST_0: ${peek(c.io.dec.dst_0)} \n")
   // DST_IDX_FACTOR_1 (Y1)
   poke(c.io.dec.dst_1, dst_1)
-  print(s"\t DST_1: ${peek(c.io.dec.dst_1)} \n")
   // SRC_IDX_FACTOR_0 (X0)
   poke(c.io.dec.src_0, src_0)
-  print(s"\t SRC_0: ${peek(c.io.dec.src_0)} \n")
   // SRC_IDX_FACTOR_1 (X1)
   poke(c.io.dec.src_1, src_1)
-  print(s"\t SRC_1: ${peek(c.io.dec.src_1)} \n")
   // ALU_OP (opcode: min:0, max:1, add:2, shr:3, shl:4)
   poke(c.io.dec.alu_op, alu_op)
-  print(s"\t ALU_OP: ${peek(c.io.dec.alu_op)} \t (0 = MIN / 1 = MAX / 2 = ADD / 3 = SHR / 4 = SHL) \n")
   // USE_IMM
   poke(c.io.dec.alu_use_imm, use_imm)
-  print(s"\t USE_IMM: ${peek(c.io.dec.alu_use_imm)} \n")
   // IMM
   poke(c.io.dec.alu_imm, imm)
-  print(s"\t IMM: ${peek(c.io.dec.alu_imm)} \n\n")
 
-  // Don't need empty_0,{push,pop}_{next,prev},op
+  if (debug) {
+    println("Read instructions:")
+    print(s"\t RESET: ${peek(c.io.dec.reset)} \n")
+    print(s"\t UOP_BEGIN: ${peek(c.io.dec.uop_begin)} \n")
+    print(s"\t UOP_END: ${peek(c.io.dec.uop_end)} \n")
+    print(s"\t LP_0: ${peek(c.io.dec.lp_0)} \n")
+    print(s"\t LP_1: ${peek(c.io.dec.lp_1)} \n")
+    print(s"\t DST_0: ${peek(c.io.dec.dst_0)} \n")
+    print(s"\t DST_1: ${peek(c.io.dec.dst_1)} \n")
+    print(s"\t SRC_0: ${peek(c.io.dec.src_0)} \n")
+    print(s"\t SRC_1: ${peek(c.io.dec.src_1)} \n")
+    print(s"\t ALU_OP: ${peek(c.io.dec.alu_op)} \t (0 = MIN / 1 = MAX / 2 = ADD / 3 = SHR / 4 = SHL) \n")
+    print(s"\t USE_IMM: ${peek(c.io.dec.alu_use_imm)} \n")
+    print(s"\t IMM: ${peek(c.io.dec.alu_imm)} \n\n")
+  }
 
   // FIXME: comment - what is it???
   require(c.io.acc.splitWidth == 1, "-F- Test doesnt support acc data access split")
@@ -243,22 +246,25 @@ class TensorAluJsonTest(c: TensorAlu, fn : String = "/x.json")
       if (peek(c.io.acc.rd(0).idx.valid) == 1) {
         val expected_acc_rd_idx = acc_indices.dequeue()
         expect(c.io.acc.rd(0).idx.bits, expected_acc_rd_idx)
-        // Print data (SRC and, DST or IMM)
-        if (count_print_flag == 0){
-          println("INPUTS:")
-          print(s"Source scratchpad: (offset = ${expected_acc_rd_idx})")
-          print_scratchpad(acc_scratchpad, index = expected_acc_rd_idx)
-        }
-        else if (count_print_flag == 1){
-          if (use_imm == 0) {
-            print(s"Destination scratchpad: (offset = ${expected_acc_rd_idx})")
+
+        if (debug) {
+          // Print data (SRC and, DST or IMM)
+          if (count_print_flag == 0) {
+            println("INPUTS:")
+            print(s"Source scratchpad: (offset = ${expected_acc_rd_idx})")
             print_scratchpad(acc_scratchpad, index = expected_acc_rd_idx)
           }
-          else {
-            print(s"Immediate value = ${imm} \n\n")
+          else if (count_print_flag == 1) {
+            if (use_imm == 0) {
+              print(s"Destination scratchpad: (offset = ${expected_acc_rd_idx})")
+              print_scratchpad(acc_scratchpad, index = expected_acc_rd_idx)
+            }
+            else {
+              print(s"Immediate value = ${imm} \n\n")
+            }
           }
+          count_print_flag = count_print_flag + 1
         }
-        count_print_flag = count_print_flag + 1
       }
       // Write ACC
       if (peek(c.io.acc.wr(0).valid) == 1) {
@@ -269,12 +275,15 @@ class TensorAluJsonTest(c: TensorAlu, fn : String = "/x.json")
       if (peek(c.io.out.wr(0).valid) == 1) {
         val expected_out_wr_idx = out_indices.dequeue()
         expect(c.io.out.wr(0).bits.idx, expected_out_wr_idx)
-        // Print output
-        println("OUTPUT:")
-        print(s"Update DST scratchpad: (offset = ${expected_out_wr_idx})")
-        print_scratchpad(acc_scratchpad, index = expected_out_wr_idx)
-        count_print_flag = 0
-        print("\n")
+
+        if (debug) {
+          // Print output
+          println("OUTPUT:")
+          print(s"Update DST scratchpad: (offset = ${expected_out_wr_idx})")
+          print_scratchpad(acc_scratchpad, index = expected_out_wr_idx)
+          count_print_flag = 0
+          print("\n")
+        }
       }
     }
 
@@ -338,7 +347,9 @@ class TensorAluJsonTest(c: TensorAlu, fn : String = "/x.json")
   val end = (uop_end-uop_begin)*lp_0*lp_1
 
   // PRINT DATA WITHIN LOGICAL STEP
-  print_scratchpad(acc_scratchpad, 256)
+  if (debug) {
+    print_scratchpad(acc_scratchpad, 256)
+  }
 
   // Logical step for operation
   while (peek(c.io.done) == 0 && count < 10*end + 100) {
@@ -348,12 +359,12 @@ class TensorAluJsonTest(c: TensorAlu, fn : String = "/x.json")
   }
   expect(c.io.done, 1) // Operation is done
 
-  // Check if the queues are empty
-  mocks.test_if_done()
-
-  // Check if everything is okay
-  //mocks.check()
-  print("\n\t MATCH EXPECTATON! \n\n")
+  if (debug) {
+    // Check if the queues are empty
+    mocks.test_if_done()
+    // Check if everything is okay
+    print("\n\t MATCH EXPECTATON! \n\n")
+  }
 }
 
 /**

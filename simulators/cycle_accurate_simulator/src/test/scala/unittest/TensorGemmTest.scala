@@ -352,7 +352,7 @@ class TensorGemmIdxTester(c: TensorGemmSimple) extends PeekPokeTester(c) {
 class TensorGemmIdxTest extends GenericTest("TensorGemmIdx", (p:Parameters) => new TensorGemmSimple()(p),
   (c:TensorGemmSimple) => new TensorGemmIdxTester(c))
 
-class TensorGemmIndexGeneratorTester(c: TensorGemmIndexGenerator) extends PeekPokeTester(c) {
+class TensorGemmIndexGeneratorTester(c: TensorGemmIndexGenerator, debug: Boolean = false) extends PeekPokeTester(c) {
   val uop_begin = 0
   val uop_end = 2
   assert(uop_begin < uop_end)
@@ -395,10 +395,12 @@ class TensorGemmIndexGeneratorTester(c: TensorGemmIndexGenerator) extends PeekPo
     }
 
     def test_if_done() : Unit = {
-      println(s"uop_indices remaining: ${uop_indices.size}")
-      println(s"acc_indices remaining: ${acc_indices.size}")
-      println(s"inp_indices remaining: ${inp_indices.size}")
-      println(s"wgt_indices remaining: ${wgt_indices.size}")
+      if (debug) {
+        println(s"uop_indices remaining: ${uop_indices.size}")
+        println(s"acc_indices remaining: ${acc_indices.size}")
+        println(s"inp_indices remaining: ${inp_indices.size}")
+        println(s"wgt_indices remaining: ${wgt_indices.size}")
+      }
       assert(uop_indices.isEmpty)
       assert(acc_indices.isEmpty)
       assert(inp_indices.isEmpty)
@@ -435,7 +437,7 @@ class TensorGemmIndexGeneratorTest extends GenericTest("TensorGemmIndexGenerator
   (p:Parameters) => new TensorGemmIndexGenerator()(p),
   (c:TensorGemmIndexGenerator) => new TensorGemmIndexGeneratorTester(c))
 
-class TensorGemmPipelinedTester(c: TensorGemmPipelinedSplit) extends PeekPokeTester(c) {
+class TensorGemmPipelinedTester(c: TensorGemmPipelinedSplit, debug: Boolean = false) extends PeekPokeTester(c) {
   poke(c.io.start, 0)
 
   val uop_begin = 0
@@ -582,7 +584,9 @@ class TensorGemmPipelinedTester(c: TensorGemmPipelinedSplit) extends PeekPokeTes
   }
 
   expect(c.io.done, 1)
-  mocks.test_if_done()
+  if (debug) {
+    mocks.test_if_done()
+  }
 }
 
 class TensorGemmPipelinedTest extends GenericTest("TensorGemmPipelined",

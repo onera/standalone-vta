@@ -9,6 +9,7 @@ import org.scalatest.Tag
 
 object UnitTests extends Tag("UnitTests")
 object FormalTests extends Tag("FormalTests")
+object LongTests extends Tag("LongTests")
 
 /**
  * VTA HARDWARE CONFIGURATION

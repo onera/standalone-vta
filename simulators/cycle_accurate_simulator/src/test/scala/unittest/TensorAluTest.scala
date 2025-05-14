@@ -28,7 +28,7 @@ import unittest.util._
 import vta.core._
 import vta.util.config._
 
-class TensorAluIndexGeneratorTester(c: TensorAluIndexGenerator, alu_use_imm : Int = 0) extends PeekPokeTester(c) {
+class TensorAluIndexGeneratorTester(c: TensorAluIndexGenerator, alu_use_imm : Int = 0, debug: Boolean = false) extends PeekPokeTester(c) {
 
 
   val uop_begin = 0
@@ -72,9 +72,11 @@ class TensorAluIndexGeneratorTester(c: TensorAluIndexGenerator, alu_use_imm : In
     }
 
     def test_if_done() : Unit = {
-      println(s"uop_indices remaining: ${uop_indices.size}")
-      println(s"dst_indices remaining: ${dst_indices.size}")
-      println(s"src_indices remaining: ${src_indices.size}")
+      if (debug) {
+        println(s"uop_indices remaining: ${uop_indices.size}")
+        println(s"dst_indices remaining: ${dst_indices.size}")
+        println(s"src_indices remaining: ${src_indices.size}")
+      }
       assert(uop_indices.isEmpty)
       assert(dst_indices.isEmpty)
       assert(src_indices.isEmpty)
@@ -114,7 +116,7 @@ class TensorAluIndexGenerator_0_Test extends GenericTest("TensorAluIndexGenerato
 class TensorAluIndexGenerator_1_Test extends GenericTest("TensorAluIndexGenerator_1", (p:Parameters) =>
   new TensorAluIndexGenerator()(p), (c:TensorAluIndexGenerator) => new TensorAluIndexGeneratorTester(c, 1))
 
-class TensorAluPipelinedTester(c: TensorAlu) extends PeekPokeTester(c) {
+class TensorAluPipelinedTester(c: TensorAlu, debug: Boolean = false) extends PeekPokeTester(c) {
   poke(c.io.start, 0)
 
   val uop_begin = 0
@@ -246,7 +248,9 @@ class TensorAluPipelinedTester(c: TensorAlu) extends PeekPokeTester(c) {
     count += 1
   }
   expect(c.io.done, 1)
-  mocks.test_if_done()
+  if (debug) {
+    mocks.test_if_done()
+  }
 }
 
 class TensorAluPipelinedTest extends GenericTest("TensorAluPipelined", (p:Parameters) =>

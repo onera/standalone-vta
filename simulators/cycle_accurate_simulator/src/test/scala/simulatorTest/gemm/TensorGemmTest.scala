@@ -1,4 +1,4 @@
-package simulator.gemm
+package simulatorTest.gemm
 
 import chisel3._
 import chisel3.util._
@@ -20,12 +20,15 @@ import unittest.{GenericTest, TensorGemmJsonTester}
  * with adaptation
  */
 
-class TensorGemmTest(c: TensorGemmPipelinedSplit, fn : String = "/x.json")
+class TensorGemmTest(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
+                     debug: Boolean = false)
   extends PeekPokeTester(c) {
 
   // Print the test name
-  print("TEST NAME: \n\t TensorGemmTester (take a JSON in input)\n")
-  print(s"\tJSON: ${fn} \n\n")
+  if(debug) {
+    print("TEST NAME: \n\t TensorGemmTester (take a JSON in input)\n")
+    print(s"\tJSON: ${fn} \n\n")
+  }
 
   // Read the JSON file
   val bufferedSource = Source.fromURL(getClass.getResource(fn))
@@ -110,43 +113,43 @@ class TensorGemmTest(c: TensorGemmPipelinedSplit, fn : String = "/x.json")
   val wgt_1 = BigInt(inst("wgt_1"), 16)
 
   // Read instructions
-  print("Read instructions: \n")
-
   // Reset signal
   poke(c.io.dec.reset, dec_reset)
-  print(s"\t RESET: ${peek(c.io.dec.reset)} \n")
-
   // UOP_BGN
   poke(c.io.dec.uop_begin, uop_begin)
-  print(s"\t UOP_BEGIN: ${peek(c.io.dec.uop_begin)} \n")
   // UOP_END
   poke(c.io.dec.uop_end, uop_end)
-  print(s"\t UOP_END: ${peek(c.io.dec.uop_end)} \n")
   // LOOP_EXTENT_0
   poke(c.io.dec.lp_0, lp_0)
-  print(s"\t LP_0: ${peek(c.io.dec.lp_0)} \n")
   // LOOP_EXTENT_1
   poke(c.io.dec.lp_1, lp_1)
-  print(s"\t LP_1: ${peek(c.io.dec.lp_1)} \n")
   // ACC_IDX_FACTOR_0 (X0)
   poke(c.io.dec.acc_0, acc_0)
-  print(s"\t ACC_0: ${peek(c.io.dec.acc_0)} \n")
   // ACC_IDX_FACTOR_1 (X1)
   poke(c.io.dec.acc_1, acc_1)
-  print(s"\t ACC_1: ${peek(c.io.dec.acc_1)} \n")
   // INP_IDX_FACTOR_0 (Y0)
   poke(c.io.dec.inp_0, inp_0)
-  print(s"\t INP_0: ${peek(c.io.dec.inp_0)} \n")
   // INP_IDX_FACTOR_1 (Y1)
   poke(c.io.dec.inp_1, inp_1)
-  print(s"\t INP_1: ${peek(c.io.dec.inp_1)} \n")
   // WGT_IDX_FACTOR_0 (Z0)
   poke(c.io.dec.wgt_0, wgt_0)
-  print(s"\t WGT_0: ${peek(c.io.dec.wgt_0)} \n")
   // WGT_IDX_FACTOR_1 (Z1)
   poke(c.io.dec.wgt_1, wgt_1)
-  print(s"\t WGT_1: ${peek(c.io.dec.wgt_1)} \n\n")
-  // Don't need empty_0,{push,pop}_{next,prev},op
+
+  if (debug) {
+    print("Read instructions: \n")
+    print(s"\t RESET: ${peek(c.io.dec.reset)} \n")
+    print(s"\t UOP_BEGIN: ${peek(c.io.dec.uop_begin)} \n")
+    print(s"\t UOP_END: ${peek(c.io.dec.uop_end)} \n")
+    print(s"\t LP_0: ${peek(c.io.dec.lp_0)} \n")
+    print(s"\t LP_1: ${peek(c.io.dec.lp_1)} \n")
+    print(s"\t ACC_0: ${peek(c.io.dec.acc_0)} \n")
+    print(s"\t ACC_1: ${peek(c.io.dec.acc_1)} \n")
+    print(s"\t INP_0: ${peek(c.io.dec.inp_0)} \n")
+    print(s"\t INP_1: ${peek(c.io.dec.inp_1)} \n")
+    print(s"\t WGT_0: ${peek(c.io.dec.wgt_0)} \n")
+    print(s"\t WGT_1: ${peek(c.io.dec.wgt_1)} \n\n")
+  }
 
 
   // Read scratchpad
@@ -240,24 +243,30 @@ class TensorGemmTest(c: TensorGemmPipelinedSplit, fn : String = "/x.json")
       }
       if (peek(c.io.inp.rd(0).idx.valid) == 1) {
         expect(c.io.inp.rd(0).idx.bits, inp_indices.dequeue())
-        // Print INPUT vector
-        print(s"\n\nThe input vector (offset: ${peek(c.io.inp.rd(0).idx.bits)}): \n")
-        print_scratchpad(inp_scratchpad, peek(c.io.inp.rd(0).idx.bits), "INP")
+        if (debug) {
+          // Print INPUT vector
+          print(s"\n\nThe input vector (offset: ${peek(c.io.inp.rd(0).idx.bits)}): \n")
+          print_scratchpad(inp_scratchpad, peek(c.io.inp.rd(0).idx.bits), "INP")
+        }
       }
       if (peek(c.io.wgt.rd(0).idx.valid) == 1) {
         expect(c.io.wgt.rd(0).idx.bits, wgt_indices.dequeue())
-        // Print WEIGHT tensor
-        print(s"\n\nThe weight tensor (offset: ${peek(c.io.wgt.rd(0).idx.bits)}): \n")
-        print_scratchpad(wgt_scratchpad, peek(c.io.wgt.rd(0).idx.bits), "WGT")
+        if (debug) {
+          // Print WEIGHT tensor
+          print(s"\n\nThe weight tensor (offset: ${peek(c.io.wgt.rd(0).idx.bits)}): \n")
+          print_scratchpad(wgt_scratchpad, peek(c.io.wgt.rd(0).idx.bits), "WGT")
+        }
       }
       if (peek(c.io.acc.wr(0).valid) == 1) {
         expect(c.io.acc.wr(0).bits.idx, accout_indices.dequeue())
       }
       if (peek(c.io.out.wr(0).valid) == 1) {
         expect(c.io.out.wr(0).bits.idx, out_indices.dequeue())
-        // Print the result
-        print(s"\n\nThe output vector (offset: ${peek(c.io.out.wr(0).bits.idx)}): \n") // Call acc and not out (???)
-        print_scratchpad(acc_scratchpad, peek(c.io.out.wr(0).bits.idx), "ACC")
+        if (debug) {
+          // Print the result
+          print(s"\n\nThe output vector (offset: ${peek(c.io.out.wr(0).bits.idx)}): \n") // Call acc and not out (???)
+          print_scratchpad(acc_scratchpad, peek(c.io.out.wr(0).bits.idx), "ACC")
+        }
       }
     }
 
@@ -318,10 +327,9 @@ class TensorGemmTest(c: TensorGemmPipelinedSplit, fn : String = "/x.json")
   // Count time to complete execuion
   var count = 0
   while (peek(c.io.done) == 0 && count < max_count) {
-    print(s"DEBUG: Logical step: counter = $count \n")
-//    if (count % 100 == 0) {
-//      print(s"DEBUG: logical_step $count")
-//    }
+    if (debug) {
+      print(s"DEBUG: Logical step: counter = $count \n")
+    }
     mocks.logical_step()
     if (count == 0) {
       poke(c.io.start, 0)
@@ -331,22 +339,26 @@ class TensorGemmTest(c: TensorGemmPipelinedSplit, fn : String = "/x.json")
 
   // Execution is done
   assert(peek(c.io.done) == 1, s"Signal done never high even after $count steps.")
-  print(s"DEBUG: Signal done high after $count steps. \n")
+  if (debug) {
+    print(s"DEBUG: Signal done high after $count steps. \n")
+  }
 
   // Reset signals (?)
   mocks.logical_step()
   expect(c.io.done, 0)
 
-  print(s"DEBUG: Total active steps: ${total_steps} \n")
-  mocks.test_if_done()
+  if (debug) {
+    print(s"DEBUG: Total active steps: ${total_steps} \n")
+    mocks.test_if_done()
+  }
 
   // Assertion (acc_o is the reference!)
   val cc = mocks.check()
-//  println(s"Checking acc with acc_o ${cc}\n")
-//  assert(cc)
 
-  // Everything is okay
-  print("\n\t MATCH EXPECTATON! \n\n")
+  if (debug) {
+    // Everything is okay
+    print("\n\t MATCH EXPECTATON! \n\n")
+  }
 }
 
 

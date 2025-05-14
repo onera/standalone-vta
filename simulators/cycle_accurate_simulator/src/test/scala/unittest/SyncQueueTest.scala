@@ -28,57 +28,72 @@ import unittest.util._
 import vta.util._
 import vta.util.config._
 
-class TestOnePortMem(c: OnePortMem[UInt]) extends PeekPokeTester(c) {
+class TestOnePortMem(c: OnePortMem[UInt], debug: Boolean = false) extends PeekPokeTester(c) {
 
   // write a:0 d:24
-  println("-----------------------------")
-  println("Cycle 0 write 24 to address 0")
+  if (debug) {
+    println("-----------------------------")
+    println("Cycle 0 write 24 to address 0")
+  }
   poke (c.io.wr_en, 1)
   poke (c.io.wr_data, 24)
   poke (c.io.ch_en, 1)
   poke (c.io.addr, 0)
   step(1)
-  println("-----------------------------")
   // read a:0
-  println("Cycle 1 read address 0")
+  if (debug) {
+    println("-----------------------------")
+    println("Cycle 1 read address 0")
+  }
   poke (c.io.wr_en, 0)
   poke (c.io.addr, 0)
   poke (c.io.ch_en, 1)
   step(1)
-  println("-----------------------------")
   // write a:1 d:99
-  println("Cycle 2 write 99 to address 1")
+  if (debug) {
+    println("-----------------------------")
+    println("Cycle 2 write 99 to address 1")
+  }
   poke (c.io.wr_en, 1)
   poke (c.io.wr_data, 99)
   poke (c.io.ch_en, 1)
   poke (c.io.addr, 1)
   // read d:24
-  println("Cycle 2 read expect data 24")
+  if (debug) {
+    println("Cycle 2 read expect data 24")
+  }
   expect (c.io.rd_data, 24)
   step(1)
-  println("-----------------------------")
-  println("Cycle 3 should still read data 24")
+  if (debug) {
+    println("-----------------------------")
+    println("Cycle 3 should still read data 24")
+  }
   poke (c.io.ch_en, 0)
   // read d:24
   expect (c.io.rd_data, 24)
   step(1)
-  println("-----------------------------")
-  println("Cycle 4 read address 0")
+  if (debug) {
+    println("-----------------------------")
+    println("Cycle 4 read address 0")
+  }
   poke (c.io.wr_en, 0)
   poke (c.io.addr, 0)
   poke (c.io.ch_en, 1)
   step(1)
-  println("-----------------------------")
+  if (debug) {
+    println("-----------------------------")
+  }
   // write a:1 d:99
   poke (c.io.wr_en, 0)
   poke (c.io.wr_data, 99)
   poke (c.io.ch_en, 0)
   poke (c.io.addr, 1)
   // read d:24
-  println("Cycle 5 read expect data 24")
+  if (debug) {
+    println("Cycle 5 read expect data 24")
+  }
   expect (c.io.rd_data, 24)
   step(1)
-  println("-----------------------------")
 }
 class Checker(c: SyncQueueTestWrapper[UInt], t: PeekPokeTester[SyncQueueTestWrapper[UInt]]) {
 

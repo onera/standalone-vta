@@ -15,6 +15,7 @@ from structures_insn_uop import *
 output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'compiler_output')
 file_uop_path = os.path.join(output_dir, "uop.bin")
 file_insn_path = os.path.join(output_dir, "instructions.bin")
+memory_addresses_insn_path = os.path.join(output_dir, "memory_addresses_insn.txt")
 
 # Create the path if it does not exist
 def create_output_directory(path):
@@ -471,3 +472,4 @@ for insn in insn_buffer:
     print(f"\nI{i}:")
     print_hex_128bit(insn)
     i = i + 1
+    

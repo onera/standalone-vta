@@ -2,6 +2,7 @@
 # ---------------
 import os
 import sys
+import csv
 import importlib
 import numpy as np
 import matrix_generator as MG
@@ -70,15 +71,34 @@ def main(config_file):
     if (config.doAvgPool):
         if (config.isInitRandom):
             ACC_pooled_ref, in_tensor, out_tensor = AP.reference_average_pooling(ACC_matrix, config.Avg_kernel, config.Avg_stride)
+            ACC_pooled_sram, _, _ = AP.avg_pool_sram(ACC_matrix, config.Avg_kernel, config.Avg_stride)
         else:
             ACC_pooled_ref, in_tensor, out_tensor = AP.reference_average_pooling(X_padded, config.Avg_kernel, config.Avg_stride)
+            ACC_pooled_sram, _, _ = AP.avg_pool_sram(X_padded, config.Avg_kernel, config.Avg_stride)
 
         # Write the result
         ACC_pooled = MG.matrix_padding(matrix=ACC_pooled_ref, block_size=config.block_size, isWeight=False, isSquare=config.isSquare)
         C_pooled = MM.truncate_to_int8(ACC_pooled)
+        ACC_pooled_sram2 = MG.matrix_padding(matrix=ACC_pooled_sram, block_size=config.block_size, isWeight=False, isSquare=config.isSquare)
+        C_pooled_sram = MM.truncate_to_int8(ACC_pooled_sram2)
 
         # Overwrite the result
         C_blocks, _ = MS.matrix_splitting(matrix=C_pooled, block_size=config.block_size, isWeight=False, isSquare=config.isSquare)
+        C_blocks_sram, _ = MS.matrix_splitting(matrix=C_pooled_sram, block_size=config.block_size, isWeight=False, isSquare=config.isSquare)
+
+    C_empty = MG.matrix_creation(n_row=C_padded.shape[0], n_col=C_padded.shape[1], isInitRandom=False, dtype=np.int8)
+
+    # Compute memory addresses for data
+
+    object_info = [(A_padded.shape[0] * A_blocks_col * 16, 16),      # INP
+                   (B_padded.shape[0] * B_blocks_col * 16, 256),     # WGT
+                   ((C_pooled if config.doAvgPool else C_padded).shape[0] * C_blocks_col * 16, 16),      # OUT
+                   (20 * 4, 4),                                      # UOP - 20 chosen arbitrarily as number of UOPs rarely exceeds 10
+                   (X_padded.shape[0] * X_blocks_col * 64, 64)]      # ACC     
+
+
+    memory_addresses = MA.memory_base_address(object_info)
+
 
     # Write binary files
     if (config.doWriteBinaryFile):
@@ -87,7 +107,29 @@ def main(config_file):
         B_blocks_file_path = os.path.join(output_dir, 'weight.bin')
         X_blocks_file_path = os.path.join(output_dir, 'accumulator.bin')
         C_padded_file_path = os.path.join(output_dir, 'expected_out.bin')
-
+        C_padded_sram_file_path = os.path.join(output_dir, 'expected_out_sram.bin')
+        C_empty_file_path = os.path.join(output_dir, 'out.bin')
+        memory_addresses_data_file_path = os.path.join(output_dir, 'memory_addresses.csv')
+        
+        alloc_names = {
+            'Alloc1': 'inp',
+            'Alloc2': 'wgt',
+            'Alloc3': 'out',
+            'Alloc4': 'uop',
+            'Alloc5': 'acc'}
+        
+        # Write memory addresses
+        with open(memory_addresses_data_file_path, 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            for ligne in memory_addresses:
+                if alloc_names[ligne['object']] in ['inp', 'wgt', 'out']:
+                    writer.writerow([alloc_names[ligne['object']], '0x0000'])
+                else:
+                    writer.writerow([alloc_names[ligne['object']], ligne['phys_hex']])
+        
+        # Write C empty matrix
+        C_empty.tofile(C_empty_file_path)
+        
         # Write A_block matrix
         with open(A_blocks_file_path, 'wb') as f:
             for block in A_blocks:
@@ -105,7 +147,15 @@ def main(config_file):
                 block.tofile(f)
         
         # Write C_padded (expected result)
-        C_padded.tofile(C_padded_file_path)
+        with open(C_padded_file_path, 'wb') as f:
+            for block in C_blocks:
+                block.tofile(f)
+                
+        # Write C_padded_sram (expected result with all vectors for average pooling comparison)
+        if (config.doAvgPool):
+            with open(C_padded_sram_file_path, 'wb') as f:
+                for block in C_blocks_sram:
+                    block.tofile(f)
 
         # Confirm the binary files generation
         print("\nBinary files successfully generated.\n")
@@ -199,7 +249,6 @@ def main(config_file):
         print("\n\n DRAM 'physical' VTA ADDRESSES:")
         for addr in vta_addr:
             print(addr)
-
     # End of the execution
     return 0
 
