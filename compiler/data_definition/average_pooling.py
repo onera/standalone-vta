@@ -57,8 +57,9 @@ def reference_average_pooling(matrix, kernel_size=2, stride=2, debug=False):
 
 def avg_pool_sram(matrix, kernel_size=2, stride=2, debug=False):
     # Get the height (H) and width (W) of the input matrix
-    pooled_matrix = matrix.copy()
-    H, W = pooled_matrix.shape
+    H, W = matrix.shape
+
+    pooled_matrix = np.zeros((H, W), dtype=np.int32)
 
     # Compute the size of the square channel tensor (sqrt(H))
     channel_size = int(np.sqrt(H))  # Each column will be reshaped into channel_size x channel_size
@@ -68,11 +69,15 @@ def avg_pool_sram(matrix, kernel_size=2, stride=2, debug=False):
 
     # Add 2 by 2
     for idx in range(0, H, 2):
-        pooled_matrix[idx] = pooled_matrix[idx, :] + pooled_matrix[idx+1, :]
+        pooled_matrix[idx] = matrix[idx, :] + matrix[idx+1, :]
 
     # Add line + shift right
     for i in range(0, channel_size - kernel_size + 1, stride): # Row
         for k in range(0, channel_size - kernel_size + 1, stride): # Col
+            print((i+1)*channel_size + k)
+            print("\n")
+            print(i*channel_size + k)
+            print("\n\n")
             pooled_matrix[i*channel_size + k] = np.floor( (pooled_matrix[i*channel_size + k, :] + pooled_matrix[(i+1)*channel_size + k, :])/(kernel_size**2) )
 
     return pooled_matrix, channel_size, pooled_height
