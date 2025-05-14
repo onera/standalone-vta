@@ -151,10 +151,11 @@ def main(config_file):
             for block in C_blocks:
                 block.tofile(f)
                 
-        # Write C_padded_sram (expected result with all vectors)
-        with open(C_padded_sram_file_path, 'wb') as f:
-            for block in C_blocks_sram:
-                block.tofile(f)
+        # Write C_padded_sram (expected result with all vectors for average pooling comparison)
+        if (config.doAvgPool):
+            with open(C_padded_sram_file_path, 'wb') as f:
+                for block in C_blocks_sram:
+                    block.tofile(f)
 
         # Confirm the binary files generation
         print("\nBinary files successfully generated.\n")

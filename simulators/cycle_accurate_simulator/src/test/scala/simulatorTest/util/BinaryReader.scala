@@ -97,18 +97,35 @@ object BinaryReader {
    * @param filePath the path to the resource CSV file
    * @return a Map[String, String] of the data type and its base address
    */
-  def readBaseAddresses(filePath: String): Try[Map[String, String]] = {
+  def readBaseAddresses(filePath: String): Try[String] = {
     Try {
       val inputStreamFile = new FileInputStream(getClass.getClassLoader.getResource(filePath).getFile)
       val fileContent = scala.io.Source.fromInputStream(inputStreamFile, "UTF-8").mkString
       inputStreamFile.close()
+      fileContent
+//      fileContent.split("\n").map { ligne =>
+//        val tableau = ligne.split(",")
+//        (tableau(0), tableau(1).trim
+//                               .replaceAll("\n", "")
+//                               .replaceAll("\r", ""))
+//      }.toMap
+    }
+  }
 
-      fileContent.split("\n").map { ligne =>
-        val tableau = ligne.split(",")
-        (tableau(0), tableau(1).trim
-                               .replaceAll("\n", "")
-                               .replaceAll("\r", ""))
-      }.toMap
+  def computeBaseAddresses(filePath: String): Map[String, String] = {
+    val fileContent = readBaseAddresses(filePath)
+    fileContent match {
+      case Success(data) =>
+        data.split("\n").map { ligne =>
+          val tableau = ligne.split(",")
+          (tableau(0), tableau(1).trim
+                                 .replaceAll("\n", "")
+                                 .replaceAll("\r", "")
+                                 .replaceAll("0x", "0000"))
+        }.toMap
+      case Failure(exception) =>
+        println(s"Error while grouping data (if reversal) : ${exception.getMessage}")
+        Map.empty
     }
   }
 

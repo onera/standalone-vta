@@ -1539,20 +1539,15 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
 
   /* Decoding CSV file for the base memory addresses */
   it should "decode the content of the csv file" in {
-    val baseAddresses = readBaseAddresses("examples_compute/lenet5_conv1/memory_addresses.csv")
-    baseAddresses match {
-      case Success(data) =>
+    val baseAddresses = computeBaseAddresses("examples_compute/lenet5_conv1/memory_addresses.csv")
 //        data.foreach { case (key, value) =>
 //          println(s"Clé: $key | Valeur: $value")
 //        }
-        data("inp") should equal("0x0000")
-        data("wgt") should equal("0x0000")
-        data("out") should equal("0x0000")
-        data("uop") should equal("0xd000")
-        data("acc") should equal("0xe000")
-      case Failure(exception) =>
-        fail(s"Error while reading CSV file : ${exception.getMessage}")
-    }
+    baseAddresses("inp") should equal("00000000")
+    baseAddresses("wgt") should equal("00000000")
+    baseAddresses("out") should equal("00000000")
+    baseAddresses("uop") should equal("0000d000")
+    baseAddresses("acc") should equal("0000e000")
   }
 
   //  it should "print the data of 32x32_relu" in {

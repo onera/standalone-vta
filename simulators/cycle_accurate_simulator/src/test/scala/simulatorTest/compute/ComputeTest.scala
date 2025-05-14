@@ -3,7 +3,7 @@ package simulatorTest.compute
 import chisel3._
 import chiseltest.iotesters._
 import simulatorTest.util.BinaryReader
-import simulatorTest.util.BinaryReader.{DataType, readBaseAddresses}
+import simulatorTest.util.BinaryReader.{DataType, computeBaseAddresses, readBaseAddresses}
 import simulatorTest.util.BinaryReader.DataType._
 import unittest.GenericTest
 import vta.core.ISA.{FNSH, GEMM, LACC, LINP, LUOP, LWGT, SOUT, VADD, VMAX, VMIN, VSHX}
@@ -407,17 +407,16 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
 
   /* BEGIN USER CUSTOMABLE SECTION */
   // Build memory
-  val base_addr = readBaseAddresses(base_addresses)
+  val base_addr = computeBaseAddresses(base_addresses)
 
   val dram_scratchpad =
-    build_scratchpad_binary(acc, DataType.ACC, "0000e000", isDRAM = true) ++
-      build_scratchpad_binary(uop, DataType.UOP, "0000d000", isDRAM = true)
-
+    build_scratchpad_binary(acc, DataType.ACC, base_addr("acc"), isDRAM = true) ++
+      build_scratchpad_binary(uop, DataType.UOP, base_addr("uop"), isDRAM = true)
   // base address is zero because we are storing the values directly in the INP buffer
-  val inp_scratchpad = build_scratchpad_binary(input, DataType.INP, "00000000", isDRAM = false)
-  val wgt_scratchpad = build_scratchpad_binary(weight, DataType.WGT, "00000000", isDRAM = false)
-  val out_scratchpad = build_scratchpad_binary(out, DataType.OUT, "00000000", isDRAM = false)
-  val out_expect_scratchpad = build_scratchpad_binary(expected_out, DataType.OUT, "00000000", isDRAM = false)
+  val inp_scratchpad = build_scratchpad_binary(input, DataType.INP, base_addr("inp"), isDRAM = false)
+  val wgt_scratchpad = build_scratchpad_binary(weight, DataType.WGT, base_addr("wgt"), isDRAM = false)
+  val out_scratchpad = build_scratchpad_binary(out, DataType.OUT, base_addr("out"), isDRAM = false)
+  val out_expect_scratchpad = build_scratchpad_binary(expected_out, DataType.OUT, base_addr("out"), isDRAM = false) // FIXME: adresse différente ?
 
   // Create the mocks
   val mocks = new Mocks
@@ -523,6 +522,7 @@ class ComputeApp_smm extends GenericTest("ComputeApp_smm", (p:Parameters) =>
   "examples_compute/smm/out.bin",
   "examples_compute/smm/accumulator.bin",
   "examples_compute/smm/expected_out.bin",
+  "examples_compute/smm/memory_addresses.csv",
   true))
 
 /* Matrix 16x16 multiply with matrix 16x16 */
@@ -535,6 +535,7 @@ class ComputeApp_16x16 extends GenericTest("ComputeApp_16x16", (p:Parameters) =>
   "examples_compute/16x16/out.bin",
   "examples_compute/16x16/accumulator.bin",
   "examples_compute/16x16/expected_out.bin",
+  "examples_compute/16x16/memory_addresses.csv",
   true))
 
 /* Matrix 32x32 multiply with matrix 32x32 */
@@ -547,6 +548,7 @@ class ComputeApp_32x32 extends GenericTest("ComputeApp_32x32", (p:Parameters) =>
   "examples_compute/32x32/out.bin",
   "examples_compute/32x32/accumulator.bin",
   "examples_compute/32x32/expected_out.bin",
+  "examples_compute/32x32/memory_addresses.csv",
   true))
 
 
@@ -580,6 +582,7 @@ class ComputeApp_relu extends GenericTest("ComputeApp_relu", (p:Parameters) =>
   "examples_compute/relu/out.bin",
   "examples_compute/relu/accumulator.bin",
   "examples_compute/relu/expected_out.bin",
+  "examples_compute/relu/memory_addresses.csv",
   true))
 
 /* Matrix 16x16 multiply with matrix 16x16 followed by a ReLU (MAX with 0) */
@@ -592,6 +595,7 @@ class ComputeApp_16x16_relu extends GenericTest("ComputeApp_16x16_relu", (p:Para
   "examples_compute/16x16_relu/out.bin",
   "examples_compute/16x16_relu/accumulator.bin",
   "examples_compute/16x16_relu/expected_out.bin",
+  "examples_compute/16x16_relu/memory_addresses.csv",
   true))
 
 /* Matrix 32x32 multiply with matrix 32x32 followed by a ReLU (MAX with 0) */
@@ -604,6 +608,7 @@ class ComputeApp_32x32_relu extends GenericTest("ComputeApp_32x32_relu", (p:Para
   "examples_compute/32x32_relu/out.bin",
   "examples_compute/32x32_relu/accumulator.bin",
   "examples_compute/32x32_relu/expected_out.bin",
+  "examples_compute/32x32_relu/memory_addresses.csv",
   true))
 
 ///* Average pooling (first part - add only) */
@@ -619,7 +624,8 @@ class ComputeApp_average_pooling extends GenericTest("ComputeApp_average_pooling
   "examples_compute/average_pooling/weight.bin",
   "examples_compute/average_pooling/out.bin",
   "examples_compute/average_pooling/accumulator.bin",
-  "examples_compute/average_pooling/expected_out.bin",
+  "examples_compute/average_pooling/expected_out_sram.bin",
+  "examples_compute/average_pooling/memory_addresses.csv",
   true, true))
 
 //* CONVOLUTIONAL NEURAL NETWORK:
@@ -633,6 +639,7 @@ class ComputeApp_lenet5_conv1 extends GenericTest("ComputeApp_lenet5_conv1", (p:
   "examples_compute/lenet5_conv1/out.bin",
   "examples_compute/lenet5_conv1/accumulator.bin",
   "examples_compute/lenet5_conv1/expected_out.bin",
+  "examples_compute/lenet5_conv1/memory_addresses.csv",
   true))
 
 /* LeNet-5: Conv1 + ReLU */
@@ -645,6 +652,7 @@ class ComputeApp_lenet5_conv1_relu extends GenericTest("ComputeApp_lenet5_conv1_
   "examples_compute/lenet5_conv1_relu/out.bin",
   "examples_compute/lenet5_conv1_relu/accumulator.bin",
   "examples_compute/lenet5_conv1_relu/expected_out.bin",
+  "examples_compute/lenet5_conv1_relu/memory_addresses.csv",
   true))
 
 /* LeNet-5: Conv1 + ReLU + Average Pooling */
@@ -656,5 +664,6 @@ class ComputeApp_lenet5_layer1 extends GenericTest("ComputeApp_lenet5_layer1", (
   "examples_compute/lenet5_layer1/weight.bin",
   "examples_compute/lenet5_layer1/out.bin",
   "examples_compute/lenet5_layer1/accumulator.bin",
-  "examples_compute/lenet5_layer1/expected_out.bin",
-  false, true))
+  "examples_compute/lenet5_layer1/expected_out_sram.bin",
+  "examples_compute/lenet5_layer1/memory_addresses.csv",
+  true, true))
