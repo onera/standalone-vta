@@ -19,7 +19,7 @@ import scala.math.pow
  *
  * @param c The hardware description of the MVM
  */
-class MVM_simple_matrix_multiply(c: MatrixVectorMultiplication) extends PeekPokeTester(c) {
+class MVM_simple_matrix_multiply(c: MatrixVectorMultiplication, debug: Boolean = false) extends PeekPokeTester(c) {
 
   /* mvm_ref
    *
@@ -41,8 +41,10 @@ class MVM_simple_matrix_multiply(c: MatrixVectorMultiplication) extends PeekPoke
     res
   }
 
-  // Print the test name
-  println("TEST NAME: \n\t MVM_simple_matrix_multiply (b1_c1h1w16_c1h1w16)\n")
+  if (debug) {
+    // Print the test name
+    println("TEST NAME: \n\t MVM_simple_matrix_multiply (b1_c1h1w16_c1h1w16)\n")
+  }
 
   // Generate data based on bits
   val in_a = Array(2, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
@@ -106,18 +108,20 @@ class MVM_simple_matrix_multiply(c: MatrixVectorMultiplication) extends PeekPoke
     step(1) // advance clock
   }
 
-  // Print INPUT vector
-  println("The input vector (INP with mask):")
-  print(s"${peek(c.io.inp.data.bits(0))} \n\n")
-  // Print WEIGHT tensor
-  println("The weight tensor (WGT with mask):")
-  for (i <- 0 until c.size) {
-    print(s"${peek(c.io.wgt.data.bits(i))} \n")
+  if (debug) {
+    // Print INPUT vector
+    println("The input vector (INP with mask):")
+    print(s"${peek(c.io.inp.data.bits(0))} \n\n")
+    // Print WEIGHT tensor
+    println("The weight tensor (WGT with mask):")
+    for (i <- 0 until c.size) {
+      print(s"${peek(c.io.wgt.data.bits(i))} \n")
+    }
+    print("\n")
+    // Print the result from MatrixVectorMultiplication
+    println("The output vector (OUT with mask):")
+    print(s"${peek(c.io.acc_o.data.bits(0))} \n\n")
   }
-  print("\n")
-  // Print the result from MatrixVectorMultiplication
-  println("The output vector (OUT with mask):")
-  print(s"${peek(c.io.acc_o.data.bits(0))} \n\n")
 
   // Assertion
   if (peek(c.io.acc_o.data.valid) == BigInt(1)) {
@@ -125,8 +129,10 @@ class MVM_simple_matrix_multiply(c: MatrixVectorMultiplication) extends PeekPoke
       expect(c.io.acc_o.data.bits(0)(i), res(i) & accMask)
     }
   }
-  // Everything is okay
-  print("\t MATCH EXPECTATON! \n\n")
+  if (debug) {
+    // Everything is okay
+    print("\t MATCH EXPECTATION! \n\n")
+  }
 }
 
 

@@ -170,7 +170,7 @@ class DotProductFormalSpec_Decomposed(makeDut: => DotProduct) extends Module {
  * Execute Formal test
  */
 class DotProductFormalTester extends AnyFlatSpec with ChiselScalatestTester with Formal {
-  "DotProduct" should "pass formal properties" taggedAs(FormalTests) in {
+  "DotProduct" should "pass formal properties" taggedAs(LongTests) in {
     verify(new DotProductFormalSpec(new DotProduct), Seq(BoundedCheck(5), WriteVcdAnnotation))
   }
   "DotProduct" should "pass decomposed formal properties" taggedAs(FormalTests) in {

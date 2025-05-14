@@ -20,12 +20,15 @@ import vta.core.MAC
  */
 class MacTest extends AnyFlatSpec with ChiselScalatestTester {
   behavior of "MAC"
+  val debug: Boolean = false
 
   // Functional tests
   it should "accumulate correctly when enabled" taggedAs(UnitTests) in {
     test(new MAC(8, 8, 16, true)).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
       // Test A => 2 * 3 = 6
-      print("\t Test A -> 2 * 3 = 6")
+      if (debug) {
+        print("\t Test A -> 2 * 3 = 6")
+      }
       dut.io.a.poke(2.S)
       dut.io.b.poke(3.S)
       dut.io.c.poke(0.S)
@@ -33,7 +36,9 @@ class MacTest extends AnyFlatSpec with ChiselScalatestTester {
       dut.io.y.expect(6.S)  // Expected
 
       // Test B => 6 + (4 * 5) = 26
-      print("\n\n\t Test B -> 6 + (4 * 5) = 26")
+      if (debug) {
+        print("\n\n\t Test B -> 6 + (4 * 5) = 26")
+      }
       dut.io.a.poke(4.S)
       dut.io.b.poke(5.S)
       dut.io.c.poke(6.S)
@@ -41,7 +46,9 @@ class MacTest extends AnyFlatSpec with ChiselScalatestTester {
       dut.io.y.expect(26.S)  // Expected
 
       // Test C => reset and compute (-1 * 5) - 2 = -7
-      print("\n\n\t Test C -> reset and compute 3 * 5 = 15 -> reset do nothing...")
+      if (debug) {
+        print("\n\n\t Test C -> reset and compute 3 * 5 = 15 -> reset do nothing...")
+      }
       dut.reset.poke(true.B)
       dut.io.a.poke(-1.S)
       dut.io.b.poke(5.S)
