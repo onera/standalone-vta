@@ -1,6 +1,7 @@
 package simulatorTest.util
 
-import java.io.FileInputStream
+import java.io.{FileInputStream, InputStream}
+import scala.io.Source
 import scala.util.{Failure, Success, Try}
 
 object BinaryReader {
@@ -28,14 +29,21 @@ object BinaryReader {
    * @param filePath the path to the resource file
    * @return an Array[Byte] of all the bytes inside the file
    */
-  def readBinaryFile(filePath: String): Try[Array[Byte]] = {
+  def readBinaryFile(filePath: String, fromResources: Boolean): Try[Array[Byte]] = {
     Try {
-      val inputStreamFile = new FileInputStream(getClass.getClassLoader.getResource(filePath).getFile)
-      val fileSize = inputStreamFile.available()
+      val inputStream: InputStream = {
+        if (fromResources) {
+          getClass.getClassLoader.getResourceAsStream(filePath)
+        }
+        else {
+          new FileInputStream(filePath)
+        }
+      }
+      val fileSize = inputStream.available()
       val fileContent = new Array[Byte](fileSize)
 
-      inputStreamFile.read(fileContent)
-      inputStreamFile.close()
+      inputStream.read(fileContent)
+      inputStream.close()
       fileContent
     }
   }
@@ -45,7 +53,7 @@ object BinaryReader {
    * @param filePath the path to the resource file
    */
   def printBytes(filePath: String): Unit = {
-    readBinaryFile(filePath) match {
+    readBinaryFile(filePath, fromResources = true) match {
       case Success(fileContent) =>
         // Print in decimals
         fileContent.foreach(octet => print(s"$octet, "))
@@ -138,7 +146,7 @@ object BinaryReader {
    */
   def computeAddresses(filePath: String, dataType: DataTypeValue, baseAddress: String, isDRAM: Boolean): Try[Map[BigInt, Array[BigInt]]] = {
     val groupedBinaryData =
-      readBinaryFile(filePath) match {
+      readBinaryFile(filePath, fromResources = true) match {
         case Success(fileContent) =>
           Success(reverseLE(fileContent, dataType)) // Bytes are extracted (and reversed depending on data type) from binary file
         case Failure(exception) =>
