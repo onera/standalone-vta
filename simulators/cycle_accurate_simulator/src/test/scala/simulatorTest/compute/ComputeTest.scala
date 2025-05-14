@@ -626,7 +626,7 @@ class ComputeApp_average_pooling extends GenericTest("ComputeApp_average_pooling
   "examples_compute/average_pooling/accumulator.bin",
   "examples_compute/average_pooling/expected_out_sram.bin",
   "examples_compute/average_pooling/memory_addresses.csv",
-  true, true))
+  true, false))
 
 //* CONVOLUTIONAL NEURAL NETWORK:
 /* LeNet-5: Convolution 1 */
@@ -640,7 +640,8 @@ class ComputeApp_lenet5_conv1 extends GenericTest("ComputeApp_lenet5_conv1", (p:
   "examples_compute/lenet5_conv1/accumulator.bin",
   "examples_compute/lenet5_conv1/expected_out.bin",
   "examples_compute/lenet5_conv1/memory_addresses.csv",
-  true))
+  true),
+  true)
 
 /* LeNet-5: Conv1 + ReLU */
 class ComputeApp_lenet5_conv1_relu extends GenericTest("ComputeApp_lenet5_conv1_relu", (p:Parameters) =>
@@ -653,7 +654,8 @@ class ComputeApp_lenet5_conv1_relu extends GenericTest("ComputeApp_lenet5_conv1_
   "examples_compute/lenet5_conv1_relu/accumulator.bin",
   "examples_compute/lenet5_conv1_relu/expected_out.bin",
   "examples_compute/lenet5_conv1_relu/memory_addresses.csv",
-  true))
+  true),
+  true)
 
 /* LeNet-5: Conv1 + ReLU + Average Pooling */
 class ComputeApp_lenet5_layer1 extends GenericTest("ComputeApp_lenet5_layer1", (p:Parameters) =>
@@ -666,4 +668,5 @@ class ComputeApp_lenet5_layer1 extends GenericTest("ComputeApp_lenet5_layer1", (
   "examples_compute/lenet5_layer1/accumulator.bin",
   "examples_compute/lenet5_layer1/expected_out_sram.bin",
   "examples_compute/lenet5_layer1/memory_addresses.csv",
-  true, true))
+  true, false),
+  true)
