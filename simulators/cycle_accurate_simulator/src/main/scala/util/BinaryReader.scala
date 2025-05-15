@@ -1,7 +1,6 @@
-package simulatorTest.util
+package util
 
 import java.io.{FileInputStream, InputStream}
-import scala.io.Source
 import scala.util.{Failure, Success, Try}
 
 object BinaryReader {
@@ -27,6 +26,7 @@ object BinaryReader {
   /**
    * Open and read the binary file, write the data in an Array[Byte]
    * @param filePath the path to the resource file
+   * @param fromResources boolean that is true if the files are in a Resources folder, false otherwise
    * @return an Array[Byte] of all the bytes inside the file
    */
   def readBinaryFile(filePath: String, fromResources: Boolean): Try[Array[Byte]] = {
@@ -101,27 +101,35 @@ object BinaryReader {
   }
 
   /**
-   * Reads the base memory addresses of the data and UOP inside a .csv file and returns a Map that associates the data type and its base address
-   * @param filePath the path to the resource CSV file
-   * @return a Map[String, String] of the data type and its base address
+   * Reads the content of a CSV file and returns it
+   * @param filePath the path to the CSV file
+   * @param fromResources boolean that is true if the files are in a Resources folder, false otherwise
+   * @return a String with the content of the file
    */
-  def readBaseAddresses(filePath: String): Try[String] = {
+  def readBaseAddresses(filePath: String, fromResources: Boolean): Try[String] = {
     Try {
-      val inputStreamFile = new FileInputStream(getClass.getClassLoader.getResource(filePath).getFile)
-      val fileContent = scala.io.Source.fromInputStream(inputStreamFile, "UTF-8").mkString
-      inputStreamFile.close()
+      val inputStream: InputStream = {
+        if (fromResources) {
+          getClass.getClassLoader.getResourceAsStream(filePath)
+        }
+        else {
+          new FileInputStream(filePath)
+        }
+      }
+      val fileContent = scala.io.Source.fromInputStream(inputStream, "UTF-8").mkString
+      inputStream.close()
       fileContent
-//      fileContent.split("\n").map { ligne =>
-//        val tableau = ligne.split(",")
-//        (tableau(0), tableau(1).trim
-//                               .replaceAll("\n", "")
-//                               .replaceAll("\r", ""))
-//      }.toMap
     }
   }
 
-  def computeBaseAddresses(filePath: String): Map[String, String] = {
-    val fileContent = readBaseAddresses(filePath)
+  /**
+   * Reads the base memory addresses of the data and UOP inside a .csv file and returns a Map that associates the data type and its base address
+   * @param filePath the path to the CSV file
+   * @param fromResources boolean that is true if the files are in a Resources folder, false otherwise
+   * @return a Map[String, String] of the data type and its base address
+   */
+  def computeBaseAddresses(filePath: String, fromResources: Boolean): Map[String, String] = {
+    val fileContent = readBaseAddresses(filePath, fromResources)
     fileContent match {
       case Success(data) =>
         data.split("\n").map { ligne =>
@@ -142,11 +150,12 @@ object BinaryReader {
    * @param filePath the path to the resource file
    * @param dataType the type of data in the binary file
    * @param baseAddress base address of a data type
+   * @param fromResources boolean that is true if the files are in a Resources folder, false otherwise
    * @return a Map(Address, Array) that associates the logical address of a vector with its values
    */
-  def computeAddresses(filePath: String, dataType: DataTypeValue, baseAddress: String, isDRAM: Boolean): Try[Map[BigInt, Array[BigInt]]] = {
+  def computeAddresses(filePath: String, dataType: DataTypeValue, baseAddress: String, isDRAM: Boolean, fromResources: Boolean): Try[Map[BigInt, Array[BigInt]]] = {
     val groupedBinaryData =
-      readBinaryFile(filePath, fromResources = true) match {
+      readBinaryFile(filePath, fromResources) match {
         case Success(fileContent) =>
           Success(reverseLE(fileContent, dataType)) // Bytes are extracted (and reversed depending on data type) from binary file
         case Failure(exception) =>
