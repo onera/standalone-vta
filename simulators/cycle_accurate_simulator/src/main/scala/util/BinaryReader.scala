@@ -165,13 +165,13 @@ object BinaryReader {
    */
   def computeAddresses(filePath: String, dataType: DataTypeValue, baseAddress: String, isDRAM: Boolean, fromResources: Boolean): Try[Map[BigInt, Array[BigInt]]] = {
     val newFilePath =
-      if (!fromResources) {
+      if (!fromResources) { // if binary files are located in /compiler_output and not a resource file
         val projectRoot = new File("../../")
         val compilerOutputDir = new File(projectRoot, "compiler_output")
         val basePath = compilerOutputDir.getCanonicalPath
         s"$basePath/" + filePath
       }
-      else {
+      else { // if files are located in a resource path
         filePath
       }
     val groupedBinaryData =
@@ -185,8 +185,7 @@ object BinaryReader {
     val baseAddrBigInt = BigInt(baseAddress,16) // Value of base address in BigInt
     groupedBinaryData match {
       case Success(data) =>
-        // Flattened array containing all the bits of the binary file after reversal
-        val ungroupedBits =
+        val ungroupedBits = // Flattened array containing all the bits of the binary file after reversal
           for {
             byte <- data.flatten
           } yield {

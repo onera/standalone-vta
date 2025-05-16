@@ -4,12 +4,12 @@ import chisel3.assert
 import chiseltest.iotesters.PeekPokeTester
 import util.BinaryReader.{DataType, computeBaseAddresses}
 import util.BinaryReader.DataType.DataTypeValue
+import util.GenericSim
 import vta.core.{Compute, TensorMaster}
 import vta.core.ISA.{FNSH, GEMM, LACC, LINP, LUOP, LWGT, SOUT, VADD, VMAX, VMIN, VSHX}
 import vta.shell.VMEReadMaster
 import vta.util.config.Parameters
 import scala.util.{Failure, Success}
-import utils.GenericSim
 
 class ComputeSimulator(c: Compute, insn: String, uop: String, input: String, weight: String, out: String, acc: String, expected_out: String,
                   base_addresses: String, doCompare: Boolean = false, debug: Boolean = false, fromResources: Boolean = false)
@@ -482,16 +482,7 @@ object ISAHelper { // Or place inside ISA object if preferred
       (instruction & bitPat.mask) == bitPat.value
     }.map(_._2).getOrElse("UNKNOWN") // Return mnemonic or "UNKNOWN"
   }
-
-  // Add this call inside the loop for logging:
-  // val mnemonic = ISAHelper.getMnemonic(currentInstruction)
-  // print(s"Instruction ${key} (${mnemonic}) ...")
 }
-//val genericTestInstance = new GenericTest("MonNomDeTest", (p: Parameters) => {
-//  // Fonction pour créer un Compute
-//}, (c: Compute) => {
-//  // Fonction pour créer un ComputeSimulator
-//})
 
 class ComputeApp extends GenericSim("ComputeApp", (p:Parameters) =>
   new Compute(false)(p), (c: Compute) => new ComputeSimulator(c,

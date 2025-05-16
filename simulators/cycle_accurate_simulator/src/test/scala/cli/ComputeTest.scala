@@ -37,7 +37,7 @@ class ComputeApp_smm extends GenericTest("ComputeApp_smm", (p:Parameters) =>
   "examples_compute/smm/accumulator.bin",
   "examples_compute/smm/expected_out.bin",
   "examples_compute/smm/memory_addresses.csv",
-  true, fromResources = true))
+  true))
 
 /* Matrix 16x16 multiply with matrix 16x16 */
 class ComputeApp_16x16 extends GenericTest("ComputeApp_16x16", (p:Parameters) =>
@@ -50,7 +50,7 @@ class ComputeApp_16x16 extends GenericTest("ComputeApp_16x16", (p:Parameters) =>
   "examples_compute/16x16/accumulator.bin",
   "examples_compute/16x16/expected_out.bin",
   "examples_compute/16x16/memory_addresses.csv",
-  true, fromResources = true))
+  true))
 
 /* Matrix 32x32 multiply with matrix 32x32 */
 class ComputeApp_32x32 extends GenericTest("ComputeApp_32x32", (p:Parameters) =>
@@ -63,7 +63,7 @@ class ComputeApp_32x32 extends GenericTest("ComputeApp_32x32", (p:Parameters) =>
   "examples_compute/32x32/accumulator.bin",
   "examples_compute/32x32/expected_out.bin",
   "examples_compute/32x32/memory_addresses.csv",
-  true, fromResources = true))
+  true))
 
 
 ///* ALTERNATIVE INSTRUCTION INVESTIGATION:
@@ -97,7 +97,7 @@ class ComputeApp_relu extends GenericTest("ComputeApp_relu", (p:Parameters) =>
   "examples_compute/relu/accumulator.bin",
   "examples_compute/relu/expected_out.bin",
   "examples_compute/relu/memory_addresses.csv",
-  true, fromResources = true))
+  true))
 
 /* Matrix 16x16 multiply with matrix 16x16 followed by a ReLU (MAX with 0) */
 class ComputeApp_16x16_relu extends GenericTest("ComputeApp_16x16_relu", (p:Parameters) =>
@@ -110,7 +110,7 @@ class ComputeApp_16x16_relu extends GenericTest("ComputeApp_16x16_relu", (p:Para
   "examples_compute/16x16_relu/accumulator.bin",
   "examples_compute/16x16_relu/expected_out.bin",
   "examples_compute/16x16_relu/memory_addresses.csv",
-  true, fromResources = true))
+  true))
 
 /* Matrix 32x32 multiply with matrix 32x32 followed by a ReLU (MAX with 0) */
 class ComputeApp_32x32_relu extends GenericTest("ComputeApp_32x32_relu", (p:Parameters) =>
@@ -123,7 +123,7 @@ class ComputeApp_32x32_relu extends GenericTest("ComputeApp_32x32_relu", (p:Para
   "examples_compute/32x32_relu/accumulator.bin",
   "examples_compute/32x32_relu/expected_out.bin",
   "examples_compute/32x32_relu/memory_addresses.csv",
-  true, fromResources = true))
+  true))
 
 ///* Average pooling (first part - add only) */
 //class ComputeApp_add_acc_vectors extends GenericTest("ComputeApp_add_acc_vectors", (p: Parameters) =>
@@ -140,7 +140,7 @@ class ComputeApp_average_pooling extends GenericTest("ComputeApp_average_pooling
   "examples_compute/average_pooling/accumulator.bin",
   "examples_compute/average_pooling/expected_out_sram.bin",
   "examples_compute/average_pooling/memory_addresses.csv",
-  true, fromResources = true))
+  true))
 
 //* CONVOLUTIONAL NEURAL NETWORK:
 /* LeNet-5: Convolution 1 */
@@ -154,7 +154,7 @@ class ComputeApp_lenet5_conv1 extends GenericTest("ComputeApp_lenet5_conv1", (p:
   "examples_compute/lenet5_conv1/accumulator.bin",
   "examples_compute/lenet5_conv1/expected_out.bin",
   "examples_compute/lenet5_conv1/memory_addresses.csv",
-  true, fromResources = true),
+  true),
   true)
 
 /* LeNet-5: Conv1 + ReLU */
@@ -168,7 +168,7 @@ class ComputeApp_lenet5_conv1_relu extends GenericTest("ComputeApp_lenet5_conv1_
   "examples_compute/lenet5_conv1_relu/accumulator.bin",
   "examples_compute/lenet5_conv1_relu/expected_out.bin",
   "examples_compute/lenet5_conv1_relu/memory_addresses.csv",
-  true, fromResources = true),
+  true),
   true)
 
 /* LeNet-5: Conv1 + ReLU + Average Pooling */
@@ -182,5 +182,5 @@ class ComputeApp_lenet5_layer1 extends GenericTest("ComputeApp_lenet5_layer1", (
   "examples_compute/lenet5_layer1/accumulator.bin",
   "examples_compute/lenet5_layer1/expected_out_sram.bin",
   "examples_compute/lenet5_layer1/memory_addresses.csv",
-  true, fromResources = true),
+  true),
   true)

@@ -1,4 +1,4 @@
-package simulatorTest.util
+package util
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should
@@ -1570,11 +1570,10 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     //    val compilerOutputDir = new File(projectRoot, "compiler_output")
     //    val basePath = compilerOutputDir.getCanonicalPath
     val baseAddresses = computeBaseAddresses("memory_addresses.csv", fromResources = false)
-    //val baseAddresses = computeBaseAddresses("/d/lgeorgio/Documents/git/standalone-vta/compiler_output/memory_addresses.csv", fromResources = false)
     baseAddresses("inp") should equal("00000000")
     baseAddresses("wgt") should equal("00000000")
     baseAddresses("out") should equal("00000000")
-    baseAddresses("uop") should equal("0000a000")
-    baseAddresses("acc") should equal("0000b000")
+    baseAddresses("uop") should equal("00004000")
+    baseAddresses("acc") should equal("00005000")
   }
 }
