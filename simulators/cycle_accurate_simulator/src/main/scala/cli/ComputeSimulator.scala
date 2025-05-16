@@ -403,7 +403,7 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: String, wei
 
   /* BEGIN USER CUSTOMABLE SECTION */
   // Build memory
-  val base_addr = computeBaseAddresses(base_addresses, fromResources = true)
+  val base_addr = computeBaseAddresses(base_addresses, fromResources)
 
   val dram_scratchpad =
     build_scratchpad_binary(acc, DataType.ACC, base_addr("acc"), isDRAM = true) ++
@@ -495,12 +495,12 @@ object ISAHelper { // Or place inside ISA object if preferred
 
 class ComputeApp extends GenericSim("ComputeApp", (p:Parameters) =>
   new Compute(false)(p), (c: Compute) => new ComputeSimulator(c,
-  "/d/lgeorgio/Documents/git/standalone-vta/compiler_output/instructions.bin",
-  "/d/lgeorgio/Documents/git/standalone-vta/compiler_output/uop.bin",
-  "/d/lgeorgio/Documents/git/standalone-vta/compiler_output/input.bin",
-  "/d/lgeorgio/Documents/git/standalone-vta/compiler_output/weight.bin",
-  "/d/lgeorgio/Documents/git/standalone-vta/compiler_output/out.bin",
-  "/d/lgeorgio/Documents/git/standalone-vta/compiler_output/accumulator.bin",
-  "/d/lgeorgio/Documents/git/standalone-vta/compiler_output/expected_out.bin",
-  "/d/lgeorgio/Documents/git/standalone-vta/compiler_output/memory_addresses.csv",
+  "instructions.bin",
+  "uop.bin",
+  "input.bin",
+  "weight.bin",
+  "out.bin",
+  "accumulator.bin",
+  "expected_out.bin",
+  "memory_addresses.csv",
   true))

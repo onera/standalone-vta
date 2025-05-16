@@ -1,6 +1,6 @@
 package util
 
-import java.io.{FileInputStream, InputStream}
+import java.io.{File, FileInputStream, InputStream}
 import scala.util.{Failure, Success, Try}
 
 object BinaryReader {
@@ -124,12 +124,22 @@ object BinaryReader {
 
   /**
    * Reads the base memory addresses of the data and UOP inside a .csv file and returns a Map that associates the data type and its base address
-   * @param filePath the path to the CSV file
+   * @param filePath the path to the CSV file or file name if not in a resource folder
    * @param fromResources boolean that is true if the files are in a Resources folder, false otherwise
    * @return a Map[String, String] of the data type and its base address
    */
   def computeBaseAddresses(filePath: String, fromResources: Boolean): Map[String, String] = {
-    val fileContent = readBaseAddresses(filePath, fromResources)
+    val newFilePath =
+      if (!fromResources) {
+        val projectRoot = new File("../../")
+        val compilerOutputDir = new File(projectRoot, "compiler_output")
+        val basePath = compilerOutputDir.getCanonicalPath
+        s"$basePath/" + filePath
+      }
+      else {
+        filePath
+      }
+    val fileContent = readBaseAddresses(newFilePath, fromResources)
     fileContent match {
       case Success(data) =>
         data.split("\n").map { ligne =>
@@ -147,15 +157,25 @@ object BinaryReader {
 
   /**
    * Compute the logical addresses associated with each instruction in a Map
-   * @param filePath the path to the resource file
+   * @param filePath the path to the resource file or file name if not in a resource folder
    * @param dataType the type of data in the binary file
    * @param baseAddress base address of a data type
    * @param fromResources boolean that is true if the files are in a Resources folder, false otherwise
    * @return a Map(Address, Array) that associates the logical address of a vector with its values
    */
   def computeAddresses(filePath: String, dataType: DataTypeValue, baseAddress: String, isDRAM: Boolean, fromResources: Boolean): Try[Map[BigInt, Array[BigInt]]] = {
+    val newFilePath =
+      if (!fromResources) {
+        val projectRoot = new File("../../")
+        val compilerOutputDir = new File(projectRoot, "compiler_output")
+        val basePath = compilerOutputDir.getCanonicalPath
+        s"$basePath/" + filePath
+      }
+      else {
+        filePath
+      }
     val groupedBinaryData =
-      readBinaryFile(filePath, fromResources) match {
+      readBinaryFile(newFilePath, fromResources) match {
         case Success(fileContent) =>
           Success(reverseLE(fileContent, dataType)) // Bytes are extracted (and reversed depending on data type) from binary file
         case Failure(exception) =>

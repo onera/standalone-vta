@@ -149,6 +149,19 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     }
   }
 
+  it should "decode the content of binary files in /compiler_output" in {
+    // test done on files for matrix_16x16
+    val baseAddr = computeBaseAddresses("memory_addresses.csv", fromResources = false)
+    val inp = computeAddresses("input.bin", DataType.INP, baseAddr("inp"), isDRAM = false, fromResources = false)
+    val inp_vec0 = Array(-1, 0, -3, -4, -2, -2, 2, -2, 0, -3, -4, 2, 0, -4, -4, 1)
+    inp match {
+      case Success(data) =>
+        data(0) should equal(inp_vec0)
+      case Failure(exception) =>
+        fail(s"Error while computing addresses for INP : ${exception.getMessage}")
+    }
+  }
+
 
   /* Decoding WGT */
   it should "decode all the WGT vectors in 32x32_relu" in {
@@ -1542,9 +1555,9 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   /* Decoding CSV file for the base memory addresses */
   it should "decode the content of the csv file" in {
     val baseAddresses = computeBaseAddresses("examples_compute/lenet5_conv1/memory_addresses.csv", fromResources = true)
-//        data.foreach { case (key, value) =>
-//          println(s"Clé: $key | Valeur: $value")
-//        }
+    //        data.foreach { case (key, value) =>
+    //          println(s"Clé: $key | Valeur: $value")
+    //        }
     baseAddresses("inp") should equal("00000000")
     baseAddresses("wgt") should equal("00000000")
     baseAddresses("out") should equal("00000000")
@@ -1553,10 +1566,10 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   }
 
   it should "decode the content of a csv file in /compiler_output" in {
-    val projectRoot = new File("../../") // Remonter deux niveaux pour atteindre le répertoire racine du projet
-    val compilerOutputDir = new File(projectRoot, "compiler_output")
-    val basePath = compilerOutputDir.getCanonicalPath
-    val baseAddresses = computeBaseAddresses(s"$basePath/memory_addresses.csv", fromResources = false)
+    //    val projectRoot = new File("../../")
+    //    val compilerOutputDir = new File(projectRoot, "compiler_output")
+    //    val basePath = compilerOutputDir.getCanonicalPath
+    val baseAddresses = computeBaseAddresses("memory_addresses.csv", fromResources = false)
     //val baseAddresses = computeBaseAddresses("/d/lgeorgio/Documents/git/standalone-vta/compiler_output/memory_addresses.csv", fromResources = false)
     baseAddresses("inp") should equal("00000000")
     baseAddresses("wgt") should equal("00000000")
@@ -1564,50 +1577,4 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     baseAddresses("uop") should equal("0000a000")
     baseAddresses("acc") should equal("0000b000")
   }
-
-
-  //  it should "print the data of 32x32_relu" in {
-  //    val inp = computeAddresses("examples_compute/32x32_relu/input.bin", DataType.INP, "00000000", isDRAM = false)
-  //    inp match {
-  //      case Success(data) =>
-  //        printMap(data, DataType.INP)
-  //      case Failure(exception) =>
-  //        fail(s"Error while computing addresses for INP : ${exception.getMessage}")
-  //    }
-  //    val wgt = computeAddresses("examples_compute/32x32_relu/weight.bin", DataType.WGT, "00000000", isDRAM = false)
-  //    wgt match {
-  //      case Success(data) =>
-  //        printMap(data, DataType.WGT)
-  //      case Failure(exception) =>
-  //        fail(s"Error while computing addresses for WGT : ${exception.getMessage}")
-  //    }
-  //    val out = computeAddresses("examples_compute/32x32_relu/out.bin", DataType.OUT, "00000000", isDRAM = false)
-  //    out match {
-  //      case Success(data) =>
-  //        printMap(data, DataType.OUT)
-  //      case Failure(exception) =>
-  //        fail(s"Error while computing addresses for OUT : ${exception.getMessage}")
-  //    }
-  //    val exp_out = computeAddresses("examples_compute/32x32_relu/expected_out.bin", DataType.OUT, "00000000", isDRAM = false)
-  //    exp_out match {
-  //      case Success(data) =>
-  //        printMap(data, DataType.OUT)
-  //      case Failure(exception) =>
-  //        fail(s"Error while computing addresses for EXPECT_OUT : ${exception.getMessage}")
-  //    }
-  //    val uop = computeAddresses("examples_compute/32x32_relu/uop.bin", DataType.UOP, "00004000", isDRAM = true)
-  //    uop match {
-  //      case Success(data) =>
-  //        printMap(data, DataType.UOP)
-  //      case Failure(exception) =>
-  //        fail(s"Error while computing addresses for UOPs : ${exception.getMessage}")
-  //    }
-  //    val insn = computeAddresses("examples_compute/32x32_relu/instructions.bin", DataType.INSN, "00000000", isDRAM = false)
-  //    insn match {
-  //      case Success(data) =>
-  //        printMap(data, DataType.INSN)
-  //      case Failure(exception) =>
-  //        fail(s"Error while computing addresses for instructions : ${exception.getMessage}")
-  //    }
-  //  }
 }
