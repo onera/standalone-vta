@@ -5,7 +5,7 @@ We present here two Jupyter notebooks, which aim to explain how to use the stand
 - notebook on data def
 - notebook on op def
 
-## Using compiler/data_definition
+## TUTORIAL 1 : using compiler/data_definition
 
 badge notebook #1
 
@@ -13,7 +13,7 @@ This notebook focuses on the folder data_definition. It defines the data the VTA
 This part of the compiler is used to generate the binary files `input.bin`, `weight.bin`, `out_init.bin`, `expected_out.bin`, `expected_out_sram.bin`, as well as the CSV file `memory_addresses.csv`, which contain the base addresses for each data type, in standalone-vta/compiler_output. 
 The binary files contain the encoded data, in accordance with VTA requirements.
 
-## Using compiler/operations_definition
+## TUTORIAL 2 : using compiler/operations_definition
 
 badge notebook #2
 
