@@ -4,11 +4,14 @@ import chisel3.assert
 import chiseltest.iotesters.PeekPokeTester
 import util.BinaryReader.{DataType, computeBaseAddresses}
 import util.BinaryReader.DataType.DataTypeValue
-import util.GenericSim
+//import util.GenericSim
+import util.ComputeExt
+import vta.DefaultPynqConfig
 import vta.core.{Compute, TensorMaster}
 import vta.core.ISA.{FNSH, GEMM, LACC, LINP, LUOP, LWGT, SOUT, VADD, VMAX, VMIN, VSHX}
 import vta.shell.VMEReadMaster
 import vta.util.config.Parameters
+
 import scala.util.{Failure, Success}
 
 class ComputeSimulator(c: Compute, insn: String, uop: String, input: String, weight: String, out: String, acc: String, expected_out: String,
@@ -484,14 +487,31 @@ object ISAHelper { // Or place inside ISA object if preferred
   }
 }
 
-class ComputeApp extends GenericSim("ComputeApp", (p:Parameters) =>
-  new Compute(false)(p), (c: Compute) => new ComputeSimulator(c,
-  "instructions.bin",
-  "uop.bin",
-  "input.bin",
-  "weight.bin",
-  "out.bin",
-  "accumulator.bin",
-  "expected_out.bin",
-  "memory_addresses.csv",
-  true))
+//class ComputeApp extends GenericSim("ComputeApp", (p:Parameters) =>
+//  new Compute(false)(p), (c: Compute) => new ComputeSimulator(c,
+//  "instructions.bin",
+//  "uop.bin",
+//  "input.bin",
+//  "weight.bin",
+//  "out.bin",
+//  "accumulator.bin",
+//  "expected_out.bin",
+//  "memory_addresses.csv",
+//  true))
+
+class ComputeApp extends ComputeExt("ComputeApp", (p: Parameters) => new Compute(false)(p)) {
+  def main(args: Array[String]): Unit = {
+    val compute = new Compute(false)(new DefaultPynqConfig)
+    val computeSimulator = new ComputeSimulator(compute,
+      "instructions.bin",
+      "uop.bin",
+      "input.bin",
+      "weight.bin",
+      "out.bin",
+      "accumulator.bin",
+      "expected_out.bin",
+      "memory_addresses.csv",
+      true)
+    // Utilisez le computeSimulator comme nécessaire
+  }
+}

@@ -6,7 +6,6 @@ import util.BinaryReader._
 
 import java.io.File
 import java.math.BigInteger
-import java.nio.file.Paths
 import scala.util.{Failure, Success}
 
 class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
@@ -1555,9 +1554,9 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   /* Decoding CSV file for the base memory addresses */
   it should "decode the content of the csv file" in {
     val baseAddresses = computeBaseAddresses("examples_compute/lenet5_conv1/memory_addresses.csv", fromResources = true)
-    //        data.foreach { case (key, value) =>
-    //          println(s"Clé: $key | Valeur: $value")
-    //        }
+//    baseAddresses.foreach { case (key, value) =>
+//      println(s"Clé: $key | Valeur: $value")
+//    }
     baseAddresses("inp") should equal("00000000")
     baseAddresses("wgt") should equal("00000000")
     baseAddresses("out") should equal("00000000")
@@ -1569,7 +1568,12 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     //    val projectRoot = new File("../../")
     //    val compilerOutputDir = new File(projectRoot, "compiler_output")
     //    val basePath = compilerOutputDir.getCanonicalPath
+    val file = new File("memory_addresses.csv").getAbsolutePath
+    println(file)
     val baseAddresses = computeBaseAddresses("memory_addresses.csv", fromResources = false)
+//    baseAddresses.foreach { case (key, value) =>
+//      println(s"Clé: $key | Valeur: $value")
+//    }
     baseAddresses("inp") should equal("00000000")
     baseAddresses("wgt") should equal("00000000")
     baseAddresses("out") should equal("00000000")
