@@ -125,10 +125,7 @@ def main(config_file):
         with open(memory_addresses_data_file_path, 'w', newline='') as csvfile:
             writer = csv.writer(csvfile)
             for ligne in memory_addresses:
-                if alloc_names[ligne['object']] in ['inp', 'wgt', 'out']:
-                    writer.writerow([alloc_names[ligne['object']], '0x0000'])
-                else:
-                    writer.writerow([alloc_names[ligne['object']], ligne['phys_hex']])
+                writer.writerow([alloc_names[ligne['object']], ligne['phys_hex']])
         
         # Write C empty matrix
         C_empty.tofile(C_empty_file_path)

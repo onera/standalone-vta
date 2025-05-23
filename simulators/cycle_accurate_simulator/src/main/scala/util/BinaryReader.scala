@@ -142,13 +142,17 @@ object BinaryReader {
     val fileContent = readBaseAddresses(newFilePath, fromResources)
     fileContent match {
       case Success(data) =>
-        data.split("\n").map { ligne =>
-          val tableau = ligne.split(",")
-          (tableau(0), tableau(1).trim
-                                 .replaceAll("\n", "")
-                                 .replaceAll("\r", "")
-                                 .replaceAll("0x", "0000"))
-        }.toMap
+        val baseAddr =
+          data.split("\n").map { ligne =>
+            val tableau = ligne.split(",")
+            (tableau(0), tableau(1).trim
+                                   .replaceAll("\n", "")
+                                   .replaceAll("\r", "")
+                                   .replaceAll("0x", "0000"))
+          }.toMap
+        // Remove the following lines if you load INP, WGT, OUT from DRAM
+        val updatedBaseAddr = baseAddr.updated("inp", "00000000").updated("wgt", "00000000").updated("out", "00000000")
+        updatedBaseAddr
       case Failure(exception) =>
         println(s"Error while grouping data (if reversal) : ${exception.getMessage}")
         Map.empty
