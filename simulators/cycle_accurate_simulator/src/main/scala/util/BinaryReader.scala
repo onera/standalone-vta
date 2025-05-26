@@ -143,9 +143,9 @@ object BinaryReader {
     fileContent match {
       case Success(data) =>
         val baseAddr =
-          data.split("\n").map { ligne =>
-            val tableau = ligne.split(",")
-            (tableau(0), tableau(1).trim
+          data.split("\n").map { line =>
+            val array = line.split(",")
+            (array(0), array(1).trim
                                    .replaceAll("\n", "")
                                    .replaceAll("\r", "")
                                    .replaceAll("0x", "0000"))
@@ -169,13 +169,13 @@ object BinaryReader {
    */
   def computeAddresses(filePath: String, dataType: DataTypeValue, baseAddress: String, isDRAM: Boolean, fromResources: Boolean): Try[Map[BigInt, Array[BigInt]]] = {
     val newFilePath =
-      if (!fromResources) { // if binary files are located in /compiler_output and not a resource file
+      if (!fromResources) { // if binary files are located in /compiler_output and not a resource folder
         val projectRoot = new File("../../")
         val compilerOutputDir = new File(projectRoot, "compiler_output")
         val basePath = compilerOutputDir.getCanonicalPath
         s"$basePath/" + filePath
       }
-      else { // if files are located in a resource path
+      else { // if files are located in a resource folder
         filePath
       }
     val groupedBinaryData =
