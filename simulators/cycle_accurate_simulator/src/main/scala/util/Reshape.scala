@@ -11,11 +11,11 @@ import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 
 object Reshape {
 
-  def pushBack[T](original: Array[T], nouveauElement: T): Array[T] = {
-    val nouveauTableau = new Array[T](original.length + 1)
-    Array.copy(original, 0, nouveauTableau, 0, original.length)
-    nouveauTableau(original.length) = nouveauElement
-    nouveauTableau
+  def pushBack[T](original: Array[T], elem: T): Array[T] = {
+    val array = new Array[T](original.length + 1)
+    Array.copy(original, 0, array, 0, original.length)
+    array(original.length) = elem
+    array
   }
 
   def toBlocks(vector: Array[Byte], blockCol: Int, blockSize: Int): Array[Array[Array[Array[Byte]]]] = { // vector: Vector[Byte] ?
@@ -81,18 +81,15 @@ object Reshape {
     //val reconstructed: Array[Array[Byte]] = Array.ofDim[Byte](matrixHeight, matrixWidth)
     for (i <- 0 until matrix_height) {
       for (j <- 0 until matrix_width) {
-        // Calcul des indices du bloc contenant (i, j)
         val deltaHeight = i / block_size
         val deltaWidth = j / block_size
 
-        // Calcul de la position à l'intérieur du bloc
         val r = i % block_size
         val t = j % block_size
 
-        // Accès au bloc correspondant et copie de la valeur
         if (deltaHeight < list_blocks.size && deltaWidth < list_blocks(deltaHeight).size) {
           val block = list_blocks(deltaHeight)(deltaWidth)
-          if (r < block.size && t < block(r).size) { // Éviter la copie du padding
+          if (r < block.size && t < block(r).size) {
             reconstructed(i)(j) = block(r)(t)
           }
         }
@@ -257,6 +254,10 @@ object Reshape {
       value <- row
     } yield value
     reshapedVector
+  }
+
+  def main(args: Array[String]): Unit = {
+
   }
 }
 
