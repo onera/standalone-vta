@@ -413,7 +413,7 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: String, wei
   val inp_scratchpad = build_scratchpad_binary(input, DataType.INP, base_addr("inp"), isDRAM = false)
   val wgt_scratchpad = build_scratchpad_binary(weight, DataType.WGT, base_addr("wgt"), isDRAM = false)
   val out_scratchpad = build_scratchpad_binary(out, DataType.OUT, base_addr("out"), isDRAM = false)
-  val out_expect_scratchpad = build_scratchpad_binary(expected_out, DataType.OUT, base_addr("out"), isDRAM = false) // FIXME: adresse différente ?
+  val out_expect_scratchpad = build_scratchpad_binary(expected_out, DataType.OUT, base_addr("out"), isDRAM = false)
 
   // Create the mocks
   val mocks = new Mocks
