@@ -26,7 +26,7 @@ def print_intermediate(matrix, isSquare=True, layer="1"):
         i = i + 1
 
 
-def main_data(isInputTensor=False, doExhaustivePrint=False):
+def main_data(isInputTensor=False, doExhaustivePrint=False, debug_reshape=False):
     if (isInputTensor):
         # CREATE THE TENSORS
         # ------------------
@@ -109,49 +109,6 @@ def main_data(isInputTensor=False, doExhaustivePrint=False):
     L3_blocks, L3_blocks_col = MS.matrix_splitting(matrix=L3_padded, block_size=16, isWeight=True, isSquare=True)
     L4_blocks, L4_blocks_col = MS.matrix_splitting(matrix=L4_padded, block_size=16, isWeight=True, isSquare=True)
     L5_blocks, L5_blocks_col = MS.matrix_splitting(matrix=L5_padded, block_size=16, isWeight=True, isSquare=True)
-
-
-    # WRITE BINARIES
-    # --------------
-
-    # Define the output repository
-    output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))), 'compiler_output')
-    # Check if the OUTPUT dir exist, else create it
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Define the filename
-    input_file = os.path.join(output_dir, 'input.bin')
-    #intermediate_file = os.path.join(output_dir, 'intermediate.bin')
-    L1_file = os.path.join(output_dir, 'weight_L1.bin')
-    L2_file = os.path.join(output_dir, 'weight_L2.bin')
-    L3_file = os.path.join(output_dir, 'weight_L3.bin')
-    L4_file = os.path.join(output_dir, 'weight_L4.bin')
-    L5_file = os.path.join(output_dir, 'weight_L5.bin')
-
-    # Write 
-    with open(input_file, 'wb') as f:
-        for block in input_blocks:
-            block.tofile(f)
-    with open(L1_file, 'wb') as f:
-        for block in L1_blocks:
-            transposed = block.transpose()
-            transposed.tofile(f)
-    with open(L2_file, 'wb') as f:
-        for block in L2_blocks:
-            transposed = block.transpose()
-            transposed.tofile(f)
-    with open(L3_file, 'wb') as f:
-        for block in L3_blocks:
-            transposed = block.transpose()
-            transposed.tofile(f)
-    with open(L4_file, 'wb') as f:
-        for block in L4_blocks:
-            transposed = block.transpose()
-            transposed.tofile(f)
-    with open(L5_file, 'wb') as f:
-        for block in L5_blocks:
-            transposed = block.transpose()
-            transposed.tofile(f)
 
     
     # COMPUTE REFERENCE COMPUTATION (matrix domain)
@@ -236,6 +193,85 @@ def main_data(isInputTensor=False, doExhaustivePrint=False):
         # Print the final result
         print(f"Final output tensor: \n{output_tensor}\n\n")
 
+
+    # WRITE BINARIES
+    # --------------
+
+    # Define the output repository
+    output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))), 'compiler_output')
+    # Check if the OUTPUT dir exist, else create it
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Define the filename
+    input_file = os.path.join(output_dir, 'input.bin')
+    #intermediate_file = os.path.join(output_dir, 'intermediate.bin')
+    L1_file = os.path.join(output_dir, 'weight_L1.bin')
+    L2_file = os.path.join(output_dir, 'weight_L2.bin')
+    L3_file = os.path.join(output_dir, 'weight_L3.bin')
+    L4_file = os.path.join(output_dir, 'weight_L4.bin')
+    L5_file = os.path.join(output_dir, 'weight_L5.bin')
+    
+    # > TEMPO FILES FOR UNITTESTS
+    if (debug_reshape):
+        outL1_file = os.path.join(output_dir, 'outL1.bin')
+        inpL2_file = os.path.join(output_dir, 'inpL2.bin')
+        outL2_file = os.path.join(output_dir, 'outL2.bin')
+        inpL3_file = os.path.join(output_dir, 'inpL3.bin')
+    # <<<
+
+    # Write 
+    with open(input_file, 'wb') as f:
+        for block in input_blocks:
+            block.tofile(f)
+    with open(L1_file, 'wb') as f:
+        for block in L1_blocks:
+            transposed = block.transpose()
+            transposed.tofile(f)
+    with open(L2_file, 'wb') as f:
+        for block in L2_blocks:
+            transposed = block.transpose()
+            transposed.tofile(f)
+    with open(L3_file, 'wb') as f:
+        for block in L3_blocks:
+            transposed = block.transpose()
+            transposed.tofile(f)
+    with open(L4_file, 'wb') as f:
+        for block in L4_blocks:
+            transposed = block.transpose()
+            transposed.tofile(f)
+    with open(L5_file, 'wb') as f:
+        for block in L5_blocks:
+            transposed = block.transpose()
+            transposed.tofile(f)
+
+    
+    # > TEMPO FILES FOR UNITTESTS
+    if (debug_reshape):
+        # Pad
+        outL1 = MG.matrix_padding(matrix=res1, block_size=16, isWeight=False, isSquare=True)
+        inpL2 = MG.matrix_padding(matrix=res1_reshaped, block_size=16, isWeight=False, isSquare=True)
+        outL2 = MG.matrix_padding(matrix=res2, block_size=16, isWeight=False, isSquare=True)
+        inpL3 = MG.matrix_padding(matrix=res2_reshaped, block_size=16, isWeight=False, isSquare=False)
+        # Split
+        outL1_blocks, _ = MS.matrix_splitting(matrix=outL1, block_size=16, isWeight=False, isSquare=True)
+        inpL2_blocks, _ = MS.matrix_splitting(matrix=inpL2, block_size=16, isWeight=False, isSquare=True)
+        outL2_blocks, _ = MS.matrix_splitting(matrix=outL2, block_size=16, isWeight=False, isSquare=True)
+        inpL3_blocks, _ = MS.matrix_splitting(matrix=inpL3, block_size=16, isWeight=False, isSquare=False)
+
+        with open(outL1_file, 'wb') as f:
+            for block in outL1_blocks:
+                block.tofile(f)
+        with open(inpL2_file, 'wb') as f:
+            for block in inpL2_blocks:
+                block.tofile(f)
+        with open(outL2_file, 'wb') as f:
+            for block in outL2_blocks:
+                block.tofile(f)
+        with open(inpL3_file, 'wb') as f:
+            for block in inpL3_blocks:
+                block.tofile(f)
+    # <<<
+
     
 
     # RETURN MEMORY ADDRESSES
@@ -266,5 +302,5 @@ def main_data(isInputTensor=False, doExhaustivePrint=False):
 
 
 if __name__ == '__main__':
-    main_data(isInputTensor=True, doExhaustivePrint=True)
+    main_data(isInputTensor=True, doExhaustivePrint=True, debug_reshape=True)
     
