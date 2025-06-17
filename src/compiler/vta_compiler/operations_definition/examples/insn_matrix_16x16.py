@@ -9,20 +9,6 @@ from structures_insn_uop import *
 
 # -----------------------------------------------------------
 
-# FILE PATH
-# ---------
-# Define the files to write 
-output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'compiler_output')
-file_uop_path = os.path.join(output_dir, "uop.bin")
-file_insn_path = os.path.join(output_dir, "instructions.bin")
-
-# Create the path if it does not exist
-def create_output_directory(path):
-    os.makedirs(path, exist_ok=True)
-create_output_directory(output_dir)
-
-# -----------------------------------------------------------
-
 # UOP DEFINITION
 # --------------
 # Define empty UOP buffer

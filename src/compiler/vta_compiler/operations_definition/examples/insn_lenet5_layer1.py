@@ -9,18 +9,10 @@ from structures_insn_uop import *
 
 # -----------------------------------------------------------
 
-# FILE PATH
-# ---------
-# Define the files to write 
-output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'compiler_output')
-file_uop_path = os.path.join(output_dir, "uop.bin")
-file_insn_path = os.path.join(output_dir, "instructions.bin")
-memory_addresses_insn_path = os.path.join(output_dir, "memory_addresses_insn.txt")
-
-# Create the path if it does not exist
-def create_output_directory(path):
-    os.makedirs(path, exist_ok=True)
-create_output_directory(output_dir)
+# FILENAME
+# --------
+file_uop_path = filepath_definition("uop.bin")
+file_insn_path = filepath_definition("instructions.bin")
 
 # -----------------------------------------------------------
 
@@ -95,7 +87,7 @@ insn_buffer.append(VTAMemInsn( # I0: LOAD UOP
     # Memory interaction
     buffer_id=0, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
     sram_base=0x0000,
-    dram_base=0x00003400, # TODO: modify to implement full LeNet-5
+    dram_base=0x00002800, # TODO: modify to implement full LeNet-5
     unused=0, # UNUSED
     # Operation over the data
     y_size=1,
@@ -185,7 +177,7 @@ insn_buffer.append(VTAMemInsn( # I4: LOAD UOP
     # Memory interaction
     buffer_id=0, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
     sram_base=0x0001,
-    dram_base=0x00003401, # TODO: modify to implement full LeNet-5
+    dram_base=0x00002801, # TODO: modify to implement full LeNet-5
     unused=0, # UNUSED
     # Operation over the data
     y_size=1,

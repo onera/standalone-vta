@@ -12,17 +12,10 @@ from structures_insn_uop import *
 
 # -----------------------------------------------------------
 
-# FILE PATH
-# ---------
-# Define the files to write 
-output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))), 'compiler_output')
-file_uop_path = os.path.join(output_dir, "uop_L5.bin")
-file_insn_path = os.path.join(output_dir, "instructions_L5.bin")
-
-# Create the path if it does not exist
-def create_output_directory(path):
-    os.makedirs(path, exist_ok=True)
-create_output_directory(output_dir)
+# FILENAME
+# --------
+file_uop_path = filepath_definition("uop_L5.bin")
+file_insn_path = filepath_definition("instructions_L5.bin")
 
 # -----------------------------------------------------------
 

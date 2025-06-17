@@ -3,6 +3,26 @@
 import ctypes
 from ctypes import Structure, c_uint64, LittleEndianStructure
 
+import os
+
+# -----------------------------------------------------------
+
+# DEFINE PATH FOR BINARIES
+# ------------------------
+#current_dir = os.path.dirname(os.path.abspath(__file__))
+#output_dir = os.path.join(current_dir, '../../../../compiler_output/')
+
+output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))), 'compiler_output')
+
+# Create the path if it does not exist
+def create_output_directory(path):
+    os.makedirs(path, exist_ok=True)
+create_output_directory(output_dir)
+
+# Define the files to write 
+def filepath_definition(filename = "default.bin"):
+    return os.path.join(output_dir, filename)
+
 # -----------------------------------------------------------
 
 # STRUCTURES DEFINITION
