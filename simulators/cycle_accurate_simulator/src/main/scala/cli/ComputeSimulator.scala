@@ -2,7 +2,7 @@ package cli
 
 import chisel3.assert
 import chiseltest.iotesters.PeekPokeTester
-import util.BinaryReader.{DataType, computeBaseAddresses}
+import util.BinaryReader.{DataType, computeBaseAddresses, computeAddresses}
 import util.BinaryReader.DataType.DataTypeValue
 import util.GenericSim
 import vta.core.{Compute, TensorMaster}
@@ -12,14 +12,10 @@ import vta.util.config.Parameters
 
 import scala.util.{Failure, Success}
 
-class ComputeSimulator(c: Compute, insn: String, uop: String, input: String, weight: String, out: String, acc: String, expected_out: String,
-                  base_addresses: String, doCompare: Boolean = false, debug: Boolean = false, fromResources: Boolean = false)
-  extends PeekPokeTester(c) {
-
+object ComputeSimulator {
   /* COMMON PART - MANAGE VIRTUAL MEMORIES */
-
-  def build_scratchpad_binary(filePath: String, dataType: DataTypeValue, offset: String, isDRAM: Boolean): Map[BigInt, Array[BigInt]] = {
-    _root_.util.BinaryReader.computeAddresses(filePath, dataType, offset, isDRAM, fromResources) match {
+  def build_scratchpad_binary(filePath: String, dataType: DataTypeValue, offset: String, isDRAM: Boolean, fromResources: Boolean): Map[BigInt, Array[BigInt]] = {
+    computeAddresses(filePath, dataType, offset, isDRAM, fromResources) match {
       case Success(scratchpad) =>
         scratchpad
       case Failure(exception) =>
@@ -27,6 +23,26 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: String, wei
         Map.empty
     }
   }
+
+  def getBaseAddr(base_addresses: String, fromResources: Boolean): Map[String, String] = {
+    computeBaseAddresses(base_addresses, fromResources)
+  }
+}
+
+
+class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt, Array[BigInt]], weight: String, out: String, acc: String, expected_out: String,
+                  base_addresses: String, doCompare: Boolean = false, debug: Boolean = false, fromResources: Boolean = false)
+  extends PeekPokeTester(c) {
+
+  def this(c: Compute, insn: String, uop: String, input: String, weight: String, out: String, acc: String, expected_out: String,
+           base_addresses: String, doCompare: Boolean, debug: Boolean, fromResources: Boolean) = {
+    this(c, insn, uop,
+      ComputeSimulator.build_scratchpad_binary(input, DataType.INP, ComputeSimulator.getBaseAddr(base_addresses, fromResources)("inp"), isDRAM = false, fromResources),
+      weight, out, acc, expected_out, base_addresses, doCompare, debug, fromResources = false)
+  }
+
+
+
 
   // Check if it is compute instruction
   def isComputeInstruction(instruction: BigInt): Boolean = {
@@ -46,7 +62,7 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: String, wei
     }
   }
 
-  val inst = build_scratchpad_binary(insn, DataType.INSN, "00000000", isDRAM = false)
+  val inst = ComputeSimulator.build_scratchpad_binary(insn, DataType.INSN, "00000000", isDRAM = false, fromResources)
 
   // Print scratchpad
   def print_scratchpad(scratchpad: Map[BigInt, Array[BigInt]], index: BigInt, name : String = "?"): Unit = {
@@ -407,13 +423,14 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: String, wei
   val base_addr = computeBaseAddresses(base_addresses, fromResources)
 
   val dram_scratchpad =
-    build_scratchpad_binary(acc, DataType.ACC, base_addr("acc"), isDRAM = true) ++
-      build_scratchpad_binary(uop, DataType.UOP, base_addr("uop"), isDRAM = true)
+    ComputeSimulator.build_scratchpad_binary(acc, DataType.ACC, base_addr("acc"), isDRAM = true, fromResources) ++
+      ComputeSimulator.build_scratchpad_binary(uop, DataType.UOP, base_addr("uop"), isDRAM = true, fromResources)
   // base address is zero because we are storing the values directly in the INP buffer
-  val inp_scratchpad = build_scratchpad_binary(input, DataType.INP, base_addr("inp"), isDRAM = false)
-  val wgt_scratchpad = build_scratchpad_binary(weight, DataType.WGT, base_addr("wgt"), isDRAM = false)
-  val out_scratchpad = build_scratchpad_binary(out, DataType.OUT, base_addr("out"), isDRAM = false)
-  val out_expect_scratchpad = build_scratchpad_binary(expected_out, DataType.OUT, base_addr("out"), isDRAM = false)
+  val inp_scratchpad = input
+  //val inp_scratchpad = build_scratchpad_binary(input, DataType.INP, base_addr("inp"), isDRAM = false)
+  val wgt_scratchpad = ComputeSimulator.build_scratchpad_binary(weight, DataType.WGT, base_addr("wgt"), isDRAM = false, fromResources)
+  val out_scratchpad = ComputeSimulator.build_scratchpad_binary(out, DataType.OUT, base_addr("out"), isDRAM = false, fromResources)
+  val out_expect_scratchpad = ComputeSimulator.build_scratchpad_binary(expected_out, DataType.OUT, base_addr("out"), isDRAM = false, fromResources)
 
   // Create the mocks
   val mocks = new Mocks
@@ -462,6 +479,10 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: String, wei
   if (debug) {
     print(s"\n\t END COMPUTE TESTS! \n\t (done in ${cycle_counter} cycles)\n\n")
   }
+
+  def getOutScratchpad: Map[BigInt, Array[BigInt]] = {
+    out_scratchpad
+  }
 }
 
 object ISAHelper { // Or place inside ISA object if preferred
@@ -485,6 +506,7 @@ object ISAHelper { // Or place inside ISA object if preferred
   }
 }
 
+
 class ComputeApp extends GenericSim("ComputeApp", (p:Parameters) =>
   new Compute(false)(p), (c: Compute) => new ComputeSimulator(c,
   "instructions.bin",
@@ -495,5 +517,7 @@ class ComputeApp extends GenericSim("ComputeApp", (p:Parameters) =>
   "accumulator.bin",
   "expected_out_sram.bin",
   "memory_addresses.csv",
-  true, debug=true))
+  true, debug=true, false))
+
+
 

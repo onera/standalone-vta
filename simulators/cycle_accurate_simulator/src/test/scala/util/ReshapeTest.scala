@@ -34,9 +34,7 @@ class ReshapeTest extends AnyFlatSpec with should.Matchers {
 
   it should "match input layer3 of lenet-5 with reshaped output layer2" in {
     val outL2_ref = computeAddresses("outL2.bin", DataType.OUT, "00000000", isDRAM = false, fromResources = false)
-    print("outL2 ok\n")
     val inpL3_ref = computeAddresses("inpL3.bin", DataType.INP, "00000000", isDRAM = false, fromResources = false)
-    print("inpL3 ok\n")
     outL2_ref match {
       case Success(data_out) =>
         inpL3_ref match {
@@ -54,6 +52,22 @@ class ReshapeTest extends AnyFlatSpec with should.Matchers {
         }
       case Failure(exception) =>
         fail(s"Error while reshaping output of layer2: ${exception.getMessage}")
+    }
+  }
+
+  it should "print the map" in {
+    val outL2_ref = computeAddresses("outL2.bin", DataType.OUT, "00000000", isDRAM = false, fromResources = false)
+    outL2_ref match {
+      case Success(data_out) =>
+        val outL2_vec = data_out.toSeq.sortBy(_._1).flatMap {
+          case (_, array) => array
+        }.toArray
+        val reshaped_outL2 = reshape(outL2_vec, 1, 16, 25, 16, 1, 16, 5, 5, (5, 5), 1, isSquare = false)
+        val map_outL2 = vector_to_map(reshaped_outL2, "00000000")
+        printMap(data_out, DataType.OUT)
+        printMap(map_outL2, DataType.INP)
+      case Failure(exception) =>
+        fail(s"Error while reshaping output of layer2 : ${exception.getMessage}")
     }
   }
 }

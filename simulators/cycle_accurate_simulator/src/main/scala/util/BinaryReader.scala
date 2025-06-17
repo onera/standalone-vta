@@ -12,7 +12,7 @@ object BinaryReader {
    */
   object DataType extends Enumeration {
     private def samePrecision(x:Int): Map[Int,Int] = Map.empty.withDefaultValue(x)
-    class DataTypeValue(val id: Int, val nbValues:Int, val precision: Map[Int,Int], val doReversal: Boolean) extends Value
+    class DataTypeValue(val id: Int, val nbValues: Int, val precision: Map[Int,Int], val doReversal: Boolean) extends Value
     val INP: DataTypeValue = new DataTypeValue(0, 16, samePrecision(8), false)
     val WGT: DataTypeValue = new DataTypeValue(1, 256, samePrecision(8), false)
     val OUT: DataTypeValue = new DataTypeValue(2, 16, samePrecision(8), false)

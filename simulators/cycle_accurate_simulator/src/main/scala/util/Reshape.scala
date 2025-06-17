@@ -3,6 +3,8 @@ package util
 import botkop.numsca._
 import breeze.linalg.{DenseMatrix, DenseVector}
 import spire.implicits.convertableOps
+import treadle2.executable.DataType
+import util.BinaryReader.DataType.INP
 
 import scala.collection.immutable.Nil.:::
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
@@ -264,6 +266,19 @@ object Reshape {
     } yield value
     print("reshaping done !\n")
     reshapedVector
+  }
+
+  def vector_to_map(vector: Array[BigInt], baseAddress: String): Map[BigInt, Array[BigInt]] = {
+    val baseAddrBigInt = BigInt(baseAddress, 16) // Value of base address in BigInt
+    val map = {
+      for {
+        (d, i) <- vector.grouped(INP.nbValues).toArray.zipWithIndex
+      } yield {
+        println(d.mkString("Array(", ", ", ")"))
+        (BigInt(i) + baseAddrBigInt) -> d
+      }
+    }.toMap
+    map
   }
 }
 
