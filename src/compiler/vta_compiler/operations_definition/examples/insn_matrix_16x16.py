@@ -9,6 +9,13 @@ from structures_insn_uop import *
 
 # -----------------------------------------------------------
 
+# FILENAME
+# --------
+file_uop_path = compiler_output_filepath("uop.bin")
+file_insn_path = compiler_output_filepath("instructions.bin")
+
+# -----------------------------------------------------------
+
 # UOP DEFINITION
 # --------------
 # Define empty UOP buffer

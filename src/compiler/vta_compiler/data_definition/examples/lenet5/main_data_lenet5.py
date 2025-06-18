@@ -15,6 +15,10 @@ import matrix_split as MS
 import matrix_multiplication as MM
 import average_pooling as AP
 
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))))
+from utils.find_project_root import *
+
+
 def print_intermediate(matrix, isSquare=True, layer="1"):
     res_to_print = MG.matrix_padding(matrix=matrix, block_size=16, isWeight=False, isSquare=isSquare)
     res_to_print, res_col = MS.matrix_splitting(matrix=res_to_print, block_size=16, isWeight=False, isSquare=isSquare)
@@ -115,9 +119,7 @@ def main_data(isInputTensor=False, doExhaustivePrint=False):
     # --------------
 
     # Define the output repository
-    output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))), 'compiler_output')
-    # Check if the OUTPUT dir exist, else create it
-    os.makedirs(output_dir, exist_ok=True)
+    output_dir = compiler_output_setup()
 
     # Define the filename
     input_file = os.path.join(output_dir, 'input.bin')

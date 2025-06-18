@@ -4,23 +4,19 @@ import ctypes
 from ctypes import Structure, c_uint64, LittleEndianStructure
 
 import os
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from utils.find_project_root import *
 
 # -----------------------------------------------------------
 
 # DEFINE PATH FOR BINARIES
 # ------------------------
-#current_dir = os.path.dirname(os.path.abspath(__file__))
-#output_dir = os.path.join(current_dir, '../../../../compiler_output/')
-
-output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))), 'compiler_output')
-
-# Create the path if it does not exist
-def create_output_directory(path):
-    os.makedirs(path, exist_ok=True)
-create_output_directory(output_dir)
+output_dir = compiler_output_setup()
 
 # Define the files to write 
-def filepath_definition(filename = "default.bin"):
+def compiler_output_filepath(filename = "default.bin"):
     return os.path.join(output_dir, filename)
 
 # -----------------------------------------------------------

@@ -12,6 +12,9 @@ import json_generator as JG
 import memory_addresses as MA
 import average_pooling as AP
 
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from utils.find_project_root import *
+
 
 # MAIN FUNCTION
 # -------------
@@ -63,9 +66,7 @@ def main(config_file):
     C_blocks, C_blocks_col = MS.matrix_splitting(matrix=C_padded, block_size=config.block_size, isWeight=False, isSquare=config.isSquare)
 
     # Define the output repository
-    output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))), 'compiler_output')
-    # Check if the OUTPUT dir exist, else create it
-    os.makedirs(output_dir, exist_ok=True)
+    output_dir = compiler_output_setup()
 
     # Apply average pooling if necessary
     if (config.doAvgPool):

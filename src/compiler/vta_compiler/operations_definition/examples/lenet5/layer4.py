@@ -14,8 +14,8 @@ from structures_insn_uop import *
 
 # FILENAME
 # --------
-file_uop_path = filepath_definition("uop_L4.bin")
-file_insn_path = filepath_definition("instructions_L4.bin")
+file_uop_path = compiler_output_filepath("uop_L4.bin")
+file_insn_path = compiler_output_filepath("instructions_L4.bin")
 
 # -----------------------------------------------------------
 
