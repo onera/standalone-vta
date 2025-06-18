@@ -146,12 +146,23 @@ object BinaryReader {
           data.split("\n").map { line =>
             val array = line.split(",")
             (array(0), array(1).trim
-                                   .replaceAll("\n", "")
-                                   .replaceAll("\r", "")
-                                   .replaceAll("0x", "0000"))
+                               .replaceAll("\n", "")
+                               .replaceAll("\r", "")
+                               .replaceAll("0x", "0000"))
           }.toMap
         // Remove the following lines if you load INP, WGT, OUT from DRAM
-        val updatedBaseAddr = baseAddr.updated("inp", "00000000").updated("wgt", "00000000").updated("out", "00000000")
+        val updatedBaseAddr = {
+          if (baseAddr.size <= 5) {
+            baseAddr.updated("inp", "00000000").updated("wgt", "00000000").updated("out", "00000000")
+          }
+          else {
+            (0 until 5).foldLeft(baseAddr) { case (acc, i) =>
+              acc.updated(s"inp$i", "00000000")
+                .updated(s"wgt$i", "00000000")
+                .updated("out", "00000000")
+            }
+          }
+        }
         updatedBaseAddr
       case Failure(exception) =>
         println(s"Error while grouping data (if reversal) : ${exception.getMessage}")

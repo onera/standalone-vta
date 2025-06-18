@@ -16,7 +16,15 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
 
   val computeSimulator = new ComputeSimulator(
     c, insn, uop, input, weight, out, acc, expected_out, base_addresses,
-    doCompare, debug, fromResources)
+    doCompare, debug, fromResources = true)
+
+  computeSimulator.getOutScratchpad.toSeq.sortBy(_._1).foreach { case (key, values) =>
+    val hexKey = Integer.toHexString(key.toInt)
+    println(s"Logical address (Hex) : ${"0" * (8 - hexKey.length)}$hexKey")
+    println(s"Values : ${values.mkString(", ")}")
+  }
+
+
 }
 
 
@@ -63,7 +71,7 @@ class ComputeApp_32x32 extends GenericTest("ComputeApp_32x32", (p:Parameters) =>
   "examples_compute/32x32/accumulator.bin",
   "examples_compute/32x32/expected_out.bin",
   "examples_compute/32x32/memory_addresses.csv",
-  true))
+  true, debug = true, fromResources = true))
 
 
 ///* ALTERNATIVE INSTRUCTION INVESTIGATION:

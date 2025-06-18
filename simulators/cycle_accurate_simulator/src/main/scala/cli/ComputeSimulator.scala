@@ -31,14 +31,14 @@ object ComputeSimulator {
 
 
 class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt, Array[BigInt]], weight: String, out: String, acc: String, expected_out: String,
-                  base_addresses: String, doCompare: Boolean = false, debug: Boolean = false, fromResources: Boolean = false)
+                  base_addresses: String, doCompare: Boolean, debug: Boolean, fromResources: Boolean)
   extends PeekPokeTester(c) {
 
   def this(c: Compute, insn: String, uop: String, input: String, weight: String, out: String, acc: String, expected_out: String,
            base_addresses: String, doCompare: Boolean, debug: Boolean, fromResources: Boolean) = {
     this(c, insn, uop,
       ComputeSimulator.build_scratchpad_binary(input, DataType.INP, ComputeSimulator.getBaseAddr(base_addresses, fromResources)("inp"), isDRAM = false, fromResources),
-      weight, out, acc, expected_out, base_addresses, doCompare, debug, fromResources = false)
+      weight, out, acc, expected_out, base_addresses, doCompare, debug, fromResources)
   }
 
 
@@ -517,7 +517,7 @@ class ComputeApp extends GenericSim("ComputeApp", (p:Parameters) =>
   "accumulator.bin",
   "expected_out_sram.bin",
   "memory_addresses.csv",
-  true, debug=true, false))
+  doCompare = true, debug = true, fromResources = false))
 
 
 
