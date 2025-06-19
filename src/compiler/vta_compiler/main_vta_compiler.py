@@ -102,20 +102,27 @@ if __name__ == "__main__":
     1st argument define the operation to perform.
     2nd argument define the hardware configuration.
     """
+    debug = True
+
     # If there is no argument, take "config/template.json" and "config/vta_config.json"
     if len(sys.argv) == 1:
         print("WARNING: No argument given, the execution takes default values!\n\n")
         operations_file = "config/template.json"
         vta_config_file = "config/vta_config.json"
-    # If there is only one argument, 
+    # If there is only one argument 
     elif len(sys.argv) == 2:
         print("WARNING: No vta configuration given, the execution takes default values!\n\n")
         operations_file = sys.argv[1]
         vta_config_file = "config/vta_config.json"
-    # If there are two argument, 
+    # If there are two arguments
     elif len(sys.argv) == 3:
         operations_file = sys.argv[1]
         vta_config_file = sys.argv[2]
+    # If there are three arguments
+    elif len(sys.argv) == 4:
+        operations_file = sys.argv[1]
+        vta_config_file = sys.argv[2]
+        debug = False if (sys.argv[3] == "False") else True
     else: # Through an error
         print("python main_vta_compiler.py <path_operations>.json <vta_config>.json")
         sys.exit(1)
@@ -125,4 +132,4 @@ if __name__ == "__main__":
     vta_config_dict = parse_json_to_dict(vta_config_file)
 
     # Execute the main function
-    main(operations_dict, vta_config_dict, debug=True)
+    main(operations_dict, vta_config_dict, debug=debug)
