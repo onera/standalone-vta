@@ -28,6 +28,15 @@ def matrix_int8_multiplication(A, B, useClip=False, useReLU=False):
     # Return ACC and C
     return ACC, C
 
+
+def matrix_multiplication(A, B, X, acc_dtype=np.int32):
+    """Multiply the two matrix together. Return the ACC matrix in acc_dtype."""
+    # Compute ACC in int16
+    ACC = X + np.matmul(A.astype(acc_dtype), B.astype(acc_dtype))
+
+    # Return ACC
+    return ACC
+
 def block_matrix_multiply(A_blocks, B_blocks, A_blocks_col, B_blocks_col, block_size=16):
     """Multiply blocks of A with blocks of B and provide the multiplication combinations."""
     # Determine the number of blocks in each dimension

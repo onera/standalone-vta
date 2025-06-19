@@ -1,0 +1,15 @@
+{
+  "MATRICES" : [
+    {
+      "INPUT": [16, 10],
+      "WEIGHT": [10, 16]
+    }
+  ],
+  "ALU" : [
+    {
+      "SHR_IMM": [0,1],
+      "MIN": [2,3] 
+    }
+  ],
+  "DRAM_OFFSET" : 0
+}
