@@ -7,8 +7,7 @@
   ],
   "ALU" : [
     {
-      "SHR_IMM": [0,1],
-      "MIN": [2,3] 
+      "MAX_IMM": [0,0]
     }
   ],
   "DRAM_OFFSET" : 0
