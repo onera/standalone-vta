@@ -248,7 +248,8 @@ object BinaryReader {
         //groupedArrayBit2.map(_.mkString(", ")).foreach(println)
         // Converts the values to BigInt (included in [-128, 128], except for ACC)
         val groupedByElemSizeBI = groupedArrayBit2.map(_.map(BigInt(_, 2)).map {bigInt =>
-          if (bigInt >= 128 && dataType.id != INSN.id && dataType.id != ACC.id) bigInt - 256 else bigInt})
+          if (bigInt >= 128 && dataType.id != INSN.id && dataType.id != ACC.id && dataType.id != UOP.id) bigInt - 256
+          else bigInt})
         val correctedGrouped = groupedByElemSizeBI.map(_.map {bigInt =>
           if (dataType.id == ACC.id && bigInt >= 128)
             BigInt(bigInt.intValue)
