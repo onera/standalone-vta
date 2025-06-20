@@ -118,44 +118,66 @@ def main_data(isInputTensor=False, doExhaustivePrint=False, debug_reshape=False)
     L1_ACC, _, _ = AP.reference_average_pooling(conv1, 2, 2)
     res1 = MM.truncate_to_int8(L1_ACC) # Truncate ACC to obtain OUT
     
-    _, C_L1 = MM.matrix_int8_multiplication(A=input_padded, B=L1_padded, useClip=False, useReLU=True)
-    C_empty_L1 = MG.matrix_creation(n_row=C_L1.shape[0], n_col=C_L1.shape[1], isInitRandom=False, dtype=np.int8) # empty OUT
-    print("ok", C_L1.shape[0], " ", C_L1.shape[1])
+    # Creating out_init_L1
+    _, res1_init = MM.matrix_int8_multiplication(A=input_padded, B=L1_padded, useClip=False, useReLU=True)
+    C_empty_L1 = MG.matrix_creation(n_row=res1_init.shape[0], n_col=res1_init.shape[1], isInitRandom=False, dtype=np.int8) # empty OUT
 
+    # Creating expected_out_sram for L1
+    L1_pooled, _, _ = AP.avg_pool_sram(conv1, 2, 2)
+    L1_out_sram = MG.matrix_padding(L1_pooled, 16, False, True)
+    L1_pooled_sram = MM.truncate_to_int8(L1_out_sram)
+    C_blocks_sram, _ = MS.matrix_splitting(L1_pooled_sram, 16, False, True)
+    
     # Reshape L1 -> L2
     res1_reshaped = reshape.mat_to_tensor(res1, 1, 6, 14, 14) # (res, batch_size, output_channels, output_height, output_width)
     res1_reshaped = reshape.im2row(res1_reshaped, (5, 5), 1) # (X, kernel_size, stride)  
+
 
     # Layer 2:
     conv2, _ = MM.matrix_int8_multiplication(A=res1_reshaped, B=weight_L2, useClip=False, useReLU=True) # Take ACC result
     L2_ACC, _, _ = AP.reference_average_pooling(conv2, 2, 2)
     res2 = MM.truncate_to_int8(L2_ACC) # Truncate ACC to obtain OUT
     
+    # Creating out_init_L2
     res1_padded = MG.matrix_padding(matrix=res1_reshaped, block_size=16, isWeight=False, isSquare=True)
-    print("ok", res1_reshaped.shape[0], " ", res1_reshaped.shape[1])
-    print("ok", res1_padded.shape[0], " ", res1_padded.shape[1])
-    _, C_L2 = MM.matrix_int8_multiplication(A=res1_padded, B=L2_padded, useClip=False, useReLU=True)
-    C_empty_L2 = MG.matrix_creation(n_row=C_L2.shape[0], n_col=C_L2.shape[1], isInitRandom=False, dtype=np.int8) # empty OUT
+    _, res2_init = MM.matrix_int8_multiplication(A=res1_padded, B=L2_padded, useClip=False, useReLU=True)
+    C_empty_L2 = MG.matrix_creation(n_row=res2_init.shape[0], n_col=res2_init.shape[1], isInitRandom=False, dtype=np.int8) # empty OUT
+    
+    # Creating expected_out_sram for L2
+    L2_pooled, _, _ = AP.avg_pool_sram(conv2, 2, 2)
+    L2_out_sram = MG.matrix_padding(L2_pooled, 16, False, True)
+    L2_pooled_sram = MM.truncate_to_int8(L2_out_sram)
+    C_blocks_sram_L2, _ = MS.matrix_splitting(L2_pooled_sram, 16, False, True)
 
     # Reshape L2 -> L3
     res2_reshaped = reshape.mat_to_tensor(res2, 1, 16, 5, 5) # (res, batch_size, output_channels, output_height, output_width)
     res2_reshaped = reshape.im2row(res2_reshaped, (5, 5), 1) # (X, kernel_size, stride)
 
+
     # Layer 3:
     conv3, res3 = MM.matrix_int8_multiplication(A=res2_reshaped, B=weight_L3, useClip=False, useReLU=True) 
-    res3_padded = MG.matrix_padding(matrix=res2_reshaped, block_size=16, isWeight=False, isSquare=True)
-    _, res3_mm_padded = MM.matrix_int8_multiplication(A=res3_padded, B=L3_padded, useClip=False, useReLU=True)
-    C_empty_L3 = MG.matrix_creation(n_row=res3_mm_padded.shape[0], n_col=res3_mm_padded.shape[1], isInitRandom=False, dtype=np.int8) # empty OUT
+    
+    # Creating out_init_L3
+    res3_init = MG.matrix_padding(res3, 16, False, False)
+    C_empty_L3 = MG.matrix_creation(n_row=res3_init.shape[0], n_col=res3_init.shape[1], isInitRandom=False, dtype=np.int8) # empty OUT
+
+    # Creating expected_out_sram for L2
+    
 
     # Layer 4:
     L4_ACC, res4 = MM.matrix_int8_multiplication(A=res3, B=weight_L4, useClip=False, useReLU=True)
-    # res4 paddée ?
-    C_empty_L4 = MG.matrix_creation(n_row=res4.shape[0], n_col=res4.shape[1], isInitRandom=False, dtype=np.int8) # empty OUT
+    
+    # Creating out_init_L4
+    res4_init = MG.matrix_padding(res4, 16, False, False)
+    C_empty_L4 = MG.matrix_creation(n_row=res4_init.shape[0], n_col=res4_init.shape[1], isInitRandom=False, dtype=np.int8) # empty OUT
+    
 
     # Layer 5:
     L5_ACC, res5 = MM.matrix_int8_multiplication(A=res4, B=weight_L5, useClip=False, useReLU=False)
-    # res5 paddée ?
-    C_empty_L5 = MG.matrix_creation(n_row=res5.shape[0], n_col=res5.shape[1], isInitRandom=False, dtype=np.int8) # empty OUT
+    
+    # Creating out_init_L5
+    res5_init = MG.matrix_padding(res5, 16, False, False)
+    C_empty_L5 = MG.matrix_creation(n_row=res5_init.shape[0], n_col=res5_init.shape[1], isInitRandom=False, dtype=np.int8) # empty OUT
     
 
     # Print the results
@@ -238,9 +260,15 @@ def main_data(isInputTensor=False, doExhaustivePrint=False, debug_reshape=False)
     # > TEMPO FILES FOR UNITTESTS
     if (debug_reshape):
         outL1_file = os.path.join(output_dir, 'outL1.bin')
+        outL1_sram = os.path.join(output_dir, 'outL1_sram.bin')
         inpL2_file = os.path.join(output_dir, 'inpL2.bin')
         outL2_file = os.path.join(output_dir, 'outL2.bin')
+        outL2_sram = os.path.join(output_dir, 'outL2_sram.bin')
         inpL3_file = os.path.join(output_dir, 'inpL3.bin')
+        
+        outL3_file = os.path.join(output_dir, 'outL3.bin')
+        outL4_file = os.path.join(output_dir, 'outL4.bin')
+        outL5_file = os.path.join(output_dir, 'outL5.bin')
     # <<<
 
     # Write 
@@ -288,9 +316,16 @@ def main_data(isInputTensor=False, doExhaustivePrint=False, debug_reshape=False)
         inpL2_blocks, _ = MS.matrix_splitting(matrix=inpL2, block_size=16, isWeight=False, isSquare=True)
         outL2_blocks, _ = MS.matrix_splitting(matrix=outL2, block_size=16, isWeight=False, isSquare=True)
         inpL3_blocks, _ = MS.matrix_splitting(matrix=inpL3, block_size=16, isWeight=False, isSquare=False)
+        
+        outL3_blocks, _ = MS.matrix_splitting(matrix=res3_init, block_size=16, isWeight=False, isSquare=False)
+        outL4_blocks, _ = MS.matrix_splitting(matrix=res4_init, block_size=16, isWeight=False, isSquare=False)
+        outL5_blocks, _ = MS.matrix_splitting(matrix=res5_init, block_size=16, isWeight=False, isSquare=False)
 
         with open(outL1_file, 'wb') as f:
             for block in outL1_blocks:
+                block.tofile(f)
+        with open(outL1_sram, 'wb') as f:
+            for block in C_blocks_sram:
                 block.tofile(f)
         with open(inpL2_file, 'wb') as f:
             for block in inpL2_blocks:
@@ -298,8 +333,21 @@ def main_data(isInputTensor=False, doExhaustivePrint=False, debug_reshape=False)
         with open(outL2_file, 'wb') as f:
             for block in outL2_blocks:
                 block.tofile(f)
+        with open(outL2_sram, 'wb') as f:
+            for block in C_blocks_sram_L2:
+                block.tofile(f)
         with open(inpL3_file, 'wb') as f:
             for block in inpL3_blocks:
+                block.tofile(f)
+                
+        with open(outL3_file, 'wb') as f:
+            for block in outL3_blocks:
+                block.tofile(f)
+        with open(outL4_file, 'wb') as f:
+            for block in outL4_blocks:
+                block.tofile(f)
+        with open(outL5_file, 'wb') as f:
+            for block in outL5_blocks:
                 block.tofile(f)
     # <<<
 
