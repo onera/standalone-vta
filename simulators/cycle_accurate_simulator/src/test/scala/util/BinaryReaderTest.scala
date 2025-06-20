@@ -1580,4 +1580,17 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     baseAddresses("uop") should equal("00004000")
     baseAddresses("acc") should equal("00005000")
   }
+
+
+  it should "print all of the data of L2 for LeNet-5" in {
+    val baseAddr = computeBaseAddresses("base_addr_L2.csv", fromResources = false)
+    val uop = computeAddresses("uop_L2.bin", DataType.UOP, baseAddr("uop"), true, false)
+    val out = computeAddresses("out_init_L2.bin", DataType.OUT, baseAddr("out"), false, false)
+    uop match {
+      case Success(uop_d) =>
+        printMap(uop_d, DataType.UOP)
+      case Failure(exception) =>
+        fail(s"Error while computing addresses for INP : ${exception.getMessage}")
+    }
+  }
 }
