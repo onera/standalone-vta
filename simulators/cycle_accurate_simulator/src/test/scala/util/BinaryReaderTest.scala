@@ -149,7 +149,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   }
 
   it should "decode the content of binary files in /compiler_output" in {
-    // test done on files for matrix_16x16
+    // test done on files for matrix_16x16 - will work for make FILENAME=matrix_16x16
     val baseAddr = computeBaseAddresses("memory_addresses.csv", fromResources = false)
     val inp = computeAddresses("input.bin", DataType.INP, baseAddr("inp"), isDRAM = false, fromResources = false)
     val inp_vec0 = Array(-1, 0, -3, -4, -2, -2, 2, -2, 0, -3, -4, 2, 0, -4, -4, 1)

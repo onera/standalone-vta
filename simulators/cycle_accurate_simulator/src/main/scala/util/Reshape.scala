@@ -77,7 +77,7 @@ object Reshape {
       }
       B = pushBack(B, last_row)
     }
-    print("toBlocks done !\n")
+    //print("toBlocks done !\n")
     B
   }
 
@@ -101,7 +101,7 @@ object Reshape {
         }
       }
     }
-    print("unsplit done !\n")
+    //print("unsplit done !\n")
     reconstructed
   }
 
@@ -124,7 +124,7 @@ object Reshape {
         idx = idx+1
       }
     }
-    print("mat_to_tensor done !\n")
+    //print("mat_to_tensor done !\n")
     tensor
   }
 
@@ -161,7 +161,7 @@ object Reshape {
         }
       }
     }
-    print("im2row done !\n")
+    //print("im2row done !\n")
     result
   }
 
@@ -188,7 +188,7 @@ object Reshape {
         padded_matrix(i)(j) = matrix(i)(j)
       }
     }
-    print("matrix_padding done !\n")
+    //print("matrix_padding done !\n")
     padded_matrix
   }
 
@@ -238,7 +238,7 @@ object Reshape {
         }
       }
     }
-    print("matrix_splitting done !\n")
+    //print("matrix_splitting done !\n")
     (blocks, blocks_col)
   }
 
@@ -264,7 +264,7 @@ object Reshape {
       row   <- block
       value <- row
     } yield value
-    print("reshaping done !\n")
+    //print("reshaping done !\n")
     reshapedVector
   }
 
@@ -274,7 +274,7 @@ object Reshape {
       for {
         (d, i) <- vector.grouped(INP.nbValues).toArray.zipWithIndex
       } yield {
-        println(d.mkString("Array(", ", ", ")"))
+        //println(d.mkString("Array(", ", ", ")"))
         (BigInt(i) + baseAddrBigInt) -> d
       }
     }.toMap
