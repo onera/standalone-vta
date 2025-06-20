@@ -4,9 +4,11 @@ import os
 import sys
 
 import numpy as np
+import csv
 
 import config.configuration as conf
 import data_definition.data_definition as DF
+import dram_allocation.dram_allocation as DA
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.find_project_root import *
@@ -35,11 +37,40 @@ def main(operations_dict, vta_config_dict, debug=True):
     # Others configuration
     random_bound = 4
 
+
     # ---------------------------------------------
     # DATA DEFINITION
 
-    A_blocks, B_blocks, X_blocks, ALU_blocks, C_blocks, combinations = DF.data_definition(operations_dict, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype,
-                    block_size=block_size, random_bound=random_bound, debug=debug)
+    A_blocks, B_blocks, X_blocks, ALU_blocks, C_blocks, C_init, combinations, isSquare = \
+        DF.data_definition(operations_dict, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype,
+                           block_size=block_size, random_bound=random_bound, debug=debug)
+
+
+    # ---------------------------------------------
+    # DRAM ALLOCATION
+
+    # Create the object to allocate
+    object_list = [("INP", A_blocks),
+                   ("WGT", B_blocks)]
+    if "ACCUMULATOR" in operations_dict["MATRICES"][0]:
+        object_list.append(("ACC", X_blocks))
+    object_list.append(("OUT", C_blocks))
+
+    # Get the offsets
+    if "BASE_ADDRESS" in operations_dict:
+        base_address = int(operations_dict["BASE_ADDRESS"], base=16)
+    else:
+        base_address = 0x0000
+    if "DRAM_OFFSET" in operations_dict:
+        dram_offset = int(operations_dict["DRAM_OFFSET"], base=16)
+    else:
+        dram_offset = 0x0000
+
+    # Allocate the object
+    base_addresses_list, current_dram_addr = \
+        DA.dram_allocation(object_list, base_addr=base_address, block_size=block_size, 
+                           inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype,
+                           dram_offset=dram_offset, debug=debug)
 
 
     # ---------------------------------------------
@@ -48,12 +79,14 @@ def main(operations_dict, vta_config_dict, debug=True):
     # Setup the output folder (standalone-vta/compiler_output/)
     output_dir = compiler_output_setup()
 
-
+    # MATRICES
     # Define the complete path of the files
     A_blocks_file_path = filepath_definition(output_dir, 'input.bin')
     B_blocks_file_path = filepath_definition(output_dir, 'weight.bin')
     X_blocks_file_path = filepath_definition(output_dir, 'accumulator.bin')
     C_blocks_file_path = filepath_definition(output_dir, 'expected_out.bin')
+    C_init_file_path = filepath_definition(output_dir, 'out_init.bin')
+    ALU_blocks_file_path = filepath_definition(output_dir, 'expected_out_sram.bin')
 
     # Write A_block matrix
     with open(A_blocks_file_path, 'wb') as f:
@@ -75,6 +108,25 @@ def main(operations_dict, vta_config_dict, debug=True):
     with open(C_blocks_file_path, 'wb') as f:
         for block in C_blocks:
             block.tofile(f)
+    
+    # Write the C_init (init the SRAM buffer for cycle-accurate simulator)
+    with open(C_init_file_path, 'wb') as f:
+        C_init.tofile(f)
+    
+    # Write ALU_blocks (expected result before store)
+    with open(ALU_blocks_file_path, 'wb') as f:
+        for block in ALU_blocks:
+            block.tofile(f)
+
+
+    # DRAM ALLOCATION
+    base_addresses_file_path = filepath_definition(output_dir, 'memory_addresses.csv')
+
+    with open(base_addresses_file_path, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        for obj_addr in base_addresses_list:
+            writer.writerow([obj_addr['type'], obj_addr['physical_base_address'], obj_addr['logical_base_address']])
+
 
     # ---------------------------------------------
     # DEBUG

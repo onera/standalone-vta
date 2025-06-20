@@ -51,6 +51,9 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
             X_matrix = MG.matrix_creation(n_row=C_row, n_col=C_col, isInitRandom=True, random_bound=random_bound, dtype=acc_dtype)
         else: # TODO: read the ACCUMULATOR_VALUE (a binary file?)  
             pass
+    
+    # For simulator initialisation:
+    C_init = MG.matrix_creation(n_row=C_row, n_col=C_col, isInitRandom=False, random_bound=0, dtype=inp_dtype)
 
     # ---------------------------------------------
     # APPLY HARDWARE CONSTRAINTS (pad + split)
@@ -88,21 +91,31 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
     else:
         alu_operations_dict = operations_dict["ALU"][0]
 
+    # For ALU vector-vector operation, the source vector can be deleted
+    idx_to_delete = []
+
     # Execute the operations
     for key, value in alu_operations_dict.items():
-        isIMM = True if key.endswith("_IMM") else False
+        # Check the type of operations (vector-scalar or vector-vector)
+        if (key.endswith("_IMM")): # Vector-scalar
+            isIMM = True
+        else: # Vector-vector: the index of the second vector can be deleted
+            isIMM = False
+            idx_to_delete.append(value[1])
         ALU_matrix = ALU.alu_operations(ALU_matrix, alu_operation=key, dst_idx=value[0], elem2=value[1], isIMM=isIMM)
 
     # ---------------------------------------------
-    # TRUNCATE 
+    # TRUNCATE AND CLEAN OUTPUT
 
-    C_matrix = TR.truncate(ALU_matrix, inp_dtype)
+    # Truncate ALU_matrix
+    ALU_trunc = TR.truncate(ALU_matrix, inp_dtype)
 
-    # Split the matrix for binarisation
-    C_blocks, C_blocks_col = MS.matrix_splitting(matrix=C_matrix, block_size=block_size, isWeight=False, isSquare=isSquare)
+    # Split ALU_trunc for expected result before store (final output buffer)
+    ALU_blocks, C_blocks_col = MS.matrix_splitting(matrix=ALU_trunc, block_size=block_size, isWeight=False, isSquare=isSquare)
 
-    # Split also the ACC after ALU
-    ALU_blocks, ALU_blocks_col = MS.matrix_splitting(matrix=ALU_matrix, block_size=block_size, isWeight=False, isSquare=isSquare)
+    # Remove non-necessary row in ALU to get C
+    padding = ACC_padded_ref.shape[0] - C_row
+    C_blocks, idx_to_delete = ALU.delete_matrix_row(ALU_blocks, blocks_col=C_blocks_col, block_size=block_size, idx_to_delete=idx_to_delete, matrix_height=C_row, padding=padding)
 
     # ---------------------------------------------
     # DEBUG
@@ -161,18 +174,25 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
         for key, value in alu_operations_dict.items():
             print(f" {key}: {value}")
         print(f"\nALU_matrix ({ALU_matrix.shape}): \n{ALU_matrix}\n")
-
+        print(f"ALU_blocks truncated (blocks_col = {C_blocks_col})")
+        i = 0
+        for block in ALU_blocks:
+            print("\n ALU (OUT)", i)
+            print(block)
+            i = i + 1
 
         print("\n\nOUTPUT MATRIX:")
         i = 0
         print(f"C_blocks (blocks_col = {C_blocks_col})")
         for block in C_blocks:
-            print("\n C", i)
+            print(f"\n C {i} - {block.shape}")
             print(block)
             i = i + 1
+        
+        print(f"\nDeleted rows: \n {idx_to_delete}\n")
 
     # ---------------------------------------------
     # RETURN 
 
-    return A_blocks, B_blocks, X_blocks, ALU_blocks, C_blocks, combinations
+    return A_blocks, B_blocks, X_blocks, ALU_blocks, C_blocks, C_init, combinations, isSquare
 

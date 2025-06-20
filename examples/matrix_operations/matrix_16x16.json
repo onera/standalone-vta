@@ -25,5 +25,5 @@
       "MAX15_IMM": [15,0]
     }
   ],
-  "DRAM_OFFSET" : 0
+  "BASE_ADDRESS" : "0000"
 }

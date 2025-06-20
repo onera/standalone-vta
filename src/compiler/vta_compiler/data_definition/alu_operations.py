@@ -37,3 +37,30 @@ def alu_operations(matrix, alu_operation="MAX_IMM", dst_idx=0, elem2=0, isIMM=Tr
 
     return matrix
 
+# ---------------------------------------------
+
+# DELETE MATRIX ROW
+# -----------------
+def delete_matrix_row(input_blocks, blocks_col=1, block_size=16, idx_to_delete=[], matrix_height=1, padding=0):
+    # Add the padding in the idx_to_delete
+    for i in range(padding):
+        idx_to_delete.append(i+matrix_height)
+
+    # Sort the list and remove duplicata
+    idx_to_delete = sorted(set(idx_to_delete))
+
+    # Copy the matrix and not modify the previous
+    blocks = input_blocks.copy()
+
+    # Iterate on the index
+    for idx in reversed(idx_to_delete):
+        # Compute the local index within the block
+        block_idx = (idx // block_size) * blocks_col
+        local_idx = idx % block_size
+
+        # Iterate over all the blocks in the same row
+        for col in range(blocks_col):
+            blocks[block_idx+col] = np.delete(blocks[block_idx+col], local_idx, axis=0)
+    
+    # Return the blocks and the sorted idx_to_delete
+    return blocks, idx_to_delete

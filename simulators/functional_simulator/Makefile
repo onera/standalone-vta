@@ -22,7 +22,7 @@
 # -----------------
 # Define the compilation option (compiler: gcc, flags: -Wall)
 CC := g++ 
-CFLAGS = -std=c++17 -Wall -g
+CFLAGS = -std=c++17 -lstdc++fs -Wall -g
 #-fsanitize=address 
 
 # Define the variables for the configuration (vta_config.json)
