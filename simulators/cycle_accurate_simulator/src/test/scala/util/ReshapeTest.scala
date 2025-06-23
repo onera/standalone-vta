@@ -23,6 +23,14 @@ class ReshapeTest extends AnyFlatSpec with should.Matchers {
               case (_, array) => array
             }.toArray
             val reshaped_outL1 = reshape(outL1_vec, 1, 16, 196, 6, 1, 6, 14, 14, (5, 5), 1, isSquare = true)
+            printMap(vector_to_map(reshaped_outL1, "00000000"), DataType.OUT)
+            printMap(data_inp, DataType.INP)
+            for {
+              key <- vector_to_map(reshaped_outL1, "00000000").keySet
+              value = vector_to_map(reshaped_outL1, "00000000")(key)
+              val_ref = data_inp(key)
+            } yield value should equal(val_ref)
+            //vector_to_map(reshaped_outL1, "00000000") should equal(data_inp)
             reshaped_outL1 should equal(inpL2_vec)
           case Failure(exception) =>
             fail(s"Error while reshaping output of layer1 : ${exception.getMessage}")

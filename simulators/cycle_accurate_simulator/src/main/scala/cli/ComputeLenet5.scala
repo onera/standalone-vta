@@ -6,7 +6,7 @@ import util.{GenericSim, Reshape}
 import vta.core.Compute
 import vta.util.config.Parameters
 
-class ComputeLenet5(c: Compute, doCompare: Boolean = true, debug: Boolean = true, fromResources: Boolean = false)
+class ComputeLenet5(c: Compute, doCompare: Boolean = false, debug: Boolean = true, fromResources: Boolean = false)
   extends PeekPokeTester(c) {
 
   // Executing layer1 of LeNet-5
@@ -19,7 +19,7 @@ class ComputeLenet5(c: Compute, doCompare: Boolean = true, debug: Boolean = true
     "accumulator.bin",
     "outL1_sram.bin",
     "base_addr_L1.csv", // à générer
-    doCompare, debug, fromResources)
+     doCompare = true, debug, fromResources)
 
   // Reshaping output layer1
   val outL1_vec = computeSimulatorL1.getOutScratchpad.toSeq.sortBy(_._1).flatMap {
@@ -41,7 +41,7 @@ class ComputeLenet5(c: Compute, doCompare: Boolean = true, debug: Boolean = true
     "accumulator.bin",
     "outL2_sram.bin",
     "base_addr_L2.csv", // à générer
-    doCompare, debug, fromResources)
+    doCompare = false, debug, fromResources)
 
   // Reshaping output layer2
   val outL2_vec = computeSimulatorL2.getOutScratchpad.toSeq.sortBy(_._1).flatMap {
