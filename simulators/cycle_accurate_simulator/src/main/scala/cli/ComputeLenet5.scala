@@ -2,11 +2,11 @@ package cli
 
 import chiseltest.iotesters.PeekPokeTester
 import util.Reshape.{reshape, vector_to_map}
-import util.{GenericSim, Reshape}
+import util.{Filter, GenericSim, Reshape}
 import vta.core.Compute
 import vta.util.config.Parameters
 
-class ComputeLenet5(c: Compute, doCompare: Boolean = false, debug: Boolean = true, fromResources: Boolean = false)
+class ComputeLenet5(c: Compute, doCompare: Boolean = true, debug: Boolean = true, fromResources: Boolean = false)
   extends PeekPokeTester(c) {
 
   // Executing layer1 of LeNet-5
@@ -19,10 +19,11 @@ class ComputeLenet5(c: Compute, doCompare: Boolean = false, debug: Boolean = tru
     "accumulator.bin",
     "outL1_sram.bin",
     "base_addr_L1.csv", // à générer
-     doCompare = true, debug, fromResources)
+     doCompare, debug, fromResources)
 
   // Reshaping output layer1
-  val outL1_vec = computeSimulatorL1.getOutScratchpad.toSeq.sortBy(_._1).flatMap {
+  val outScratchpadL1 = Filter.filter(computeSimulatorL1.getOutScratchpad, 0, 14, 14, 2, 56)
+  val outL1_vec = outScratchpadL1.toSeq.sortBy(_._1).flatMap {
     case (_, array) => array
   }.toArray
   val reshaped_outL1 = reshape(outL1_vec, 1, 16, 196, 6, 1, 6, 14, 14, (5, 5), 1, isSquare = true)
@@ -39,12 +40,13 @@ class ComputeLenet5(c: Compute, doCompare: Boolean = false, debug: Boolean = tru
     "weight_L2.bin",
     "out_init_L2.bin",
     "accumulator.bin",
-    "outL2_sram.bin",
+    "outL2_sram.bin", // correct ?
     "base_addr_L2.csv", // à générer
-    doCompare = false, debug, fromResources)
+    doCompare, debug, fromResources)
 
   // Reshaping output layer2
-  val outL2_vec = computeSimulatorL2.getOutScratchpad.toSeq.sortBy(_._1).flatMap {
+  val outScratchpadL2 = Filter.filter(computeSimulatorL2.getOutScratchpad, 0, 5, 5, 2, 20)
+  val outL2_vec = outScratchpadL2.toSeq.sortBy(_._1).flatMap {
     case (_, array) => array
   }.toArray
   val reshaped_outL2 = reshape(outL2_vec, 1, 16, 25, 16, 1, 16, 5, 5, (5, 5), 1, isSquare = false)

@@ -22,10 +22,6 @@ object Reshape {
   }
 
   def toBlocks(vector: Array[BigInt], blockCol: Int, blockSize: Int): Array[Array[Array[Array[BigInt]]]] = { // vector: Vector[Byte] ?
-
-
-    //val npvec = DenseVector(vector.toArray)
-    //var B = ArrayBuffer.empty[Int]
     var B: Array[Array[Array[Array[BigInt]]]] = Array.empty
     val elements_per_full_row = blockCol * blockSize * blockSize
     val block_row = vector.length / elements_per_full_row
@@ -34,7 +30,6 @@ object Reshape {
     val last_row_exists = remaining > 0
 
     for (i <- 0 until block_row) {
-      //val row = ArrayBuffer.empty[Int]
       var row: Array[Array[Array[BigInt]]] = Array.empty
 
       for (j <- 0 until blockCol) {
@@ -59,7 +54,6 @@ object Reshape {
       for (j <- 0 until blockCol) {
         val start = base_index + j * elements_per_block
         val end = start + elements_per_block
-        //val block = vector.slice(start, end)
         var block_flat = Array.empty[BigInt]
         for (k <- start until math.min(end, vector.length)) {
           block_flat = pushBack(block_flat, vector(k))
@@ -197,17 +191,17 @@ object Reshape {
     val n_row = matrix.size
     val n_col = matrix(0).size
 
-//    if (n_col % block_size != 0) {
-//      throw new
-//    }
+    if (n_col % block_size != 0) {
+      throw new IllegalArgumentException("Number of columns cannot be divided by block_size")
+    }
 
     val blocks_col = n_col / block_size
     var blocks: Array[Array[Array[BigInt]]] = Array.empty
 
     if (isWeight || isSquare) {
-//      if (n_row % block_size != 0) {
-//        throw new
-//      }
+      if (n_row % block_size != 0) {
+        throw new IllegalArgumentException("Number of rows cannot be divided by block_size")
+      }
       val blocks_row = n_row / block_size
       for (i <- 0 until blocks_row) {
         for (j <- 0 until blocks_col) {
