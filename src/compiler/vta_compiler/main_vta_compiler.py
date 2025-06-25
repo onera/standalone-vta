@@ -74,6 +74,10 @@ def main(operations_dict, vta_config_dict, debug=True):
 
 
     # ---------------------------------------------
+    # MATRIX PARTITIONING
+
+
+    # ---------------------------------------------
     # DATA BINARISATION
 
     # Setup the output folder (standalone-vta/compiler_output/)

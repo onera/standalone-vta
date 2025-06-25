@@ -30,6 +30,9 @@ matrix_16x16_maxpool: ## Multiply two 16x16-matrices and apply a MAX vector-vect
 matrix_20x20: ## Multiply two 20x20-matrices and perform some ALU operations
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/matrix_20x20.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
 
+matrix_8blocks: ## Multiply a 4x2-blocks INP with a 2x3-blocks WGT
+	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/matrix_8blocks.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
+
 
 # CREATE OUTPUTS DIRECTORIES
 ############################
