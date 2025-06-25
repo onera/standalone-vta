@@ -32,9 +32,6 @@ def dram_allocation(object_list, base_addr=0x0000, block_size=16,
         else:
             raise Exception(f"ERROR: Unknown object type ({obj_type})! \n\n")
 
-        # Define the size of the allocation 
-        alloc_size_bytes = sum(matrix.nbytes for matrix in obj_value) # Bytes
-
         # Get the object address
         obj_addr, current_dram_addr = addresses_computation(obj_type, obj_value, page_size, current_dram_addr, dram_offset, logical_divisor)
 
