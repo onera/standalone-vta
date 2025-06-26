@@ -106,7 +106,7 @@ object BinaryReader {
    * @param fromResources boolean that is true if the files are in a Resources folder, false otherwise
    * @return a String with the content of the file
    */
-  def readBaseAddresses(filePath: String, fromResources: Boolean): Try[String] = {
+  def readCSVFile(filePath: String, fromResources: Boolean): Try[String] = {
     Try {
       val inputStream: InputStream = {
         if (fromResources) {
@@ -139,7 +139,7 @@ object BinaryReader {
       else {
         filePath
       }
-    val fileContent = readBaseAddresses(newFilePath, fromResources)
+    val fileContent = readCSVFile(newFilePath, fromResources)
     fileContent match {
       case Success(data) =>
         val baseAddr =

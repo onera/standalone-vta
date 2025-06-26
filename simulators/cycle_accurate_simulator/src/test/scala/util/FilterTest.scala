@@ -46,10 +46,10 @@ class FilterTest extends AnyFlatSpec with should.Matchers {
             } yield value should equal(val_ref)
             data.size should equal(filteredOut.size)
           case Failure(exception) =>
-            fail(s"Error while filtering output of layer1 : ${exception.getMessage}")
+            fail(s"Error while filtering output of layer2 : ${exception.getMessage}")
         }
       case Failure(exception) =>
-        fail(s"Error while filtering output of layer1 : ${exception.getMessage}")
+        fail(s"Error while filtering output of layer2 : ${exception.getMessage}")
     }
   }
 }
