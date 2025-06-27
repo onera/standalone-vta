@@ -194,5 +194,5 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
     # ---------------------------------------------
     # RETURN 
 
-    return A_blocks, B_blocks, X_blocks, ALU_blocks, C_blocks, C_init, combinations, isSquare
+    return A_blocks, A_blocks_col, B_blocks, B_blocks_col, X_blocks, X_blocks_col, ALU_blocks, C_blocks, C_blocks_col, C_init, combinations, isSquare
 

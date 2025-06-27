@@ -9,6 +9,7 @@ import csv
 import config.configuration as conf
 import data_definition.data_definition as DF
 import dram_allocation.dram_allocation as DA
+import matrix_partitioning.matrix_partitioning as MP
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.find_project_root import *
@@ -31,8 +32,11 @@ def main(operations_dict, vta_config_dict, debug=True):
     inp_buffer_size = conf.buffer_size(vta_config_dict["LOG_INP_BUFF_SIZE"], vta_config_dict["LOG_INP_WIDTH"], block_size)
     wgt_buffer_size = conf.buffer_size(vta_config_dict["LOG_WGT_BUFF_SIZE"], vta_config_dict["LOG_WGT_WIDTH"], block_size*block_size)
     acc_buffer_size = conf.buffer_size(vta_config_dict["LOG_ACC_BUFF_SIZE"], vta_config_dict["LOG_ACC_WIDTH"], block_size)
+    out_buffer_size = acc_buffer_size
     inp_block_buffer_size = int( inp_buffer_size / block_size )
+    wgt_block_buffer_size = wgt_buffer_size
     acc_block_buffer_size = int( acc_buffer_size / block_size )
+    out_block_buffer_size = acc_block_buffer_size
 
     # Others configuration
     random_bound = 4
@@ -41,7 +45,7 @@ def main(operations_dict, vta_config_dict, debug=True):
     # ---------------------------------------------
     # DATA DEFINITION
 
-    A_blocks, B_blocks, X_blocks, ALU_blocks, C_blocks, C_init, combinations, isSquare = \
+    A_blocks, A_blocks_col, B_blocks, B_blocks_col, X_blocks, X_blocks_col, ALU_blocks, C_blocks, C_blocks_col, C_init, combinations, isSquare = \
         DF.data_definition(operations_dict, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype,
                            block_size=block_size, random_bound=random_bound, debug=debug)
 
@@ -76,6 +80,19 @@ def main(operations_dict, vta_config_dict, debug=True):
     # ---------------------------------------------
     # MATRIX PARTITIONING
 
+    # Compute the data for matrix partitioning
+    nb_A = len(A_blocks)
+    nb_B = len(B_blocks)
+    nb_X = len(X_blocks)
+    nb_C = len(C_blocks)
+
+    isOverfitting, strategy = \
+        MP.matrix_partitioning(nb_A=nb_A, A_blocks_col=A_blocks_col, nb_B=nb_B, B_blocks_col=B_blocks_col, 
+                               nb_X=nb_X, X_blocks_col=X_blocks_col, nb_C=nb_C, C_blocks_col=C_blocks_col,
+                               inp_block_buffer_size=inp_block_buffer_size, wgt_block_buffer_size=wgt_block_buffer_size, 
+                               acc_block_buffer_size=acc_block_buffer_size, out_block_buffer_size=out_block_buffer_size,
+                               strategy_selector=1, debug=True)
+
 
     # ---------------------------------------------
     # DATA BINARISATION
@@ -92,18 +109,18 @@ def main(operations_dict, vta_config_dict, debug=True):
     C_init_file_path = filepath_definition(output_dir, 'out_init.bin')
     ALU_blocks_file_path = filepath_definition(output_dir, 'expected_out_sram.bin')
 
-    # Write A_block matrix
+    # Write A_blocks matrix
     with open(A_blocks_file_path, 'wb') as f:
         for block in A_blocks:
             block.tofile(f)
     
-    # Write B_block matrix (TO TRANSPOSE!)
+    # Write B_blocks matrix (TO TRANSPOSE!)
     with open(B_blocks_file_path, 'wb') as f:
         for block in B_blocks:
             transposed = block.transpose()
             transposed.tofile(f)
 
-    # Write X_block matrix
+    # Write X_blocks matrix
     with open(X_blocks_file_path, 'wb') as f:
         for block in X_blocks:
             block.tofile(f)
