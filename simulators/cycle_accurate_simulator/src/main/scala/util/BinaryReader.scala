@@ -128,7 +128,7 @@ object BinaryReader {
    * @param fromResources boolean that is true if the files are in a Resources folder, false otherwise
    * @return a Map[String, String] of the data type and its base address
    */
-  def computeBaseAddresses(filePath: String, fromResources: Boolean): Map[String, String] = {
+  def computeCSVFile(filePath: String, fromResources: Boolean, isBaseAddr: Boolean = true): Map[String, String] = {
     val newFilePath =
       if (!fromResources) {
         val projectRoot = new File("../../")
@@ -143,7 +143,7 @@ object BinaryReader {
     fileContent match {
       case Success(data) =>
         val baseAddr =
-          data.split("\n").map { line =>
+          data.split("\n").filterNot(line => line.startsWith("//") || line.trim.isEmpty).map { line =>
             val array = line.split(",")
             (array(0), array(1).trim
                                .replaceAll("\n", "")
@@ -152,16 +152,19 @@ object BinaryReader {
           }.toMap
         // Remove the following lines if you load INP, WGT, OUT from DRAM
         val updatedBaseAddr = {
-          if (baseAddr.size <= 5) {
-            baseAddr.updated("inp", "00000000").updated("wgt", "00000000").updated("out", "00000000")
-          }
-          else {
-            (0 until 5).foldLeft(baseAddr) { case (acc, i) =>
-              acc.updated(s"inp$i", "00000000")
-                .updated(s"wgt$i", "00000000")
-                .updated("out", "00000000")
+          if (isBaseAddr) {
+            if (baseAddr.size <= 5) {
+              baseAddr.updated("inp", "00000000").updated("wgt", "00000000").updated("out", "00000000")
+            }
+            else {
+              (0 until 5).foldLeft(baseAddr) { case (acc, i) =>
+                acc.updated(s"inp$i", "00000000")
+                  .updated(s"wgt$i", "00000000")
+                  .updated("out", "00000000")
+              }
             }
           }
+          else { baseAddr }
         }
         updatedBaseAddr
       case Failure(exception) =>

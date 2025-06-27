@@ -150,7 +150,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
 
   it should "decode the content of binary files in /compiler_output" in {
     // test done on files for matrix_16x16 - will work for make FILENAME=matrix_16x16
-    val baseAddr = computeBaseAddresses("memory_addresses.csv", fromResources = false)
+    val baseAddr = computeCSVFile("memory_addresses.csv", fromResources = false)
     val inp = computeAddresses("input.bin", DataType.INP, baseAddr("inp"), isDRAM = false, fromResources = false)
     val inp_vec0 = Array(-1, 0, -3, -4, -2, -2, 2, -2, 0, -3, -4, 2, 0, -4, -4, 1)
     inp match {
@@ -1553,7 +1553,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
 
   /* Decoding CSV file for the base memory addresses */
   it should "decode the content of the csv file" in {
-    val baseAddresses = computeBaseAddresses("examples_compute/lenet5_conv1/memory_addresses.csv", fromResources = true)
+    val baseAddresses = computeCSVFile("examples_compute/lenet5_conv1/memory_addresses.csv", fromResources = true)
 //    baseAddresses.foreach { case (key, value) =>
 //      println(s"Clé: $key | Valeur: $value")
 //    }
@@ -1568,9 +1568,9 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     //    val projectRoot = new File("../../")
     //    val compilerOutputDir = new File(projectRoot, "compiler_output")
     //    val basePath = compilerOutputDir.getCanonicalPath
-    val file = new File("memory_addresses.csv").getAbsolutePath
-    println(file)
-    val baseAddresses = computeBaseAddresses("memory_addresses.csv", fromResources = false)
+    // val file = new File("memory_addresses.csv").getAbsolutePath
+    // println(file)
+    val baseAddresses = computeCSVFile("memory_addresses.csv", fromResources = false)
 //    baseAddresses.foreach { case (key, value) =>
 //      println(s"Clé: $key | Valeur: $value")
 //    }
@@ -1583,7 +1583,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
 
 
   it should "print all of the data of L2 for LeNet-5" in {
-    val baseAddr = computeBaseAddresses("base_addr_L2.csv", fromResources = false)
+    val baseAddr = computeCSVFile("base_addr_L2.csv", fromResources = false)
     val uop = computeAddresses("uop_L2.bin", DataType.UOP, baseAddr("uop"), true, false)
     val out = computeAddresses("out_init_L2.bin", DataType.OUT, baseAddr("out"), false, false)
     uop match {

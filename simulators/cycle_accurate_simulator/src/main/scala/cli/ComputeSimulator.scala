@@ -2,7 +2,7 @@ package cli
 
 import chisel3.assert
 import chiseltest.iotesters.PeekPokeTester
-import util.BinaryReader.{DataType, computeBaseAddresses, computeAddresses}
+import util.BinaryReader.{DataType, computeCSVFile, computeAddresses}
 import util.BinaryReader.DataType.DataTypeValue
 import util.GenericSim
 import vta.core.{Compute, TensorMaster}
@@ -25,7 +25,7 @@ object ComputeSimulator {
   }
 
   def getBaseAddr(base_addresses: String, fromResources: Boolean): Map[String, String] = {
-    computeBaseAddresses(base_addresses, fromResources)
+    computeCSVFile(base_addresses, fromResources)
   }
 }
 
@@ -420,7 +420,7 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
 
   /* BEGIN USER CUSTOMABLE SECTION */
   // Build memory
-  val base_addr = computeBaseAddresses(base_addresses, fromResources)
+  val base_addr = computeCSVFile(base_addresses, fromResources)
 
   val dram_scratchpad =
     ComputeSimulator.build_scratchpad_binary(acc, DataType.ACC, base_addr("acc"), isDRAM = true, fromResources) ++

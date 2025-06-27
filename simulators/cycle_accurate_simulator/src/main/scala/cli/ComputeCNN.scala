@@ -1,7 +1,7 @@
 package cli
 
 import chiseltest.iotesters.PeekPokeTester
-import util.BinaryReader.{DataType, readCSVFile}
+import util.BinaryReader.{DataType, computeCSVFile, readCSVFile}
 import util.{Filter, GenericSim}
 import util.Reshape.{reshape, vector_to_map}
 import vta.core.Compute
@@ -15,33 +15,33 @@ class ComputeCNN(c: Compute, CNN_param: String, doCompare: Boolean = true, debug
   extends PeekPokeTester(c) {
 
   // decode CNN_param.csv so we have data for each layer of the CNN
-  def decode(cnn_params: String, fromResources: Boolean): Map[String, String] = {
-    val newFilePath =
-      if (!fromResources) {
-        val projectRoot = new File("../../")
-        val compilerOutputDir = new File(projectRoot, "compiler_output")
-        val basePath = compilerOutputDir.getCanonicalPath
-        s"$basePath/" + cnn_params
-      }
-      else {
-        cnn_params
-      }
-    val fileContent = readCSVFile(newFilePath, fromResources)
-    fileContent match {
-      case Success(data) =>
-        data.split("\n").filterNot(line => line.startsWith("//") || line.trim.isEmpty).map { line =>
-          val array = line.split(",")
-          (array(0), array(1).trim
-            .replaceAll("\n", "")
-            .replaceAll("\r", ""))
-        }.toMap
-      case Failure(exception) =>
-        println(s"Error while reading CSV file containing CNN parameters : ${exception.getMessage}")
-        Map.empty
-    }
-  }
+//  def decode(cnn_params: String, fromResources: Boolean): Map[String, String] = {
+//    val newFilePath =
+//      if (!fromResources) {
+//        val projectRoot = new File("../../")
+//        val compilerOutputDir = new File(projectRoot, "compiler_output")
+//        val basePath = compilerOutputDir.getCanonicalPath
+//        s"$basePath/" + cnn_params
+//      }
+//      else {
+//        cnn_params
+//      }
+//    val fileContent = readCSVFile(newFilePath, fromResources)
+//    fileContent match {
+//      case Success(data) =>
+//        data.split("\n").filterNot(line => line.startsWith("//") || line.trim.isEmpty).map { line =>
+//          val array = line.split(",")
+//          (array(0), array(1).trim
+//            .replaceAll("\n", "")
+//            .replaceAll("\r", ""))
+//        }.toMap
+//      case Failure(exception) =>
+//        println(s"Error while reading CSV file containing CNN parameters : ${exception.getMessage}")
+//        Map.empty
+//    }
+//  }
 
-  val params = decode(CNN_param, fromResources)
+  val params = computeCSVFile(CNN_param, fromResources, isBaseAddr = false)
   val nb_layers = params("layers").toInt
   var outScratchpad: Map[BigInt, Array[BigInt]] = Map.empty
 
@@ -70,7 +70,7 @@ class ComputeCNN(c: Compute, CNN_param: String, doCompare: Boolean = true, debug
         val out_vec = filteredOut.toSeq.sortBy(_._1).flatMap {
           case (_, array) => array
         }.toArray
-        val pattern = """\((\d+),(\d+)\)""".r
+        val pattern = """\((\d+);(\d+)\)""".r
         val kernel_size = params(s"kernel_size$i") match {
           case pattern(a, b) =>
             (a.toInt, b.toInt)
@@ -79,7 +79,7 @@ class ComputeCNN(c: Compute, CNN_param: String, doCompare: Boolean = true, debug
           params(s"out_matrix_width$i").toInt, params(s"batch_size$i").toInt, params(s"out_tensor_channel$i").toInt, params(s"out_tensor_height$i").toInt,
           params(s"out_tensor_width$i").toInt, kernel_size, params(s"stride$i").toInt, params(s"isSquare$i").toBoolean)
         val j = i + 1
-        val base_addr_inp = ComputeSimulator.getBaseAddr(s"base_addressesL$j.bin", fromResources = false)
+        val base_addr_inp = ComputeSimulator.getBaseAddr(s"base_addr_L$j.csv", fromResources = false)
         vector_to_map(reshaped_out, base_addr_inp("inp"))
       }
       else {
