@@ -188,21 +188,77 @@ def strategy_1(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
 def strategy_2(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_col=1, nb_C=1, C_blocks_col=1,
                inp_block_buffer_size=4, wgt_block_buffer_size=32, acc_block_buffer_size=4, out_block_buffer_size=4):
     """
-    Strategy 2 performs region-based computation.
+    Strategy 2 performs region-based computation, tiling matrices into smaller square regions.
     """
-    # Check strategy assumptions
-    if not ( inp_block_buffer_size == min(inp_block_buffer_size, wgt_block_buffer_size, out_block_buffer_size) ):
-        raise Exception(f"ERROR: Assumptions for matrix partitioning - strategy 2: \
-                        \n\t 3. inp_block_buffer_size ({inp_block_buffer_size}) is smaller (or equal) than wgt_block_buffer_size ({wgt_block_buffer_size}), out_block_buffer_size ({out_block_buffer_size})! \n\n")
+    # --- Assumptions Check ---
+    # Assumption 1: The input buffer size must be a perfect square to form a square region.
+    if int(np.sqrt(inp_block_buffer_size))**2 != inp_block_buffer_size:
+        raise Exception(f"ERROR: Strategy 2 requires inp_block_buffer_size ({inp_block_buffer_size}) to be a perfect square.")
+    region_side_size = int(np.sqrt(inp_block_buffer_size))
 
-    if ( True ):
-        raise Exception(f"ERROR: Strategy 2 not supported yet! \n\n")
+    # Assumption 2: Matrix dimensions (in blocks) must be a multiple of the region side for perfect tiling.
+    A_height_blocks = nb_A // A_blocks_col
+    if A_height_blocks % region_side_size != 0:
+        raise Exception(f"ERROR: Strategy 2 requires A's height in blocks ({A_height_blocks}) to be a multiple of region_side_size ({region_side_size}).")
+    if A_blocks_col % region_side_size != 0:
+        raise Exception(f"ERROR: Strategy 2 requires A's width in blocks ({A_blocks_col}) to be a multiple of region_side_size ({region_side_size}).")
+    if C_blocks_col % region_side_size != 0:
+        raise Exception(f"ERROR: Strategy 2 requires C's width in blocks ({C_blocks_col}) to be a multiple of region_side_size ({region_side_size}).")
+    
+    # Assumption 3: Weight and Output buffers must be large enough for the regions they need to hold.
+    if wgt_block_buffer_size < region_side_size * region_side_size:
+         raise Exception(f"ERROR: Strategy 2 requires wgt_block_buffer_size ({wgt_block_buffer_size}) >= {region_side_size*region_side_size}")
+    if out_block_buffer_size < region_side_size * region_side_size:
+         raise Exception(f"ERROR: Strategy 2 requires out_block_buffer_size ({out_block_buffer_size}) >= {region_side_size*region_side_size}")
 
-    # Init strategy
-    strategy = [] # (C, A, B, X)
+    # --- Helper function to get linear indices for a 2D region ---
+    def get_region_indices(start_row, start_col, num_rows, num_cols, total_matrix_cols):
+        indices = []
+        for r_offset in range(num_rows):
+            for c_offset in range(num_cols):
+                # Block index = (row * total_width) + column
+                idx = (start_row + r_offset) * total_matrix_cols + (start_col + c_offset)
+                indices.append(idx)
+        return indices
 
-    # Return the strategy
+    # --- Strategy Implementation ---
+    strategy = []
+    
+    # Iterate over the output C matrix, region by region (C_ij)
+    # i = start row of the C region
+    for i in range(0, A_height_blocks, region_side_size):
+        # j = start column of the C region
+        for j in range(0, C_blocks_col, region_side_size):
+            
+            # Define the C and X regions for the current C_ij computation
+            c_region_indices = get_region_indices(i, j, region_side_size, region_side_size, C_blocks_col)
+            x_region_indices = c_region_indices # C and X have same dimensions
+            
+            # Inner loop over the common dimension K, region by region
+            # This computes C_ij = sum(A_ik * B_kj) over k
+            # k = start of the common dimension for A's columns and B's rows
+            for k_step, k in enumerate(range(0, A_blocks_col, region_side_size)):
+                
+                # Get the region of A to load (A_ik)
+                a_region_indices = get_region_indices(i, k, region_side_size, region_side_size, A_blocks_col)
+                
+                # Get the region of B to load (B_kj)
+                b_region_indices = get_region_indices(k, j, region_side_size, region_side_size, B_blocks_col)
+                
+                # The first step of the K-loop also loads the initial X region
+                load_X = x_region_indices if k_step == 0 else []
+                
+                # Append the compute step: (Store C, Load A, Load B, Load X)
+                strategy.append(([], a_region_indices, b_region_indices, load_X))
+
+            # After the K-loop is finished, C_ij is fully computed in the accumulator.
+            # Update the last recorded step to add the instruction to store the C region.
+            if strategy:
+                last_step = strategy[-1]
+                strategy[-1] = (c_region_indices, last_step[1], last_step[2], last_step[3])
+
     return strategy
+
 
 # ---------------------------------------------
 
@@ -315,16 +371,16 @@ def strategy_4(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
 # ---------------------------------------------
 
 if __name__ == "__main__": 
-    strategy_selector = 4 # 1, 4, 3
-    nb_A = 70 # 70, /, 
-    A_blocks_col = 10 # 10, /, 
-    nb_B = 40 # 10, 40
-    B_blocks_col = 4 # 1, 4
-    nb_C = 28 # 7, 28
-    C_blocks_col = 4 # 1, 4
-    inp_block_buffer_size=7 # 4,
-    wgt_block_buffer_size=7 # 4,
-    out_block_buffer_size=7 # 4,
+    strategy_selector = 2 
+    A_blocks_col = 10
+    nb_A = A_blocks_col*8 
+    B_blocks_col = 4 
+    nb_B = B_blocks_col*10
+    C_blocks_col = B_blocks_col 
+    nb_C = C_blocks_col*(nb_A//A_blocks_col) 
+    inp_block_buffer_size=4
+    wgt_block_buffer_size=4
+    out_block_buffer_size=4
 
     nb_X = nb_C
     X_blocks_col = C_blocks_col

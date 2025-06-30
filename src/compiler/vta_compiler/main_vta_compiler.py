@@ -90,6 +90,7 @@ def main(operations_dict, vta_config_dict, debug=True):
     strategy_selector = 1
 
     # Apply matrix partitioning (check is overfit then applies selected trategy)
+    # => Strategy 1 is the most naive, but works in the most of the cases (strategies 2 to 4 have more constrained assumptions)
     isOverfitting, strategy = \
         MP.matrix_partitioning(nb_A=nb_A, A_blocks_col=A_blocks_col, nb_B=nb_B, B_blocks_col=B_blocks_col, 
                                nb_X=nb_X, X_blocks_col=X_blocks_col, nb_C=nb_C, C_blocks_col=C_blocks_col,
