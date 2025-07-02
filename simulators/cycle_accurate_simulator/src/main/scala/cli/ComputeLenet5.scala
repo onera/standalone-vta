@@ -97,5 +97,5 @@ class ComputeLenet5(c: Compute, doCompare: Boolean = true, debug: Boolean = true
 
 }
 
-class ComputeLeNet5_L1_L2 extends GenericSim("ComputeLeNet5_L1_L2", (p:Parameters) =>
+class ComputeLeNet5_all_layers extends GenericSim("ComputeLeNet5_all_layers", (p:Parameters) =>
   new Compute(false)(p), (c: Compute) => new ComputeLenet5(c))

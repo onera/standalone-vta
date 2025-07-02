@@ -14,33 +14,6 @@ import scala.util.{Failure, Success}
 class ComputeCNN(c: Compute, CNN_param: String, doCompare: Boolean = true, debug: Boolean = true, fromResources: Boolean = false)
   extends PeekPokeTester(c) {
 
-  // decode CNN_param.csv so we have data for each layer of the CNN
-//  def decode(cnn_params: String, fromResources: Boolean): Map[String, String] = {
-//    val newFilePath =
-//      if (!fromResources) {
-//        val projectRoot = new File("../../")
-//        val compilerOutputDir = new File(projectRoot, "compiler_output")
-//        val basePath = compilerOutputDir.getCanonicalPath
-//        s"$basePath/" + cnn_params
-//      }
-//      else {
-//        cnn_params
-//      }
-//    val fileContent = readCSVFile(newFilePath, fromResources)
-//    fileContent match {
-//      case Success(data) =>
-//        data.split("\n").filterNot(line => line.startsWith("//") || line.trim.isEmpty).map { line =>
-//          val array = line.split(",")
-//          (array(0), array(1).trim
-//            .replaceAll("\n", "")
-//            .replaceAll("\r", ""))
-//        }.toMap
-//      case Failure(exception) =>
-//        println(s"Error while reading CSV file containing CNN parameters : ${exception.getMessage}")
-//        Map.empty
-//    }
-//  }
-
   val params = computeCSVFile(CNN_param, fromResources, isBaseAddr = false)
   val nb_layers = params("layers").toInt
   var outScratchpad: Map[BigInt, Array[BigInt]] = Map.empty
@@ -59,7 +32,7 @@ class ComputeCNN(c: Compute, CNN_param: String, doCompare: Boolean = true, debug
       s"weight_L$i.bin",
       s"out_init_L$i.bin",
       "accumulator.bin",
-      s"out_expectL$i.bin",
+      s"outL$i.bin",
       s"base_addr_L$i.csv",
       doCompare, debug, fromResources)
 
