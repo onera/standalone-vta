@@ -101,83 +101,62 @@ def strategy_1(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
     """
     Strategy 1 focuses on quickly compute one C element. It loads A row-by-row and B column-by-column.
     """
-    # Check strategy assumptions
-    if not ( inp_block_buffer_size == min(inp_block_buffer_size, wgt_block_buffer_size, out_block_buffer_size) ):
-        raise Exception(f"ERROR: Assumptions for matrix partitioning - strategy 1: \
-                        \n\t 3. inp_block_buffer_size ({inp_block_buffer_size}) is smaller (or equal) than wgt_block_buffer_size ({wgt_block_buffer_size}), out_block_buffer_size ({out_block_buffer_size})! \n\n")
-    
+    # Define buffer size which is the minimal size of the buffer
+    buffer_size = min(inp_block_buffer_size, wgt_block_buffer_size, acc_block_buffer_size, out_block_buffer_size)
+
     # Init strategy
     strategy = [] # (C, A, B, X)
 
-    # Check the load capacity of A
-    nb_loadable_rows = inp_block_buffer_size//A_blocks_col
+    # Define the delta 
+    delta = min(buffer_size, A_blocks_col)
 
-    # Iterate over the C rows
-    for row in range(0, nb_C//C_blocks_col):
+    # Define A_blocks_col = nb_delta * delta + remainder
 
-        # Check if one A's row fit input buffer
-        if (nb_loadable_rows > 0): 
-            A_row_addr = row * A_blocks_col
-            load_A = [i+A_row_addr for i in range(0, A_blocks_col)]
+    nb_delta, remainder = euclidian_division(A_blocks_col, delta)
 
-            # Load the corresponding B, X and store the C
-            for col in range(0, C_blocks_col):
-                # Load one B's column (assumption 3.)
-                load_B = [i*B_blocks_col + col for i in range(0, A_blocks_col)]
-                # Load a single X element
-                load_X = [col+row*C_blocks_col]
-                # Store a single C element
-                store_C = [col+row*C_blocks_col]
+    # Iterate over C
+    for idx in range(0, nb_C):
+        # Load / store X
+        load_X = [idx]
 
-                # Append the strategy (C, A, B, X)
-                if (col == 0):
-                    strategy.append( (store_C, load_A, load_B, load_X) )
-                else: 
-                    strategy.append( (store_C, [], load_B, load_X) )
+        # Get i and j (idx = B_blocks_col * i + j)
+        i, j = euclidian_division(idx, B_blocks_col)
 
-        else: # Cannot load one A's row
-            # Compute the number of inp_block_buffer_size within A_blocks_col
-            nb_load_per_row = A_blocks_col//inp_block_buffer_size
+        for idx_delta in range(0, nb_delta):
+            # Init the buffers to load
+            load_A = []
+            load_B = []
 
-            # Iterate over C column
-            for col in range(0, C_blocks_col):
-                # Define the C and X elements to use
-                store_C = [col+row*C_blocks_col]
-                load_X = [col+row*C_blocks_col]
+            # Fulfil the buffers
+            for local_idx in range(0, delta):
+                # Get k
+                k = local_idx + idx_delta * delta
 
-                # Get A and B elements
-                for elem in range(0, nb_load_per_row):
-                    # Compute the initial index of A elements
-                    local_A_load = ((row*C_blocks_col)//C_blocks_col)*A_blocks_col + elem*inp_block_buffer_size
-                    local_B_load = (local_A_load*B_blocks_col)%nb_B
+                # Append the blocks to load
+                load_A.append( i * A_blocks_col + k )
+                load_B.append( k * B_blocks_col + j )
+            
+            # Append the strategy (C, A, B, X)
+            if (idx_delta == 0): # First: load X
+                strategy.append( ([], load_A, load_B, load_X) )
+            else: # Then, accumulate
+                strategy.append( ([], load_A, load_B, []) )
+        
+        # Load the remainding A and B blocks
+        if (remainder > 0):
+            load_A = []
+            load_B = []
+            for local_idx in range(0, remainder):
+                # Get k
+                k = local_idx + delta * nb_delta
 
-                    # Load A
-                    load_A = [i+local_A_load for i in range(0, inp_block_buffer_size)]
-                    # Load B
-                    load_B = [(i*B_blocks_col + col) + local_B_load for i in range(0, inp_block_buffer_size)]
-
-                    # Append the strategy (C, A, B, X)
-                    if (elem == 0):
-                        strategy.append( ([], load_A, load_B, load_X) )
-                    else: 
-                        strategy.append( ([], load_A, load_B, []) )
-                
-                # Compute the rest to load to complete the A's row
-                rest_to_load = A_blocks_col%inp_block_buffer_size
-                if (rest_to_load>0):
-                    # Compute local load indexes
-                    local_A_load = local_A_load + inp_block_buffer_size
-                    local_B_load = (local_A_load*B_blocks_col)%nb_B
-
-                    # Load A and B
-                    load_A = [i+local_A_load for i in range(0, rest_to_load)]
-                    load_B = [(i*B_blocks_col + col) + local_B_load for i in range(0, rest_to_load)]
-                    # Append the strategy
-                    strategy.append( (store_C, load_A, load_B, []) )
-
-                else: # Update the last element of the list to add store
-                    strategy[-1] = (store_C, load_A, load_B, [])
-
+                # Append the blocks to load
+                load_A.append( i * A_blocks_col + k )
+                load_B.append( k * B_blocks_col + j )
+            # Append the strategy (C, A, B, X)
+            strategy.append( (load_X, load_A, load_B, []) )
+        else: # Modify the last step
+            strategy[-1] = (load_X, load_A, load_B, [])
 
     # Return the strategy
     return strategy
@@ -367,6 +346,20 @@ def strategy_4(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
   
     # Return the strategy
     return strategy
+
+# ---------------------------------------------
+
+def euclidian_division(dividend, divisor):
+    """
+    Euclidian division: dividend = divisor * quotient + remainder
+    Inputs:
+        - dividend: (int) the number to decompose
+        - divisor: (int) the modulo
+    Outputs:
+        - quotient: (int) result of dividend // divisor
+        - remainder: (int) result of dividenc % divisor
+    """
+    return dividend // divisor, dividend % divisor
 
 # ---------------------------------------------
 
