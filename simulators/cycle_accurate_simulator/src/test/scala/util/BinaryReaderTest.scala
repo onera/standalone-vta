@@ -1554,9 +1554,9 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   /* Decoding CSV file for the base memory addresses */
   it should "decode the content of the csv file" in {
     val baseAddresses = computeCSVFile("examples_compute/lenet5_conv1/memory_addresses.csv", fromResources = true)
-//    baseAddresses.foreach { case (key, value) =>
-//      println(s"Clé: $key | Valeur: $value")
-//    }
+    //    baseAddresses.foreach { case (key, value) =>
+    //      println(s"Clé: $key | Valeur: $value")
+    //    }
     baseAddresses("inp") should equal("00000000")
     baseAddresses("wgt") should equal("00000000")
     baseAddresses("out") should equal("00000000")
@@ -1571,9 +1571,9 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     // val file = new File("memory_addresses.csv").getAbsolutePath
     // println(file)
     val baseAddresses = computeCSVFile("memory_addresses.csv", fromResources = false)
-//    baseAddresses.foreach { case (key, value) =>
-//      println(s"Clé: $key | Valeur: $value")
-//    }
+    //    baseAddresses.foreach { case (key, value) =>
+    //      println(s"Clé: $key | Valeur: $value")
+    //    }
     baseAddresses("inp") should equal("00000000")
     baseAddresses("wgt") should equal("00000000")
     baseAddresses("out") should equal("00000000")
@@ -1592,5 +1592,14 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
       case Failure(exception) =>
         fail(s"Error while computing addresses for INP : ${exception.getMessage}")
     }
+  }
+
+  it should "throw an error if two keys are identical in a CSV file" in {
+    val params = computeCSVFile("lenet_params.csv", fromResources = false)
+  }
+
+  it should "decode a JSON file" in {
+    val config = computeJSONFile("vta_config.json", false)
+    config.map(print(_))
   }
 }

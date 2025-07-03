@@ -1,6 +1,9 @@
 package util
 
+import breeze.numerics.pow
+
 import java.io.{File, FileInputStream, InputStream}
+import scala.collection.convert.ImplicitConversions.`map AsJavaMap`
 import scala.util.{Failure, Success, Try}
 
 object BinaryReader {
@@ -101,12 +104,12 @@ object BinaryReader {
   }
 
   /**
-   * Reads the content of a CSV file and returns it
-   * @param filePath the path to the CSV file
+   * Reads the content of a CSV or JSON file and returns it
+   * @param filePath the path to the file
    * @param fromResources boolean that is true if the files are in a Resources folder, false otherwise
    * @return a String with the content of the file
    */
-  def readCSVFile(filePath: String, fromResources: Boolean): Try[String] = {
+  def readFile(filePath: String, fromResources: Boolean): Try[String] = {
     Try {
       val inputStream: InputStream = {
         if (fromResources) {
@@ -119,6 +122,48 @@ object BinaryReader {
       val fileContent = scala.io.Source.fromInputStream(inputStream, "UTF-8").mkString
       inputStream.close()
       fileContent
+    }
+  }
+
+  /**
+   * Reads a JSON file and puts the data in a Map
+   * @param filePath the path to the JSON file
+   * @param fromResources boolean that is true if the files are in a Resources folder, false otherwise
+   * @return a Map with the parsed content from the file
+   */
+  def computeJSONFile(filePath: String, fromResources: Boolean): Map[String, Any] = {
+    val newFilePath =
+      if (!fromResources) {
+        val projectRoot = new File("../../")
+        val compilerOutputDir = new File(projectRoot, "compiler_output")
+        val basePath = compilerOutputDir.getCanonicalPath
+        s"$basePath/" + filePath
+      }
+      else {
+        filePath
+      }
+    val content = readFile(newFilePath, fromResources)
+    content match {
+      case Success(data) =>
+        data.split("\n").filterNot(line => line.startsWith("//") || line.startsWith("TARGET") || line.startsWith("HW_VER") || line.trim.isEmpty ||
+          line.contains("{") || line.contains("}")).map { line =>
+          val array = line.trim
+            .replaceAll(" ", "")
+            .replaceAll("\"", "")
+            .replaceAll(",", "")
+            .replaceAll("\n", "")
+            .replaceAll("\r", "")
+            .split(":")
+          if (array(0) == "TARGET" || array(0) == "HW_VER") {
+            (array(0), array(1))
+          }
+          else {
+            (array(0), pow(2, array(1).toInt))
+          }
+        }.toMap
+      case Failure(exception) =>
+        println(s"Error while reading JSON file : ${exception.getMessage}")
+        Map.empty
     }
   }
 
@@ -139,16 +184,23 @@ object BinaryReader {
       else {
         filePath
       }
-    val fileContent = readCSVFile(newFilePath, fromResources)
+    val fileContent = readFile(newFilePath, fromResources)
     fileContent match {
       case Success(data) =>
         val baseAddr =
           data.split("\n").filterNot(line => line.startsWith("//") || line.trim.isEmpty).map { line =>
             val array = line.split(",")
             (array(0), array(1).trim
-                               .replaceAll("\n", "")
-                               .replaceAll("\r", "")
-                               .replaceAll("0x", "0000"))
+              .replaceAll("\n", "")
+              .replaceAll("\r", "")
+              .replaceAll("0x", "0000"))
+          // Raises an error if there is a duplicate of a key in the CSV file
+          }.foldLeft(Map.empty[String, String]) { (acc, pair) =>
+            if (acc.containsKey(pair._1)) {
+              throw new Exception(s"Duplicated key : ${pair._1}")
+            } else {
+              acc + pair
+            }
           }.toMap
         // Remove the following lines if you load INP, WGT, OUT from DRAM
         val updatedBaseAddr = {
@@ -168,7 +220,7 @@ object BinaryReader {
         }
         updatedBaseAddr
       case Failure(exception) =>
-        println(s"Error while grouping data (if reversal) : ${exception.getMessage}")
+        println(s"Error while reading CSV file : ${exception.getMessage}")
         Map.empty
     }
   }

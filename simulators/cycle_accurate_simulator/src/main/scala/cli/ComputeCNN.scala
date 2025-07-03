@@ -1,7 +1,7 @@
 package cli
 
 import chiseltest.iotesters.PeekPokeTester
-import util.BinaryReader.{DataType, computeCSVFile, readCSVFile}
+import util.BinaryReader.{DataType, computeCSVFile, readFile}
 import util.{Filter, GenericSim}
 import util.Reshape.{reshape, vector_to_map}
 import vta.core.Compute
@@ -14,6 +14,29 @@ import scala.util.{Failure, Success}
 class ComputeCNN(c: Compute, CNN_param: String, doCompare: Boolean = true, debug: Boolean = true, fromResources: Boolean = false)
   extends PeekPokeTester(c) {
 
+  /** params contains a description of the CNN
+    * layers : Int = number of layers of the CNN
+    * doReshape : Boolean = whether the output of the layer needs reshaping
+    * For each layer, if doReshape = true, the reshaping parameters are listed
+      ** Filter parameters : in case of average pooling, removes unnecessary vectors from output
+        * uop : Int = initial index in output scratchpad upon which to begin filtering process
+        * loop_in : Int = internal loops
+        * loop_out : Int = external loops
+        * dst_in : Int
+        * dst_out : Int
+      ** Reshape parameters : reshaping filtered output into next-layer input
+        * block_col : Int
+        * block_size : Int
+        * out_matrix_height : Int
+        * out_matrix_width : Int
+        * batch_size : Int
+        * out_tensor_channel : Int
+        * out_tensor_height : Int
+        * out_tensor_width : Int
+        * kernel_size : (Int; Int)
+        * stride : Int
+        * isSquare : Boolean
+   **/
   val params = computeCSVFile(CNN_param, fromResources, isBaseAddr = false)
   val nb_layers = params("layers").toInt
   var outScratchpad: Map[BigInt, Array[BigInt]] = Map.empty
