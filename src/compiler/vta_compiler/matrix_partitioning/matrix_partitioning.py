@@ -168,72 +168,87 @@ def strategy_2(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
     """
     Strategy 2 performs region-based computation, tiling matrices into smaller square regions.
     """
-    # --- Assumptions Check ---
-    # Assumption 1: The input buffer size must be a perfect square to form a square region.
-    if int(np.sqrt(inp_block_buffer_size))**2 != inp_block_buffer_size:
-        raise Exception(f"ERROR: Strategy 2 requires inp_block_buffer_size ({inp_block_buffer_size}) to be a perfect square.")
-    region_side_size = int(np.sqrt(inp_block_buffer_size))
+    # --- Calcul des dimensions des matrices en blocs ---
+    A_blocks_row = nb_A // A_blocks_col
+    B_blocks_row = nb_B // B_blocks_col # Must be equal to A_blocks_col
+    C_blocks_row = nb_C // C_blocks_col # Must be equal to A_blocks_row
 
-    # Assumption 2: Matrix dimensions (in blocks) must be a multiple of the region side for perfect tiling.
-    A_height_blocks = nb_A // A_blocks_col
-    if A_height_blocks % region_side_size != 0:
-        raise Exception(f"ERROR: Strategy 2 requires A's height in blocks ({A_height_blocks}) to be a multiple of region_side_size ({region_side_size}).")
-    if A_blocks_col % region_side_size != 0:
-        raise Exception(f"ERROR: Strategy 2 requires A's width in blocks ({A_blocks_col}) to be a multiple of region_side_size ({region_side_size}).")
-    if C_blocks_col % region_side_size != 0:
-        raise Exception(f"ERROR: Strategy 2 requires C's width in blocks ({C_blocks_col}) to be a multiple of region_side_size ({region_side_size}).")
+    # 1 - Size of the C's tile (biggest rectangular tile fitting within acc_block_buffer_size: tile_h x tile_w)
+    # Try to be square
+    if acc_block_buffer_size > 0:
+        tile_h = int(np.sqrt(acc_block_buffer_size))
+        while tile_h > 0 and acc_block_buffer_size % tile_h != 0:
+            tile_h -=1
+        if tile_h == 0: tile_h = 1 # Fallback
+        tile_w = acc_block_buffer_size // tile_h
+    else:
+        tile_h, tile_w = 1, 1
+
+    # Limit tile's dimension to C's dimension
+    tile_h = min(tile_h, A_blocks_row)
+    tile_w = min(tile_w, C_blocks_col)
     
-    # Assumption 3: Weight and Output buffers must be large enough for the regions they need to hold.
-    if wgt_block_buffer_size < region_side_size * region_side_size:
-         raise Exception(f"ERROR: Strategy 2 requires wgt_block_buffer_size ({wgt_block_buffer_size}) >= {region_side_size*region_side_size}")
-    if out_block_buffer_size < region_side_size * region_side_size:
-         raise Exception(f"ERROR: Strategy 2 requires out_block_buffer_size ({out_block_buffer_size}) >= {region_side_size*region_side_size}")
+    # 2 - Size of the chunk for the common dimension K
+    # A (tile_h x tile_k) must fit inp_block_buffer_size
+    # B (tile_k x tile_w) must fit wgt_block_buffer_size
+    # => Compute maximum size of tile_k respecting both constraints
+    if tile_h > 0:
+        max_k_for_A = inp_block_buffer_size // tile_h
+    else:
+        max_k_for_A = A_blocks_col
+        
+    if tile_w > 0:
+        max_k_for_B = wgt_block_buffer_size // tile_w
+    else:
+        max_k_for_B = A_blocks_col
 
-    # --- Helper function to get linear indices for a 2D region ---
-    def get_region_indices(start_row, start_col, num_rows, num_cols, total_matrix_cols):
+    tile_k = min(A_blocks_col, max_k_for_A, max_k_for_B)
+    if tile_k == 0: tile_k = 1 # Ensure having at least 1 element
+
+    # Subfunction to get indices of the sub-matrices
+    def get_sub_matrix_indices(start_row, start_col, num_rows, num_cols, total_matrix_cols):
         indices = []
         for r_offset in range(num_rows):
             for c_offset in range(num_cols):
-                # Block index = (row * total_width) + column
                 idx = (start_row + r_offset) * total_matrix_cols + (start_col + c_offset)
                 indices.append(idx)
         return indices
 
-    # --- Strategy Implementation ---
+    # 3 - Generate the computation strategy
     strategy = []
     
-    # Iterate over the output C matrix, region by region (C_ij)
-    # i = start row of the C region
-    for i in range(0, A_height_blocks, region_side_size):
-        # j = start column of the C region
-        for j in range(0, C_blocks_col, region_side_size):
-            
-            # Define the C and X regions for the current C_ij computation
-            c_region_indices = get_region_indices(i, j, region_side_size, region_side_size, C_blocks_col)
-            x_region_indices = c_region_indices # C and X have same dimensions
-            
-            # Inner loop over the common dimension K, region by region
-            # This computes C_ij = sum(A_ik * B_kj) over k
-            # k = start of the common dimension for A's columns and B's rows
-            for k_step, k in enumerate(range(0, A_blocks_col, region_side_size)):
-                
-                # Get the region of A to load (A_ik)
-                a_region_indices = get_region_indices(i, k, region_side_size, region_side_size, A_blocks_col)
-                
-                # Get the region of B to load (B_kj)
-                b_region_indices = get_region_indices(k, j, region_side_size, region_side_size, B_blocks_col)
-                
-                # The first step of the K-loop also loads the initial X region
-                load_X = x_region_indices if k_step == 0 else []
-                
-                # Append the compute step: (Store C, Load A, Load B, Load X)
-                strategy.append(([], a_region_indices, b_region_indices, load_X))
+    # Iterate over C's tiles (row then column)
+    for i in range(0, C_blocks_row, tile_h):
+        current_h = min(tile_h, C_blocks_row - i)
 
-            # After the K-loop is finished, C_ij is fully computed in the accumulator.
-            # Update the last recorded step to add the instruction to store the C region.
+        for j in range(0, C_blocks_col, tile_w):
+            current_w = min(tile_w, C_blocks_col - j)
+            
+            # Indices for the current C_ij tile (and the associated X)
+            c_indices = get_sub_matrix_indices(i, j, current_h, current_w, C_blocks_col)
+            x_indices = c_indices
+            
+            # Iteration over K
+            # C_ij = sum_k(A_ik * B_kj)
+            for k_step, k in enumerate(range(0, A_blocks_col, tile_k)):
+                current_k = min(tile_k, A_blocks_col - k)
+
+                # Indices for A's tile (A_ik)
+                a_indices = get_sub_matrix_indices(i, k, current_h, current_k, A_blocks_col)
+                
+                # Indices for B's tile (B_kj) 
+                b_indices = get_sub_matrix_indices(k, j, current_k, current_w, B_blocks_col)
+                
+                # At the very beginning: load X, then accumulate
+                load_X = x_indices if k_step == 0 else []
+                
+                # Append the strategy (Store C, Load A, Load B, Load X)
+                strategy.append(([], a_indices, b_indices, load_X))
+
+            # Finally, store C_ij
             if strategy:
                 last_step = strategy[-1]
-                strategy[-1] = (c_region_indices, last_step[1], last_step[2], last_step[3])
+                strategy[-1] = (c_indices, last_step[1], last_step[2], last_step[3])
 
     return strategy
 
