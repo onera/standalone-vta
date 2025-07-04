@@ -111,7 +111,6 @@ def strategy_1(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
     delta = min(buffer_size, A_blocks_col)
 
     # Define A_blocks_col = nb_delta * delta + remainder
-
     nb_delta, remainder = euclidian_division(A_blocks_col, delta)
 
     # Iterate over C
@@ -300,49 +299,79 @@ def strategy_4(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
     """
     Strategy 4 computes C row-by-row. It loads single element of A and B row-by-row.
     """
-    # Check strategy assumptions
-    if not ( out_block_buffer_size == min(inp_block_buffer_size, wgt_block_buffer_size, out_block_buffer_size) ):
-        raise Exception(f"ERROR: Assumptions for matrix partitioning - strategy 4: \
-                        \n\t 3. out_block_buffer_size ({out_block_buffer_size}) is smaller (or equal) than inp_block_buffer_size ({inp_block_buffer_size}), wgt_block_buffer_size ({wgt_block_buffer_size})! \n\n")
-    if ( C_blocks_col > out_block_buffer_size ):
-        raise Exception(f"ERROR: Assumptions for matrix partitioning - strategy 4: \
-                        \n\t 4. C_blocks_col ({C_blocks_col}) must be smaller (or equal) than out_block_buffer_size ({out_block_buffer_size})! \n\n")
+    # Define buffer size which is the minimal size of the buffer
+    buffer_size = min(inp_block_buffer_size, wgt_block_buffer_size, acc_block_buffer_size, out_block_buffer_size)
 
     # Init strategy
     strategy = [] # (C, A, B, X)
 
-    # Calculate the number of rows in C
-    nb_C_rows = nb_C // C_blocks_col
+    # Define the delta 
+    delta = min(buffer_size, C_blocks_col)
 
-    # Check the load capacity of C
-    nb_loadable_col = out_block_buffer_size//C_blocks_col
+    # Define A_blocks_col = nb_delta * delta + remainder
+    nb_delta, remainder = euclidian_division(C_blocks_col, delta)
 
-    # Iterate over each row of C
-    for row in range(0, nb_C_rows):
-        # Can store a full C's row in OUT buffer
-        if (nb_loadable_col > 0):
-            # Store a C's row and load a X's row
-            store_C = [i + (row*C_blocks_col) for i in range(0, C_blocks_col)]
-            load_X = [i + (row*C_blocks_col) for i in range(0, C_blocks_col)]
-
-            # Iterate over the element of A's row
-            for col in range(0, A_blocks_col):
+    # Iterate over the rows of C
+    for i in range(0, nb_C//C_blocks_col):
+        # Iterate over nb_delta to load a row of C
+        for idx_delta in range(0, nb_delta):
+            # Load delta row elements
+            for k in range(0, A_blocks_col):
                 # Load A
-                load_A = [col + row*A_blocks_col]
-                # Load B
-                load_B = [i + (col*B_blocks_col) for i in range(0, B_blocks_col)]
+                load_A = [ i * A_blocks_col + k ]
 
+                # Init other loads / store
+                load_B = []
+                load_X = []
+                store_C = []
+
+                # Load / store C, B, X
+                for local_idx in range(0, delta):
+                    j = idx_delta * delta + local_idx
+
+                    # Load X only the first time, then accumulate
+                    if (k==0):
+                        load_X.append( i * C_blocks_col + j )
+                    
+                    # Load B (B_blocks_col = C_blocks_col)
+                    load_B.append( k * B_blocks_col + j )
+
+                    # Store C on the last iteration
+                    if (k==A_blocks_col-1):
+                        store_C.append( i * C_blocks_col + j )
+                
                 # Append the strategy (C, A, B, X)
-                if (col == 0):
-                    strategy.append( ([], load_A, load_B, load_X) )
-                else:
-                    strategy.append( ([], load_A, load_B, []) )
+                strategy.append( (store_C, load_A, load_B, load_X) )
             
-            # Update the last element to store
-            strategy[-1] = (store_C, load_A, load_B, [])
+        # Load the remainding C elements on the row
+        if (remainder > 0):
+            # Load delta row elements
+            for k in range(0, A_blocks_col):
+                # Load A
+                load_A = [ i * A_blocks_col + k ]
 
-        else: # Cannot store a full C's row in OUT buffer
-            continue # Not supported yet
+                # Init other loads / store
+                load_B = []
+                load_X = []
+                store_C = []
+
+                # Load / store C, B, X
+                for local_idx in range(0, remainder):
+                    j = delta * nb_delta + local_idx
+
+                    # Load X only the first time, then accumulate
+                    if (k==0):
+                        load_X.append( i * C_blocks_col + j )
+                    
+                    # Load B (B_blocks_col = C_blocks_col)
+                    load_B.append( k * B_blocks_col + j )
+
+                    # Store C on the last iteration
+                    if (k==A_blocks_col-1):
+                        store_C.append( i * C_blocks_col + j )
+                
+                # Append the strategy (C, A, B, X)
+                strategy.append( (store_C, load_A, load_B, load_X) )
   
     # Return the strategy
     return strategy
@@ -368,7 +397,7 @@ if __name__ == "__main__":
     A_blocks_col = 10
     nb_A = A_blocks_col*8 
     B_blocks_col = 4 
-    nb_B = B_blocks_col*10
+    nb_B = B_blocks_col*A_blocks_col
     C_blocks_col = B_blocks_col 
     nb_C = C_blocks_col*(nb_A//A_blocks_col) 
     inp_block_buffer_size=4
