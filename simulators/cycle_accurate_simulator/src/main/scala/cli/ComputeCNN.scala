@@ -36,28 +36,58 @@ class ComputeCNN(c: Compute, CNN_param: String, doCompare: Boolean = true, debug
         * kernel_size : (Int; Int)
         * stride : Int
         * isSquare : Boolean
-   **/
+  */
   val params = computeCSVFile(CNN_param, fromResources, isBaseAddr = false)
   val nb_layers = params("layers").toInt
   var outScratchpad: Map[BigInt, Array[BigInt]] = Map.empty
+
+  def fileExists(filePath: String): Boolean = {
+    val newFilePath =
+      if (!fromResources) {
+        val projectRoot = new File("../../")
+        val compilerOutputDir = new File(projectRoot, "compiler_output")
+        val basePath = compilerOutputDir.getCanonicalPath
+        s"$basePath/" + filePath
+      }
+      else {
+        filePath
+      }
+    new File(newFilePath).exists()
+  }
 
   for (i <- 1 to nb_layers) {
     val inputFile = if (i == 1)
       ComputeSimulator.build_scratchpad_binary("input.bin", DataType.INP, ComputeSimulator.getBaseAddr(s"base_addr_L$i.csv", fromResources)("inp"), isDRAM = false, fromResources)
     else outScratchpad
 
-    val computeSimulator = new ComputeSimulator(c,
-      s"instructions_L$i.bin",
-      s"uop_L$i.bin",
-      inputFile,
-      //params(s"input$i"),
-      //(if (i == 0) "input.bin" else outScratchpad),
-      s"weight_L$i.bin",
-      s"out_init_L$i.bin",
-      "accumulator.bin",
-      s"outL$i.bin",
-      s"base_addr_L$i.csv",
-      doCompare, debug, fromResources)
+    val computeSimulator =
+      if (doCompare && fileExists(s"outL$i.bin")) {
+        new ComputeSimulator(c,
+          s"instructions_L$i.bin",
+          s"uop_L$i.bin",
+          inputFile,
+          //params(s"input$i"),
+          //(if (i == 0) "input.bin" else outScratchpad),
+          s"weight_L$i.bin",
+          s"out_init_L$i.bin",
+          "accumulator.bin",
+          s"outL$i.bin",
+          s"base_addr_L$i.csv",
+          doCompare = true, debug, fromResources)
+      }
+      else {
+        new ComputeSimulator(c,
+          s"instructions_L$i.bin",
+          s"uop_L$i.bin",
+          inputFile,
+          //params(s"input$i"),
+          //(if (i == 0) "input.bin" else outScratchpad),
+          s"weight_L$i.bin",
+          s"out_init_L$i.bin",
+          "accumulator.bin",
+          s"base_addr_L$i.csv",
+          doCompare = false, debug, fromResources)
+      }
 
     outScratchpad =
       if (params(s"doReshape$i").toBoolean) {
@@ -84,5 +114,5 @@ class ComputeCNN(c: Compute, CNN_param: String, doCompare: Boolean = true, debug
   }
 }
 
-class ComputeLeNet5_generic extends GenericSim("ComputeLeNet5_generic", (p:Parameters) =>
+class ComputeLeNet5_generic_file_exists extends GenericSim("ComputeLeNet5_generic_file_exists", (p:Parameters) =>
   new Compute(false)(p), (c: Compute) => new ComputeCNN(c, "lenet_params.csv"))

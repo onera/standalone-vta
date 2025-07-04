@@ -1,0 +1,18 @@
+package cli
+
+import chiseltest.iotesters.PeekPokeTester
+import unittest.GenericTest
+import util.GenericSim
+import vta.core.Compute
+import vta.util.config.Parameters
+
+class ComputeLenet5(c: Compute, lenet_params: String, debug: Boolean = true, fromResources: Boolean = false)
+  extends PeekPokeTester(c) {
+
+  val computeLeNet5 = new ComputeCNN(
+    c, lenet_params,
+    doCompare = true, debug, fromResources) // si ne marche pas remettre docompare = true dans signature computelenet5
+}
+
+class ComputeLeNet5_all_layers extends GenericTest("ComputeLeNet5_all_layers", (p:Parameters) =>
+  new Compute(false)(p), (c: Compute) => new ComputeLenet5(c, "lenet_params.csv"), isLongTest = true)

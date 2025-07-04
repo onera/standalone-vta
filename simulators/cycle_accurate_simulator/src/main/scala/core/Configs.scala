@@ -19,7 +19,11 @@
 
 package vta.core
 
+import breeze.numerics.pow
+import util.BinaryReader.computeJSONFile
 import vta.util.config._
+
+import scala.math.Fractional.Implicits.infixFractionalOps
 
 /** CoreConfig.
  *
@@ -29,21 +33,22 @@ import vta.util.config._
  */
 class CoreConfig extends Config((site, here, up) => {
   case CoreKey =>
+    val params = computeJSONFile("vta_config.json", fromResources = false)
     CoreParams(
-      batch = 1,
-      blockOut = 16,
+      batch = params("LOG_BATCH"),
+      blockOut = params("LOG_BLOCK"),
       blockOutFactor = 1,
-      blockIn = 16,
-      inpBits = 8,
-      wgtBits = 8,
+      blockIn = params("LOG_BLOCK"),
+      inpBits = params("LOG_INP_WIDTH"),
+      wgtBits = params("LOG_WGT_WIDTH"),
       uopBits = 32,
-      accBits = 32,
-      outBits = 8,
-      uopMemDepth = 2048,
-      inpMemDepth = 2048,
-      wgtMemDepth = 1024,
-      accMemDepth = 2048,
-      outMemDepth = 2048,
+      accBits = params("LOG_ACC_WIDTH"),
+      outBits = params("LOG_INP_WIDTH"),
+      uopMemDepth = (params("LOG_UOP_BUFF_SIZE") * pow(2, 3)) / (params("LOG_BATCH") * pow(2, 0) * pow(2, 5)), // 2048 de base mais ici 8192
+      inpMemDepth = (params("LOG_INP_BUFF_SIZE") * pow(2, 3)) / (params("LOG_BATCH") * params("LOG_BLOCK") * params("LOG_INP_WIDTH")), // 2048
+      wgtMemDepth = (params("LOG_WGT_BUFF_SIZE") * pow(2, 3)) / (params("LOG_BATCH") * params("LOG_BLOCK") * params("LOG_BLOCK") * params("LOG_WGT_WIDTH")), // 1024
+      accMemDepth = (params("LOG_ACC_BUFF_SIZE") * pow(2, 3)) / (params("LOG_BATCH") * params("LOG_BLOCK") * params("LOG_ACC_WIDTH")), // 2048
+      outMemDepth = (params("LOG_INP_BUFF_SIZE") * pow(2, 3)) / (params("LOG_BATCH") * params("LOG_BLOCK") * params("LOG_INP_WIDTH")), // 2048
       instQueueEntries = 512
     )
 })

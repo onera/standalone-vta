@@ -41,7 +41,10 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
       weight, out, acc, expected_out, base_addresses, doCompare, debug, fromResources)
   }
 
-
+  def this(c: Compute, insn: String, uop: String, input: Map[BigInt, Array[BigInt]], weight: String, out: String, acc: String,
+           base_addresses: String, doCompare: Boolean, debug: Boolean, fromResources: Boolean) = {
+    this(c, insn, uop, input: Map[BigInt, Array[BigInt]], weight, out, acc, "", base_addresses, doCompare = false, debug, fromResources)
+  }
 
 
   // Check if it is compute instruction

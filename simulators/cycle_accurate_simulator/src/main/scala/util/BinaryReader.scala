@@ -131,7 +131,7 @@ object BinaryReader {
    * @param fromResources boolean that is true if the files are in a Resources folder, false otherwise
    * @return a Map with the parsed content from the file
    */
-  def computeJSONFile(filePath: String, fromResources: Boolean): Map[String, Any] = {
+  def computeJSONFile(filePath: String, fromResources: Boolean): Map[String, Int] = {
     val newFilePath =
       if (!fromResources) {
         val projectRoot = new File("../../")
@@ -145,22 +145,21 @@ object BinaryReader {
     val content = readFile(newFilePath, fromResources)
     content match {
       case Success(data) =>
-        data.split("\n").filterNot(line => line.startsWith("//") || line.startsWith("TARGET") || line.startsWith("HW_VER") || line.trim.isEmpty ||
-          line.contains("{") || line.contains("}")).map { line =>
-          val array = line.trim
-            .replaceAll(" ", "")
-            .replaceAll("\"", "")
-            .replaceAll(",", "")
-            .replaceAll("\n", "")
-            .replaceAll("\r", "")
-            .split(":")
-          if (array(0) == "TARGET" || array(0) == "HW_VER") {
+        val decodedJson: Map[String, String] = {
+          data.split("\n").filterNot(line => line.startsWith("//") || line.trim.isEmpty || line.contains("{") || line.contains("}")).map { line =>
+            val array = line.trim
+              .replaceAll(" ", "")
+              .replaceAll("\"", "")
+              .replaceAll(",", "")
+              .replaceAll("\n", "")
+              .replaceAll("\r", "")
+              .split(":")
             (array(0), array(1))
           }
-          else {
-            (array(0), pow(2, array(1).toInt))
-          }
         }.toMap
+        val filteredJson = decodedJson -- Seq("TARGET", "HW_VER")
+        val json = filteredJson.map { case (key, value) => key -> pow(2, value.toInt) }
+        json
       case Failure(exception) =>
         println(s"Error while reading JSON file : ${exception.getMessage}")
         Map.empty
