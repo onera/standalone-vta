@@ -245,50 +245,85 @@ def strategy_3(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
     """
     Strategy 3 computes C column-by-column. It loads A column-by-column and single element of B.
     """
-    # Check strategy assumptions
-    if not ( out_block_buffer_size == min(inp_block_buffer_size, wgt_block_buffer_size, out_block_buffer_size) ):
-        raise Exception(f"ERROR: Assumptions for matrix partitioning - strategy 3: \
-                        \n\t 3. out_block_buffer_size ({out_block_buffer_size}) is smaller (or equal) than inp_block_buffer_size ({inp_block_buffer_size}), wgt_block_buffer_size ({wgt_block_buffer_size})! \n\n")
-    if ( nb_C // C_blocks_col > out_block_buffer_size ):
-        raise Exception(f"ERROR: Assumptions for matrix partitioning - strategy 3: \
-                        \n\t 4. nb_C // C_blocks_col = nb_C_rows ({nb_C // C_blocks_col}) must be smaller (or equal) than out_block_buffer_size ({out_block_buffer_size})! \n\n")
+    # Define buffer size which is the minimal size of the buffer
+    buffer_size = min(inp_block_buffer_size, wgt_block_buffer_size, acc_block_buffer_size, out_block_buffer_size)
 
     # Init strategy
     strategy = [] # (C, A, B, X)
 
-    # Calculate the number of rows in C
-    nb_C_rows = nb_C // C_blocks_col
+    # Define C_blocks_row
+    C_blocks_row = nb_C//C_blocks_col
 
-    # Check the load capacity of C
-    nb_loadable_rows = out_block_buffer_size//nb_C_rows
+    # Define the delta 
+    delta = min(buffer_size, C_blocks_row)
 
-    # Iterate over each column of C
-    for col in range(0, C_blocks_col):
-        # Can store a full C's row in OUT buffer
-        if (nb_loadable_rows > 0):
-            # Store a C's row and load a X's row
-            store_C = [i*C_blocks_col + col for i in range(0, nb_C_rows)]
-            load_X = [i*C_blocks_col + col for i in range(0, nb_C_rows)]
+    # Define C_blocks_row = nb_delta * delta + remainder
+    nb_delta, remainder = euclidian_division(C_blocks_row, delta)
 
-            # Iterate over the element of A's row
-            for col_A in range(0, A_blocks_col):
-                # Load A
-                load_A = [i*A_blocks_col + col_A for i in range(0, nb_C_rows)]
+    # Iterate over nb_delta
+    for idx_delta in range(0, nb_delta):
+        # Iterate over the number of C's columns
+        for j in range(0, C_blocks_col):
+            # Define each step
+            for k in range(0, A_blocks_col):
                 # Load B
-                load_B = [col + col_A*B_blocks_col]
+                load_B = [ k * B_blocks_col + j ]
 
+                # Init other loads / store
+                load_A = []
+                load_X = []
+                store_C = []
+
+                # Load / store delta row elements of C, A, X
+                for local_idx in range(0, delta):
+                    i = idx_delta * delta + local_idx
+
+                    # Load X only the first time, then accumulate
+                    if (k==0):
+                        load_X.append( i * C_blocks_col + j )
+                    
+                    # Load A 
+                    load_A.append( i * A_blocks_col + k )
+
+                    # Store C on the last iteration
+                    if (k==A_blocks_col-1):
+                        store_C.append( i * C_blocks_col + j )
+                
                 # Append the strategy (C, A, B, X)
-                if (col_A == 0):
-                    strategy.append( ([], load_A, load_B, load_X) )
-                else:
-                    strategy.append( ([], load_A, load_B, []) )
+                strategy.append( (store_C, load_A, load_B, load_X) )
             
-            # Update the last element to store
-            strategy[-1] = (store_C, load_A, load_B, [])
+    # Load the remainding C elements on the row
+    if (remainder > 0):
+        # Iterate over the number of C's columns
+        for j in range(0, C_blocks_col):
+            # Define each step
+            for k in range(0, A_blocks_col):
+                # Load B
+                load_B = [ k * B_blocks_col + j ]
 
-        else: # Cannot store a full C's column in OUT buffer
-            continue # Not supported yet
-    
+                # Init other loads / store
+                load_A = []
+                load_X = []
+                store_C = []
+
+                # Load / store delta row elements of C, A, X
+                for local_idx in range(0, remainder):
+                    i = delta * nb_delta + local_idx
+
+                    # Load X only the first time, then accumulate
+                    if (k==0):
+                        load_X.append( i * C_blocks_col + j )
+                    
+                    # Load A 
+                    load_A.append( i * A_blocks_col + k )
+
+                    # Store C on the last iteration
+                    if (k==A_blocks_col-1):
+                        store_C.append( i * C_blocks_col + j )
+                
+                # Append the strategy (C, A, B, X)
+                strategy.append( (store_C, load_A, load_B, load_X) )
+  
     # Return the strategy
     return strategy
 
@@ -308,14 +343,14 @@ def strategy_4(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
     # Define the delta 
     delta = min(buffer_size, C_blocks_col)
 
-    # Define A_blocks_col = nb_delta * delta + remainder
+    # Define C_blocks_col = nb_delta * delta + remainder
     nb_delta, remainder = euclidian_division(C_blocks_col, delta)
 
     # Iterate over the rows of C
     for i in range(0, nb_C//C_blocks_col):
         # Iterate over nb_delta to load a row of C
         for idx_delta in range(0, nb_delta):
-            # Load delta row elements
+            # Define each step
             for k in range(0, A_blocks_col):
                 # Load A
                 load_A = [ i * A_blocks_col + k ]
@@ -325,7 +360,7 @@ def strategy_4(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
                 load_X = []
                 store_C = []
 
-                # Load / store C, B, X
+                # Load / store delta row elements of C, B, X
                 for local_idx in range(0, delta):
                     j = idx_delta * delta + local_idx
 
