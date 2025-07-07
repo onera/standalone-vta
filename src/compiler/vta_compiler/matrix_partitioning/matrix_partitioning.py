@@ -10,7 +10,9 @@ import numpy as np
 # -------------------
 def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_col=1, nb_C=1, C_blocks_col=1,
                         inp_block_buffer_size=4, wgt_block_buffer_size=32, acc_block_buffer_size=4, out_block_buffer_size=4,
-                        strategy_selector=1, debug=True):
+                        alu_operations=[], idx_to_delete=[],
+                        strategy_selector=1,
+                        debug=True):
     """
     The function checks if any matrix (A, B, X, C) is overfitting.
     If yes, it applies the selected strategy. Else, the computation is perform without partitioning.
@@ -20,6 +22,8 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
         - #_blocks_col (int): the number of blocks to have a matrix row. 
             E.g., nb_A = 6 and A_blocks_col = 2 represents the 3x2-blocks A matrix
         - $_block_buffer_size (int): the number of blocks that fit the related SRAM buffer
+        - alu_operations (list): a list of the ALU operations to perfom
+        - idx_to_delete (list): a list of the output matrix's row indexes not to store
         - strategy_selector (int): an integer in [1..4] to select a strategy
         - debug (boolean): a boolean to print the execution information
     Outputs:
@@ -55,6 +59,18 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
     if ((nb_A > inp_block_buffer_size) or (nb_B > wgt_block_buffer_size) or (nb_C > out_block_buffer_size)):
         isOverfitting = True
 
+        # Get the alu_imm operations 
+        imm_operations = []
+        nb_alu_imm = next( (i for i, op in enumerate(alu_operations) if not op[0].endswith("_IMM")), len(alu_operations) )
+        for i in range(0, nb_alu_imm):
+            imm_operations.append( alu_operations[i] )
+
+        # Get the other operations
+        other_alu_operations = []
+        for i in range(nb_alu_imm, len(alu_operations)):
+            other_alu_operations.append( alu_operations[i] )
+
+
         # Common parameters for all strategies
         params = {
             'nb_A': nb_A, 'A_blocks_col': A_blocks_col,
@@ -64,7 +80,9 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
             'inp_block_buffer_size': inp_block_buffer_size,
             'wgt_block_buffer_size': wgt_block_buffer_size,
             'acc_block_buffer_size': acc_block_buffer_size,
-            'out_block_buffer_size': out_block_buffer_size
+            'out_block_buffer_size': out_block_buffer_size,
+            'alu_operations': imm_operations, 
+            'idx_to_delete': idx_to_delete
         }
         
         # Apply the strategy:
@@ -86,6 +104,9 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
         load_A = [i for i in range(0, nb_A)]
         load_B = [i for i in range(0, nb_B)]
         ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, C_blocks_col)
+        
+        # Add ALU operations
+        ops = ops + alu_operations
 
         strategy = [([i for i in range(0, nb_C)],
                      load_A,
@@ -106,10 +127,8 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
             \n ACC=OUT: {nb_C} blocks (including C_blocks_col = {C_blocks_col})\n")
         print(f"\nDoes matrix overfit SRAM? {isOverfitting} \nThe strategy to address it: {strategy_selector}")
         print(f"\nStrategy [([C], [A], [B], [X], [Operations])]:")
-        i = 0
-        for step in strategy:
+        for i, step in enumerate(strategy):
             print(f"\nStep {i}: {step}")
-            i = i + 1
 
     # Return if it is overfitting and the strategy [([Ci], [Ai], [Bi], [Xi])]
     return isOverfitting, strategy
@@ -117,7 +136,8 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
 # ---------------------------------------------
 
 def strategy_1(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_col=1, nb_C=1, C_blocks_col=1,
-               inp_block_buffer_size=4, wgt_block_buffer_size=32, acc_block_buffer_size=4, out_block_buffer_size=4):
+               inp_block_buffer_size=4, wgt_block_buffer_size=32, acc_block_buffer_size=4, out_block_buffer_size=4,
+               alu_operations=[], idx_to_delete=[]):
     """
     Strategy 1 focuses on quickly compute one C element. It loads A row-by-row and B column-by-column.
     """
@@ -178,11 +198,12 @@ def strategy_1(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
 
             # Get the operations
             ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, C_blocks_col)
+            ops = ops + alu_operations
 
             # Append the strategy (C, A, B, X, Operations)
             strategy.append( (load_X, load_A, load_B, [], ops) )
         else: # Modify the last step
-            strategy[-1] = (load_X, load_A, load_B, [], ops)
+            strategy[-1] = (load_X, load_A, load_B, [], ops + alu_operations)
 
     # Return the strategy
     return strategy
@@ -191,7 +212,8 @@ def strategy_1(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
 # ---------------------------------------------
 
 def strategy_2(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_col=1, nb_C=1, C_blocks_col=1,
-               inp_block_buffer_size=4, wgt_block_buffer_size=32, acc_block_buffer_size=4, out_block_buffer_size=4):
+               inp_block_buffer_size=4, wgt_block_buffer_size=32, acc_block_buffer_size=4, out_block_buffer_size=4,
+               alu_operations=[], idx_to_delete=[]):
     """
     Strategy 2 performs region-based computation, tiling matrices into smaller square regions.
     """
@@ -278,7 +300,8 @@ def strategy_2(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
             # Finally, store C_ij
             if strategy:
                 last_step = strategy[-1]
-                strategy[-1] = (c_indices, last_step[1], last_step[2], last_step[3], last_step[4])
+                last_ops = last_step[4] + alu_operations
+                strategy[-1] = (c_indices, last_step[1], last_step[2], last_step[3], last_ops)
 
     return strategy
 
@@ -286,7 +309,8 @@ def strategy_2(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
 # ---------------------------------------------
 
 def strategy_3(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_col=1, nb_C=1, C_blocks_col=1,
-               inp_block_buffer_size=4, wgt_block_buffer_size=32, acc_block_buffer_size=4, out_block_buffer_size=4):
+               inp_block_buffer_size=4, wgt_block_buffer_size=32, acc_block_buffer_size=4, out_block_buffer_size=4,
+               alu_operations=[], idx_to_delete=[]):
     """
     Strategy 3 computes C column-by-column. It loads A column-by-column and single element of B.
     """
@@ -336,6 +360,8 @@ def strategy_3(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
 
                 # Get the operations
                 ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, C_blocks_col)
+                if (k==A_blocks_col-1):
+                    ops = ops + alu_operations
 
                 # Append the strategy (C, A, B, X, Operations)
                 strategy.append( (store_C, load_A, load_B, load_X, ops) )
@@ -371,6 +397,8 @@ def strategy_3(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
                 
                 # Get the operations
                 ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, C_blocks_col)
+                if (k==A_blocks_col-1):
+                    ops = ops + alu_operations
 
                 # Append the strategy (C, A, B, X, Operations)
                 strategy.append( (store_C, load_A, load_B, load_X, ops) )
@@ -381,7 +409,8 @@ def strategy_3(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
 # ---------------------------------------------
 
 def strategy_4(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_col=1, nb_C=1, C_blocks_col=1,
-               inp_block_buffer_size=4, wgt_block_buffer_size=32, acc_block_buffer_size=4, out_block_buffer_size=4):
+               inp_block_buffer_size=4, wgt_block_buffer_size=32, acc_block_buffer_size=4, out_block_buffer_size=4,
+               alu_operations=[], idx_to_delete=[]):
     """
     Strategy 4 computes C row-by-row. It loads single element of A and B row-by-row.
     """
@@ -428,6 +457,8 @@ def strategy_4(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
                 
                 # Get the operations
                 ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, C_blocks_col)
+                if (k==A_blocks_col-1):
+                    ops = ops + alu_operations
 
                 # Append the strategy (C, A, B, X, Operations)
                 strategy.append( (store_C, load_A, load_B, load_X, ops) )
@@ -461,6 +492,8 @@ def strategy_4(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
                 
                 # Get the operations
                 ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, C_blocks_col)
+                if (k==A_blocks_col-1):
+                    ops = ops + alu_operations
 
                 # Append the strategy (C, A, B, X, Operations)
                 strategy.append( (store_C, load_A, load_B, load_X, ops) )
@@ -531,5 +564,10 @@ if __name__ == "__main__":
     X_blocks_col = C_blocks_col
     acc_block_buffer_size=out_block_buffer_size
 
+    alu_operations = [
+        ["MAX_IMM", [[0,1], 0, 16]],
+        ["MAX", [[0,1], [1,1], 3]]
+    ]
 
-    matrix_partitioning(nb_A, A_blocks_col, nb_B, B_blocks_col, nb_X, X_blocks_col, nb_C, C_blocks_col, inp_block_buffer_size, wgt_block_buffer_size, acc_block_buffer_size, out_block_buffer_size, strategy_selector, debug=True)
+
+    matrix_partitioning(nb_A, A_blocks_col, nb_B, B_blocks_col, nb_X, X_blocks_col, nb_C, C_blocks_col, inp_block_buffer_size, wgt_block_buffer_size, acc_block_buffer_size, out_block_buffer_size, alu_operations, [], strategy_selector, debug=True)

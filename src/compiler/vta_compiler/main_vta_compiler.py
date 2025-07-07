@@ -45,7 +45,7 @@ def main(operations_dict, vta_config_dict, debug=True):
     # ---------------------------------------------
     # DATA DEFINITION
 
-    A_blocks, A_blocks_col, B_blocks, B_blocks_col, X_blocks, X_blocks_col, ALU_blocks, C_blocks, C_blocks_col, C_init, combinations, isSquare = \
+    A_blocks, A_blocks_col, B_blocks, B_blocks_col, X_blocks, X_blocks_col, ALU_blocks, C_blocks, C_blocks_col, C_init, alu_operations, idx_to_delete = \
         DF.data_definition(operations_dict, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype,
                            block_size=block_size, random_bound=random_bound, debug=debug)
 
@@ -95,7 +95,9 @@ def main(operations_dict, vta_config_dict, debug=True):
                                nb_X=nb_X, X_blocks_col=X_blocks_col, nb_C=nb_C, C_blocks_col=C_blocks_col,
                                inp_block_buffer_size=inp_block_buffer_size, wgt_block_buffer_size=wgt_block_buffer_size, 
                                acc_block_buffer_size=acc_block_buffer_size, out_block_buffer_size=out_block_buffer_size,
-                               strategy_selector=1, debug=True)
+                               alu_operations=alu_operations, idx_to_delete=idx_to_delete,
+                               strategy_selector=1, 
+                               debug=True)
 
 
     # ---------------------------------------------
