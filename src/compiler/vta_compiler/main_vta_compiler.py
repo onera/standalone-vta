@@ -55,10 +55,9 @@ def main(operations_dict, vta_config_dict, debug=True):
 
     # Create the object to allocate
     object_list = [("INP", A_blocks),
-                   ("WGT", B_blocks)]
-    if "ACCUMULATOR" in operations_dict["MATRICES"][0]:
-        object_list.append(("ACC", X_blocks))
-    object_list.append(("OUT", C_blocks))
+                   ("WGT", B_blocks),
+                   ("ACC", X_blocks),
+                   ("OUT", C_blocks)]
 
     # Get the offsets
     if "BASE_ADDRESS" in operations_dict:
