@@ -17,7 +17,7 @@ all: $(FILENAME)
 $(FILENAME): | compiler_output/ simulators_output/
 	python src/compiler/vta_compiler/data_definition/main_matrix_generator.py $(DATA_FILE) > compiler_output/prompt_data.txt
 	python src/compiler/vta_compiler/operations_definition/examples/$(INSN_FILE).py > compiler_output/prompt_insn.txt
-	cd simulators/functional_simulator && make -s execute > $(MAKEFILE_DIR)simulators_output/fsim_report.txt
+	cd src/simulators/functional_simulator && make -s execute > $(MAKEFILE_DIR)simulators_output/fsim_report.txt
 
 # Execution of LeNet-5
 lenet5: | compiler_output/ simulators_output/
@@ -32,7 +32,7 @@ lenet5: | compiler_output/ simulators_output/
 	python src/compiler/vta_compiler/operations_definition/examples/lenet5/layer4.py >> compiler_output/prompt_insn.txt
 	@echo "LAYER 5:" >> compiler_output/prompt_insn.txt
 	python src/compiler/vta_compiler/operations_definition/examples/lenet5/layer5.py >> compiler_output/prompt_insn.txt
-	cd simulators/functional_simulator && make -s lenet5 > $(MAKEFILE_DIR)simulators_output/fsim_report.txt
+	cd src/simulators/functional_simulator && make -s lenet5 > $(MAKEFILE_DIR)simulators_output/fsim_report.txt
 
 
 # LIST THE POSSIBLE FILENAMES
