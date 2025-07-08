@@ -2,6 +2,8 @@
     PRE-PROCESSOR DIRECTIVES
 ****************************/
 #include "simulator_header.h"
+#include "external_lib/tvm/packed_func.h"
+#include "external_lib/tvm/registry.h"
 
 
 /********************
@@ -150,6 +152,33 @@ int lenet5_implementation() {
 
     // INITIALISE THE DRAM MEMORY
     // --------------------------
+      // --- PROFILER SETUP ---
+      printf("DEBUG: Setting up profiler...\n");
+      // Get PackedFunc pointers from the TVM registry
+      const tvm::runtime::PackedFunc* profiler_clear = tvm::runtime::Registry::Get("vta.simulator.profiler_clear");
+      const tvm::runtime::PackedFunc* profiler_status = tvm::runtime::Registry::Get("vta.simulator.profiler_status");
+      const tvm::runtime::PackedFunc* profiler_debug_mode = tvm::runtime::Registry::Get("vta.simulator.profiler_debug_mode");
+  
+      // Check if the functions were found
+      if (!profiler_clear || !profiler_status || !profiler_debug_mode) {
+          std::cerr << "ERROR: Could not find profiler functions in the TVM registry. "
+                    << "Ensure TVM runtime is initialized and VTA simulator modules are loaded." << std::endl;
+          return -1;
+      }
+       printf("DEBUG: Profiler functions retrieved.\n");
+  
+      // Clear any previous profiler statistics
+      (*profiler_clear)();
+      printf("DEBUG: Profiler cleared.\n");
+  
+      // Set debug mode (optional)
+      // 0: Normal execution
+      // 1: Skip execution (only count operations) - useful for performance modeling
+      int debug_flag = 0; // Set to 1 to skip actual computation
+      (*profiler_debug_mode)(debug_flag);
+      printf("DEBUG: Profiler debug mode set to %d.\n", debug_flag);
+      // --- END PROFILER SETUP ---
+  
 
     // Copy data to VTA memory
     VTAMemCopyFromHost(mem_inp, inp.data(), inp.size() * sizeof(int8_t));
@@ -250,6 +279,12 @@ int lenet5_implementation() {
     // FREE MEMORY
     // -----------
 
+    // --- PROFILER RESULTS ---
+    printf("DEBUG: Retrieving profiler status...\n");
+    std::string profile_json = (*profiler_status)(); // Get profiler results as JSON
+    std::cout << "\n--- Profiler Status ---" << std::endl;
+    std::cout << profile_json << std::endl;
+    // --- END PROFILER RESULTS ---
     // Free VTA device
     VTADeviceFree(vta_device);
 
