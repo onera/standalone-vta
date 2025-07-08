@@ -133,7 +133,7 @@ object BinaryReader {
   def computeJSONFile(filePath: String, fromResources: Boolean): Map[String, Int] = {
     val newFilePath =
       if (!fromResources) {
-        val projectRoot = new File("../../")
+        val projectRoot = new File("../../../")
         val compilerOutputDir = new File(projectRoot, "config")
         val basePath = compilerOutputDir.getCanonicalPath
         s"$basePath/" + filePath
@@ -174,7 +174,7 @@ object BinaryReader {
   def computeCSVFile(filePath: String, fromResources: Boolean, isBaseAddr: Boolean = true): Map[String, String] = {
     val newFilePath =
       if (!fromResources) {
-        val projectRoot = new File("../../")
+        val projectRoot = new File("../../../")
         val compilerOutputDir = new File(projectRoot, "compiler_output")
         val basePath = compilerOutputDir.getCanonicalPath
         s"$basePath/" + filePath
@@ -234,7 +234,7 @@ object BinaryReader {
   def computeAddresses(filePath: String, dataType: DataTypeValue, baseAddress: String, isDRAM: Boolean, fromResources: Boolean): Try[Map[BigInt, Array[BigInt]]] = {
     val newFilePath =
       if (!fromResources) { // if binary files are located in /compiler_output and not a resource folder
-        val projectRoot = new File("../../")
+        val projectRoot = new File("../../../")
         val compilerOutputDir = new File(projectRoot, "compiler_output")
         val basePath = compilerOutputDir.getCanonicalPath
         s"$basePath/" + filePath
