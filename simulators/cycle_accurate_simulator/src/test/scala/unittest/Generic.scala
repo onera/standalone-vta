@@ -20,13 +20,15 @@
 package unittest
 
 import chisel3._
+import chiseltest.iotesters._
+import org.scalatest.Tag
+import vta.util.config._
+
 import vta.util.config._
 import chiseltest._
-import chiseltest.iotesters._
 import org.scalatest.flatspec.AnyFlatSpec
 import vta.DefaultPynqConfig
 
-import org.scalatest.Tag
 object UnitTests extends Tag("UnitTests")
 object LongTests extends Tag("LongTests")
 

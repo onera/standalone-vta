@@ -1,7 +1,8 @@
-package simulatorTest.util
+package util
 
-import java.io.{FileInputStream, InputStream}
-import scala.io.Source
+import java.io.{File, FileInputStream, InputStream}
+import scala.collection.convert.ImplicitConversions.`map AsJavaMap`
+import scala.math.pow
 import scala.util.{Failure, Success, Try}
 
 object BinaryReader {
@@ -13,7 +14,7 @@ object BinaryReader {
    */
   object DataType extends Enumeration {
     private def samePrecision(x:Int): Map[Int,Int] = Map.empty.withDefaultValue(x)
-    class DataTypeValue(val id: Int, val nbValues:Int, val precision: Map[Int,Int], val doReversal: Boolean) extends Value
+    class DataTypeValue(val id: Int, val nbValues: Int, val precision: Map[Int,Int], val doReversal: Boolean) extends Value
     val INP: DataTypeValue = new DataTypeValue(0, 16, samePrecision(8), false)
     val WGT: DataTypeValue = new DataTypeValue(1, 256, samePrecision(8), false)
     val OUT: DataTypeValue = new DataTypeValue(2, 16, samePrecision(8), false)
@@ -27,6 +28,7 @@ object BinaryReader {
   /**
    * Open and read the binary file, write the data in an Array[Byte]
    * @param filePath the path to the resource file
+   * @param fromResources boolean that is true if the files are in a Resources folder, false otherwise
    * @return an Array[Byte] of all the bytes inside the file
    */
   def readBinaryFile(filePath: String, fromResources: Boolean): Try[Array[Byte]] = {
@@ -101,52 +103,147 @@ object BinaryReader {
   }
 
   /**
-   * Reads the base memory addresses of the data and UOP inside a .csv file and returns a Map that associates the data type and its base address
-   * @param filePath the path to the resource CSV file
-   * @return a Map[String, String] of the data type and its base address
+   * Reads the content of a CSV or JSON file and returns it
+   * @param filePath the path to the file
+   * @param fromResources boolean that is true if the files are in a Resources folder, false otherwise
+   * @return a String with the content of the file
    */
-  def readBaseAddresses(filePath: String): Try[String] = {
+  def readFile(filePath: String, fromResources: Boolean): Try[String] = {
     Try {
-      val inputStreamFile = new FileInputStream(getClass.getClassLoader.getResource(filePath).getFile)
-      val fileContent = scala.io.Source.fromInputStream(inputStreamFile, "UTF-8").mkString
-      inputStreamFile.close()
+      val inputStream: InputStream = {
+        if (fromResources) {
+          getClass.getClassLoader.getResourceAsStream(filePath)
+        }
+        else {
+          new FileInputStream(filePath)
+        }
+      }
+      val fileContent = scala.io.Source.fromInputStream(inputStream, "UTF-8").mkString
+      inputStream.close()
       fileContent
-//      fileContent.split("\n").map { ligne =>
-//        val tableau = ligne.split(",")
-//        (tableau(0), tableau(1).trim
-//                               .replaceAll("\n", "")
-//                               .replaceAll("\r", ""))
-//      }.toMap
     }
   }
 
-  def computeBaseAddresses(filePath: String): Map[String, String] = {
-    val fileContent = readBaseAddresses(filePath)
+  /**
+   * Reads a JSON file and puts the data in a Map
+   * @param filePath the path to the JSON file
+   * @param fromResources boolean that is true if the files are in a Resources folder, false otherwise
+   * @return a Map with the parsed content from the file
+   */
+  def computeJSONFile(filePath: String, fromResources: Boolean): Map[String, Int] = {
+    val newFilePath =
+      if (!fromResources) {
+        val projectRoot = new File("../../")
+        val compilerOutputDir = new File(projectRoot, "config")
+        val basePath = compilerOutputDir.getCanonicalPath
+        s"$basePath/" + filePath
+      }
+      else {
+        filePath
+      }
+    val content = readFile(newFilePath, fromResources)
+    content match {
+      case Success(data) =>
+        val decodedJson: Map[String, String] = {
+          data.split("\n").filterNot(line => line.startsWith("//") || line.trim.isEmpty || line.contains("{") || line.contains("}")).map { line =>
+            val array = line.trim
+              .replaceAll(" ", "")
+              .replaceAll("\"", "")
+              .replaceAll(",", "")
+              .replaceAll("\n", "")
+              .replaceAll("\r", "")
+              .split(":")
+            (array(0), array(1))
+          }
+        }.toMap
+        val filteredJson = decodedJson -- Seq("TARGET", "HW_VER")
+        val json = filteredJson.map { case (key, value) => key -> pow(2, value.toInt).toInt }
+        json
+      case Failure(exception) =>
+        println(s"Error while reading JSON file : ${exception.getMessage}")
+        Map.empty
+    }
+  }
+
+  /**
+   * Reads the base memory addresses of the data and UOP inside a .csv file and returns a Map that associates the data type and its base address
+   * @param filePath the path to the CSV file or file name if not in a resource folder
+   * @param fromResources boolean that is true if the files are in a Resources folder, false otherwise
+   * @return a Map[String, String] of the data type and its base address
+   */
+  def computeCSVFile(filePath: String, fromResources: Boolean, isBaseAddr: Boolean = true): Map[String, String] = {
+    val newFilePath =
+      if (!fromResources) {
+        val projectRoot = new File("../../")
+        val compilerOutputDir = new File(projectRoot, "compiler_output")
+        val basePath = compilerOutputDir.getCanonicalPath
+        s"$basePath/" + filePath
+      }
+      else {
+        filePath
+      }
+    val fileContent = readFile(newFilePath, fromResources)
     fileContent match {
       case Success(data) =>
-        data.split("\n").map { ligne =>
-          val tableau = ligne.split(",")
-          (tableau(0), tableau(1).trim
-                                 .replaceAll("\n", "")
-                                 .replaceAll("\r", "")
-                                 .replaceAll("0x", "0000"))
-        }.toMap
+        val baseAddr =
+          data.split("\n").filterNot(line => line.startsWith("//") || line.trim.isEmpty).map { line =>
+            val array = line.split(",")
+            (array(0), array(1).trim
+              .replaceAll("\n", "")
+              .replaceAll("\r", "")
+              .replaceAll("0x", "0000"))
+          // Raises an error if there is a duplicate of a key in the CSV file
+          }.foldLeft(Map.empty[String, String]) { (acc, pair) =>
+            if (acc.containsKey(pair._1)) {
+              throw new Exception(s"Duplicated key : ${pair._1}")
+            } else {
+              acc + pair
+            }
+          }.toMap
+        // Remove the following lines if you load INP, WGT, OUT from DRAM
+        val updatedBaseAddr = {
+          if (isBaseAddr) {
+            if (baseAddr.size <= 5) {
+              baseAddr.updated("inp", "00000000").updated("wgt", "00000000").updated("out", "00000000")
+            }
+            else {
+              (0 until 5).foldLeft(baseAddr) { case (acc, i) =>
+                acc.updated(s"inp$i", "00000000")
+                  .updated(s"wgt$i", "00000000")
+                  .updated("out", "00000000")
+              }
+            }
+          }
+          else { baseAddr }
+        }
+        updatedBaseAddr
       case Failure(exception) =>
-        println(s"Error while grouping data (if reversal) : ${exception.getMessage}")
+        println(s"Error while reading CSV file : ${exception.getMessage}")
         Map.empty
     }
   }
 
   /**
    * Compute the logical addresses associated with each instruction in a Map
-   * @param filePath the path to the resource file
+   * @param filePath the path to the resource file or file name if not in a resource folder
    * @param dataType the type of data in the binary file
    * @param baseAddress base address of a data type
+   * @param fromResources boolean that is true if the files are in a Resources folder, false otherwise
    * @return a Map(Address, Array) that associates the logical address of a vector with its values
    */
-  def computeAddresses(filePath: String, dataType: DataTypeValue, baseAddress: String, isDRAM: Boolean): Try[Map[BigInt, Array[BigInt]]] = {
+  def computeAddresses(filePath: String, dataType: DataTypeValue, baseAddress: String, isDRAM: Boolean, fromResources: Boolean): Try[Map[BigInt, Array[BigInt]]] = {
+    val newFilePath =
+      if (!fromResources) { // if binary files are located in /compiler_output and not a resource folder
+        val projectRoot = new File("../../")
+        val compilerOutputDir = new File(projectRoot, "compiler_output")
+        val basePath = compilerOutputDir.getCanonicalPath
+        s"$basePath/" + filePath
+      }
+      else { // if files are located in a resource folder
+        filePath
+      }
     val groupedBinaryData =
-      readBinaryFile(filePath, fromResources = true) match {
+      readBinaryFile(newFilePath, fromResources) match {
         case Success(fileContent) =>
           Success(reverseLE(fileContent, dataType)) // Bytes are extracted (and reversed depending on data type) from binary file
         case Failure(exception) =>
@@ -156,8 +253,7 @@ object BinaryReader {
     val baseAddrBigInt = BigInt(baseAddress,16) // Value of base address in BigInt
     groupedBinaryData match {
       case Success(data) =>
-        // Flattened array containing all the bits of the binary file after reversal
-        val ungroupedBits =
+        val ungroupedBits = // Flattened array containing all the bits of the binary file after reversal
           for {
             byte <- data.flatten
           } yield {
@@ -205,7 +301,8 @@ object BinaryReader {
         //groupedArrayBit2.map(_.mkString(", ")).foreach(println)
         // Converts the values to BigInt (included in [-128, 128], except for ACC)
         val groupedByElemSizeBI = groupedArrayBit2.map(_.map(BigInt(_, 2)).map {bigInt =>
-          if (bigInt >= 128 && dataType.id != INSN.id && dataType.id != ACC.id) bigInt - 256 else bigInt})
+          if (bigInt >= 128 && dataType.id != INSN.id && dataType.id != ACC.id && dataType.id != UOP.id) bigInt - 256
+          else bigInt})
         val correctedGrouped = groupedByElemSizeBI.map(_.map {bigInt =>
           if (dataType.id == ACC.id && bigInt >= 128)
             BigInt(bigInt.intValue)
@@ -221,7 +318,7 @@ object BinaryReader {
             if (!isDRAM) { // Logical address for data types INP, WGT, OUT, INSN
               //println(d(0).toString(2))
               //println(BigInt(i) + baseAddrBigInt)
-              (BigInt(i) + baseAddrBigInt) -> d // BigInt(i) normalement
+              (BigInt(i) + baseAddrBigInt) -> d
             } else { // Physical address if data type is UOP or ACC
               (baseAddrBigInt + BigInt(sizeOfElement/8 * i)) -> d
             }
