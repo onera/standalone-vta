@@ -1,28 +1,21 @@
-package simulatorTest.compute
+package cli
 
-import chisel3._
-import chiseltest.iotesters._
-import simulatorTest.util.BinaryReader
-import simulatorTest.util.BinaryReader.{DataType, computeBaseAddresses, readBaseAddresses}
-import simulatorTest.util.BinaryReader.DataType._
-import unittest.GenericTest
+import chisel3.assert
+import chiseltest.iotesters.PeekPokeTester
+import util.BinaryReader.{DataType, computeCSVFile, computeAddresses}
+import util.BinaryReader.DataType.DataTypeValue
+import util.GenericSim
+import vta.core.{Compute, TensorMaster}
 import vta.core.ISA.{FNSH, GEMM, LACC, LINP, LUOP, LWGT, SOUT, VADD, VMAX, VMIN, VSHX}
-import vta.core._
 import vta.shell.VMEReadMaster
 import vta.util.config.Parameters
 
-import scala.language.postfixOps
-import scala.util.{Failure, Success} // Import for raising exceptions in case of misreading
+import scala.util.{Failure, Success}
 
-
-class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: String, out: String, acc: String, expected_out: String,
-                  base_addresses: String, doCompare: Boolean = false, debug: Boolean = false)
-  extends PeekPokeTester(c) {
-
+object ComputeSimulator {
   /* COMMON PART - MANAGE VIRTUAL MEMORIES */
-
-  def build_scratchpad_binary(filePath: String, dataType: DataTypeValue, offset: String, isDRAM: Boolean): Map[BigInt, Array[BigInt]] = {
-    BinaryReader.computeAddresses(filePath, dataType, offset, isDRAM) match {
+  def build_scratchpad_binary(filePath: String, dataType: DataTypeValue, offset: String, isDRAM: Boolean, fromResources: Boolean): Map[BigInt, Array[BigInt]] = {
+    computeAddresses(filePath, dataType, offset, isDRAM, fromResources) match {
       case Success(scratchpad) =>
         scratchpad
       case Failure(exception) =>
@@ -30,6 +23,29 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
         Map.empty
     }
   }
+
+  def getBaseAddr(base_addresses: String, fromResources: Boolean): Map[String, String] = {
+    computeCSVFile(base_addresses, fromResources)
+  }
+}
+
+
+class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt, Array[BigInt]], weight: String, out: String, acc: String, expected_out: String,
+                  base_addresses: String, doCompare: Boolean, debug: Boolean, fromResources: Boolean)
+  extends PeekPokeTester(c) {
+
+  def this(c: Compute, insn: String, uop: String, input: String, weight: String, out: String, acc: String, expected_out: String,
+           base_addresses: String, doCompare: Boolean, debug: Boolean, fromResources: Boolean) = {
+    this(c, insn, uop,
+      ComputeSimulator.build_scratchpad_binary(input, DataType.INP, ComputeSimulator.getBaseAddr(base_addresses, fromResources)("inp"), isDRAM = false, fromResources),
+      weight, out, acc, expected_out, base_addresses, doCompare, debug, fromResources)
+  }
+
+  def this(c: Compute, insn: String, uop: String, input: Map[BigInt, Array[BigInt]], weight: String, out: String, acc: String,
+           base_addresses: String, doCompare: Boolean, debug: Boolean, fromResources: Boolean) = {
+    this(c, insn, uop, input: Map[BigInt, Array[BigInt]], weight, out, acc, "", base_addresses, doCompare = false, debug, fromResources)
+  }
+
 
   // Check if it is compute instruction
   def isComputeInstruction(instruction: BigInt): Boolean = {
@@ -49,7 +65,8 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
     }
   }
 
-  val inst = build_scratchpad_binary(insn, DataType.INSN, "00000000", isDRAM = false)
+  // Create instruction scratchpad
+  val inst = ComputeSimulator.build_scratchpad_binary(insn, DataType.INSN, "00000000", isDRAM = false, fromResources)
 
   // Print scratchpad
   def print_scratchpad(scratchpad: Map[BigInt, Array[BigInt]], index: BigInt, name : String = "?"): Unit = {
@@ -203,8 +220,8 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
       // Check if command is ready to receive the data
       var ready = peek(dm.data.ready)
 
-//      print(s"\n\nDEBUG: (UOP) CMD VALID: ${valid}, DATA READY: ${ready}")
-//      print(s"\nDEBUG: tag: ${peek(dm.cmd.bits.tag)}, len: ${peek(dm.cmd.bits.len)}, addr: ${peek(dm.cmd.bits.addr)}\n\n")
+      //      print(s"\n\nDEBUG: (UOP) CMD VALID: ${valid}, DATA READY: ${ready}")
+      //      print(s"\nDEBUG: tag: ${peek(dm.cmd.bits.tag)}, len: ${peek(dm.cmd.bits.len)}, addr: ${peek(dm.cmd.bits.addr)}\n\n")
 
       // Read the command if command is valid and DRAM ready to receive (no exchange in progress)
       if (valid == 1 && !uop_exchange) {
@@ -213,7 +230,7 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
         len = peek(dm.cmd.bits.len)
         addr = peek(dm.cmd.bits.addr)
 
-//        print(s"\n\nDEBUG: (UOP) STORE TAG, LEN, ADDR\n\n")
+        //        print(s"\n\nDEBUG: (UOP) STORE TAG, LEN, ADDR\n\n")
 
         // Start the exchange
         uop_exchange = true
@@ -224,8 +241,8 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
         // Return the tag to link the data to the command
         poke(dm.data.bits.tag, tag)
 
-//        print(s"\n\nDEBUG: uop_exchange (${nb_uop}) with: tag=${tag}, len=${len}, addr=${addr}" +
-//          s"\n (Current addr: ${addr + 8 * nb_uop})\n\n")
+        //        print(s"\n\nDEBUG: uop_exchange (${nb_uop}) with: tag=${tag}, len=${len}, addr=${addr}" +
+        //          s"\n (Current addr: ${addr + 8 * nb_uop})\n\n")
 
         // Read the data from the scratchpad (2 UOP read at once)
         val uop_acc_0 = scratchpad(addr + 8 * nb_uop)(0) // 11 bits
@@ -267,7 +284,7 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
           // End of the exchange
           uop_exchange = false
 
-//          print(s"\n\nDEBUG: END UOP EXCHANGE: nb_uop=${nb_uop}\n\n")
+          //          print(s"\n\nDEBUG: END UOP EXCHANGE: nb_uop=${nb_uop}\n\n")
 
           // Reset the number of exchange
           nb_uop = 0
@@ -313,8 +330,8 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
       // Check if command is ready to receive the data
       var ready = peek(dm.data.ready)
 
-//      print(s"\n\nDEBUG: (ACC) CMD VALID: ${valid}, DATA READY: ${ready}")
-//      print(s"\nDEBUG: tag: ${peek(dm.cmd.bits.tag)}, len: ${peek(dm.cmd.bits.len)}, addr: ${peek(dm.cmd.bits.addr)}\n\n")
+      //      print(s"\n\nDEBUG: (ACC) CMD VALID: ${valid}, DATA READY: ${ready}")
+      //      print(s"\nDEBUG: tag: ${peek(dm.cmd.bits.tag)}, len: ${peek(dm.cmd.bits.len)}, addr: ${peek(dm.cmd.bits.addr)}\n\n")
 
       // Read the command if command is valid and DRAM ready to receive (no exchange in progress)
       if (valid == 1 && !acc_exchange) {
@@ -323,7 +340,7 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
         len = peek(dm.cmd.bits.len)
         addr = peek(dm.cmd.bits.addr)
 
-//        print(s"\n\nDEBUG: (ACC) STORE TAG, LEN, ADDR\n\n")
+        //        print(s"\n\nDEBUG: (ACC) STORE TAG, LEN, ADDR\n\n")
 
         // Start the exchange
         acc_exchange = true
@@ -334,8 +351,8 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
         // Return the tag to link the data to the command
         poke(dm.data.bits.tag, tag)
 
-//        print(s"\n\nDEBUG: acc_exchange (${nb_acc}) with: tag=${tag}, len=${len}, addr=${addr}" +
-//          s"\n (Current addr: ${addr + 64*(nb_acc/8)}, current idx: ${2*(nb_acc%8)} and ${1 + 2*(nb_acc%8)}) \n\n")
+        //        print(s"\n\nDEBUG: acc_exchange (${nb_acc}) with: tag=${tag}, len=${len}, addr=${addr}" +
+        //          s"\n (Current addr: ${addr + 64*(nb_acc/8)}, current idx: ${2*(nb_acc%8)} and ${1 + 2*(nb_acc%8)}) \n\n")
 
         // Read the data from the scratchpad
         val acc_0 = scratchpad(addr + 64*(nb_acc/8))(0 + 2*(nb_acc%8)) // 32 bits
@@ -358,7 +375,7 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
           // End of the exchange
           acc_exchange = false
 
-//          print(s"\n\nDEBUG: END ACC EXCHANGE: nb_acc=${nb_acc}\n\n")
+          //          print(s"\n\nDEBUG: END ACC EXCHANGE: nb_acc=${nb_acc}\n\n")
 
           // Reset the number of exchange
           nb_acc = 0
@@ -407,16 +424,17 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
 
   /* BEGIN USER CUSTOMABLE SECTION */
   // Build memory
-  val base_addr = computeBaseAddresses(base_addresses)
+  val base_addr = computeCSVFile(base_addresses, fromResources)
 
   val dram_scratchpad =
-    build_scratchpad_binary(acc, DataType.ACC, base_addr("acc"), isDRAM = true) ++
-      build_scratchpad_binary(uop, DataType.UOP, base_addr("uop"), isDRAM = true)
+    ComputeSimulator.build_scratchpad_binary(acc, DataType.ACC, base_addr("acc"), isDRAM = true, fromResources) ++
+      ComputeSimulator.build_scratchpad_binary(uop, DataType.UOP, base_addr("uop"), isDRAM = true, fromResources)
   // base address is zero because we are storing the values directly in the INP buffer
-  val inp_scratchpad = build_scratchpad_binary(input, DataType.INP, base_addr("inp"), isDRAM = false)
-  val wgt_scratchpad = build_scratchpad_binary(weight, DataType.WGT, base_addr("wgt"), isDRAM = false)
-  val out_scratchpad = build_scratchpad_binary(out, DataType.OUT, base_addr("out"), isDRAM = false)
-  val out_expect_scratchpad = build_scratchpad_binary(expected_out, DataType.OUT, base_addr("out"), isDRAM = false) // FIXME: adresse différente ?
+  val inp_scratchpad = input
+  //val inp_scratchpad = build_scratchpad_binary(input, DataType.INP, base_addr("inp"), isDRAM = false)
+  val wgt_scratchpad = ComputeSimulator.build_scratchpad_binary(weight, DataType.WGT, base_addr("wgt"), isDRAM = false, fromResources)
+  val out_scratchpad = ComputeSimulator.build_scratchpad_binary(out, DataType.OUT, base_addr("out"), isDRAM = false, fromResources)
+  val out_expect_scratchpad = ComputeSimulator.build_scratchpad_binary(expected_out, DataType.OUT, base_addr("out"), isDRAM = false, fromResources)
 
   // Create the mocks
   val mocks = new Mocks
@@ -431,17 +449,6 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
   if (debug) {
     print(s"\nCycle ${cycle_counter}:\n")
   }
-
-//  // Send instructions
-//  for ((key,Array(value)) <- inst.toSeq.sortBy(_._1)) {
-//    // Send the instruction
-//    poke(c.io.inst.bits, value)
-//    // Instruction is valid
-//    poke(c.io.inst.valid, 1)
-//    print(s"Send instruction: $key\n")
-//    // Increment the step
-//    mocks.logical_step()
-//  }
 
   for ((key,Array(value)) <- inst.toSeq.sortBy(_._1)) {
     // Get instruction mnemonic for better logging (optional but helpful)
@@ -476,6 +483,10 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
   if (debug) {
     print(s"\n\t END COMPUTE TESTS! \n\t (done in ${cycle_counter} cycles)\n\n")
   }
+
+  def getOutScratchpad: Map[BigInt, Array[BigInt]] = {
+    out_scratchpad
+  }
 }
 
 object ISAHelper { // Or place inside ISA object if preferred
@@ -497,176 +508,20 @@ object ISAHelper { // Or place inside ISA object if preferred
       (instruction & bitPat.mask) == bitPat.value
     }.map(_._2).getOrElse("UNKNOWN") // Return mnemonic or "UNKNOWN"
   }
-
-  // Add this call inside the loop for logging:
-  // val mnemonic = ISAHelper.getMnemonic(currentInstruction)
-  // print(s"Instruction ${key} (${mnemonic}) ...")
 }
 
 
-/*************************************************************************************************************
- * TEST EXECUTION
- *************************************************************************************************************/
-//FIXME Modify the test to use binary files instead
-/* Test JSON files */
-//class ComputeApp extends GenericTest("ComputeApp", (p:Parameters) =>
-//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_investigation.json", false))
-
-/* Vector x matrix multiplication (Simple Matrix Multiply) */
-class ComputeApp_smm extends GenericTest("ComputeApp_smm", (p:Parameters) =>
-  new Compute(false)(p), (c: Compute) => new ComputeTest(c,
-  "examples_compute/smm/instructions.bin",
-  "examples_compute/smm/uop.bin",
-  "examples_compute/smm/input.bin",
-  "examples_compute/smm/weight.bin",
-  "examples_compute/smm/out.bin",
-  "examples_compute/smm/accumulator.bin",
-  "examples_compute/smm/expected_out.bin",
-  "examples_compute/smm/memory_addresses.csv",
-  true))
-
-/* Matrix 16x16 multiply with matrix 16x16 */
-class ComputeApp_16x16 extends GenericTest("ComputeApp_16x16", (p:Parameters) =>
-  new Compute(false)(p), (c: Compute) => new ComputeTest(c,
-  "examples_compute/16x16/instructions.bin",
-  "examples_compute/16x16/uop.bin",
-  "examples_compute/16x16/input.bin",
-  "examples_compute/16x16/weight.bin",
-  "examples_compute/16x16/out.bin",
-  "examples_compute/16x16/accumulator.bin",
-  "examples_compute/16x16/expected_out.bin",
-  "examples_compute/16x16/memory_addresses.csv",
-  true))
-
-/* Matrix 32x32 multiply with matrix 32x32 */
-class ComputeApp_32x32 extends GenericTest("ComputeApp_32x32", (p:Parameters) =>
-  new Compute(false)(p), (c: Compute) => new ComputeTest(c,
-  "examples_compute/32x32/instructions.bin",
-  "examples_compute/32x32/uop.bin",
-  "examples_compute/32x32/input.bin",
-  "examples_compute/32x32/weight.bin",
-  "examples_compute/32x32/out.bin",
-  "examples_compute/32x32/accumulator.bin",
-  "examples_compute/32x32/expected_out.bin",
-  "examples_compute/32x32/memory_addresses.csv",
-  true))
+class ComputeApp extends GenericSim("ComputeApp", (p:Parameters) =>
+  new Compute(false)(p), (c: Compute) => new ComputeSimulator(c,
+  "instructions.bin",
+  "uop.bin",
+  "input.bin",
+  "weight.bin",
+  "out_init.bin",
+  "accumulator.bin",
+  "expected_out_sram.bin",
+  "memory_addresses.csv",
+  doCompare = true, debug = true, fromResources = false))
 
 
-///* ALTERNATIVE INSTRUCTION INVESTIGATION:
-// * Batches with 2 UOP and 1 GeMM loop */
-//class ComputeApp_Batches_2uop_1loop extends GenericTest("ComputeApp_Batches_2uop_1loop", (p:Parameters) =>
-//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/alternative_instructions/batches_2uop_1loop.json", true))
-///* Batches with 1 UOP and 2 GeMM loop */
-//class ComputeApp_Batches_1uop_2loops extends GenericTest("ComputeApp_Batches_1uop_2loops", (p: Parameters) =>
-//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/alternative_instructions/batches_1uop_2loops.json", true))
-///* Batches with 2 instructions */
-//class ComputeApp_Batches_2insn extends GenericTest("ComputeApp_Batches_2insn", (p: Parameters) =>
-//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/alternative_instructions/batches_2insn.json", true))
-//
-///* ALTERNATIVE INSTRUCTION INVESTIGATION:
-// * Load 4 UOP using 1 instruction */
-//class ComputeApp_LoadUop_1insn extends GenericTest("ComputeApp_LoadUop_1insn", (p: Parameters) =>
-//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/alternative_instructions/loadUop_1insn.json"))
-//class ComputeApp_LoadUop_2insn extends GenericTest("ComputeApp_LoadUop_2insn", (p: Parameters) =>
-//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/alternative_instructions/loadUop_2insn.json"))
 
-
-//* ALU
-/* ReLU */
-class ComputeApp_relu extends GenericTest("ComputeApp_relu", (p:Parameters) =>
-  new Compute(false)(p), (c: Compute) => new ComputeTest(c,
-  "examples_compute/relu/instructions.bin",
-  "examples_compute/relu/uop.bin",
-  "examples_compute/relu/input.bin",
-  "examples_compute/relu/weight.bin",
-  "examples_compute/relu/out.bin",
-  "examples_compute/relu/accumulator.bin",
-  "examples_compute/relu/expected_out.bin",
-  "examples_compute/relu/memory_addresses.csv",
-  true))
-
-/* Matrix 16x16 multiply with matrix 16x16 followed by a ReLU (MAX with 0) */
-class ComputeApp_16x16_relu extends GenericTest("ComputeApp_16x16_relu", (p:Parameters) =>
-  new Compute(false)(p), (c: Compute) => new ComputeTest(c,
-  "examples_compute/16x16_relu/instructions.bin",
-  "examples_compute/16x16_relu/uop.bin",
-  "examples_compute/16x16_relu/input.bin",
-  "examples_compute/16x16_relu/weight.bin",
-  "examples_compute/16x16_relu/out.bin",
-  "examples_compute/16x16_relu/accumulator.bin",
-  "examples_compute/16x16_relu/expected_out.bin",
-  "examples_compute/16x16_relu/memory_addresses.csv",
-  true))
-
-/* Matrix 32x32 multiply with matrix 32x32 followed by a ReLU (MAX with 0) */
-class ComputeApp_32x32_relu extends GenericTest("ComputeApp_32x32_relu", (p:Parameters) =>
-  new Compute(false)(p), (c: Compute) => new ComputeTest(c,
-  "examples_compute/32x32_relu/instructions.bin",
-  "examples_compute/32x32_relu/uop.bin",
-  "examples_compute/32x32_relu/input.bin",
-  "examples_compute/32x32_relu/weight.bin",
-  "examples_compute/32x32_relu/out.bin",
-  "examples_compute/32x32_relu/accumulator.bin",
-  "examples_compute/32x32_relu/expected_out.bin",
-  "examples_compute/32x32_relu/memory_addresses.csv",
-  true))
-
-///* Average pooling (first part - add only) */
-//class ComputeApp_add_acc_vectors extends GenericTest("ComputeApp_add_acc_vectors", (p: Parameters) =>
-//  new Compute(true)(p), (c: Compute) => new ComputeTest(c, "/examples_compute/compute_add_acc_vectors.json", true))
-
-/* Average pooling (full - add + division), the division round down */
-class ComputeApp_average_pooling extends GenericTest("ComputeApp_average_pooling", (p:Parameters) =>
-  new Compute(false)(p), (c: Compute) => new ComputeTest(c,
-  "examples_compute/average_pooling/instructions.bin",
-  "examples_compute/average_pooling/uop.bin",
-  "examples_compute/average_pooling/input.bin",
-  "examples_compute/average_pooling/weight.bin",
-  "examples_compute/average_pooling/out.bin",
-  "examples_compute/average_pooling/accumulator.bin",
-  "examples_compute/average_pooling/expected_out_sram.bin",
-  "examples_compute/average_pooling/memory_addresses.csv",
-  true, false))
-
-//* CONVOLUTIONAL NEURAL NETWORK:
-/* LeNet-5: Convolution 1 */
-class ComputeApp_lenet5_conv1 extends GenericTest("ComputeApp_lenet5_conv1", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
-  "examples_compute/lenet5_conv1/instructions.bin",
-  "examples_compute/lenet5_conv1/uop.bin",
-  "examples_compute/lenet5_conv1/input.bin",
-  "examples_compute/lenet5_conv1/weight.bin",
-  "examples_compute/lenet5_conv1/out.bin",
-  "examples_compute/lenet5_conv1/accumulator.bin",
-  "examples_compute/lenet5_conv1/expected_out.bin",
-  "examples_compute/lenet5_conv1/memory_addresses.csv",
-  true),
-  true)
-
-/* LeNet-5: Conv1 + ReLU */
-class ComputeApp_lenet5_conv1_relu extends GenericTest("ComputeApp_lenet5_conv1_relu", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
-  "examples_compute/lenet5_conv1_relu/instructions.bin",
-  "examples_compute/lenet5_conv1_relu/uop.bin",
-  "examples_compute/lenet5_conv1_relu/input.bin",
-  "examples_compute/lenet5_conv1_relu/weight.bin",
-  "examples_compute/lenet5_conv1_relu/out.bin",
-  "examples_compute/lenet5_conv1_relu/accumulator.bin",
-  "examples_compute/lenet5_conv1_relu/expected_out.bin",
-  "examples_compute/lenet5_conv1_relu/memory_addresses.csv",
-  true),
-  true)
-
-/* LeNet-5: Conv1 + ReLU + Average Pooling */
-class ComputeApp_lenet5_layer1 extends GenericTest("ComputeApp_lenet5_layer1", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeTest(c,
-  "examples_compute/lenet5_layer1/instructions.bin",
-  "examples_compute/lenet5_layer1/uop.bin",
-  "examples_compute/lenet5_layer1/input.bin",
-  "examples_compute/lenet5_layer1/weight.bin",
-  "examples_compute/lenet5_layer1/out.bin",
-  "examples_compute/lenet5_layer1/accumulator.bin",
-  "examples_compute/lenet5_layer1/expected_out_sram.bin",
-  "examples_compute/lenet5_layer1/memory_addresses.csv",
-  true, false),
-  true)

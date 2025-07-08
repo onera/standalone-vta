@@ -86,6 +86,9 @@ def main(config_file):
         # Overwrite the result
         C_blocks, _ = MS.matrix_splitting(matrix=C_pooled, block_size=config.block_size, isWeight=False, isSquare=config.isSquare)
         C_blocks_sram, _ = MS.matrix_splitting(matrix=C_pooled_sram, block_size=config.block_size, isWeight=False, isSquare=config.isSquare)
+        
+    else:
+        C_blocks_sram = C_blocks
 
     C_empty = MG.matrix_creation(n_row=C_padded.shape[0], n_col=C_padded.shape[1], isInitRandom=False, dtype=np.int8)
 
@@ -109,7 +112,7 @@ def main(config_file):
         X_blocks_file_path = os.path.join(output_dir, 'accumulator.bin')
         C_padded_file_path = os.path.join(output_dir, 'expected_out.bin')
         C_padded_sram_file_path = os.path.join(output_dir, 'expected_out_sram.bin')
-        C_empty_file_path = os.path.join(output_dir, 'out.bin')
+        C_empty_file_path = os.path.join(output_dir, 'out_init.bin')
         memory_addresses_data_file_path = os.path.join(output_dir, 'memory_addresses.csv')
         
         alloc_names = {
@@ -123,10 +126,7 @@ def main(config_file):
         with open(memory_addresses_data_file_path, 'w', newline='') as csvfile:
             writer = csv.writer(csvfile)
             for ligne in memory_addresses:
-                if alloc_names[ligne['object']] in ['inp', 'wgt', 'out']:
-                    writer.writerow([alloc_names[ligne['object']], '0x0000'])
-                else:
-                    writer.writerow([alloc_names[ligne['object']], ligne['phys_hex']])
+                writer.writerow([alloc_names[ligne['object']], ligne['phys_hex']])
         
         # Write C empty matrix
         C_empty.tofile(C_empty_file_path)
@@ -153,10 +153,9 @@ def main(config_file):
                 block.tofile(f)
                 
         # Write C_padded_sram (expected result with all vectors for average pooling comparison)
-        if (config.doAvgPool):
-            with open(C_padded_sram_file_path, 'wb') as f:
-                for block in C_blocks_sram:
-                    block.tofile(f)
+        with open(C_padded_sram_file_path, 'wb') as f:
+            for block in C_blocks_sram:
+                block.tofile(f)
 
         # Confirm the binary files generation
         print("\nBinary files successfully generated.\n")

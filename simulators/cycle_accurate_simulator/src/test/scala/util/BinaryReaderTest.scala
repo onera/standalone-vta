@@ -1,17 +1,19 @@
-package simulatorTest.util
+package util
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should
-import BinaryReader._
+import util.BinaryReader._
 
+import java.io.File
 import java.math.BigInteger
+import scala.math.pow
 import scala.util.{Failure, Success}
 
 class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
 
   /* Decoding INP */
   "BinaryReader" should "decode correctly the first vector of INP (16 Bytes) in a binary file (16x16)" in {
-    val result = computeAddresses("examples_compute/16x16/input.bin", DataType.INP, "00000000", isDRAM = false)
+    val result = computeAddresses("examples_compute/16x16/input.bin", DataType.INP, "00000000", isDRAM = false, fromResources = true)
     val hexa = Array("FF",
       "FF",
       "00",
@@ -41,7 +43,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   }
 
   it should "decode the vectors 0 and 16 and 32 of INP in 32x32_relu" in {
-    val result = computeAddresses("examples_compute/32x32_relu/input.bin", DataType.INP, "00000000", isDRAM = false)
+    val result = computeAddresses("examples_compute/32x32_relu/input.bin", DataType.INP, "00000000", isDRAM = false, fromResources = true)
     val inp0 = Array("02",
       "00",
       "FE",
@@ -113,8 +115,8 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   }
 
   it should "return the same value if an offset is or isn't used for the first vector of INP" in {
-    val resultOffset = computeAddresses("examples_compute/lenet5_layer1/input.bin", DataType.INP, "00001000", isDRAM = false)
-    val resultWithoutOffset = computeAddresses("examples_compute/lenet5_layer1/input.bin", DataType.INP, "00000000", isDRAM = false)
+    val resultOffset = computeAddresses("examples_compute/lenet5_layer1/input.bin", DataType.INP, "00001000", isDRAM = false, fromResources = true)
+    val resultWithoutOffset = computeAddresses("examples_compute/lenet5_layer1/input.bin", DataType.INP, "00000000", isDRAM = false, fromResources = true)
 
     resultOffset match {
       case Success(dataOffset) =>
@@ -131,8 +133,8 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
 
   it should "return the same value if an offset is or isn't used for the second vector of INP" in {
     val offset = "00001000"
-    val resultOffset = computeAddresses("examples_compute/lenet5_layer1/input.bin", DataType.INP, offset, isDRAM = false)
-    val resultWithoutOffset = computeAddresses("examples_compute/lenet5_layer1/input.bin", DataType.INP, "00000000", isDRAM = false)
+    val resultOffset = computeAddresses("examples_compute/lenet5_layer1/input.bin", DataType.INP, offset, isDRAM = false, fromResources = true)
+    val resultWithoutOffset = computeAddresses("examples_compute/lenet5_layer1/input.bin", DataType.INP, "00000000", isDRAM = false, fromResources = true)
     resultOffset match {
       case Success(dataOffset) =>
         resultWithoutOffset match {
@@ -147,10 +149,23 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     }
   }
 
+//  it should "decode the content of binary files in /compiler_output" in {
+//    // test done on files for matrix_16x16 - will work for make FILENAME=matrix_16x16
+//    val baseAddr = computeCSVFile("memory_addresses.csv", fromResources = false)
+//    val inp = computeAddresses("input.bin", DataType.INP, baseAddr("inp"), isDRAM = false, fromResources = false)
+//    val inp_vec0 = Array(-1, 0, -3, -4, -2, -2, 2, -2, 0, -3, -4, 2, 0, -4, -4, 1)
+//    inp match {
+//      case Success(data) =>
+//        data(0) should equal(inp_vec0)
+//      case Failure(exception) =>
+//        fail(s"Error while computing addresses for INP : ${exception.getMessage}")
+//    }
+//  }
+
 
   /* Decoding WGT */
   it should "decode all the WGT vectors in 32x32_relu" in {
-    val result = computeAddresses("examples_compute/32x32_relu/weight.bin", DataType.WGT, "00000000", isDRAM = false)
+    val result = computeAddresses("examples_compute/32x32_relu/weight.bin", DataType.WGT, "00000000", isDRAM = false, fromResources = true)
     val vecWGT_0 = Array("FD",
       "02",
       "FE",
@@ -1206,7 +1221,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
 
   /* Decoding OUT */
   it should "decode vectors 0 and 16 of OUT in 32x32_relu" in {
-    val result = computeAddresses("examples_compute/32x32_relu/out.bin", DataType.OUT, "00000000", isDRAM = false)
+    val result = computeAddresses("examples_compute/32x32_relu/out.bin", DataType.OUT, "00000000", isDRAM = false, fromResources = true)
     val out = Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
     result match {
       case Success(data) =>
@@ -1220,7 +1235,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
 
   /* Decoding EXPECT_OUT */
   it should "decode correctly the first vector of EXPECT_OUT (16 Bytes) in a binary file" in {
-    val result = computeAddresses("examples_compute/16x16/expected_out.bin", DataType.OUT, "00000000", isDRAM = false)
+    val result = computeAddresses("examples_compute/16x16/expected_out.bin", DataType.OUT, "00000000", isDRAM = false, fromResources = true)
     val hexa = Array("14",
       "FC",
       "0E",
@@ -1250,7 +1265,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   }
 
   it should "decode vectors 0 and 16 of EXPECT_OUT in 32x32_relu" in {
-    val result = computeAddresses("examples_compute/32x32_relu/expected_out.bin", DataType.OUT, "00000000", isDRAM = false)
+    val result = computeAddresses("examples_compute/32x32_relu/expected_out.bin", DataType.OUT, "00000000", isDRAM = false, fromResources = true)
     val vec0 = Array("51",
       "34",
       "40",
@@ -1303,7 +1318,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
 
   /* Decoding ACC */
   it should "decode ACC in average_pooling" in {
-    val acc = computeAddresses("examples_compute/average_pooling/accumulator.bin", DataType.ACC, "00000000", isDRAM = true)
+    val acc = computeAddresses("examples_compute/average_pooling/accumulator.bin", DataType.ACC, "00000000", isDRAM = true, fromResources = true)
     val acc_json = Array(-2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
     acc match {
       case Success(data) =>
@@ -1314,7 +1329,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   }
 
   it should "decode correctly the first vector of ACC" in {
-    val result = computeAddresses("examples_compute/16x16_relu/accumulator.bin", DataType.ACC, "00000000", isDRAM = true)
+    val result = computeAddresses("examples_compute/16x16_relu/accumulator.bin", DataType.ACC, "00000000", isDRAM = true, fromResources = true)
     result match {
       case Success(data) =>
         data(0) should equal(Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
@@ -1324,7 +1339,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   }
 
   it should "decode correctly the first vector of ACC (64 Bytes) in a binary file (layer1)" in {
-    val result = computeAddresses("examples_compute/lenet5_layer1/accumulator.bin", DataType.ACC, "00000000", isDRAM = true)
+    val result = computeAddresses("examples_compute/lenet5_layer1/accumulator.bin", DataType.ACC, "00000000", isDRAM = true, fromResources = true)
     val hexa = Array("00000000",
       "00000000",
       "00000000",
@@ -1356,7 +1371,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
 
   /* Decoding UOP */
   it should "decode correctly the UOPs (4 Bytes each) in a binary file (conv1)" in {
-    val result = computeAddresses("examples_compute/lenet5_conv1/uop.bin", DataType.UOP, "00000000", isDRAM = true)
+    val result = computeAddresses("examples_compute/lenet5_conv1/uop.bin", DataType.UOP, "00000000", isDRAM = true, fromResources = true)
     result match {
       case Success(data) =>
         data(0) should equal(Array(0, 0, 0))
@@ -1370,7 +1385,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   }
 
   it should "decode correctly all the UOPs of a binary file (32x32_relu)" in {
-    val result = computeAddresses("examples_compute/32x32_relu/uop.bin", DataType.UOP, "00000000", isDRAM = true)
+    val result = computeAddresses("examples_compute/32x32_relu/uop.bin", DataType.UOP, "00000000", isDRAM = true, fromResources = true)
     result match {
       case Success(data) =>
         println(data.size)
@@ -1389,7 +1404,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
 
   /* Decoding Instructions */
   it should "decode correctly the first instruction (16 Bytes) in a binary file (layer1)" in {
-    val result = computeAddresses("examples_compute/lenet5_layer1/instructions.bin", DataType.INSN, "00000000", isDRAM = false)
+    val result = computeAddresses("examples_compute/lenet5_layer1/instructions.bin", DataType.INSN, "00000000", isDRAM = false, fromResources = true)
 
     val I0 = BigInt(
       Array(
@@ -1410,7 +1425,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   }
 
   it should "decode correctly the last instruction in a binary file (layer1)" in {
-    val result = computeAddresses("examples_compute/lenet5_layer1/instructions.bin", DataType.INSN, "00000000", isDRAM = false)
+    val result = computeAddresses("examples_compute/lenet5_layer1/instructions.bin", DataType.INSN, "00000000", isDRAM = false, fromResources = true)
     val I_last = BigInt(
       Array(
         ("00000000", 96),
@@ -1430,7 +1445,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   }
 
   it should "decode the instructions in a binary file (32x32_relu)" in {
-    val result = computeAddresses("examples_compute/32x32_relu/instructions.bin", DataType.INSN, "00000000", isDRAM = false)
+    val result = computeAddresses("examples_compute/32x32_relu/instructions.bin", DataType.INSN, "00000000", isDRAM = false, fromResources = true)
     val I0 = BigInt(
       Array(
         ("00000001", 96),
@@ -1539,10 +1554,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
 
   /* Decoding CSV file for the base memory addresses */
   it should "decode the content of the csv file" in {
-    val baseAddresses = computeBaseAddresses("examples_compute/lenet5_conv1/memory_addresses.csv")
-//        data.foreach { case (key, value) =>
-//          println(s"Clé: $key | Valeur: $value")
-//        }
+    val baseAddresses = computeCSVFile("examples_compute/lenet5_conv1/memory_addresses.csv", fromResources = true)
     baseAddresses("inp") should equal("00000000")
     baseAddresses("wgt") should equal("00000000")
     baseAddresses("out") should equal("00000000")
@@ -1550,48 +1562,10 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     baseAddresses("acc") should equal("0000e000")
   }
 
-  //  it should "print the data of 32x32_relu" in {
-  //    val inp = computeAddresses("examples_compute/32x32_relu/input.bin", DataType.INP, "00000000", isDRAM = false)
-  //    inp match {
-  //      case Success(data) =>
-  //        printMap(data, DataType.INP)
-  //      case Failure(exception) =>
-  //        fail(s"Error while computing addresses for INP : ${exception.getMessage}")
-  //    }
-  //    val wgt = computeAddresses("examples_compute/32x32_relu/weight.bin", DataType.WGT, "00000000", isDRAM = false)
-  //    wgt match {
-  //      case Success(data) =>
-  //        printMap(data, DataType.WGT)
-  //      case Failure(exception) =>
-  //        fail(s"Error while computing addresses for WGT : ${exception.getMessage}")
-  //    }
-  //    val out = computeAddresses("examples_compute/32x32_relu/out.bin", DataType.OUT, "00000000", isDRAM = false)
-  //    out match {
-  //      case Success(data) =>
-  //        printMap(data, DataType.OUT)
-  //      case Failure(exception) =>
-  //        fail(s"Error while computing addresses for OUT : ${exception.getMessage}")
-  //    }
-  //    val exp_out = computeAddresses("examples_compute/32x32_relu/expected_out.bin", DataType.OUT, "00000000", isDRAM = false)
-  //    exp_out match {
-  //      case Success(data) =>
-  //        printMap(data, DataType.OUT)
-  //      case Failure(exception) =>
-  //        fail(s"Error while computing addresses for EXPECT_OUT : ${exception.getMessage}")
-  //    }
-  //    val uop = computeAddresses("examples_compute/32x32_relu/uop.bin", DataType.UOP, "00004000", isDRAM = true)
-  //    uop match {
-  //      case Success(data) =>
-  //        printMap(data, DataType.UOP)
-  //      case Failure(exception) =>
-  //        fail(s"Error while computing addresses for UOPs : ${exception.getMessage}")
-  //    }
-  //    val insn = computeAddresses("examples_compute/32x32_relu/instructions.bin", DataType.INSN, "00000000", isDRAM = false)
-  //    insn match {
-  //      case Success(data) =>
-  //        printMap(data, DataType.INSN)
-  //      case Failure(exception) =>
-  //        fail(s"Error while computing addresses for instructions : ${exception.getMessage}")
-  //    }
-  //  }
+  /* Decoding JSON file for VTA config */
+  it should "decode the JSON config file in /config" in {
+    val params = computeJSONFile("vta_config.json", fromResources = false)
+    params("LOG_INP_WIDTH") should equal(pow(2, 3))
+    params("LOG_BLOCK") should equal(pow(2,4))
+  }
 }
