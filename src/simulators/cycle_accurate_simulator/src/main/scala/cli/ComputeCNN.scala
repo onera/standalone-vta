@@ -42,7 +42,7 @@ class ComputeCNN(c: Compute, CNN_param: String, doCompare: Boolean = true, debug
   def fileExists(filePath: String): Boolean = {
     val newFilePath =
       if (!fromResources) {
-        val projectRoot = new File("../../")
+        val projectRoot = new File("../../../")
         val compilerOutputDir = new File(projectRoot, "compiler_output")
         val basePath = compilerOutputDir.getCanonicalPath
         s"$basePath/" + filePath
