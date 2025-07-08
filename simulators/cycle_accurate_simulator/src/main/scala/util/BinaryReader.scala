@@ -1,9 +1,8 @@
 package util
 
-import breeze.numerics.pow
-
 import java.io.{File, FileInputStream, InputStream}
 import scala.collection.convert.ImplicitConversions.`map AsJavaMap`
+import scala.math.pow
 import scala.util.{Failure, Success, Try}
 
 object BinaryReader {
@@ -158,7 +157,7 @@ object BinaryReader {
           }
         }.toMap
         val filteredJson = decodedJson -- Seq("TARGET", "HW_VER")
-        val json = filteredJson.map { case (key, value) => key -> pow(2, value.toInt) }
+        val json = filteredJson.map { case (key, value) => key -> pow(2, value.toInt).toInt }
         json
       case Failure(exception) =>
         println(s"Error while reading JSON file : ${exception.getMessage}")
@@ -319,7 +318,7 @@ object BinaryReader {
             if (!isDRAM) { // Logical address for data types INP, WGT, OUT, INSN
               //println(d(0).toString(2))
               //println(BigInt(i) + baseAddrBigInt)
-              (BigInt(i) + baseAddrBigInt) -> d // BigInt(i) normalement
+              (BigInt(i) + baseAddrBigInt) -> d
             } else { // Physical address if data type is UOP or ACC
               (baseAddrBigInt + BigInt(sizeOfElement/8 * i)) -> d
             }

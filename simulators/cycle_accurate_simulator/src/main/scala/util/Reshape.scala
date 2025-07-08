@@ -1,16 +1,8 @@
 package util
 
-import botkop.numsca._
-import breeze.linalg.{DenseMatrix, DenseVector}
-import spire.implicits.convertableOps
-import treadle2.executable.DataType
 import util.BinaryReader.DataType.INP
 
-import scala.collection.immutable.Nil.:::
-import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 import scala.reflect.ClassTag
-//import botkop.{numsca => ns}
-//import ns.Tensor
 
 object Reshape {
 
@@ -38,7 +30,7 @@ object Reshape {
 
         val block: Array[Array[BigInt]] = (0 until blockSize).map { r =>
           (0 until blockSize).map { c =>
-            vector(start + r * blockSize + c).toBigInt
+            vector(start + r * blockSize + c)
           }.toArray
         }.toArray
         row = pushBack(row, block)
@@ -64,7 +56,7 @@ object Reshape {
         }
         print("ok\n")
         val block: Array[Array[BigInt]] = Array.tabulate(subheight, blockSize)((r, c) =>
-          block_flat(r * blockSize + c).toBigInt
+          block_flat(r * blockSize + c)
         )
         last_row = pushBack(last_row, block)
         print("ok\n")
@@ -77,8 +69,7 @@ object Reshape {
 
 
   def unsplit(list_blocks: Array[Array[Array[Array[BigInt]]]], block_size: Int, matrix_height: Int, matrix_width: Int): Array[Array[BigInt]] = {
-    val reconstructed: Array[Array[BigInt]] = Array.fill(matrix_height, matrix_width)(0) //.map(_.toByte)
-    //val reconstructed: Array[Array[Byte]] = Array.ofDim[Byte](matrixHeight, matrixWidth)
+    val reconstructed: Array[Array[BigInt]] = Array.fill(matrix_height, matrix_width)(0)
     for (i <- 0 until matrix_height) {
       for (j <- 0 until matrix_width) {
         val deltaHeight = i / block_size
@@ -205,7 +196,7 @@ object Reshape {
       val blocks_row = n_row / block_size
       for (i <- 0 until blocks_row) {
         for (j <- 0 until blocks_col) {
-          val block: Array[Array[BigInt]] = Array.fill(block_size, block_size)(0.toBigInt)
+          val block: Array[Array[BigInt]] = Array.fill(block_size, block_size)(0)
           for (r <- 0 until block_size) {
             for (c <- 0 until block_size) {
               block(r)(c) = matrix(i * block_size + r)(j * block_size + c)
@@ -222,7 +213,7 @@ object Reshape {
           val row_start = i * block_size
           val row_end = math.min((i + 1) * block_size, n_row)
 
-          val block: Array[Array[BigInt]] = Array.fill(row_end - row_start, block_size)(0.toBigInt)
+          val block: Array[Array[BigInt]] = Array.fill(row_end - row_start, block_size)(0)
           for (r <- 0 until row_end - row_start) {
             for (c <- 0 until block_size) {
               block(r)(c) = matrix(row_start + r)(j * block_size + c)
@@ -268,7 +259,6 @@ object Reshape {
       for {
         (d, i) <- vector.grouped(INP.nbValues).toArray.zipWithIndex
       } yield {
-        //println(d.mkString("Array(", ", ", ")"))
         (BigInt(i) + baseAddrBigInt) -> d
       }
     }.toMap

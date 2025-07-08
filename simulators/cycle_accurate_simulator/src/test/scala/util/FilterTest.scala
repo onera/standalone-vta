@@ -9,8 +9,8 @@ import scala.util.{Failure, Success}
 
 class FilterTest extends AnyFlatSpec with should.Matchers {
   "Filter" should "correctly filter LeNet L1 output" in {
-    val outL1_ref = computeAddresses("outL1.bin", DataType.OUT, "00000000", isDRAM = false, fromResources = false)
-    val outL1_sram = computeAddresses("out_expectL1.bin", DataType.OUT, "00000000", isDRAM = false, fromResources = false)
+    val outL1_ref = computeAddresses("examples_compute/lenet5/outL1_test.bin", DataType.OUT, "00000000", isDRAM = false, fromResources = true)
+    val outL1_sram = computeAddresses("examples_compute/lenet5/outL1.bin", DataType.OUT, "00000000", isDRAM = false, fromResources = true)
     outL1_ref match {
       case Success(data) =>
         outL1_sram match {
@@ -32,8 +32,8 @@ class FilterTest extends AnyFlatSpec with should.Matchers {
 
 
   it should "correctly filter LeNet L2 output" in {
-    val outL2_ref = computeAddresses("outL2.bin", DataType.OUT, "00000000", isDRAM = false, fromResources = false)
-    val outL2_sram = computeAddresses("out_expectL2.bin", DataType.OUT, "00000000", isDRAM = false, fromResources = false)
+    val outL2_ref = computeAddresses("examples_compute/lenet5/outL2_test.bin", DataType.OUT, "00000000", isDRAM = false, fromResources = true)
+    val outL2_sram = computeAddresses("examples_compute/lenet5/outL2.bin", DataType.OUT, "00000000", isDRAM = false, fromResources = true)
     outL2_ref match {
       case Success(data) =>
         outL2_sram match {

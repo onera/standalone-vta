@@ -1,15 +1,13 @@
 package cli
 
 import chiseltest.iotesters.PeekPokeTester
-import util.BinaryReader.{DataType, computeCSVFile, readFile}
+import util.BinaryReader.{DataType, computeCSVFile}
 import util.{Filter, GenericSim}
 import util.Reshape.{reshape, vector_to_map}
 import vta.core.Compute
 import vta.util.config.Parameters
 
 import java.io.File
-import scala.util.matching.Regex
-import scala.util.{Failure, Success}
 
 class ComputeCNN(c: Compute, CNN_param: String, doCompare: Boolean = true, debug: Boolean = true, fromResources: Boolean = false)
   extends PeekPokeTester(c) {
@@ -66,8 +64,6 @@ class ComputeCNN(c: Compute, CNN_param: String, doCompare: Boolean = true, debug
           s"instructions_L$i.bin",
           s"uop_L$i.bin",
           inputFile,
-          //params(s"input$i"),
-          //(if (i == 0) "input.bin" else outScratchpad),
           s"weight_L$i.bin",
           s"out_init_L$i.bin",
           "accumulator.bin",
@@ -80,8 +76,6 @@ class ComputeCNN(c: Compute, CNN_param: String, doCompare: Boolean = true, debug
           s"instructions_L$i.bin",
           s"uop_L$i.bin",
           inputFile,
-          //params(s"input$i"),
-          //(if (i == 0) "input.bin" else outScratchpad),
           s"weight_L$i.bin",
           s"out_init_L$i.bin",
           "accumulator.bin",

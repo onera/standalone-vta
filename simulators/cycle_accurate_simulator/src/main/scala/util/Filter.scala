@@ -3,10 +3,6 @@ package util
 import scala.math.BigDecimal.int2bigDecimal
 
 object Filter {
-  // LeNet-5 filter parameters
-  // uop = 0, dst_in = 2, dst_out = 56, loop_in = loop_out = 14 for layer1
-  // uop = 0, dst_in = 2, dst_out = 20, loop_in = 5, loop_out = 5 for layer2
-
   /**
    * A function that filters out the 'useless' data in the simulator output after average pooling for LeNet-5
    * @param scratchpad output of simulator

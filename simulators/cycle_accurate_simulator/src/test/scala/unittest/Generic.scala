@@ -32,10 +32,6 @@ import vta.DefaultPynqConfig
 object UnitTests extends Tag("UnitTests")
 object LongTests extends Tag("LongTests")
 
-//class GenericTest[T <: Module, P <: PeekPokeTester[T], C <: Parameters](
-//    tag : String, dutFactory : (Parameters) => T, testerFactory : (T) => P, isLongTest : Boolean = false
-//  ) extends GenericSim[T, P, C]
-
 class GenericTest[T <: Module, P <: PeekPokeTester[T], C <: Parameters](
     tag : String, dutFactory : (Parameters) => T, testerFactory : (T) => P, isLongTest : Boolean = false
   ) extends AnyFlatSpec with ChiselScalatestTester {

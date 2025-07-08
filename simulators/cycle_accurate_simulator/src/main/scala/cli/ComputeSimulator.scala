@@ -65,6 +65,7 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
     }
   }
 
+  // Create instruction scratchpad
   val inst = ComputeSimulator.build_scratchpad_binary(insn, DataType.INSN, "00000000", isDRAM = false, fromResources)
 
   // Print scratchpad
