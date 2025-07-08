@@ -1,0 +1,52 @@
+layers,5
+
+// LAYER 1
+doReshape1,true
+// Filter parameters
+uop1,0
+loop_in1,14
+loop_out1,14
+dst_in1,2
+dst_out1,56
+// Reshape parameters
+block_col1,1
+block_size1,16
+out_matrix_height1,196
+out_matrix_width1,6
+batch_size1,1
+out_tensor_channel1,6
+out_tensor_height1,14
+out_tensor_width1,14
+kernel_size1,(5;5)
+stride1,1
+isSquare1,true
+
+// LAYER 2
+doReshape2,true
+// Filter parameters
+uop2,0
+loop_in2,5
+loop_out2,5
+dst_in2,2
+dst_out2,20
+// Reshape parameters
+block_col2,1
+block_size2,16
+out_matrix_height2,25
+out_matrix_width2,16
+batch_size2,1
+out_tensor_channel2,16
+out_tensor_height2,5
+out_tensor_width2,5
+kernel_size2,(5;5)
+stride2,1
+isSquare2,false
+
+// LAYER 3
+doReshape3,false
+
+// LAYER 4
+doReshape4,false
+
+// LAYER 5
+doReshape5,false

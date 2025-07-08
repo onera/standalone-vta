@@ -71,7 +71,7 @@ class ComputeApp_32x32 extends GenericTest("ComputeApp_32x32", (p:Parameters) =>
   "examples_compute/32x32/accumulator.bin",
   "examples_compute/32x32/expected_out.bin",
   "examples_compute/32x32/memory_addresses.csv",
-  true, debug = true, fromResources = true))
+  true, debug = false, fromResources = true))
 
 
 ///* ALTERNATIVE INSTRUCTION INVESTIGATION:

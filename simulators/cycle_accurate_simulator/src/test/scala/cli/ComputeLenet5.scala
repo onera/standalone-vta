@@ -5,7 +5,7 @@ import unittest.GenericTest
 import vta.core.Compute
 import vta.util.config.Parameters
 
-class ComputeLenet5(c: Compute, lenet_params: String, debug: Boolean = true, fromResources: Boolean = false)
+class ComputeLenet5(c: Compute, lenet_params: String, debug: Boolean = false, fromResources: Boolean = true)
   extends PeekPokeTester(c) {
 
   val computeLeNet5 = new ComputeCNN(
@@ -14,4 +14,4 @@ class ComputeLenet5(c: Compute, lenet_params: String, debug: Boolean = true, fro
 }
 
 class ComputeLeNet5_all_layers extends GenericTest("ComputeLeNet5_all_layers", (p:Parameters) =>
-  new Compute(false)(p), (c: Compute) => new ComputeLenet5(c, "lenet_params.csv"), isLongTest = true)
+  new Compute(false)(p), (c: Compute) => new ComputeLenet5(c, "examples_compute/lenet5/lenet_params.csv"), isLongTest = true)
