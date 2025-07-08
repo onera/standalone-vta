@@ -134,7 +134,7 @@ object BinaryReader {
     val newFilePath =
       if (!fromResources) {
         val projectRoot = new File("../../")
-        val compilerOutputDir = new File(projectRoot, "compiler_output")
+        val compilerOutputDir = new File(projectRoot, "config")
         val basePath = compilerOutputDir.getCanonicalPath
         s"$basePath/" + filePath
       }

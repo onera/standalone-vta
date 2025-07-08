@@ -6,6 +6,7 @@ import util.BinaryReader._
 
 import java.io.File
 import java.math.BigInteger
+import scala.math.pow
 import scala.util.{Failure, Success}
 
 class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
@@ -1559,5 +1560,12 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     baseAddresses("out") should equal("00000000")
     baseAddresses("uop") should equal("0000d000")
     baseAddresses("acc") should equal("0000e000")
+  }
+
+  /* Decoding JSON file for VTA config */
+  it should "decode the JSON config file in /config" in {
+    val params = computeJSONFile("vta_config.json", fromResources = false)
+    params("LOG_INP_WIDTH") should equal(pow(2, 3))
+    params("LOG_BLOCK") should equal(pow(2,4))
   }
 }
