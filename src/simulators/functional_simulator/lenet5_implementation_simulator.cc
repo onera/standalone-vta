@@ -18,7 +18,7 @@ int lenet5_implementation() {
 
     // Define the path for the input files
     auto construct_path = [&](const std::string& filename) {
-        return (currentPath / ".." / ".." / "compiler_output" / filename).string();
+        return (currentPath / ".." / ".." / ".." / "compiler_output" / filename).string();
     };
 
     // Input is overwritten (MAX size = 784*32 vectors)

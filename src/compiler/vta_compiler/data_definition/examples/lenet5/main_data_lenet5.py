@@ -237,7 +237,7 @@ def main_data(isInputTensor=False, doExhaustivePrint=False, debug_reshape=False)
     # --------------
 
     # Define the output repository
-    output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))), 'compiler_output')
+    output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))))), 'compiler_output')
     # Check if the OUTPUT dir exist, else create it
     os.makedirs(output_dir, exist_ok=True)
 

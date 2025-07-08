@@ -15,7 +15,7 @@ int execute_simulator() {
 
     // Define the path for the input files
     auto construct_path = [&](const std::string& filename) {
-        return (currentPath / ".." / ".." / "compiler_output" / filename).string();
+        return (currentPath / ".." / ".." / ".." / "compiler_output" / filename).string();
     };
 
     std::string fileInpPath = construct_path("input.bin");
