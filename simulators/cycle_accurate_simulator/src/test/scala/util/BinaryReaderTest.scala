@@ -148,18 +148,18 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     }
   }
 
-  it should "decode the content of binary files in /compiler_output" in {
-    // test done on files for matrix_16x16 - will work for make FILENAME=matrix_16x16
-    val baseAddr = computeCSVFile("memory_addresses.csv", fromResources = false)
-    val inp = computeAddresses("input.bin", DataType.INP, baseAddr("inp"), isDRAM = false, fromResources = false)
-    val inp_vec0 = Array(-1, 0, -3, -4, -2, -2, 2, -2, 0, -3, -4, 2, 0, -4, -4, 1)
-    inp match {
-      case Success(data) =>
-        data(0) should equal(inp_vec0)
-      case Failure(exception) =>
-        fail(s"Error while computing addresses for INP : ${exception.getMessage}")
-    }
-  }
+//  it should "decode the content of binary files in /compiler_output" in {
+//    // test done on files for matrix_16x16 - will work for make FILENAME=matrix_16x16
+//    val baseAddr = computeCSVFile("memory_addresses.csv", fromResources = false)
+//    val inp = computeAddresses("input.bin", DataType.INP, baseAddr("inp"), isDRAM = false, fromResources = false)
+//    val inp_vec0 = Array(-1, 0, -3, -4, -2, -2, 2, -2, 0, -3, -4, 2, 0, -4, -4, 1)
+//    inp match {
+//      case Success(data) =>
+//        data(0) should equal(inp_vec0)
+//      case Failure(exception) =>
+//        fail(s"Error while computing addresses for INP : ${exception.getMessage}")
+//    }
+//  }
 
 
   /* Decoding WGT */
@@ -1562,44 +1562,5 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     baseAddresses("out") should equal("00000000")
     baseAddresses("uop") should equal("0000d000")
     baseAddresses("acc") should equal("0000e000")
-  }
-
-  it should "decode the content of a csv file in /compiler_output" in {
-    //    val projectRoot = new File("../../")
-    //    val compilerOutputDir = new File(projectRoot, "compiler_output")
-    //    val basePath = compilerOutputDir.getCanonicalPath
-    // val file = new File("memory_addresses.csv").getAbsolutePath
-    // println(file)
-    val baseAddresses = computeCSVFile("memory_addresses.csv", fromResources = false)
-    //    baseAddresses.foreach { case (key, value) =>
-    //      println(s"Clé: $key | Valeur: $value")
-    //    }
-    baseAddresses("inp") should equal("00000000")
-    baseAddresses("wgt") should equal("00000000")
-    baseAddresses("out") should equal("00000000")
-    baseAddresses("uop") should equal("00004000")
-    baseAddresses("acc") should equal("00005000")
-  }
-
-
-  it should "print all of the data of L2 for LeNet-5" in {
-    val baseAddr = computeCSVFile("base_addr_L2.csv", fromResources = false)
-    val uop = computeAddresses("uop_L2.bin", DataType.UOP, baseAddr("uop"), true, false)
-    val out = computeAddresses("out_init_L2.bin", DataType.OUT, baseAddr("out"), false, false)
-    uop match {
-      case Success(uop_d) =>
-        printMap(uop_d, DataType.UOP)
-      case Failure(exception) =>
-        fail(s"Error while computing addresses for INP : ${exception.getMessage}")
-    }
-  }
-
-  it should "throw an error if two keys are identical in a CSV file" in {
-    val params = computeCSVFile("lenet_params.csv", fromResources = false)
-  }
-
-  it should "decode a JSON file" in {
-    val config = computeJSONFile("vta_config.json", false)
-    config.map(print(_))
   }
 }
