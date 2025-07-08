@@ -6,24 +6,7 @@
     }
   ],
   "ALU" : [
-    {
-      "MAX0_IMM": [0,0],
-      "MAX1_IMM": [1,0],
-      "MAX2_IMM": [2,0],
-      "MAX3_IMM": [3,0],
-      "MAX4_IMM": [4,0],
-      "MAX5_IMM": [5,0],
-      "MAX6_IMM": [6,0],
-      "MAX7_IMM": [7,0],
-      "MAX8_IMM": [8,0],
-      "MAX9_IMM": [9,0],
-      "MAX10_IMM": [10,0],
-      "MAX11_IMM": [11,0],
-      "MAX12_IMM": [12,0],
-      "MAX13_IMM": [13,0],
-      "MAX14_IMM": [14,0],
-      "MAX15_IMM": [15,0]
-    }
+    ["MAX_IMM", [[0,1], 0, 16]]
   ],
   "BASE_ADDRESS" : "0000"
 }

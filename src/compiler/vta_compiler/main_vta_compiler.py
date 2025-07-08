@@ -10,6 +10,7 @@ import config.configuration as conf
 import data_definition.data_definition as DF
 import dram_allocation.dram_allocation as DA
 import matrix_partitioning.matrix_partitioning as MP
+import operations_definition.operations_definition as OP
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.find_project_root import *
@@ -97,7 +98,18 @@ def main(operations_dict, vta_config_dict, debug=True):
                                acc_block_buffer_size=acc_block_buffer_size, out_block_buffer_size=out_block_buffer_size,
                                alu_operations=alu_operations, idx_to_delete=idx_to_delete,
                                strategy_selector=1, 
-                               debug=True)
+                               debug=debug)
+	
+
+    # ---------------------------------------------
+    # OPERATIONS DEFINITION
+
+    # TODO
+    # insn_buffer, uop_buffer = \
+    #     OP.operations_definition(isOverfitting=isOverfitting, strategy=strategy, dram_addresses=base_addresses_list,
+    #                              operations_dict=operations_dict, block_size=block_size,
+    #                              A_blocks_col=A_blocks_col, B_blocks_col=B_blocks_col, X_blocks_col=X_blocks_col, C_blocks_col=C_blocks_col,
+    #                              debug=debug)
 
 
     # ---------------------------------------------
@@ -154,6 +166,18 @@ def main(operations_dict, vta_config_dict, debug=True):
         for obj_addr in base_addresses_list:
             writer.writerow([obj_addr['type'], obj_addr['physical_base_address'], obj_addr['logical_base_address']])
 
+    
+    # OPERATIONS DEFINITION
+    # TODO
+    # insn_file_path = filepath_definition(output_dir, "instructions.bin")
+    # uop_file_path = filepath_definition(output_dir, "uop.bin")
+    # with open(insn_file_path, "wb") as f:
+    #     for insn in insn_buffer:
+    #         f.write(insn)
+    # with open(uop_file_path, "wb") as f:
+    #     for uop in uop_buffer:
+    #         f.write(uop)
+            
 
     # ---------------------------------------------
     # DEBUG

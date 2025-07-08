@@ -22,15 +22,19 @@ DEBUG ?= True
 all: help
 
 matrix_16x16: ## Mutliply two 16x16-matrices and apply a ReLU (MAX with 0)
+	make clean
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/matrix_16x16.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
 
 matrix_16x16_maxpool: ## Multiply two 16x16-matrices and apply a MAX vector-vector with a stride of 1 (preliminary to MAXPOOL)
+	make clean
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/matrix_16x16_maxpool.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
 
 matrix_20x20: ## Multiply two 20x20-matrices and perform some ALU operations
+	make clean
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/matrix_20x20.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
 
 matrix_8blocks: ## Multiply a 4x2-blocks INP with a 2x3-blocks WGT
+	make clean
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/matrix_8blocks.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
 
 
@@ -46,8 +50,8 @@ $(SIMULATOR_OUTPUT_DIR):
 #######
 .PHONY: clean debug help
 clean: ## Clean the project generated files (standalone/compiler_output/ and standalone/simulator_output/)
-	rm $(COMPILER_OUTPUT_DIR)/*.*
-	rm $(SIMULATOR_OUTPUT_DIR)/*.*
+	-rm $(COMPILER_OUTPUT_DIR)/*.*
+	-rm $(SIMULATOR_OUTPUT_DIR)/*.*
 
 
 # DEBUG
