@@ -104,12 +104,11 @@ def main(operations_dict, vta_config_dict, debug=True):
     # ---------------------------------------------
     # OPERATIONS DEFINITION
 
-    # TODO
-    # insn_buffer, uop_buffer = \
-    #     OP.operations_definition(isOverfitting=isOverfitting, strategy=strategy, dram_addresses=base_addresses_list,
-    #                              operations_dict=operations_dict, block_size=block_size,
-    #                              A_blocks_col=A_blocks_col, B_blocks_col=B_blocks_col, X_blocks_col=X_blocks_col, C_blocks_col=C_blocks_col,
-    #                              debug=debug)
+    insn_buffer, uop_buffer = \
+        OP.operations_definition(strategy=strategy, dram_addresses=base_addresses_list,
+                                 operations_dict=operations_dict, block_size=block_size,
+                                 A_blocks_col=A_blocks_col, B_blocks_col=B_blocks_col, X_blocks_col=X_blocks_col, C_blocks_col=C_blocks_col,
+                                 debug=debug)
 
 
     # ---------------------------------------------
@@ -168,15 +167,14 @@ def main(operations_dict, vta_config_dict, debug=True):
 
     
     # OPERATIONS DEFINITION
-    # TODO
-    # insn_file_path = filepath_definition(output_dir, "instructions.bin")
-    # uop_file_path = filepath_definition(output_dir, "uop.bin")
-    # with open(insn_file_path, "wb") as f:
-    #     for insn in insn_buffer:
-    #         f.write(insn)
-    # with open(uop_file_path, "wb") as f:
-    #     for uop in uop_buffer:
-    #         f.write(uop)
+    insn_file_path = filepath_definition(output_dir, "instructions.bin")
+    uop_file_path = filepath_definition(output_dir, "uop.bin")
+    with open(insn_file_path, "wb") as f:
+        for insn in insn_buffer:
+            f.write(insn)
+    with open(uop_file_path, "wb") as f:
+        for uop in uop_buffer:
+            f.write(uop)
             
 
     # ---------------------------------------------

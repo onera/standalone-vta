@@ -126,7 +126,7 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
             \n WGT: {nb_B} blocks (including B_blocks_col = {B_blocks_col}), \
             \n ACC=OUT: {nb_C} blocks (including C_blocks_col = {C_blocks_col})\n")
         print(f"\nDoes matrix overfit SRAM? {isOverfitting} \nThe strategy to address it: {strategy_selector}")
-        print(f"\nStrategy [([C], [A], [B], [X], [Operations])]:")
+        print(f"\nStrategy [([C], [A], [B], [X], [Operations])]: (nb of steps: {len(strategy)})")
         for i, step in enumerate(strategy):
             print(f"\nStep {i}: {step}")
 

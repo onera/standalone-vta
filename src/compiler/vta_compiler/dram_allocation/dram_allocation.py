@@ -66,18 +66,17 @@ def addresses_computation(obj_type, obj_value, page_size, current_dram_addr, dra
     # Define the address of the blocks
     blocks_addresses = []
     local_addr = current_dram_addr
-    i = 0
     if not (obj_value):
         alloc_size_bytes = logical_divisor
     else:
-        for matrix in obj_value:
+        for i, matrix in enumerate(obj_value):
             blocks_addresses.append(
-                (get_block_name(obj_type, i),
+                (#get_block_name(obj_type, i),
+                 i, # Just write the index of the block
                  hex( local_addr ), # physical address
                  hex( (local_addr - dram_offset) // logical_divisor )) # Logical address
             )
             local_addr = local_addr + matrix.nbytes
-            i = i + 1
 
         # Define the size of the allocation 
         alloc_size_bytes = sum(matrix.nbytes for matrix in obj_value) # Bytes
