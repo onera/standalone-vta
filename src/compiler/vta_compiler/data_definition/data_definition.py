@@ -87,16 +87,13 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
     ALU_matrix = ACC_padded_ref.copy()
 
     # Create the dictionary for the ALU operations
-    if not "ALU" in operations_dict:
-        alu_operations = []
-    else:
-        alu_operations = operations_dict["ALU"]
+    alu_operations_list = ALU.create_alu_operations_list(operations_dict=operations_dict, nb_C_blocks=len(ACC_blocks_ref), C_blocks_col=ACC_blocks_col, block_size=block_size)
 
     # For ALU vector-vector operation, the source vector can be deleted
     idx_to_delete = []
 
     # Execute the operations: ["OPS", [DST, SRC]] or ["OPS", [DST, SRC, NB_ITERATION]]
-    for alu_ops in alu_operations:
+    for alu_ops in alu_operations_list:
         # Check if the operation is unique or iterative
         if (len(alu_ops[1]) == 3): # Iterative: ["OPS", [[first DST idx, step], [first SRC idx, step], NB_ITERATION]]
             for nb in range(0, alu_ops[1][2]):
@@ -109,7 +106,7 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
                     elem_src = alu_ops[1][1]
                 else: # Vector-vector: the index of the second vector can be deleted
                     isIMM = False
-                    elem_src = alu_ops[1][1][0] + alu_ops[1][1][1] 
+                    elem_src = alu_ops[1][1][0] + alu_ops[1][1][1] * nb
                     idx_to_delete.append(elem_src)
                 ALU_matrix = ALU.alu_operations(ALU_matrix, alu_operation=alu_ops[0], dst_idx=elem_dst, elem2=elem_src, isIMM=isIMM)
 
@@ -179,8 +176,8 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
             print(combination)
     
         print("\n\nALU OPERATIONS:")
-        for alu_ops in alu_operations:
-            print(f" {alu_ops[0]}: {alu_ops[1]}")
+        for alu_ops in alu_operations_list:
+            print(f" {alu_ops[0]}: {alu_ops[1]} -> within blocks: {alu_ops[2]}")
         print(f"\nALU_matrix ({ALU_matrix.shape}): \n{ALU_matrix}\n")
         print(f"ALU_blocks truncated (blocks_col = {C_blocks_col})")
         for i, block in enumerate(ALU_blocks):
@@ -198,5 +195,5 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
     # ---------------------------------------------
     # RETURN 
 
-    return A_blocks, A_blocks_col, B_blocks, B_blocks_col, X_blocks, X_blocks_col, ALU_blocks, C_blocks, C_blocks_col, C_init, alu_operations, idx_to_delete
+    return A_blocks, A_blocks_col, B_blocks, B_blocks_col, X_blocks, X_blocks_col, ALU_blocks, C_blocks, C_blocks_col, C_init, alu_operations_list, idx_to_delete
 

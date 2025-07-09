@@ -197,13 +197,13 @@ def strategy_1(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
                 load_B.append( k * B_blocks_col + j )
 
             # Get the operations
-            ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, C_blocks_col)
-            ops = ops + alu_operations
+            ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, C_blocks_col) \
+                + imm_alu_on_blocks(alu_operations, load_X)
 
             # Append the strategy (C, A, B, X, Operations)
             strategy.append( (load_X, load_A, load_B, [], ops) )
         else: # Modify the last step
-            strategy[-1] = (load_X, load_A, load_B, [], ops + alu_operations)
+            strategy[-1] = (load_X, load_A, load_B, [], ops + imm_alu_on_blocks(alu_operations, load_X))
 
     # Return the strategy
     return strategy
@@ -300,7 +300,7 @@ def strategy_2(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
             # Finally, store C_ij
             if strategy:
                 last_step = strategy[-1]
-                last_ops = last_step[4] + alu_operations
+                last_ops = last_step[4] + imm_alu_on_blocks(alu_operations, c_indices)
                 strategy[-1] = (c_indices, last_step[1], last_step[2], last_step[3], last_ops)
 
     return strategy
@@ -359,9 +359,8 @@ def strategy_3(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
                         store_C.append( i * C_blocks_col + j )
 
                 # Get the operations
-                ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, C_blocks_col)
-                if (k==A_blocks_col-1):
-                    ops = ops + alu_operations
+                ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, C_blocks_col) \
+                    + imm_alu_on_blocks(alu_operations, store_C)
 
                 # Append the strategy (C, A, B, X, Operations)
                 strategy.append( (store_C, load_A, load_B, load_X, ops) )
@@ -396,9 +395,8 @@ def strategy_3(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
                         store_C.append( i * C_blocks_col + j )
                 
                 # Get the operations
-                ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, C_blocks_col)
-                if (k==A_blocks_col-1):
-                    ops = ops + alu_operations
+                ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, C_blocks_col) \
+                    + imm_alu_on_blocks(alu_operations, store_C)
 
                 # Append the strategy (C, A, B, X, Operations)
                 strategy.append( (store_C, load_A, load_B, load_X, ops) )
@@ -456,9 +454,8 @@ def strategy_4(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
                         store_C.append( i * C_blocks_col + j )
                 
                 # Get the operations
-                ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, C_blocks_col)
-                if (k==A_blocks_col-1):
-                    ops = ops + alu_operations
+                ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, C_blocks_col) \
+                    + imm_alu_on_blocks(alu_operations, store_C)
 
                 # Append the strategy (C, A, B, X, Operations)
                 strategy.append( (store_C, load_A, load_B, load_X, ops) )
@@ -491,9 +488,8 @@ def strategy_4(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
                         store_C.append( i * C_blocks_col + j )
                 
                 # Get the operations
-                ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, C_blocks_col)
-                if (k==A_blocks_col-1):
-                    ops = ops + alu_operations
+                ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, C_blocks_col) \
+                    + imm_alu_on_blocks(alu_operations, store_C)
 
                 # Append the strategy (C, A, B, X, Operations)
                 strategy.append( (store_C, load_A, load_B, load_X, ops) )
@@ -546,6 +542,31 @@ def get_operations(load_A, load_B, A_blocks_col, B_blocks_col, C_blocks_col):
                 
     return operations
 
+
+# ---------------------------------------------
+
+def imm_alu_on_blocks(imm_operations, store_C):
+    # Init
+    to_execute = []
+
+    # Iterate on the immediate operations
+    for alu_ops in imm_operations:
+        # Init tuple to execute
+        tuple_list = []
+        # Iterate on the tuples 
+        for tuple_idx in alu_ops[2]:
+            # The tuple is executed on the current C blocks
+            if (tuple_idx[0] in store_C):
+                # Append the list to return
+                tuple_list.append(tuple_idx)
+        
+        # Append the list with the current operation
+        if (len(tuple_list) > 0):
+            current_ops = [alu_ops[0]] + [tuple_list]
+            to_execute.append(current_ops)
+        
+    return to_execute
+
 # ---------------------------------------------
 
 if __name__ == "__main__": 
@@ -565,8 +586,8 @@ if __name__ == "__main__":
     acc_block_buffer_size=out_block_buffer_size
 
     alu_operations = [
-        ["MAX_IMM", [[0,1], 0, 16]],
-        ["MAX", [[0,1], [1,1], 3]]
+        ["ADD_IMM", [0, 1], [(i, 0) for i in range(0, C_blocks_col)]],
+        ["MIN", [[0,1], [3,1], 3], [((0, 0), (0, 3)), ((1, 0), (1, 3)), ((2, 0), (2, 3)), ((3, 0), (3, 3)), ((0, 1), (0, 4)), ((1, 1), (1, 4)), ((2, 1), (2, 4)), ((3, 1), (3, 4)), ((0, 2), (0, 5)), ((1, 2), (1, 5)), ((2, 2), (2, 5)), ((3, 2), (3, 5))]]
     ]
 
 
