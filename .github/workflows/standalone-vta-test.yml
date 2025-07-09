@@ -47,5 +47,5 @@ jobs:
         uses: cda-tum/setup-z3@v1
       - name: Run tests
         run: |
-          cd simulators/cycle_accurate_simulator
+          cd src/simulators/cycle_accurate_simulator
           sbt test

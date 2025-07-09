@@ -1,0 +1,10 @@
+{
+  "MATRICES" : [
+    {
+      "INPUT": [64, 32],
+      "WEIGHT": [32, 48],
+      "ACCUMULATOR": [64, 48]
+    }
+  ],
+  "BASE_ADDRESS" : "0000"
+}
