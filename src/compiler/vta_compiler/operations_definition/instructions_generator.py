@@ -69,7 +69,7 @@ def reset_sequence(strategy, dram_addresses, uop_counter=0, block_size=16):
         # UNUSED
         unused=0, # UNUSED
         # Index factors
-        dst_factor_out=1, # Reset reset_size blocks
+        dst_factor_out=block_size, # Reset reset_size blocks
         dst_factor_in=1, # Reset a block
         src_factor_out=0,
         src_factor_in=0,
@@ -94,8 +94,8 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
     uop_addr = [addr for addr in dram_addresses if addr.get("type") == "UOP"]
     inp_addr = [addr for addr in dram_addresses if addr.get("type") == "INP"]
     wgt_addr = [addr for addr in dram_addresses if addr.get("type") == "WGT"]
-    acc_addr = [addr for addr in dram_addresses if addr.get("type") == "WGT"]
-    out_addr = [addr for addr in dram_addresses if addr.get("type") == "WGT"]
+    acc_addr = [addr for addr in dram_addresses if addr.get("type") == "ACC"]
+    out_addr = [addr for addr in dram_addresses if addr.get("type") == "OUT"]
 
 
     # LOAD MODULE (input: CMP->LD, output: LD->CMP)
@@ -150,7 +150,7 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
             push_prev_dep=0,
             push_next_dep=1 if (i == nb_wgt-1) else 0, # Ready signal to COMPUTE if no WGT load (last load)
             # Memory interaction
-            buffer_id=2, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
+            buffer_id=1, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
             sram_base=0x0000 + i,
             dram_base=current_block_addr,
             unused=0, # UNUSED
@@ -214,7 +214,7 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
             push_prev_dep=0,
             push_next_dep=1 if (i == nb_alu-1 and isLastCompute == True) else 0, # Ready signal to STORE (last load)
             # Memory interaction
-            buffer_id=2, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
+            buffer_id=3, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
             sram_base=0x0000 + i*block_size,
             dram_base=current_block_addr,
             unused=0, # UNUSED
@@ -257,7 +257,7 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
             push_next_dep=0,
             # Memory interaction
             buffer_id=0, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
-            sram_base=0x0000 + gemm_idx, # Always first UOP
+            sram_base=0x0000 + gemm_idx + uop_counter,
             dram_base=current_uop_addr,
             unused=0, # UNUSED
             # Operation over the data
@@ -278,7 +278,7 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
             push_prev_dep=1 if (gemm_idx == nb_gemm-1) else 0, # Ready signal to LOAD (last GeMM)
             push_next_dep=1 if (gemm_idx == nb_gemm-1 and isLastCompute == True) else 0, # Ready signal to STORE (last compute)
             # Operations
-            reset=1, # 0-no, 1-reset
+            reset=0, # 0-no, 1-reset
             uop_bgn=uop_counter + len(uop_buffer) - 1,
             uop_end=uop_counter + len(uop_buffer),
             loop_out=1,
@@ -289,7 +289,7 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
             dst_factor_out=0, 
             dst_factor_in=1, # Compute a block
             src_factor_out=0,
-            src_factor_in=0,
+            src_factor_in=1,
             wgt_factor_out=0,
             wgt_factor_in=0
         ))
@@ -591,7 +591,7 @@ def find_logical_block_addr_by_idx(block_idx, addr_dict):
 # ----------------------
 def find_uop_addr(uop_addr, uop_buffer_size, uop_counter):
     uop_logic_addr = int( uop_addr[0]["logical_base_address"], 16)
-    current_uop_addr = uop_logic_addr + uop_counter + (uop_buffer_size-1)
+    current_uop_addr = uop_logic_addr + uop_counter + uop_buffer_size
     return current_uop_addr
 
 # ---------------------------------------------

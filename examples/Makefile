@@ -5,12 +5,12 @@
 MAKEFILE_DIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 PROJECT_DIR  := $(abspath $(MAKEFILE_DIR)/..)
 COMPILER_OUTPUT_DIR := $(PROJECT_DIR)/compiler_output
-SIMULATOR_OUTPUT_DIR := $(PROJECT_DIR)/simulator_output
+SIMULATOR_OUTPUT_DIR := $(PROJECT_DIR)/simulators_output
 SRC_DIR := $(PROJECT_DIR)/src
 COMPILER_DIR := $(SRC_DIR)/compiler
 VTA_COMPILER_DIR := $(COMPILER_DIR)/vta_compiler
-# TO MODIFY
-CONFIG := $(VTA_COMPILER_DIR)/config
+FSIM_DIR := $(SRC_DIR)/simulators/functional_simulator
+CONFIG := $(PROJECT_DIR)/config
 
 # VARIABLES
 ###########
@@ -24,6 +24,7 @@ all: help
 matrix_16x16: ## Mutliply two 16x16-matrices and apply a ReLU (MAX with 0)
 	make clean
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/matrix_16x16.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
+	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
 
 matrix_16x16_maxpool: ## Multiply two 16x16-matrices and apply a MAX vector-vector with a stride of 1 (preliminary to MAXPOOL)
 	make clean
