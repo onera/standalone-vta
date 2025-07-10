@@ -76,7 +76,7 @@ insn_buffer.append(VTAMemInsn( # I0: LOAD UOP
     # Memory interaction
     buffer_id=0,  # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
     sram_base=0x0000,
-    dram_base=0x00001000,
+    dram_base=0x00001400,
     unused=0,  # UNUSED
     # Operation over the data
     y_size=1,
@@ -166,7 +166,7 @@ insn_buffer.append(VTAMemInsn( # I4: LOAD UOP
     # Memory interaction
     buffer_id=0,  # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
     sram_base=0x0001,
-    dram_base=0x00001001,
+    dram_base=0x00001401,
     unused=0,  # UNUSED
     # Operation over the data
     y_size=1,
@@ -212,7 +212,7 @@ insn_buffer.append(VTAMemInsn( # I6: STORE
     # Memory interaction
     buffer_id=4,  # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
     sram_base=0x0000,
-    dram_base=0x00000300,
+    dram_base=0x00000400,
     unused=0,  # UNUSED
     # Operation over the data
     y_size=1,
@@ -303,8 +303,14 @@ with open(file_insn_path, "wb") as f:
 
 # PRINT INSTRUCTIONS IN HEXADECIMAL (for CHISEL simulation)
 # ---------------------------------
-i = 0
-for insn in insn_buffer:
+print(f"Instructions: ({len(insn_buffer)})")
+for i, insn in enumerate(insn_buffer):
     print(f"\nI{i}:")
+    # Print the hexadecimal value
     print_hex_128bit(insn)
-    i = i + 1
+    # Print the fields of the instructions
+    for field in insn._fields_:
+        field_name = field[0]
+        field_value = getattr(insn, field_name)
+        print(f"{field_name}: {field_value}")
+
