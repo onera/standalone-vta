@@ -34,14 +34,22 @@ matrix_16x16_relu: ## Mutliply two 16x16-matrices and apply a ReLU (MAX with 0)
 matrix_16x16_maxpool: ## Multiply two 16x16-matrices and apply a MAX vector-vector with a stride of 1 (preliminary to MAXPOOL)
 	make clean
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/matrix_16x16_maxpool.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
+	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
 
 matrix_20x20: ## Multiply two 20x20-matrices and perform some ALU operations
 	make clean
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/matrix_20x20.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
+	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
 
 matrix_8blocks: ## Multiply a 4x2-blocks INP with a 2x3-blocks WGT
 	make clean
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/matrix_8blocks.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
+	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
+
+matrix_overfitting: ## Multiply a 4x2-blocks INP with a 2x3-blocks WGT
+	make clean
+	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/matrix_8blocks.json $(MAKEFILE_DIR)matrix_operations/alternative_config/config_for_overfitting.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
+	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
 
 
 # CREATE OUTPUTS DIRECTORIES
