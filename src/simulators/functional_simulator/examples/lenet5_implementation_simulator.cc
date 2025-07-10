@@ -1,9 +1,9 @@
 /***************************
     PRE-PROCESSOR DIRECTIVES
 ****************************/
-#include "simulator_header.h"
-#include "external_lib/tvm/packed_func.h"
-#include "external_lib/tvm/registry.h"
+#include "../include/simulator_header.h"
+#include "../external_lib/tvm/packed_func.h"
+#include "../external_lib/tvm/registry.h"
 
 
 /********************

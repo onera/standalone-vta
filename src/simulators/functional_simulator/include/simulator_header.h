@@ -16,12 +16,12 @@
   #include <vector>
 
   // Configuration
-  #include "config/config_header.h" // Instruction and UOP types
+  #include "../config/config_header.h" // Instruction and UOP types
 
   // VTA's libraries
-  #include "include/driver.h"
-  #include "include/sim_tlpp.h"
-  #include "include/virtual_memory.h"
+  #include "../include/driver.h"
+  #include "../include/sim_tlpp.h"
+  #include "../include/virtual_memory.h"
 
 
   /******************************

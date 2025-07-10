@@ -21,9 +21,14 @@ DEBUG ?= True
 ###########
 all: help
 
-matrix_16x16: ## Mutliply two 16x16-matrices and apply a ReLU (MAX with 0)
+matrix_16x16: ## Mutliply two 16x16-matrices
 	make clean
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/matrix_16x16.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
+	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
+
+matrix_16x16_relu: ## Mutliply two 16x16-matrices and apply a ReLU (MAX with 0)
+	make clean
+	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/matrix_16x16_relu.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
 	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
 
 matrix_16x16_maxpool: ## Multiply two 16x16-matrices and apply a MAX vector-vector with a stride of 1 (preliminary to MAXPOOL)
