@@ -203,7 +203,9 @@ def strategy_1(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
             # Append the strategy (C, A, B, X, Operations)
             strategy.append( (load_X, load_A, load_B, [], ops) )
         else: # Modify the last step
-            strategy[-1] = (load_X, load_A, load_B, [], ops + imm_alu_on_blocks(alu_operations, load_X))
+            last_step = strategy[-1]
+            last_ops = last_step[4] + imm_alu_on_blocks(alu_operations, load_X)
+            strategy[-1] = (load_X, last_step[1], last_step[2], last_step[3], last_ops)
 
     # Return the strategy
     return strategy
