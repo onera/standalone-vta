@@ -29,6 +29,10 @@ def dram_allocation(object_list, base_addr=0x0000, block_size=16,
             logical_divisor = np.dtype(wgt_dtype).itemsize * block_size * block_size
         elif (obj_type == "ACC"):
             logical_divisor = np.dtype(acc_dtype).itemsize * block_size
+        elif (obj_type == "UOP"):
+            logical_divisor = 4
+        elif (obj_type == "INSN"):
+            logical_divisor = 16
         else:
             raise Exception(f"ERROR: Unknown object type ({obj_type})! \n\n")
 
@@ -37,11 +41,6 @@ def dram_allocation(object_list, base_addr=0x0000, block_size=16,
 
         # Increment the addresses list
         base_addresses.append(obj_addr)
-
-
-    # Allocate space for the UOPs (consider a single UOP)
-    obj_addr, current_dram_addr = addresses_computation("UOP", [], page_size, current_dram_addr, dram_offset, 4) 
-    base_addresses.append(obj_addr)
 
 
     # DEBUG
@@ -68,6 +67,8 @@ def addresses_computation(obj_type, obj_value, page_size, current_dram_addr, dra
     local_addr = current_dram_addr
     if not (obj_value):
         alloc_size_bytes = logical_divisor
+    elif (obj_type == "UOP" or obj_type == "INSN"):
+        alloc_size_bytes = len(obj_value) * logical_divisor
     else:
         for i, matrix in enumerate(obj_value):
             blocks_addresses.append(

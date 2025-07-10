@@ -58,7 +58,8 @@ def main(operations_dict, vta_config_dict, debug=True):
     object_list = [("INP", A_blocks),
                    ("WGT", B_blocks),
                    ("ACC", X_blocks),
-                   ("OUT", C_blocks)]
+                   ("OUT", C_blocks),
+                   ("UOP", [])]
 
     # Get the offsets
     if "BASE_ADDRESS" in operations_dict:
@@ -109,6 +110,16 @@ def main(operations_dict, vta_config_dict, debug=True):
                                  operations_dict=operations_dict, block_size=block_size,
                                  A_blocks_col=A_blocks_col, B_blocks_col=B_blocks_col, X_blocks_col=X_blocks_col, C_blocks_col=C_blocks_col,
                                  debug=debug)
+    
+    # Update DRAM allocation
+    object_list = [("UOP", uop_buffer),
+                   ("INSN", insn_buffer)]
+    updated_addr, current_dram_addr = \
+        DA.dram_allocation(object_list, base_addr=current_dram_addr-4, block_size=block_size, 
+                           inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype,
+                           dram_offset=dram_offset, debug=debug)
+    base_addresses_list[-1] = updated_addr[0]
+    base_addresses_list.append(updated_addr[1])
 
 
     # ---------------------------------------------
@@ -208,8 +219,8 @@ if __name__ == "__main__":
     # If there is no argument, take "config/template.json" and "config/vta_config.json"
     if len(sys.argv) == 1:
         print("WARNING: No argument given, the execution takes default values!\n\n")
-        operations_file = "config/template.json"
-        vta_config_file = "config/vta_config.json"
+        operations_file = "../../../examples/matrix_operations/matrix_16x16.json"
+        vta_config_file = "../../../config/vta_config.json"
     # If there is only one argument 
     elif len(sys.argv) == 2:
         print("WARNING: No vta configuration given, the execution takes default values!\n\n")
