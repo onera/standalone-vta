@@ -243,8 +243,8 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
 
         # UOP
         uop_buffer.append(VTAUop( 
-            dst_idx=c_sram_idx, 
-            src_idx=a_sram_idx,
+            dst_idx=c_sram_idx * block_size, 
+            src_idx=a_sram_idx * block_size,
             wgt_idx=b_sram_idx
         ))
         # INSN - LOAD UOP
@@ -324,11 +324,11 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
 
         for i, current_alu in enumerate(alu[2]):
             if (isImm == False):
-                c_sram_idx = block_idx_in_sram(current_alu[0][0], memory_status)
+                c_sram_idx = block_idx_in_sram(current_alu[0][0], memory_status) * block_size
                 to_store.append( current_alu[1] * c_sram_idx )
                 src_sram_idx = block_idx_in_sram(current_alu[1][0], memory_status)
             else: 
-                c_sram_idx = block_idx_in_sram(current_alu[0], memory_status)
+                c_sram_idx = block_idx_in_sram(current_alu[0], memory_status) * block_size
                 to_store += [line * c_sram_idx for line in range(0,block_size) ]
 
             current_uop_addr = find_uop_addr(uop_addr, len(uop_buffer), uop_counter)
