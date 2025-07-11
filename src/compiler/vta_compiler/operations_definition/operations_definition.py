@@ -58,6 +58,18 @@ def operations_definition(strategy=[], dram_addresses=[],
             for field in insn._fields_:
                 field_name = field[0]
                 field_value = getattr(insn, field_name)
+                if (field_name == "opcode"):
+                    if (field_value == 0): field_value = f"{getattr(insn, field_name)} - LOAD"
+                    elif (field_value == 1): field_value = f"{getattr(insn, field_name)} - STORE"
+                    elif (field_value == 2): field_value = f"{getattr(insn, field_name)} - GEMM"
+                    elif (field_value == 3): field_value = f"{getattr(insn, field_name)} - FINSIH"
+                    elif (field_value == 4): field_value = f"{getattr(insn, field_name)} - ALU"
+                elif (field_name == "buffer_id"):
+                    if (field_value == 0): field_value = f"{getattr(insn, field_name)} - UOP"
+                    elif (field_value == 1): field_value = f"{getattr(insn, field_name)} - WGT"
+                    elif (field_value == 2): field_value = f"{getattr(insn, field_name)} - INP"
+                    elif (field_value == 3): field_value = f"{getattr(insn, field_name)} - ACC"
+                    elif (field_value == 4): field_value = f"{getattr(insn, field_name)} - OUT"
                 print(f"{field_name}: {field_value}")
 
         print(f"\n\nUOPs: ({len(uop_buffer)})")

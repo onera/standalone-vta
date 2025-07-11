@@ -564,7 +564,7 @@ def imm_alu_on_blocks(imm_operations, store_C):
         
         # Append the list with the current operation
         if (len(tuple_list) > 0):
-            current_ops = [alu_ops[0]] + [tuple_list]
+            current_ops = [alu_ops[0]] + [alu_ops[1]] + [tuple_list]
             to_execute.append(current_ops)
         
     return to_execute
