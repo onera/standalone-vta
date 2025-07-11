@@ -166,28 +166,10 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
     
     # Acknowledge and send ready if no load
     if (doLoadInp == False and doLoadWgt == False):
-        # INSN - NOP-MEMORY-STAGE (load)
-        insn_buffer.append(VTAMemInsn( 
-            opcode=0, # 0-LOAD, 1-STORE, 3-FINISH
-            # DEP FLAG
-            pop_prev_dep=0,
-            pop_next_dep=1, # Acknowledge COMPUTE ready signal
-            push_prev_dep=0, 
-            push_next_dep=1, # Ready signal to COMPUTE
-            # Memory interaction
-            buffer_id=2, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
-            sram_base=0x0000,
-            dram_base=0x00000000,
-            unused=0, # UNUSED
-            # Operation over the data
-            y_size=0,
-            x_size=0,
-            x_stride=0,
-            y_pad_top=0,
-            y_pad_bottom=0,
-            x_pad_left=0,
-            x_pad_right=0
-        ))
+        # INSN - NOP-MEMORY-STAGE (load) (input: CMP->LD, output: LD->CMP)
+        insn_buffer.append( 
+            nop_stage_instruction(module="LOAD", pop_prev_dep=0, pop_next_dep=1, push_prev_dep=0, push_next_dep=1)
+        )
 
 
     # COMPUTE MODULE (input: LD->CMP, output: CMP->LD & CMP->ST)
@@ -389,28 +371,10 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
 
     # If no compute stage
     if (doLoadAcc == False and doGemm == False and doAlu == False):
-        # INSN - NOP-COMPUTE-STAGE
-        insn_buffer.append(VTAMemInsn( 
-            opcode=0, # 0-LOAD, 1-STORE, 3-FINISH
-            # DEP FLAG
-            pop_prev_dep=1, # Acknowledge LOAD ready signal
-            pop_next_dep=0, 
-            push_prev_dep=1, # Ready signal to LOAD
-            push_next_dep=1, # Ready signal to STORE
-            # Memory interaction
-            buffer_id=0, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
-            sram_base=0x0000,
-            dram_base=0x00000000,
-            unused=0, # UNUSED
-            # Operation over the data
-            y_size=0,
-            x_size=0,
-            x_stride=0,
-            y_pad_top=0,
-            y_pad_bottom=0,
-            x_pad_left=0,
-            x_pad_right=0
-        ))
+        # INSN - NOP-COMPUTE-STAGE (input: LD->CMP, output: CMP->LD & CMP->ST)
+        insn_buffer.append( 
+            nop_stage_instruction(module="COMPUTE", pop_prev_dep=1, pop_next_dep=0, push_prev_dep=1, push_next_dep=1)
+        )
 
 
     # STORE MODULE (input: CMP->LD & CMP->ST, output: CMP->LD)
@@ -470,28 +434,10 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
                 x_pad_right=0
             ))
     
-    # INSN - NOP-COMPUTE-STAGE
-    insn_buffer.append(VTAMemInsn( 
-        opcode=0, # 0-LOAD, 1-STORE, 3-FINISH
-        # DEP FLAG
-        pop_prev_dep=0, 
-        pop_next_dep=1, # Acknowledge STORE ready signal
-        push_prev_dep=0, 
-        push_next_dep=0, 
-        # Memory interaction
-        buffer_id=0, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
-        sram_base=0x0000,
-        dram_base=0x00000000,
-        unused=0, # UNUSED
-        # Operation over the data
-        y_size=0,
-        x_size=0,
-        x_stride=0,
-        y_pad_top=0,
-        y_pad_bottom=0,
-        x_pad_left=0,
-        x_pad_right=0
-    ))
+    # INSN - NOP-COMPUTE-STAGE (input: CMP->LD & ST->CMP, output: CMP->LD)
+    insn_buffer.append( 
+        nop_stage_instruction(module="COMPUTE", pop_prev_dep=0, pop_next_dep=1, push_prev_dep=0, push_next_dep=0)
+    )
 
     # Return the sequences
     return insn_buffer, uop_buffer, uop_counter + len(uop_buffer)
