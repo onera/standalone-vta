@@ -41,8 +41,7 @@ def operations_definition(strategy=[], dram_addresses=[],
         uop_buffer = uop_buffer + new_buffer
 
     # 2 - Termination sequence (input: CMP->LD, output: /)
-    new_insn = termination_sequence()
-    insn_buffer = insn_buffer + new_insn
+    insn_buffer += termination_sequence() 
 
  
 

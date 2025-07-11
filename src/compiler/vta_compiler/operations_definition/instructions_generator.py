@@ -500,59 +500,25 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
 # ---------------------------------------------
 
 
-# RESET SEQUENCE
-# --------------
+# TERMINATION SEQUENCE (input: CMP->LD, output: /)
+# --------------------
 def termination_sequence():
     # Init
     insn_buffer = []
-    uop_buffer = []
 
-    # INSN - NOP-MEMORY-STAGE (LOAD)
-    insn_buffer.append(VTAMemInsn(
-        opcode=0, # 0-LOAD, 1-STORE, 3-FINISH
-        # DEP FLAG
-        pop_prev_dep=0,
-        pop_next_dep=1, # Acknowledge COMPUTE ready signal
-        push_prev_dep=0, 
-        push_next_dep=1, # Ready signal to COMPUTE
-        # Memory interaction
-        buffer_id=2, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
-        sram_base=0x0000,
-        dram_base=0x00000000,
-        unused=0, # UNUSED
-        # Operation over the data
-        y_size=0,
-        x_size=0,
-        x_stride=0,
-        y_pad_top=0,
-        y_pad_bottom=0,
-        x_pad_left=0,
-        x_pad_right=0
-    ))
+    # INSN - NOP-MEMORY-STAGE (LOAD) (input: CMP->LD, output: LD->CMP)
+    insn_buffer.append( 
+        nop_stage_instruction(module="LOAD", pop_prev_dep=0, pop_next_dep=1, push_prev_dep=0, push_next_dep=1)
+    )
 
-    insn_buffer.append(VTAMemInsn( # I209: NOP-COMPUTE-STAGE
-        opcode=0, # 0-LOAD, 1-STORE, 3-FINISH
-        # DEP FLAG
-        pop_prev_dep=1, # Acknowledge LOAD ready signal
-        pop_next_dep=0, 
-        push_prev_dep=0,
-        push_next_dep=0,
-        # Memory interaction
-        buffer_id=0, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
-        sram_base=0x0000,
-        dram_base=0x00000000,
-        unused=0, # UNUSED
-        # Operation over the data
-        y_size=0,
-        x_size=0,
-        x_stride=0,
-        y_pad_top=0,
-        y_pad_bottom=0,
-        x_pad_left=0,
-        x_pad_right=0
-    ))
 
-    insn_buffer.append(VTAMemInsn( # I210: FINISH
+    # INSN -  NOP-COMPUTE-STAGE (input: LD->CMP, output: /)
+    insn_buffer.append( 
+        nop_stage_instruction(module="COMPUTE", pop_prev_dep=1, pop_next_dep=0, push_prev_dep=0, push_next_dep=0)
+    )
+
+    # INSN - FINISH
+    insn_buffer.append(VTAMemInsn( 
         opcode=3, # 0-LOAD, 1-STORE, 3-FINISH
         # DEP FLAG
         pop_prev_dep=0,
@@ -578,6 +544,56 @@ def termination_sequence():
 
 
 ###############################################
+
+# NOP_STAGE_INSTRUCTION
+# ---------------------
+def nop_stage_instruction(module="COMPUTE", pop_prev_dep=0, pop_next_dep=0, push_prev_dep=0, push_next_dep=0):
+    # Init
+    opcode = 0
+    buffer_id = 0
+
+    # Check the type of module
+    if (module == "LOAD"):
+        opcode = 0 # LOAD
+        buffer_id = 2 # INP BUFFER
+    elif (module == "COMPUTE"):
+        opcode = 0 # LOAD
+        buffer_id = 0 # UOP BUFFER
+    elif (module == "STORE"):
+        opcode = 1 # STORE
+        buffer_id = 4 # OUT BUFFER
+    else:
+        raise Exception(f"ERROR: NOP-STAGE non-supported ({module}), must be either: 'LOAD', 'COMPUTE', 'STORE'! \n\n")
+
+    # The instruction
+    nop_insn = VTAMemInsn(
+        opcode=opcode, # 0-LOAD, 1-STORE, 3-FINISH
+        # DEP FLAG
+        pop_prev_dep=pop_prev_dep,
+        pop_next_dep=pop_next_dep,
+        push_prev_dep=push_prev_dep, 
+        push_next_dep=push_next_dep, 
+        # Memory interaction
+        buffer_id=buffer_id, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
+        sram_base=0x0000,
+        dram_base=0x00000000,
+        unused=0, # UNUSED
+        # Operation over the data
+        y_size=0,
+        x_size=0,
+        x_stride=0,
+        y_pad_top=0,
+        y_pad_bottom=0,
+        x_pad_left=0,
+        x_pad_right=0
+    )
+
+    return nop_insn
+
+# ---------------------------------------------
+
+###############################################
+
 # FIND_BLOCK_ADDR_BY_IDX
 # ----------------------
 def find_logical_block_addr_by_idx(block_idx, addr_dict):
