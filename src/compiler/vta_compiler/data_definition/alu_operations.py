@@ -22,7 +22,7 @@ def alu_operations(matrix, alu_operation="MAX_IMM", dst_idx=0, elem2=0, isIMM=Tr
     """
     operand = elem2 if isIMM else matrix[elem2]
 
-    if (alu_operation.startswith("MAX")):
+    if (alu_operation.startswith("MAX") or alu_operation == "RELU"):
         matrix[dst_idx] = np.maximum(matrix[dst_idx], operand)
     elif (alu_operation.startswith("MIN")):
         matrix[dst_idx] = np.minimum(matrix[dst_idx], operand)
@@ -34,6 +34,45 @@ def alu_operations(matrix, alu_operation="MAX_IMM", dst_idx=0, elem2=0, isIMM=Tr
         matrix[dst_idx] = np.right_shift(matrix[dst_idx], operand)
     else:
         raise Exception(f"ERROR: ALU non-supported operations ({alu_operation})! \n\n")
+
+    return matrix
+
+# ---------------------------------------------
+
+# POOL_OPERATIONS
+# ---------------
+def pool_operations(matrix, alu_ops):
+    # Get the information from alu_ops
+    op = alu_ops[0]
+    tensor_height, tensor_width = alu_ops[1][0]
+    kernel_height, kernel_width = alu_ops[1][1]
+
+    # Compute the number of kernel within the tensor
+    nb_h = tensor_height // kernel_height
+    nb_w = tensor_width // kernel_width
+    # Iterate over all the resulting vectors (get the dst_idx)
+    for i in range(0, nb_h):
+        for j in range(0, nb_w):
+            dst_idx = (i*tensor_width)*kernel_height + j*kernel_width
+            # Get the src_idx
+            for h in range(0, kernel_height):
+                for w in range(0, kernel_width):
+                    # Do not get the very first element (which is dst_idx)
+                    if (h == 0 and w == 0):
+                        continue
+                    # Get the src_idx and add it to idx_to_delete
+                    src_idx = dst_idx + h*tensor_width + w
+
+                    # Perform the operations
+                    if (op == "MAXPOOL"):
+                        matrix[dst_idx] = np.maximum(matrix[dst_idx], matrix[src_idx])
+                    elif (op == "AVGPOOL"):
+                        matrix[dst_idx] = np.add(matrix[dst_idx], matrix[src_idx])
+                    else: 
+                        raise Exception(f"ERROR: ALU non-supported operations ({op})! \n\n")
+            # If AVGPOOL, perform the mean operation
+            if (op == "AVGPOOL"):
+                matrix[dst_idx] = np.divide(matrix[dst_idx], kernel_height*kernel_width)
 
     return matrix
 
@@ -63,6 +102,7 @@ def create_alu_operations_list(operations_dict, nb_C_blocks=1, C_blocks_col=1, b
     """
     # Init the output
     alu_operations_list = []
+    idx_to_delete = []
 
     # If there is ALU operations, append the list
     if "ALU" in operations_dict:
@@ -71,14 +111,29 @@ def create_alu_operations_list(operations_dict, nb_C_blocks=1, C_blocks_col=1, b
         for alu_ops in operations_dict["ALU"]:
             block_information = []
 
+            # Check if it is a special operator
+            if ("RELU" == alu_ops[0]):
+                if "ACCUMULATOR" in operations_dict["MATRICES"][0]:
+                    nb_iteration = operations_dict["MATRICES"][0]["ACCUMULATOR"][0]
+                else:
+                    nb_iteration = operations_dict["MATRICES"][0]["INPUT"][0]
+                alu_ops = ["RELU", [[0, 1], 0, nb_iteration]]
+                dst_idx = 0
+                dst_step = 0
+            elif alu_ops[0].endswith("POOL"):
+                nb_iteration = 0
+                alu_ops, pool_idx_to_delete = pool_alu_ops(alu_ops, nb_C_blocks, C_blocks_col, block_size)
+                idx_to_delete = idx_to_delete + pool_idx_to_delete
+            
             # Check if the ALU is iterative or not
-            if (len(alu_ops[1]) == 3):
+            elif (len(alu_ops[1]) == 3):
                 dst_idx = alu_ops[1][0][0]
                 dst_step = alu_ops[1][0][1]
                 nb_iteration = alu_ops[1][2]
-                if not alu_ops[0].endswith("_IMM"):
+                if not alu_ops[0].endswith("_IMM") or alu_ops[0] != "RELU" :
                     src_idx = alu_ops[1][1][0]
                     src_step = alu_ops[1][1][1]
+                    idx_to_delete.append(src_idx)
             else: 
                 dst_idx = alu_ops[1][0]
                 dst_step = 0
@@ -91,7 +146,7 @@ def create_alu_operations_list(operations_dict, nb_C_blocks=1, C_blocks_col=1, b
                 dst_row = local_dst_idx % block_size
 
                 # Vector-scalar
-                if alu_ops[0].endswith("_IMM"):
+                if alu_ops[0].endswith("_IMM") or alu_ops[0] == "RELU":
                     # Append block_information
                     for col in range(0, C_blocks_col):
                         block_information.append( (dst_block_idx+col, dst_row) )
@@ -114,7 +169,55 @@ def create_alu_operations_list(operations_dict, nb_C_blocks=1, C_blocks_col=1, b
             # Append the list with the current alu_ops
             alu_operations_list.append(alu_ops)
 
-    return alu_operations_list
+    return alu_operations_list, idx_to_delete
+
+# ---------------------------------------------
+
+# POOL_ALU_OPS
+# ------------
+def pool_alu_ops(alu_ops, nb_C_blocks=1, C_blocks_col=1, block_size=16):
+    # Get the information from alu_ops
+    op = alu_ops[0]
+    tensor_height, tensor_width = alu_ops[1][0]
+    kernel_height, kernel_width = alu_ops[1][1]
+
+    # Compute the number of kernel within the tensor
+    nb_h = tensor_height // kernel_height
+    nb_w = tensor_width // kernel_width
+
+    # Get the pair of operations and the idx to delete
+    pair_ops = []
+    idx_to_delete = []
+    # Iterate over all the resulting vectors (get the dst_idx)
+    for i in range(0, nb_h):
+        for j in range(0, nb_w):
+            dst_idx = (i*tensor_width)*kernel_height + j*kernel_width
+
+            # Get the src_idx
+            for h in range(0, kernel_height):
+                for w in range(0, kernel_width):
+                    # Do not get the very first element (which is dst_idx)
+                    if (h == 0 and w == 0):
+                        continue
+                    # Get the src_idx and add it to idx_to_delete
+                    src_idx = dst_idx + h*tensor_width + w
+                    idx_to_delete.append(src_idx)
+
+                    # Get the index of the 1st block in the row
+                    dst_block_idx = (dst_idx // block_size) * C_blocks_col
+                    dst_row = dst_idx % block_size
+
+                    # Get the index of the 1st block in the row
+                    src_block_idx = (src_idx // block_size) * C_blocks_col
+                    src_row = src_idx % block_size
+
+                    # Append pair_ops
+                    for col in range(0, C_blocks_col):
+                        pair_ops.append( ((dst_block_idx+col, dst_row), (src_block_idx+col, src_row)) )
+
+    # Append the current alu_ops
+    alu_ops_updated = [op, alu_ops[1], pair_ops]
+    return alu_ops_updated, idx_to_delete
 
 # ---------------------------------------------
 

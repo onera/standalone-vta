@@ -288,7 +288,7 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
         alu = step[4][alu_idx]
         
         # Define the opcode
-        if (alu[0].startswith("MAX")):
+        if (alu[0].startswith("MAX") or alu[0] == "RELU" or alu[0] == "MAXPOOL"):
             alu_opcode = 1
         elif (alu[0].startswith("MIN")):
             alu_opcode = 0
@@ -304,7 +304,7 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
         # Define if it is immediate
         imm = 0
         isImm = False
-        if (alu[0].endswith("_IMM")):
+        if (alu[0].endswith("_IMM") or alu[0] == "RELU"):
             imm = alu[1][1]
             isImm = True
 

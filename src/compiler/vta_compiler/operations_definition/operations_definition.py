@@ -62,7 +62,7 @@ def operations_definition(strategy=[], dram_addresses=[],
                     if (field_value == 0): field_value = f"{getattr(insn, field_name)} - LOAD"
                     elif (field_value == 1): field_value = f"{getattr(insn, field_name)} - STORE"
                     elif (field_value == 2): field_value = f"{getattr(insn, field_name)} - GEMM"
-                    elif (field_value == 3): field_value = f"{getattr(insn, field_name)} - FINSIH"
+                    elif (field_value == 3): field_value = f"{getattr(insn, field_name)} - FINISH"
                     elif (field_value == 4): field_value = f"{getattr(insn, field_name)} - ALU"
                 elif (field_name == "buffer_id"):
                     if (field_value == 0): field_value = f"{getattr(insn, field_name)} - UOP"

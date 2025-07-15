@@ -46,7 +46,7 @@ def main(operations_dict, vta_config_dict, debug=True):
     # ---------------------------------------------
     # DATA DEFINITION
 
-    A_blocks, A_blocks_col, B_blocks, B_blocks_col, X_blocks, X_blocks_col, ALU_blocks, C_blocks, C_blocks_col, C_init, alu_operations, idx_to_delete = \
+    A_blocks, A_blocks_col, B_blocks, B_blocks_col, X_blocks, X_blocks_col, ALU_blocks, C_blocks, C_blocks_col, C_init, alu_operations, idx_to_delete, doGemm = \
         DF.data_definition(operations_dict, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype,
                            block_size=block_size, random_bound=random_bound, debug=debug)
 
