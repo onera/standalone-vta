@@ -61,7 +61,7 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
 
         # Get the alu_imm operations 
         imm_operations = []
-        nb_alu_imm = next( (i for i, op in enumerate(alu_operations) if not op[0].endswith("_IMM")), len(alu_operations) )
+        nb_alu_imm = next( (i for i, op in enumerate(alu_operations) if (not op[0].endswith("_IMM") and op[0] != "RELU")), len(alu_operations) )
         for i in range(0, nb_alu_imm):
             imm_operations.append( alu_operations[i] )
 
