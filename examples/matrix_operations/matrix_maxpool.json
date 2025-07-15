@@ -1,0 +1,11 @@
+{
+  "MATRICES" : [
+    {
+      "ACCUMULATOR": [36, 16]
+    }
+  ],
+  "ALU" : [
+    ["MAXPOOL", [[6, 6], [3, 3]]]
+  ],
+  "BASE_ADDRESS" : "0000"
+}
