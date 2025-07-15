@@ -119,7 +119,7 @@ def create_alu_operations_list(operations_dict, nb_C_blocks=1, C_blocks_col=1, b
                     nb_iteration = operations_dict["MATRICES"][0]["INPUT"][0]
                 alu_ops = ["RELU", [[0, 1], 0, nb_iteration]]
                 dst_idx = 0
-                dst_step = 0
+                dst_step = 1
             elif alu_ops[0].endswith("POOL"):
                 nb_iteration = 0
                 alu_ops, pool_idx_to_delete = pool_alu_ops(alu_ops, nb_C_blocks, C_blocks_col, block_size)
@@ -130,7 +130,7 @@ def create_alu_operations_list(operations_dict, nb_C_blocks=1, C_blocks_col=1, b
                 dst_idx = alu_ops[1][0][0]
                 dst_step = alu_ops[1][0][1]
                 nb_iteration = alu_ops[1][2]
-                if not alu_ops[0].endswith("_IMM") or alu_ops[0] != "RELU" :
+                if not alu_ops[0].endswith("_IMM") and alu_ops[0] != "RELU" :
                     src_idx = alu_ops[1][1][0]
                     src_step = alu_ops[1][1][1]
                     idx_to_delete.append(src_idx)

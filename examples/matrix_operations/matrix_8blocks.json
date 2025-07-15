@@ -6,5 +6,8 @@
       "ACCUMULATOR": [64, 48]
     }
   ],
+  "ALU" : [
+    ["RELU"]
+  ],
   "BASE_ADDRESS" : "0000"
 }
