@@ -70,6 +70,8 @@ def operations_definition(strategy=[], dram_addresses=[],
                     elif (field_value == 2): field_value = f"{getattr(insn, field_name)} - INP"
                     elif (field_value == 3): field_value = f"{getattr(insn, field_name)} - ACC"
                     elif (field_value == 4): field_value = f"{getattr(insn, field_name)} - OUT"
+                elif (field_name == "sram_base" or field_name == "dram_base"):
+                    field_value = f"{getattr(insn, field_name)} - {hex(getattr(insn, field_name))}"
                 print(f"{field_name}: {field_value}")
 
         print(f"\n\nUOPs: ({len(uop_buffer)})")

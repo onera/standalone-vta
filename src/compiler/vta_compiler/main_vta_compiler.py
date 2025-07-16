@@ -82,8 +82,12 @@ def main(operations_dict, vta_config_dict, debug=True):
     # MATRIX PARTITIONING
 
     # Compute the data for matrix partitioning
-    nb_A = len(A_blocks)
-    nb_B = len(B_blocks)
+    if (doGemm):
+        nb_A = len(A_blocks)
+        nb_B = len(B_blocks)
+    else:
+        nb_A = 0
+        nb_B = 0
     nb_X = len(X_blocks)
     nb_C = len(C_blocks)
 

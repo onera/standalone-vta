@@ -49,11 +49,11 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
                         \n\t nb_A%A_blocks_col = {nb_A%A_blocks_col} \
                         \n\t nb_B%B_blocks_col = {nb_B%B_blocks_col} \
                         \n\t nb_C%C_blocks_col = {nb_C%C_blocks_col} \n\n")
-    if ( (nb_A//A_blocks_col != nb_C//C_blocks_col) or (B_blocks_col != C_blocks_col) or (nb_X != nb_C) ):
-        raise Exception(f"ERROR: Data are not consistent: results should be equal: \
-                        \n\t nb_A//A_blocks_col ({nb_A//A_blocks_col}) = nb_C//C_blocks_col ({nb_C//C_blocks_col}), \
-                        \n\t B_blocks_col ({B_blocks_col}) = C_blocks_col ({C_blocks_col}), \
-                        \n\t nb_X ({nb_X}) = nb_C ({nb_C})!\n\n")
+    # if ( (nb_A//A_blocks_col != nb_C//C_blocks_col) or (B_blocks_col != C_blocks_col) or (nb_X != nb_C) ):
+    #     raise Exception(f"ERROR: Data are not consistent: results should be equal: \
+    #                     \n\t nb_A//A_blocks_col ({nb_A//A_blocks_col}) = nb_C//C_blocks_col ({nb_C//C_blocks_col}), \
+    #                     \n\t B_blocks_col ({B_blocks_col}) = C_blocks_col ({C_blocks_col}), \
+    #                     \n\t nb_X ({nb_X}) = nb_C ({nb_C})!\n\n")
     
     # Check if the data fits
     if ((nb_A > inp_block_buffer_size) or (nb_B > wgt_block_buffer_size) or (nb_C > out_block_buffer_size)):

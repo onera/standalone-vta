@@ -2,70 +2,10 @@
 # ---------------
 try:
     from structures import *
-    from instructions_template import *
 except:
     from operations_definition.structures import *
-    from operations_definition.instructions_template import *
 
 ###############################################
-
-
-# RESET SEQUENCE
-# --------------
-def reset_sequence(strategy, dram_addresses, uop_counter=0, block_size=16):
-    """Reset instructions ensure that no residual data remain that could affect the execution"""
-    # Init
-    insn_buffer = []
-    uop_buffer = []
-
-    # Biggest accumulator size used
-    reset_size = 0
-    for step in strategy:
-        reset_size = max(reset_size, len(step[0]))
-
-    # UOP addresse
-    uop_addr = int( next(addr for addr in dram_addresses if addr.get("type") == "UOP")["logical_base_address"], 16)
-
-    # UOP - reset
-    uop_buffer.append(VTAUop( 
-        dst_idx=0, 
-        src_idx=0,
-        wgt_idx=0
-    ))
-    # INSN - LOAD UOP
-    insn_buffer.append(
-        load_store_instruction(buffer_type="UOP", pop_prev_dep=0, pop_next_dep=0, push_prev_dep=0, push_next_dep=0, sram_base=0, dram_base=uop_addr, y_size=1, x_size=1, x_stride=1)
-    )
-
-    insn_buffer.append(VTAGemInsn( # I1: GEMM RESET
-        opcode=2, # 2-GEMM
-        # DEP FLAG
-        pop_prev_dep=0,
-        pop_next_dep=0,
-        push_prev_dep=1, # Ready signal to LOAD
-        push_next_dep=0,
-        # Operations
-        reset=1, # 0-no, 1-reset
-        uop_bgn=len(uop_buffer) - 1,
-        uop_end=len(uop_buffer),
-        loop_out=reset_size, # Reset reset_size blocks
-        loop_in=block_size, # Reset a block
-        # UNUSED
-        unused=0, # UNUSED
-        # Index factors
-        dst_factor_out=block_size, # Reset reset_size blocks
-        dst_factor_in=1, # Reset a block
-        src_factor_out=0,
-        src_factor_in=0,
-        wgt_factor_out=0,
-        wgt_factor_in=0
-    ))
-
-    return insn_buffer, uop_buffer, uop_counter + len(uop_buffer)
-
-
-# ---------------------------------------------
-
 
 # STRATEGY STEP
 # -------------
@@ -96,37 +36,57 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
 
     # INSN - LOAD INP
     for i, block_idx in enumerate(step[1]):
-        # Get the idx of the block in DRAM and the location in SRAM
+        # Get the idx
         current_block_addr = find_logical_block_addr_by_idx(block_idx, inp_addr)
-        current_sram_base=0x0000 + i*block_size
-
-        # Acknowledge COMPUTE ready signal (first load)
-        pop_next_dep = 1 if (i == 0) else 0 
-        # Ready signal to COMPUTE if no WGT load (last load)
-        push_next_dep = ready_signal if (i == nb_inp-1) else 0 
-
-
-        # INSN LOAD INP - load a full block_size x block_size matrix
-        insn_buffer.append(
-            load_store_instruction(buffer_type="INP", pop_prev_dep=0, pop_next_dep=pop_next_dep, push_prev_dep=0, push_next_dep=push_next_dep, sram_base=current_sram_base, dram_base=current_block_addr, y_size=1, x_size=block_size, x_stride=block_size)
-        )
+        # Append
+        insn_buffer.append(VTAMemInsn( 
+            opcode=0, # 0-LOAD, 1-STORE, 3-FINISH
+            # DEP FLAG
+            pop_prev_dep=0,
+            pop_next_dep=1 if (i == 0) else 0, # Acknowledge COMPUTE ready signal (first load)
+            push_prev_dep=0,
+            push_next_dep=ready_signal if (i == nb_inp-1) else 0, # Ready signal to COMPUTE if no WGT load (last load)
+            # Memory interaction
+            buffer_id=2, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
+            sram_base=0x0000 + i*block_size,
+            dram_base=current_block_addr,
+            unused=0, # UNUSED
+            # Operation over the data
+            y_size=1,
+            x_size=block_size, # Load a full block
+            x_stride=block_size,
+            y_pad_top=0,
+            y_pad_bottom=0,
+            x_pad_left=0,
+            x_pad_right=0
+        ))
 
     # INSN - LOAD WGT
     for i, block_idx in enumerate(step[2]):
-        # Get the idx of the block in DRAM and the location in SRAM
+        # Get the idx
         current_block_addr = find_logical_block_addr_by_idx(block_idx, wgt_addr)
-        current_sram_base=0x0000 + i
-
-        # Acknowledge COMPUTE ready signal if no INP load (first load)
-        pop_next_dep = ack_signal if (i == 0) else 0 
-        # Ready signal to COMPUTE if no WGT load (last load)
-        push_next_dep = 1 if (i == nb_wgt-1) else 0
-
-
-        # INSN LOAD WGT - load a WGT matrix
-        insn_buffer.append(
-            load_store_instruction(buffer_type="WGT", pop_prev_dep=0, pop_next_dep=pop_next_dep, push_prev_dep=0, push_next_dep=push_next_dep, sram_base=current_sram_base, dram_base=current_block_addr, y_size=1, x_size=1, x_stride=1)
-        )
+        # Append
+        insn_buffer.append(VTAMemInsn( 
+            opcode=0, # 0-LOAD, 1-STORE, 3-FINISH
+            # DEP FLAG
+            pop_prev_dep=0,
+            pop_next_dep=ack_signal if (i == 0) else 0, # Acknowledge COMPUTE ready signal if no INP load (first load)
+            push_prev_dep=0,
+            push_next_dep=1 if (i == nb_wgt-1) else 0, # Ready signal to COMPUTE if no WGT load (last load)
+            # Memory interaction
+            buffer_id=1, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
+            sram_base=0x0000 + i,
+            dram_base=current_block_addr,
+            unused=0, # UNUSED
+            # Operation over the data
+            y_size=1,
+            x_size=1,
+            x_stride=1,
+            y_pad_top=0,
+            y_pad_bottom=0,
+            x_pad_left=0,
+            x_pad_right=0
+        ))
     
     # Acknowledge and send ready if no load
     if (doLoadInp == False and doLoadWgt == False):
@@ -149,20 +109,30 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
     # INSN - LOAD ACC
     isLastCompute = False if (doGemm == True or doAlu == True) else True
     for i, block_idx in enumerate(step[3]):
-        # Get the idx of the block in DRAM and the location in SRAM
+        # Get the idx
         current_block_addr = find_logical_block_addr_by_idx(block_idx, acc_addr)
-        current_sram_base=0x0000 + i*block_size
-
-        # Acknowledge LOAD ready signal (first load)
-        pop_prev_dep = 1 if (i == 0) else 0 
-        # Ready signal to STORE (last load)
-        push_next_dep = 1 if (i == nb_alu-1 and isLastCompute == True) else 0 
-
-
-        # INSN LOAD ACC - load a full block_size x block_size matrix
-        insn_buffer.append(
-            load_store_instruction(buffer_type="ACC", pop_prev_dep=pop_prev_dep, pop_next_dep=0, push_prev_dep=0, push_next_dep=push_next_dep, sram_base=current_sram_base, dram_base=current_block_addr, y_size=1, x_size=block_size, x_stride=block_size)
-        )
+        # Append
+        insn_buffer.append(VTAMemInsn( 
+            opcode=0, # 0-LOAD, 1-STORE, 3-FINISH
+            # DEP FLAG
+            pop_prev_dep=1 if (i == 0) else 0, # Acknowledge LOAD ready signal (first load)
+            pop_next_dep=0, 
+            push_prev_dep=0,
+            push_next_dep=1 if (i == nb_alu-1 and isLastCompute == True) else 0, # Ready signal to STORE (last load)
+            # Memory interaction
+            buffer_id=3, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
+            sram_base=0x0000 + i*block_size,
+            dram_base=current_block_addr,
+            unused=0, # UNUSED
+            # Operation over the data
+            y_size=1,
+            x_size=block_size, # Load a full block
+            x_stride=block_size,
+            y_pad_top=0,
+            y_pad_bottom=0,
+            x_pad_left=0,
+            x_pad_right=0
+        ))
 
     # INSTRUCTION LOAD UOP + GEMM
     isFirstCompute = False if (doLoadAcc == True) else True
@@ -187,14 +157,28 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
         ))
 
     if (doGemm == True):
-        # Acknowledge LOAD ready signal (first load)
-        pop_prev_dep = 1 if (isFirstCompute == True) else 0 
-
-        # INSN UOP
-        insn_buffer.append(
-            load_store_instruction(buffer_type="UOP", pop_prev_dep=pop_prev_dep, pop_next_dep=0, push_prev_dep=0, push_next_dep=0, sram_base=0, dram_base=current_uop_addr, y_size=1, x_size=len(uop_buffer), x_stride=len(uop_buffer))
-        )
-
+        # INSN - LOAD UOP
+        insn_buffer.append(VTAMemInsn( 
+            opcode=0, # 0-LOAD, 1-STORE, 3-FINISH
+            # DEP FLAG
+            pop_prev_dep=1 if (isFirstCompute == True) else 0, # Acknowledge LOAD ready signal (first load)
+            pop_next_dep=0,
+            push_prev_dep=0,
+            push_next_dep=0,
+            # Memory interaction
+            buffer_id=0, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
+            sram_base=0x0000,
+            dram_base=current_uop_addr,
+            unused=0, # UNUSED
+            # Operation over the data
+            y_size=1,
+            x_size=len(uop_buffer),
+            x_stride=len(uop_buffer),
+            y_pad_top=0,
+            y_pad_bottom=0,
+            x_pad_left=0,
+            x_pad_right=0
+        ))
         # INSN - GEMM
         insn_buffer.append(VTAGemInsn( 
             opcode=2, # 2-GEMM
@@ -270,18 +254,29 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
                 src_idx=src_vector_idx if (isImm == False) else 0,
                 wgt_idx=0
             ))
-
-
-        # Acknowledge LOAD ready signal (first load)
-        pop_prev_dep = 1 if (alu_idx == nb_gemm and isFirstCompute == True) else 0 
-        # Ready signal to LOAD (last load)
-        push_prev_dep = 1 if (alu_idx == nb_gemm and isFirstCompute == True) else 0 
-
-        # INSN LOAD UOP
-        insn_buffer.append(
-            load_store_instruction(buffer_type="UOP", pop_prev_dep=pop_prev_dep, pop_next_dep=0, push_prev_dep=push_prev_dep, push_next_dep=0, sram_base=0, dram_base=current_uop_addr, y_size=1, x_size=len(alu[2]), x_stride=len(alu[2]))
-        )
- 
+        
+        # INSN - LOAD UOP
+        insn_buffer.append(VTAMemInsn( 
+            opcode=0, # 0-LOAD, 1-STORE, 3-FINISH
+            # DEP FLAG
+            pop_prev_dep=1 if (alu_idx == nb_gemm and isFirstCompute == True) else 0, # Acknowledge LOAD ready signal (first load)
+            pop_next_dep=0,
+            push_prev_dep=1 if (alu_idx == nb_gemm and isFirstCompute == True) else 0, # Ready signal to LOAD
+            push_next_dep=0,
+            # Memory interaction
+            buffer_id=0, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
+            sram_base=0x0000, 
+            dram_base=current_uop_addr,
+            unused=0, # UNUSED
+            # Operation over the data
+            y_size=1,
+            x_size=len(alu[2]),
+            x_stride=len(alu[2]),
+            y_pad_top=0,
+            y_pad_bottom=0,
+            x_pad_left=0,
+            x_pad_right=0
+        ))
         # INSN - ALU
         insn_buffer.append(VTAAluInsn( # I9: ALU - SHR (Average Pooling 3/3)
             opcode=4, # 4-ALU
@@ -322,35 +317,56 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
     # INSN - STORE
     if (len(to_store) == 0 or isImm == True):
         for i, block_idx in enumerate(step[0]):
-            # Get the idx of the block in DRAM and the location in SRAM
+            # Get the idx
             current_block_addr = find_logical_block_addr_by_idx(block_idx, out_addr)
-            current_sram_base=0x0000 + i*block_size
-
-            # Acknowledge COMPUTE ready signal (first store)
-            pop_prev_dep = 1 if (i == 0) else 0
-            # Ready signal to COMPUTE
-            push_prev_dep = 1 if (i == nb_out - 1) else 0
-
-
-            # INSN STORE OUT - store a full block_size x block_size matrix
-            insn_buffer.append(
-                load_store_instruction(buffer_type="OUT", pop_prev_dep=pop_prev_dep, pop_next_dep=0, push_prev_dep=push_prev_dep, push_next_dep=0, sram_base=current_sram_base, dram_base=current_block_addr, y_size=1, x_size=block_size, x_stride=block_size)
-            )
+            # Append
+            insn_buffer.append(VTAMemInsn( 
+                opcode=1, # 0-LOAD, 1-STORE, 3-FINISH
+                # DEP FLAG
+                pop_prev_dep=1 if (i == 0) else 0, # Acknowledge COMPUTE ready signal (first store)
+                pop_next_dep=0,
+                push_prev_dep=1 if (i == nb_out - 1) else 0, # Ready signal to COMPUTE
+                push_next_dep=0,
+                # Memory interaction
+                buffer_id=4, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
+                sram_base=0x0000 + i*block_size, 
+                dram_base=current_block_addr, 
+                unused=0, # UNUSED
+                # Operation over the data
+                y_size=1,
+                x_size=block_size, # Store a full block
+                x_stride=block_size,
+                y_pad_top=0,
+                y_pad_bottom=0,
+                x_pad_left=0,
+                x_pad_right=0
+            ))
     else:
         for i, line in enumerate(to_store):
-            # Get the idx of the block in DRAM and the location in SRAM
-            current_dram_base = int( out_addr[0]["logical_base_address"], 16) + i
-            current_sram_base=line
-
-            # Acknowledge COMPUTE ready signal (first store)
-            pop_prev_dep = 1 if (i == 0) else 0
-            # Ready signal to COMPUTE
-            push_prev_dep = 1 if (i == len(to_store) - 1) else 0
-
-            # INSN STORE OUT - store a full block_size x block_size matrix
-            insn_buffer.append(
-                load_store_instruction(buffer_type="OUT", pop_prev_dep=pop_prev_dep, pop_next_dep=0, push_prev_dep=push_prev_dep, push_next_dep=0, sram_base=current_sram_base, dram_base=current_dram_base, y_size=1, x_size=1, x_stride=1)
-            )
+            # Get the base address of UOP
+            base_addr = int( out_addr[0]["logical_base_address"], 16)
+            # Append
+            insn_buffer.append(VTAMemInsn( 
+                opcode=1, # 0-LOAD, 1-STORE, 3-FINISH
+                # DEP FLAG
+                pop_prev_dep=1 if (i == 0) else 0, # Acknowledge COMPUTE ready signal (first store)
+                pop_next_dep=0,
+                push_prev_dep=1 if (i == len(to_store) - 1) else 0, # Ready signal to COMPUTE
+                push_next_dep=0,
+                # Memory interaction
+                buffer_id=4, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
+                sram_base=line, 
+                dram_base=base_addr + i, 
+                unused=0, # UNUSED
+                # Operation over the data
+                y_size=1,
+                x_size=1, # Store vector by vector
+                x_stride=1,
+                y_pad_top=0,
+                y_pad_bottom=0,
+                x_pad_left=0,
+                x_pad_right=0
+            ))
     
     # INSN - NOP-COMPUTE-STAGE (input: CMP->LD & ST->CMP, output: CMP->LD)
     insn_buffer.append( 
@@ -360,51 +376,6 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
     # Return the sequences
     return insn_buffer, uop_buffer, uop_counter + len(uop_buffer)
 
-
-# ---------------------------------------------
-
-
-# TERMINATION SEQUENCE (input: CMP->LD, output: /)
-# --------------------
-def termination_sequence():
-    # Init
-    insn_buffer = []
-
-    # INSN - NOP-MEMORY-STAGE (LOAD) (input: CMP->LD, output: LD->CMP)
-    insn_buffer.append( 
-        nop_stage_instruction(module="LOAD", pop_prev_dep=0, pop_next_dep=1, push_prev_dep=0, push_next_dep=1)
-    )
-
-
-    # INSN -  NOP-COMPUTE-STAGE (input: LD->CMP, output: /)
-    insn_buffer.append( 
-        nop_stage_instruction(module="COMPUTE", pop_prev_dep=1, pop_next_dep=0, push_prev_dep=0, push_next_dep=0)
-    )
-
-    # INSN - FINISH
-    insn_buffer.append(VTAMemInsn( 
-        opcode=3, # 0-LOAD, 1-STORE, 3-FINISH
-        # DEP FLAG
-        pop_prev_dep=0,
-        pop_next_dep=0,
-        push_prev_dep=0,
-        push_next_dep=0,
-        # Memory interaction
-        buffer_id=0, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
-        sram_base=0x0000,
-        dram_base=0x00000000,
-        unused=0, # UNUSED
-        # Operation over the data
-        y_size=0,
-        x_size=0,
-        x_stride=0,
-        y_pad_top=0,
-        y_pad_bottom=0,
-        x_pad_left=0,
-        x_pad_right=0
-    ))
-
-    return insn_buffer
 
 
 ###############################################
@@ -456,27 +427,56 @@ def nop_stage_instruction(module="COMPUTE", pop_prev_dep=0, pop_next_dep=0, push
 
 # ---------------------------------------------
 
-###############################################
-
-# FIND_BLOCK_ADDR_BY_IDX
+# LOAD_STORE_INSTRUCTION
 # ----------------------
-def find_logical_block_addr_by_idx(block_idx, addr_dict):
-    block_addr_list = addr_dict[0]['blocks_addresses']
-    tuple_addr = next(t for t in block_addr_list if t[0] == block_idx)
-    return int( tuple_addr[2], 16)
+def load_store_instruction(buffer_type="UOP", pop_prev_dep=0, pop_next_dep=0, push_prev_dep=0, push_next_dep=0,
+                           sram_base=0, dram_base=0,
+                           y_size=0, x_size=0, x_stride=0):
+    # Init
+    opcode = 0
+    buffer_id = 0
 
-# ---------------------------------------------
+    # Check the type of module
+    if (buffer_type == "UOP"):
+        opcode = 0 # LOAD
+        buffer_id = 0 # UOP BUFFER
+    elif (buffer_type == "WGT"):
+        opcode = 0 # LOAD
+        buffer_id = 1 # WGT BUFFER
+    elif (buffer_type == "INP"):
+        opcode = 0 # LOAD
+        buffer_id = 2 # INP BUFFER
+    elif (buffer_type == "ACC"):
+        opcode = 0 # LOAD
+        buffer_id = 3 # ACC BUFFER
+    elif (buffer_type == "OUT"):
+        opcode = 1 # STORE
+        buffer_id = 4 # OUT BUFFER
+    else:
+        raise Exception(f"ERROR: LOAD-STORE non-supported ({buffer_type}), must be either: 'UOP', 'WGT', 'INP', 'ACC' or 'OUT'! \n\n")
 
-# FIND_UOP_ADDR
-# ----------------------
-def find_uop_addr(uop_addr, uop_buffer_size, uop_counter):
-    uop_logic_addr = int( uop_addr[0]["logical_base_address"], 16)
-    current_uop_addr = uop_logic_addr + uop_counter + uop_buffer_size
-    return current_uop_addr
+    # The instruction
+    load_store_insn = VTAMemInsn(
+        opcode=opcode, # 0-LOAD, 1-STORE, 3-FINISH
+        # DEP FLAG
+        pop_prev_dep=pop_prev_dep,
+        pop_next_dep=pop_next_dep,
+        push_prev_dep=push_prev_dep, 
+        push_next_dep=push_next_dep, 
+        # Memory interaction
+        buffer_id=buffer_id, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
+        sram_base=sram_base,
+        dram_base=dram_base,
+        unused=0, # UNUSED
+        # Operation over the data
+        y_size=y_size,
+        x_size=x_size,
+        x_stride=x_stride,
+        y_pad_top=0,
+        y_pad_bottom=0,
+        x_pad_left=0,
+        x_pad_right=0
+    )
 
-# ---------------------------------------------
+    return load_store_insn  
 
-# BLOCK_IDX_IN_SRAM
-# --------------------
-def block_idx_in_sram(block_idx, memory_status):
-    return memory_status.index(block_idx)
