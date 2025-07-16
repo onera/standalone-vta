@@ -34,7 +34,7 @@ def operations_definition(strategy=[], dram_addresses=[],
 
     # 1 - strategy step (input: CMP->LD, output: CMP->LD)
     for i, step in enumerate(strategy):
-        memory_status = step[3] if (len(step[3]) != 0) else memory_status
+        memory_status = step[3]
 
         new_insn, new_buffer, uop_counter = strategy_step(step, dram_addresses, memory_status, uop_counter, block_size)
         insn_buffer = insn_buffer + new_insn

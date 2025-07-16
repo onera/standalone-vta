@@ -21,7 +21,7 @@ def reset_sequence(strategy, dram_addresses, uop_counter=0, block_size=16):
     # Biggest accumulator size used
     reset_size = 0
     for step in strategy:
-        reset_size = max(reset_size, len(step[0]))
+        reset_size = max(reset_size, len(step[3]))
 
     # UOP addresse
     uop_addr = int( next(addr for addr in dram_addresses if addr.get("type") == "UOP")["logical_base_address"], 16)
@@ -85,8 +85,8 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
    # LOAD MODULE (input: CMP->LD, output: LD->CMP)
    # -----------
     # Check if INP and WGT must be loaded
-    nb_inp = len(step[1])
-    nb_wgt = len(step[2])
+    nb_inp = len(step[0])
+    nb_wgt = len(step[1])
     doLoadInp = False if (nb_inp == 0) else True
     doLoadWgt = False if (nb_wgt == 0) else True
 
@@ -95,7 +95,7 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
     ready_signal = 0 if (doLoadWgt == True) else 1
 
     # INSN - LOAD INP
-    for i, block_idx in enumerate(step[1]):
+    for i, block_idx in enumerate(step[0]):
         # Get the idx of the block in DRAM and the location in SRAM
         current_block_addr = find_logical_block_addr_by_idx(block_idx, inp_addr)
         current_sram_base=0x0000 + i*block_size
@@ -112,7 +112,7 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
         )
 
     # INSN - LOAD WGT
-    for i, block_idx in enumerate(step[2]):
+    for i, block_idx in enumerate(step[1]):
         # Get the idx of the block in DRAM and the location in SRAM
         current_block_addr = find_logical_block_addr_by_idx(block_idx, wgt_addr)
         current_sram_base=0x0000 + i
@@ -138,9 +138,9 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
 
    # COMPUTE MODULE (input: LD->CMP, output: CMP->LD & CMP->ST)
    # --------------
-    nbLoadAcc = len(step[3])
-    nb_gemm = sum(1 for item in step[4] if item[0] == 'GeMM')
-    nb_alu = len(step[4]) - nb_gemm
+    nbLoadAcc = len(step[2])
+    nb_gemm = sum(1 for item in step[6] if item[0] == 'GeMM')
+    nb_alu = len(step[6]) - nb_gemm
 
     doLoadAcc = False if (nbLoadAcc == 0) else True
     doGemm = False if (nb_gemm == 0) else True
@@ -148,7 +148,7 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
 
     # INSN - LOAD ACC
     isLastCompute = False if (doGemm == True or doAlu == True) else True
-    for i, block_idx in enumerate(step[3]):
+    for i, block_idx in enumerate(step[2]):
         # Get the idx of the block in DRAM and the location in SRAM
         current_block_addr = find_logical_block_addr_by_idx(block_idx, acc_addr)
         current_sram_base=0x0000 + i*block_size
@@ -173,11 +173,11 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
 
     # Generate all the UOP
     for gemm_idx in range(0, nb_gemm):
-        gemm = step[4][gemm_idx]
+        gemm = step[6][gemm_idx]
 
         c_sram_idx = block_idx_in_sram(gemm[1], memory_status)
-        a_sram_idx = block_idx_in_sram(gemm[2], step[1])
-        b_sram_idx = block_idx_in_sram(gemm[3], step[2])
+        a_sram_idx = block_idx_in_sram(gemm[2], step[0])
+        b_sram_idx = block_idx_in_sram(gemm[3], step[1])
 
         # UOP
         uop_buffer.append(VTAUop( 
@@ -225,7 +225,7 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
     to_store = []
 
     for alu_idx in range(nb_gemm, nb_gemm+nb_alu):
-        alu = step[4][alu_idx]
+        alu = step[6][alu_idx]
         
         # Define the opcode
         if (alu[0].startswith("MAX") or alu[0] == "RELU" or alu[0] == "MAXPOOL"):
@@ -318,10 +318,10 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
 
    # STORE MODULE (input: CMP->LD & CMP->ST, output: CMP->LD)
    # ------------
-    nb_out = len(step[0])
+    nb_out = len(step[5])
     # INSN - STORE
     if (len(to_store) == 0 or isImm == True):
-        for i, block_idx in enumerate(step[0]):
+        for i, block_idx in enumerate(step[5]):
             # Get the idx of the block in DRAM and the location in SRAM
             current_block_addr = find_logical_block_addr_by_idx(block_idx, out_addr)
             current_sram_base=0x0000 + i*block_size

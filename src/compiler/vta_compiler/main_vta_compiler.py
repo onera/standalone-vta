@@ -54,11 +54,13 @@ def main(operations_dict, vta_config_dict, debug=True):
     # ---------------------------------------------
     # DRAM ALLOCATION
 
+    # Force an allocation size for OUT
+    forced_allocation_size = sum(matrix.nbytes for matrix in ALU_blocks)
     # Create the object to allocate
     object_list = [("INP", A_blocks),
                    ("WGT", B_blocks),
                    ("ACC", X_blocks),
-                   ("OUT", ALU_blocks),
+                   ("OUT", C_blocks, forced_allocation_size),
                    ("UOP", [])]
 
     # Get the offsets

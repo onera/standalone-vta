@@ -19,9 +19,14 @@ def dram_allocation(object_list, base_addr=0x0000, block_size=16,
 
     # Define the addresses list
     base_addresses = []
+    forced_size = 0
 
     # Iterate over the object
-    for (obj_type, obj_value) in object_list:
+    for obj_type, *rest in object_list:
+        obj_value = rest[0]
+        if (len(rest) == 2):
+            forced_size = rest[1]
+        
         # Check the object type to define the logical divisor for logical address
         if (obj_type == "INP" or obj_type == "OUT"):
             logical_divisor = np.dtype(inp_dtype).itemsize * block_size
@@ -37,7 +42,7 @@ def dram_allocation(object_list, base_addr=0x0000, block_size=16,
             raise Exception(f"ERROR: Unknown object type ({obj_type})! \n\n")
 
         # Get the object address
-        obj_addr, current_dram_addr = addresses_computation(obj_type, obj_value, page_size, current_dram_addr, dram_offset, logical_divisor)
+        obj_addr, current_dram_addr = addresses_computation(obj_type, obj_value, page_size, current_dram_addr, dram_offset, logical_divisor, forced_size)
 
         # Increment the addresses list
         base_addresses.append(obj_addr)
@@ -57,7 +62,7 @@ def dram_allocation(object_list, base_addr=0x0000, block_size=16,
 
 # ADDRESSES COMPUTATION
 # ---------------------
-def addresses_computation(obj_type, obj_value, page_size, current_dram_addr, dram_offset, logical_divisor):
+def addresses_computation(obj_type, obj_value, page_size, current_dram_addr, dram_offset, logical_divisor, forced_size=0):
     # Increment current_dram_addr to the next page
     page_idx = (current_dram_addr // page_size)
     current_dram_addr = (page_idx + 1) * page_size
@@ -80,7 +85,10 @@ def addresses_computation(obj_type, obj_value, page_size, current_dram_addr, dra
             local_addr = local_addr + matrix.nbytes
 
         # Define the size of the allocation 
-        alloc_size_bytes = sum(matrix.nbytes for matrix in obj_value) # Bytes
+        if (forced_size > 0):
+            alloc_size_bytes = forced_size
+        else:
+            alloc_size_bytes = sum(matrix.nbytes for matrix in obj_value) # Bytes
 
     # Define the object address
     obj_addr = {

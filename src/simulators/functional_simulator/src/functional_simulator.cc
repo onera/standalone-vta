@@ -30,6 +30,7 @@ int execute_simulator() {
     std::string fileUopPath = construct_path("uop.bin");
     std::string fileInsnPath = construct_path("instructions.bin");
     std::string fileExpectedOutPath = construct_path("expected_out.bin");
+    std::string fileExpectedOutSramPath = construct_path("expected_out_sram.bin");
 
     // Read input files into vectors
     std::vector<int8_t> inpA = read_binary_file<int8_t>(fileInpPath);
@@ -40,10 +41,11 @@ int execute_simulator() {
 
     // Read the reference
     std::vector<int8_t> expected_out = read_binary_file<int8_t>(fileExpectedOutPath);
+    std::vector<int8_t> expected_out_sram = read_binary_file<int8_t>(fileExpectedOutSramPath);
 
    // Handle the output file differently
     std::vector<int8_t> outC;
-    size_t outC_size = expected_out.size(); // Keep track of the actual size
+    size_t outC_size = expected_out_sram.size(); // Keep track of the actual size
     outC.resize(outC_size);
 
 
@@ -163,6 +165,10 @@ int execute_simulator() {
 
     // GET THE RESULT
     // --------------
+    // Resize the output
+    outC_size = expected_out.size();
+    outC.resize(outC_size);
+
     // Print results
     printf("\n\nRESULT:\n");
 
