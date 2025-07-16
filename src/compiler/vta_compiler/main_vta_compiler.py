@@ -58,7 +58,7 @@ def main(operations_dict, vta_config_dict, debug=True):
     object_list = [("INP", A_blocks),
                    ("WGT", B_blocks),
                    ("ACC", X_blocks),
-                   ("OUT", C_blocks),
+                   ("OUT", ALU_blocks),
                    ("UOP", [])]
 
     # Get the offsets

@@ -35,7 +35,7 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
                 2. [Bi]: The B weight elements to load
                 3. [Xi]: The X accumulator elemments to load
                 4. [Mi]: The current elements within the SRAM ACC buffer
-                5. [Ti]: The temporary result to store in ACC region within DRAM
+                5. [Ti]: The temporary elements to load from OUT region within DRAM
                 6. [Ci]: The C output elements to store in OUT region within DRAM
                 7. [Operations]: The operations to perform at each step
     """
@@ -224,17 +224,11 @@ def strategy_1(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
                 + imm_alu_on_blocks(alu_operations, load_X)
 
             # Append the strategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]
-            if (other_alu == True):
-                strategy.append( (load_A, load_B, [], memory_status, load_X, [], ops) )
-            else:
-                strategy.append( (load_A, load_B, [], memory_status, [], load_X, ops) )
+            strategy.append( (load_A, load_B, [], memory_status, [], load_X, ops) )
         else: # Modify the last step
             last_step = strategy[-1]
             last_ops = last_step[6] + imm_alu_on_blocks(alu_operations, load_X)
-            if (other_alu == True): 
-                strategy[-1] = (last_step[0], last_step[1], last_step[2], last_step[3], load_X, [], last_ops)
-            else: 
-                strategy[-1] = (last_step[0], last_step[1], last_step[2], last_step[3], [], load_X, last_ops)
+            strategy[-1] = (last_step[0], last_step[1], last_step[2], last_step[3], [], load_X, last_ops)
 
     # Return the strategy
     return strategy
@@ -332,10 +326,7 @@ def strategy_2(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
             if strategy:
                 last_step = strategy[-1]
                 last_ops = last_step[6] + imm_alu_on_blocks(alu_operations, c_indices)
-                if (other_alu == True):
-                    strategy[-1] = (last_step[0], last_step[1], last_step[2], last_step[3], c_indices, [], last_ops)
-                else: 
-                    strategy[-1] = (last_step[0], last_step[1], last_step[2], last_step[3], [], c_indices, last_ops)
+                strategy[-1] = (last_step[0], last_step[1], last_step[2], last_step[3], [], c_indices, last_ops)
 
     return strategy
 
@@ -398,10 +389,7 @@ def strategy_3(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
                     + imm_alu_on_blocks(alu_operations, store_C)
 
                 # Append the strategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]
-                if (other_alu == True):
-                    strategy.append( (load_A, load_B, load_X, memory_status, store_C, [], ops) )
-                else: 
-                    strategy.append( (load_A, load_B, load_X, memory_status, [], store_C, ops) )
+                strategy.append( (load_A, load_B, load_X, memory_status, [], store_C, ops) )
             
     # Load the remainding C elements on the row
     if (remainder > 0):
@@ -438,10 +426,7 @@ def strategy_3(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
                     + imm_alu_on_blocks(alu_operations, store_C)
 
                 # Append the strategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]
-                if (other_alu == True):
-                    strategy.append( (load_A, load_B, load_X, memory_status, store_C, [], ops) )
-                else: 
-                    strategy.append( (load_A, load_B, load_X, memory_status, [], store_C, ops) )
+                strategy.append( (load_A, load_B, load_X, memory_status, [], store_C, ops) )
   
     # Return the strategy
     return strategy
@@ -501,10 +486,7 @@ def strategy_4(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
                     + imm_alu_on_blocks(alu_operations, store_C)
 
                 # Append the strategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]
-                if (other_alu == True):
-                    strategy.append( (load_A, load_B, load_X, memory_status, store_C, [], ops) )
-                else: 
-                    strategy.append( (load_A, load_B, load_X, memory_status, [], store_C, ops) )
+                strategy.append( (load_A, load_B, load_X, memory_status, [], store_C, ops) )
             
         # Load the remainding C elements on the row
         if (remainder > 0):
@@ -539,10 +521,7 @@ def strategy_4(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
                     + imm_alu_on_blocks(alu_operations, store_C)
 
                 # Append the strategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]
-                if (other_alu == True):
-                    strategy.append( (load_A, load_B, load_X, memory_status, store_C, [], ops) )
-                else: 
-                    strategy.append( (load_A, load_B, load_X, memory_status, [], store_C, ops) )
+                strategy.append( (load_A, load_B, load_X, memory_status, [], store_C, ops) )
   
     # Return the strategy
     return strategy
