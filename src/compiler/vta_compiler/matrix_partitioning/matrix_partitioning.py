@@ -29,13 +29,15 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
     Outputs:
         - isOverfitting (boolean): it is true if at least one matrix overfits the SRAM (i.e., a strategy is applied)
         - strategy (list of tuple): each tuple represents a computation step. 
-            The tuple is composed of 5 lists: ([Ci], [Ai], [Bi], [Xi], [Operations]). 
+            The tuple is composed of several lists: ([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations]). 
             Each list correspond to a specific action to perform at this step: 
-                1. the C elements to store, 
-                2. the A elements to load, 
-                3. the B elements to load, 
-                4. the X elements to load,
-                5. the operations to perform on each block.
+                1. [Ai]: The A input elements to load (int: block index / tuple: block idx, vector)
+                2. [Bi]: The B weight elements to load
+                3. [Xi]: The X accumulator elemments to load
+                4. [Mi]: The current elements within the SRAM ACC buffer
+                5. [Ti]: The temporary result to store in ACC region within DRAM
+                6. [Ci]: The C output elements to store in OUT region within DRAM
+                7. [Operations]: The operations to perform at each step
     """
     # Check strategy assumptions
     if not ( (acc_block_buffer_size == out_block_buffer_size) \
@@ -49,11 +51,12 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
                         \n\t nb_A%A_blocks_col = {nb_A%A_blocks_col} \
                         \n\t nb_B%B_blocks_col = {nb_B%B_blocks_col} \
                         \n\t nb_C%C_blocks_col = {nb_C%C_blocks_col} \n\n")
-    # if ( (nb_A//A_blocks_col != nb_C//C_blocks_col) or (B_blocks_col != C_blocks_col) or (nb_X != nb_C) ):
-    #     raise Exception(f"ERROR: Data are not consistent: results should be equal: \
-    #                     \n\t nb_A//A_blocks_col ({nb_A//A_blocks_col}) = nb_C//C_blocks_col ({nb_C//C_blocks_col}), \
-    #                     \n\t B_blocks_col ({B_blocks_col}) = C_blocks_col ({C_blocks_col}), \
-    #                     \n\t nb_X ({nb_X}) = nb_C ({nb_C})!\n\n")
+    if (nb_A != 0 and nb_B != 0):
+        if ( (nb_A//A_blocks_col != nb_C//C_blocks_col) or (B_blocks_col != C_blocks_col) or (nb_X != nb_C) ):
+            raise Exception(f"ERROR: Data are not consistent: results should be equal: \
+                            \n\t nb_A//A_blocks_col ({nb_A//A_blocks_col}) = nb_C//C_blocks_col ({nb_C//C_blocks_col}), \
+                            \n\t B_blocks_col ({B_blocks_col}) = C_blocks_col ({C_blocks_col}), \
+                            \n\t nb_X ({nb_X}) = nb_C ({nb_C})!\n\n")
 
 
     # Get the alu_imm operations 
@@ -66,6 +69,7 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
     other_alu_operations = []
     for i in range(nb_alu_imm, len(alu_operations)):
         other_alu_operations.append( alu_operations[i] )
+    nb_others = len( other_alu_operations )
 
     # Check if the data fits
     if ((nb_A > inp_block_buffer_size) or (nb_B > wgt_block_buffer_size) or (nb_C > out_block_buffer_size)):
@@ -82,7 +86,7 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
             'acc_block_buffer_size': acc_block_buffer_size,
             'out_block_buffer_size': out_block_buffer_size,
             'alu_operations': imm_operations, 
-            'idx_to_delete': idx_to_delete
+            'other_alu': True if (nb_others > 0) else False
         }
         
         # Apply the strategy:
@@ -103,11 +107,17 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
 
         # Step 0: perform GeMM and ALU IMM
         if (nb_A > 0 and nb_B > 0):
-            # Load the blocks
-            store_C = [i for i in range(0, nb_C)]
+            # Create the list to load and store
             load_A = [i for i in range(0, nb_A)]
             load_B = [i for i in range(0, nb_B)]
             load_X = [i for i in range(0, nb_X)]
+            memory_status = load_X
+            if (nb_others > 0):
+                store_X = [i for i in range(0, nb_C)]
+                store_C = []
+            else:
+                store_X = []
+                store_C = [i for i in range(0, nb_C)]
 
             # Get the GEMM operations
             ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, C_blocks_col)
@@ -115,9 +125,12 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
             ops = ops + imm_operations
 
             # Append
-            strategy.append( (store_C, load_A, load_B, load_X, ops) )
+            strategy.append( 
+                #     A,      B,      X,          SRAM,       T,       C, ops
+                (load_A, load_B, load_X, memory_status, store_X, store_C, ops) 
+            )
 
-        if (len(other_alu_operations) > 0):
+        if (nb_others > 0):
             pass
 
 
@@ -133,11 +146,11 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
             \n WGT: {nb_B} blocks (including B_blocks_col = {B_blocks_col}), \
             \n ACC=OUT: {nb_C} blocks (including C_blocks_col = {C_blocks_col})\n")
         print(f"\nDoes matrix overfit SRAM? {isOverfitting} \nThe strategy to address it: {strategy_selector}")
-        print(f"\nStrategy [([C], [A], [B], [X], [Operations])]: (nb of steps: {len(strategy)})")
+        print(f"\nStrategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]: (nb of steps: {len(strategy)})")
         for i, step in enumerate(strategy):
             print(f"\nStep {i}: {step}")
 
-    # Return if it is overfitting and the strategy [([Ci], [Ai], [Bi], [Xi])]
+    # Return if it is overfitting and the strategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]
     return isOverfitting, strategy
 
 
@@ -146,7 +159,7 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
 
 def strategy_1(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_col=1, nb_C=1, C_blocks_col=1,
                inp_block_buffer_size=4, wgt_block_buffer_size=32, acc_block_buffer_size=4, out_block_buffer_size=4,
-               alu_operations=[], idx_to_delete=[]):
+               alu_operations=[], other_alu=False):
     """
     Strategy 1 focuses on quickly compute one C element. It loads A row-by-row and B column-by-column.
     """
@@ -154,7 +167,7 @@ def strategy_1(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
     buffer_size = min(inp_block_buffer_size, wgt_block_buffer_size, acc_block_buffer_size, out_block_buffer_size)
 
     # Init strategy
-    strategy = [] # (C, A, B, X)
+    strategy = [] # [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]
 
     # Define the delta 
     delta = min(buffer_size, A_blocks_col)
@@ -166,6 +179,7 @@ def strategy_1(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
     for idx in range(0, nb_C):
         # Load / store X
         load_X = [idx]
+        memory_status = load_X
 
         # Get i and j (idx = B_blocks_col * i + j)
         i, j = euclidian_division(idx, B_blocks_col)
@@ -187,11 +201,11 @@ def strategy_1(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
             # Get the operations
             ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, C_blocks_col)
             
-            # Append the strategy (C, A, B, X, Operations)
+            # Append the strategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]
             if (idx_delta == 0): # First: load X
-                strategy.append( ([], load_A, load_B, load_X, ops) )
+                strategy.append( (load_A, load_B, load_X, memory_status, [], [], ops) )
             else: # Then, accumulate
-                strategy.append( ([], load_A, load_B, [], ops) )
+                strategy.append( (load_A, load_B, [], memory_status, [], [], ops) )
         
         # Load the remainding A and B blocks
         if (remainder > 0):
@@ -209,12 +223,18 @@ def strategy_1(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
             ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, C_blocks_col) \
                 + imm_alu_on_blocks(alu_operations, load_X)
 
-            # Append the strategy (C, A, B, X, Operations)
-            strategy.append( (load_X, load_A, load_B, [], ops) )
+            # Append the strategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]
+            if (other_alu == True):
+                strategy.append( (load_A, load_B, [], memory_status, load_X, [], ops) )
+            else:
+                strategy.append( (load_A, load_B, [], memory_status, [], load_X, ops) )
         else: # Modify the last step
             last_step = strategy[-1]
-            last_ops = last_step[4] + imm_alu_on_blocks(alu_operations, load_X)
-            strategy[-1] = (load_X, last_step[1], last_step[2], last_step[3], last_ops)
+            last_ops = last_step[6] + imm_alu_on_blocks(alu_operations, load_X)
+            if (other_alu == True): 
+                strategy[-1] = (last_step[0], last_step[1], last_step[2], last_step[3], load_X, [], last_ops)
+            else: 
+                strategy[-1] = (last_step[0], last_step[1], last_step[2], last_step[3], [], load_X, last_ops)
 
     # Return the strategy
     return strategy
@@ -224,7 +244,7 @@ def strategy_1(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
 
 def strategy_2(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_col=1, nb_C=1, C_blocks_col=1,
                inp_block_buffer_size=4, wgt_block_buffer_size=32, acc_block_buffer_size=4, out_block_buffer_size=4,
-               alu_operations=[], idx_to_delete=[]):
+               alu_operations=[], other_alu=False):
     """
     Strategy 2 performs region-based computation, tiling matrices into smaller square regions.
     """
@@ -305,14 +325,17 @@ def strategy_2(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
                 # Get the operations
                 ops = get_operations(a_indices, b_indices, A_blocks_col, B_blocks_col, C_blocks_col)
                 
-                # Append the strategy (Store C, Load A, Load B, Load X, Operations)
-                strategy.append(([], a_indices, b_indices, load_X, ops))
+                # Append the strategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]
+                strategy.append((a_indices, b_indices, load_X, x_indices, [], [], ops))
 
             # Finally, store C_ij
             if strategy:
                 last_step = strategy[-1]
-                last_ops = last_step[4] + imm_alu_on_blocks(alu_operations, c_indices)
-                strategy[-1] = (c_indices, last_step[1], last_step[2], last_step[3], last_ops)
+                last_ops = last_step[6] + imm_alu_on_blocks(alu_operations, c_indices)
+                if (other_alu == True):
+                    strategy[-1] = (last_step[0], last_step[1], last_step[2], last_step[3], c_indices, [], last_ops)
+                else: 
+                    strategy[-1] = (last_step[0], last_step[1], last_step[2], last_step[3], [], c_indices, last_ops)
 
     return strategy
 
@@ -321,7 +344,7 @@ def strategy_2(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
 
 def strategy_3(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_col=1, nb_C=1, C_blocks_col=1,
                inp_block_buffer_size=4, wgt_block_buffer_size=32, acc_block_buffer_size=4, out_block_buffer_size=4,
-               alu_operations=[], idx_to_delete=[]):
+               alu_operations=[], other_alu=False):
     """
     Strategy 3 computes C column-by-column. It loads A column-by-column and single element of B.
     """
@@ -329,7 +352,7 @@ def strategy_3(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
     buffer_size = min(inp_block_buffer_size, wgt_block_buffer_size, acc_block_buffer_size, out_block_buffer_size)
 
     # Init strategy
-    strategy = [] # (C, A, B, X)
+    strategy = [] # [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]
 
     # Define C_blocks_row
     C_blocks_row = nb_C//C_blocks_col
@@ -361,6 +384,7 @@ def strategy_3(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
                     # Load X only the first time, then accumulate
                     if (k==0):
                         load_X.append( i * C_blocks_col + j )
+                    memory_status = load_X if (len(load_X) > 0) else memory_status
                     
                     # Load A 
                     load_A.append( i * A_blocks_col + k )
@@ -373,8 +397,11 @@ def strategy_3(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
                 ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, C_blocks_col) \
                     + imm_alu_on_blocks(alu_operations, store_C)
 
-                # Append the strategy (C, A, B, X, Operations)
-                strategy.append( (store_C, load_A, load_B, load_X, ops) )
+                # Append the strategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]
+                if (other_alu == True):
+                    strategy.append( (load_A, load_B, load_X, memory_status, store_C, [], ops) )
+                else: 
+                    strategy.append( (load_A, load_B, load_X, memory_status, [], store_C, ops) )
             
     # Load the remainding C elements on the row
     if (remainder > 0):
@@ -397,6 +424,7 @@ def strategy_3(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
                     # Load X only the first time, then accumulate
                     if (k==0):
                         load_X.append( i * C_blocks_col + j )
+                    memory_status = load_X if (len(load_X) > 0) else memory_status
                     
                     # Load A 
                     load_A.append( i * A_blocks_col + k )
@@ -409,8 +437,11 @@ def strategy_3(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
                 ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, C_blocks_col) \
                     + imm_alu_on_blocks(alu_operations, store_C)
 
-                # Append the strategy (C, A, B, X, Operations)
-                strategy.append( (store_C, load_A, load_B, load_X, ops) )
+                # Append the strategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]
+                if (other_alu == True):
+                    strategy.append( (load_A, load_B, load_X, memory_status, store_C, [], ops) )
+                else: 
+                    strategy.append( (load_A, load_B, load_X, memory_status, [], store_C, ops) )
   
     # Return the strategy
     return strategy
@@ -419,7 +450,7 @@ def strategy_3(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
 
 def strategy_4(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_col=1, nb_C=1, C_blocks_col=1,
                inp_block_buffer_size=4, wgt_block_buffer_size=32, acc_block_buffer_size=4, out_block_buffer_size=4,
-               alu_operations=[], idx_to_delete=[]):
+               alu_operations=[], other_alu=False):
     """
     Strategy 4 computes C row-by-row. It loads single element of A and B row-by-row.
     """
@@ -456,6 +487,7 @@ def strategy_4(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
                     # Load X only the first time, then accumulate
                     if (k==0):
                         load_X.append( i * C_blocks_col + j )
+                    memory_status = load_X if (len(load_X) > 0) else memory_status
                     
                     # Load B (B_blocks_col = C_blocks_col)
                     load_B.append( k * B_blocks_col + j )
@@ -468,8 +500,11 @@ def strategy_4(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
                 ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, C_blocks_col) \
                     + imm_alu_on_blocks(alu_operations, store_C)
 
-                # Append the strategy (C, A, B, X, Operations)
-                strategy.append( (store_C, load_A, load_B, load_X, ops) )
+                # Append the strategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]
+                if (other_alu == True):
+                    strategy.append( (load_A, load_B, load_X, memory_status, store_C, [], ops) )
+                else: 
+                    strategy.append( (load_A, load_B, load_X, memory_status, [], store_C, ops) )
             
         # Load the remainding C elements on the row
         if (remainder > 0):
@@ -490,6 +525,7 @@ def strategy_4(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
                     # Load X only the first time, then accumulate
                     if (k==0):
                         load_X.append( i * C_blocks_col + j )
+                    memory_status = load_X if (len(load_X) > 0) else memory_status
                     
                     # Load B (B_blocks_col = C_blocks_col)
                     load_B.append( k * B_blocks_col + j )
@@ -502,8 +538,11 @@ def strategy_4(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
                 ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, C_blocks_col) \
                     + imm_alu_on_blocks(alu_operations, store_C)
 
-                # Append the strategy (C, A, B, X, Operations)
-                strategy.append( (store_C, load_A, load_B, load_X, ops) )
+                # Append the strategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]
+                if (other_alu == True):
+                    strategy.append( (load_A, load_B, load_X, memory_status, store_C, [], ops) )
+                else: 
+                    strategy.append( (load_A, load_B, load_X, memory_status, [], store_C, ops) )
   
     # Return the strategy
     return strategy
