@@ -42,6 +42,50 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     }
   }
 
+  // Testing reverseLE for int16 vectors
+  it should "reverse correctly an INP vector (int16)" in {
+    // Works if precision is changed to 16 in DataType.INP in BinaryReader
+    val bitLength = DataType.INP.precision(0)
+    require(DataType.INP.precision(0) == 16, s"Binary length should be 16-bit but is $bitLength")
+    val inp = Array("00", "01", "02", "03", "04", "05", "06", "07", "FF", "FE", "FD", "FC", "FB", "FA", "10", "11").map(hex => Integer.parseInt(hex, 16).toByte)
+    val inp_ref = Array(Array("01", "00", "03", "02", "05", "04", "07", "06", "FE", "FF", "FC", "FD", "FA", "FB", "11", "10").map(hex => Integer.parseInt(hex, 16).toByte))
+    inp_ref should equal(reverseLE(inp, DataType.INP))
+  }
+
+  // Testing computeAddresses for int16 vectors
+  it should "decode correctly an INP vector (int16)" in {
+    // Works if precision is changed to 16 in DataType.INP in BinaryReader
+    val bitLength = DataType.INP.precision(0)
+    require(DataType.INP.precision(0) == 16, s"Binary length should be 16-bit but is $bitLength")
+    val inp_int16 = computeAddresses("examples_compute/int16/input.bin", DataType.INP, "00000000", isDRAM = false, fromResources = true)
+    val inp0_ref =  Array(0, -3, 2, -2, -4, 0, -4, 2, -2, -1, -4, -2, -4, -3, -1, 2)
+    val inp15_ref = Array(1, -4, -2, -1,  0,  1, -3,  2, -3,  0,  2,  0,  0, -1, -4,  0)
+    inp_int16 match {
+      case Success(data) =>
+        data(0) should equal(inp0_ref)
+        data(15) should equal(inp15_ref)
+      case Failure(exception) =>
+        fail(s"Error while computing addresses for INP (int16) : ${exception.getMessage}")
+    }
+  }
+
+  // Testing computeAddresses for int32 vectors
+  it should "decode correctly an INP vector (int32)" in {
+    // Works if precision is changed to 32 in DataType.INP in BinaryReader
+    val bitLength = DataType.INP.precision(0)
+    require(DataType.INP.precision(0) == 32, s"Binary length should be 32-bit but is $bitLength")
+    val inp_int32 = computeAddresses("examples_compute/int32/input.bin", DataType.INP, "00000000", isDRAM = false, fromResources = true)
+    val inp0_ref =  Array(2, -3,  1, -3, -4, -4, -4, -4, -1, -2, -1, -4, -3, -1,  1, -3)
+    val inp15_ref = Array(-3, -1, -4, -2, -3, -2, -2, -1, 2,  0, 1, -4, -3,  1, -4, -2)
+    inp_int32 match {
+      case Success(data) =>
+        data(0) should equal(inp0_ref)
+        data(15) should equal(inp15_ref)
+      case Failure(exception) =>
+        fail(s"Error while computing addresses for INP (int32) : ${exception.getMessage}")
+    }
+  }
+
   it should "decode the vectors 0 and 16 and 32 of INP in 32x32_relu" in {
     val result = computeAddresses("examples_compute/32x32_relu/input.bin", DataType.INP, "00000000", isDRAM = false, fromResources = true)
     val inp0 = Array("02",
@@ -1215,6 +1259,68 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
         data(3) should equal(wgtVec_3)
       case Failure(exception) =>
         fail(s"Error while computing addresses for WGT : ${exception.getMessage}")
+    }
+  }
+
+  it should "decode a WGT vector int16" in {
+    // Works if precision is changed to 16 in DataType.INP in BinaryReader
+    val bitLength = DataType.WGT.precision(0)
+    require(DataType.WGT.precision(0) == 16, s"Binary length should be 16-bit but is $bitLength")
+    val wgt_int16 = computeAddresses("examples_compute/int16/weight.bin", DataType.WGT, "00000000", isDRAM = false, fromResources = true)
+    val wgt0_ref = Array(
+      Array(-1, 2, -1, -2, 1, -3, 0, 0, 1, -2, 0, -2, 1, 2, 0, 1),
+      Array(2, -2, -3, -2, -2, 2, 1, -4, -1, -1, -3, 0, 1, 1, -2, 0),
+      Array(-4, -1, -2, 1, -1, 2, 2, 1, -3, 0, 1, -3, -3, 1, 0, -4),
+      Array(-2, 0, -1, -3, -4, 0, 0, -3, -4, -3, 0, -2, 0, -1, -2, -4),
+      Array(0, -3, 2, -3, -1, 1, -1, 1, -2, -2, 2, -1, -3, 2, -2, 1),
+      Array(-3, -1, -4, -4, -2, -4, 0, -4, 2, -1, 2, 0, 0, -2, 0, 0),
+      Array(1, -3, 2, -1, -4, -4, -2, 1, 2, 2, 2, 0, -3, -2, -3, -3),
+      Array(-2, -4, -2, 2, 2, -3, 0, -3, 0, 2, -2, -1, 2, 1, 1, 2),
+      Array(0, 1, 0, 1, -4, -4, 2, -3, 0, 0, -4, -2, 1, -2, -4, 0),
+      Array(0, -3, 1, -1, 2, 2, -4, -1, -2, -3, -1, 0, 1, -3, -2, -4),
+      Array(-2, -4, 1, -3, 0, 1, -3, -4, -3, 2, -4, 2, -4, -2, 2, 2),
+      Array(1, 2, -2, 1, -4, -1, -4, -3, -3, -3, -4, 2, 1, -1, 2, -3),
+      Array(-3, -2, 0, 0, 2, 0, -2, -4, 2, 0, 0, -1, -4, 0, 2, -1),
+      Array(-2, 0, -1, -1, -1, 2, -3, 1, -3, 1, 2, 1, 2, 1, 1, -1),
+      Array(-2, -1, 0, 1, -2, -2, 1, -3, 2, 0, 1, 1, -4, 2, -3, -3),
+      Array(1, -2, 2, -3, 0, -3, 2, -3, 2, -1, -1, 2, 0, -3, -4, -2)
+    ).flatten.map(BigInt(_))
+    wgt_int16 match {
+      case Success(data) =>
+        data(0) should equal(wgt0_ref)
+      case Failure(exception) =>
+        fail(s"Error while computing addresses for WGT (int16) : ${exception.getMessage}")
+    }
+  }
+
+  it should "decode a WGT vector int32" in {
+    // Works if precision is changed to 32 in DataType.INP in BinaryReader
+    val bitLength = DataType.WGT.precision(0)
+    require(DataType.WGT.precision(0) == 32, s"Binary length should be 32-bit but is $bitLength")
+    val wgt_int32 = computeAddresses("examples_compute/int32/weight.bin", DataType.WGT, "00000000", isDRAM = false, fromResources = true)
+    val wgt0_ref = Array(
+      Array(-1, 2, -4, 1, -1, -2, 0, -4, -1, -3, -3, -2, 0, -2, -4, -3),
+      Array(-1, -3, -3, 2, -4, -2, 1, -1, 2, 1, -1, -1, -3, -1, -4, 2),
+      Array(-2, 2, 1, -2, 1, 1, 0, -4, -2, 2, -4, 2, 0, -4, -3, -3),
+      Array(-2, 1, 2, -2, -3, 0, -1, 1, 1, 1, -3, -1, 0, 2, -1, -1),
+      Array(2, -3, -3, -4, 1, 2, 0, 1, -2, -2, -3, -3, -1, -1, 0, 0),
+      Array(-1, -4, 1, -2, -4, -3, -1, 0, 0, -1, 2, -1, 0, 1, 0, -2),
+      Array(-4, 0, -1, -3, 1, 2, -3, 0, 2, -2, -1, -3, 1, 1, -2, 2),
+      Array(0, -2, -3, -1, 1, 0, -1, -2, -4, -4, -1, 1, 0, -1, -4, -2),
+      Array(1, -3, -1, 0, 2, 0, 1, 2, -4, 2, -3, 1, -3, -4, -4, -2),
+      Array(0, -3, -2, -1, -1, 0, 1, -3, 1, -4, 1, -4, -2, -4, -4, 1),
+      Array(0, -3, 2, -2, 2, -4, -3, 0, 1, 1, 2, -1, -2, -1, 1, -1),
+      Array(-4, -3, 0, -3, -2, 1, -2, -2, 0, 2, -2, -1, 2, -1, -2, 1),
+      Array(-2, 0, 0, -1, -4, -1, -1, 0, 2, -2, -4, -2, -4, -2, -1, -4),
+      Array(-2, -2, 1, -1, 1, 0, 2, -4, 0, -1, -2, -3, -3, 0, -3, -3),
+      Array(2, -3, 1, -2, -2, 2, -3, -4, -4, 2, 2, 0, -3, 1, 0, -1),
+      Array(-3, 0, 0, -4, 2, 1, 1, 2, -1, -2, -1, -2, 1, -3, 0, 0)
+    ).flatten.map(BigInt(_))
+    wgt_int32 match {
+      case Success(data) =>
+        data(0) should equal(wgt0_ref)
+      case Failure(exception) =>
+        fail(s"Error while computing addresses for WGT (int32) : ${exception.getMessage}")
     }
   }
 

@@ -1,7 +1,11 @@
 package util
 
+import vta.core
+import vta.core.CoreParams
+
 import java.io.{File, FileInputStream, InputStream}
 import scala.collection.convert.ImplicitConversions.`map AsJavaMap`
+import scala.language.postfixOps
 import scala.math.pow
 import scala.util.{Failure, Success, Try}
 
@@ -13,14 +17,18 @@ object BinaryReader {
    * CHISEL encoding
    */
   object DataType extends Enumeration {
-    private def samePrecision(x:Int): Map[Int,Int] = Map.empty.withDefaultValue(x)
-    class DataTypeValue(val id: Int, val nbValues: Int, val precision: Map[Int,Int], val doReversal: Boolean) extends Value
-    val INP: DataTypeValue = new DataTypeValue(0, 16, samePrecision(8), false)
-    val WGT: DataTypeValue = new DataTypeValue(1, 256, samePrecision(8), false)
-    val OUT: DataTypeValue = new DataTypeValue(2, 16, samePrecision(8), false)
-    val UOP: DataTypeValue = new DataTypeValue(3, 3, Map(0 -> 11, 1 -> 11, 2 -> 10), true)
-    val ACC: DataTypeValue = new DataTypeValue(4, 16, samePrecision(32), true)
-    val INSN: DataTypeValue = new DataTypeValue(5, 1, samePrecision(128), true)
+    private def samePrecision(x: Int): Map[Int, Int] = Map.empty.withDefaultValue(x)
+
+    class DataTypeValue(val id: Int, val nbValues: Int, val precision: Map[Int, Int]) extends Value
+
+    val params = computeJSONFile("vta_config.json", fromResources = false)
+
+    val INP: DataTypeValue = new DataTypeValue(0, params("LOG_BLOCK"), samePrecision(params("LOG_INP_WIDTH")))
+    val WGT: DataTypeValue = new DataTypeValue(1, params("LOG_BLOCK") * params("LOG_BLOCK"), samePrecision(params("LOG_WGT_WIDTH")))
+    val OUT: DataTypeValue = new DataTypeValue(2, params("LOG_BLOCK"), samePrecision(params("LOG_INP_WIDTH")))
+    val UOP: DataTypeValue = new DataTypeValue(3, 3, Map(0 -> 11, 1 -> 11, 2 -> 10))
+    val ACC: DataTypeValue = new DataTypeValue(4, params("LOG_BLOCK"), samePrecision(params("LOG_ACC_WIDTH")))
+    val INSN: DataTypeValue = new DataTypeValue(5, 1, samePrecision(128))
   }
 
   import DataType._
@@ -82,24 +90,41 @@ object BinaryReader {
         s = dataType.precision(i)
       } yield
         s).sum
-    if (dataType.id != ACC.id)
+    if (dataType.id == UOP.id || dataType.id == INSN.id) {
       for {
         inst <- binaryData.grouped(sizeOfElement / 8).toArray
-      } yield {
-        if (dataType.doReversal)
-          inst.reverse
-        else
-          inst
-      }
-    else { // For ACC, data size is 32 bits instead of 8
-      {
-        for {
-          inst <- binaryData.grouped(4).toArray
-        } yield {
-          inst.reverse
-        }
-      }.flatten.grouped(64).toArray // Size of 1 ACC vector = 4 Bytes * 16 = 64 Bytes
+      } yield { inst.reverse }
     }
+    else if (dataType.precision(0) > 8) {
+      for {
+        inst <- binaryData.grouped(dataType.precision(0) / 8).toArray // 4 pour acc
+      } yield {
+        inst.reverse
+      }
+    }.flatten.grouped(sizeOfElement).toArray // Size of 1 ACC vector = 4 Bytes * 16 = 64 Bytes
+    else {
+      for {
+        inst <- binaryData.grouped(sizeOfElement / 8).toArray
+      } yield inst
+    }
+//    if (dataType.id != ACC.id)
+//      for {
+//        inst <- binaryData.grouped(sizeOfElement / 8).toArray
+//      } yield {
+//        if (dataType.doReversal)
+//          inst.reverse
+//        else
+//          inst
+//      }
+//    else { // For ACC, data size is 32 bits instead of 8
+//      {
+//        for {
+//          inst <- binaryData.grouped(4).toArray
+//        } yield {
+//          inst.reverse
+//        }
+//      }.flatten.grouped(64).toArray // Size of 1 ACC vector = 4 Bytes * 16 = 64 Bytes
+//    }
   }
 
   /**
@@ -253,12 +278,10 @@ object BinaryReader {
     val baseAddrBigInt = BigInt(baseAddress,16) // Value of base address in BigInt
     groupedBinaryData match {
       case Success(data) =>
-        val ungroupedBits = // Flattened array containing all the bits of the binary file after reversal
+        val flattenedBits = // Flattened array containing all the bits of the binary file after LE reversal
           for {
             byte <- data.flatten
           } yield {
-            //println(String.format("%8s", java.lang.Integer.toBinaryString(byte & 0xFF)).replace(' ', '0'))
-            //"0" * (8 - byte.toBinaryString.length) + byte.toBinaryString
             String.format("%8s", java.lang.Integer.toBinaryString(byte & 0xFF)).replace(' ', '0')
           }
         // Number of bits in 1 element (32 bits for 1 UOP...)
@@ -268,11 +291,10 @@ object BinaryReader {
             s = dataType.precision(i)
           } yield
             s).sum
-        // An array containing all the individual bits in groups of the size of the element (ex. 1 UOP)
-        val arrayBits = ungroupedBits.flatMap(_.toList.map(_.toString)).grouped(sizeOfElement).toArray
-        //arrayBits.map(_.mkString(", ")).foreach(println)
+        // An array containing all the individual bits in groups of the size of the element (e.g. 1 INP int8 = 8 * 16 bits)
+        val groupedBits = flattenedBits.flatMap(_.toList.map(_.toString)).grouped(sizeOfElement).toArray
         // Returns an array with nbValues groups of size precision
-        val reversePrecision = Map(0 -> 10, 1 -> 11, 2 -> 11)
+        val reversePrecision = Map(0 -> 10, 1 -> 11, 2 -> 11) // For UOP reversal
         def groupByElemSize(arr: Array[String], index: Int): Array[String] = {
           if (index < dataType.nbValues) {
             if (dataType.id == UOP.id)
@@ -282,42 +304,51 @@ object BinaryReader {
           } else
             arr
         }
-        // [ ["11 bits", "11 bits", "10 bits"], [...], ... ]
-        val groupedArrayBit = {
+        // An array of arrays containing nbValues groups of size bit-length (precision) (e.g. 16 arrays containing 16 8-bit strings for an INP block)
+        // [ ["11 bits", "11 bits", "10 bits"], [...], ... ] for UOP
+        val vectorsBits = {
           for {
-            elem <- arrayBits
+            elem <- groupedBits
           } yield {
-            //println(elem.mkString("Array(", ", ", ")"))
-            //println(groupByElemSize(elem, 0).mkString("Array(", ", ", ")"))
             groupByElemSize(elem, 0)
           }
         }
-        //groupedArrayBit.map(_.mkString(", ")).foreach(println)
-        val groupedArrayBit2 =
-          if (dataType.id == UOP.id)
-            groupedArrayBit.map(_.reverse)
-          else
-            groupedArrayBit
-        //groupedArrayBit2.map(_.mkString(", ")).foreach(println)
-        // Converts the values to BigInt (included in [-128, 128], except for ACC)
-        val groupedByElemSizeBI = groupedArrayBit2.map(_.map(BigInt(_, 2)).map {bigInt =>
-          if (bigInt >= 128 && dataType.id != INSN.id && dataType.id != ACC.id && dataType.id != UOP.id) bigInt - 256
-          else bigInt})
-        val correctedGrouped = groupedByElemSizeBI.map(_.map {bigInt =>
-          if (dataType.id == ACC.id && bigInt >= 128)
-            BigInt(bigInt.intValue)
-          else
-            bigInt
-        })
+        // Additional reversal step for UOP
+        val correctedVectorsBits =
+          vectorsBits.map(elem => if (dataType.id == UOP.id) elem.reverse else elem)
+        // Converts the bits to signed Int8
+        def convertToInt8Signed(hexArray: Array[String]): Array[BigInt] = {
+          hexArray.map { hex =>
+            val bitLength = hex.length
+            require(bitLength == 8 || bitLength == 16 || bitLength == 32, s"Binary length should be 8, 16 or 32-bit but is $bitLength")
+
+            val last8Bits =
+              if (bitLength <= 8) hex
+              else hex.takeRight(8)
+
+            val decimal = Integer.parseInt(last8Bits, 2)
+            if (decimal >= 128) {
+              BigInt((decimal - 256).toByte)
+            } else {
+              BigInt(decimal.toByte)
+            }
+          }
+        }
+        val convertedArray = {
+          if (dataType.id == UOP.id || dataType.id == INSN.id) {
+            correctedVectorsBits.map(_.map(BigInt(_, 2)))
+          }
+          else {
+            correctedVectorsBits.map(convertToInt8Signed)
+          }
+        }
         // [ (address, [11 bits, 11 bits, 10 bits]), (...), ... ]
         // Assigns an address to each element
         val map = {
           for {
-            (d, i) <- correctedGrouped.zipWithIndex
+            (d, i) <- convertedArray.zipWithIndex
           } yield {
             if (!isDRAM) { // Logical address for data types INP, WGT, OUT, INSN
-              //println(d(0).toString(2))
-              //println(BigInt(i) + baseAddrBigInt)
               (BigInt(i) + baseAddrBigInt) -> d
             } else { // Physical address if data type is UOP or ACC
               (baseAddrBigInt + BigInt(sizeOfElement/8 * i)) -> d
@@ -332,7 +363,6 @@ object BinaryReader {
             map
           }
         }
-        //println(result.size + " " + dataType)
         Success(result)
       case Failure(exception) =>
         println(s"Error while computing addresses : ${exception.getMessage}")
