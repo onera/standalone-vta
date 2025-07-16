@@ -104,7 +104,7 @@ def main(operations_dict, vta_config_dict, debug=True):
                                inp_block_buffer_size=inp_block_buffer_size, wgt_block_buffer_size=wgt_block_buffer_size, 
                                acc_block_buffer_size=acc_block_buffer_size, out_block_buffer_size=out_block_buffer_size,
                                alu_operations=alu_operations, idx_to_delete=idx_to_delete,
-                               strategy_selector=1, 
+                               strategy_selector=1, block_size=block_size,
                                debug=debug)
 	
 

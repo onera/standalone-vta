@@ -11,7 +11,7 @@ import numpy as np
 def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_col=1, nb_C=1, C_blocks_col=1,
                         inp_block_buffer_size=4, wgt_block_buffer_size=32, acc_block_buffer_size=4, out_block_buffer_size=4,
                         alu_operations=[], idx_to_delete=[],
-                        strategy_selector=1,
+                        strategy_selector=1, block_size=16,
                         debug=True):
     """
     The function checks if any matrix (A, B, X, C) is overfitting.
@@ -105,8 +105,11 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
         isOverfitting = False
         strategy = []
 
+        # Is there a GeMM operation
+        doGemm = True if (nb_A > 0 and nb_B > 0) else False
+
         # Step 0: perform GeMM and ALU IMM
-        if (nb_A > 0 and nb_B > 0):
+        if (doGemm):
             # Create the list to load and store
             load_A = [i for i in range(0, nb_A)]
             load_B = [i for i in range(0, nb_B)]
@@ -129,9 +132,12 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
                 #     A,      B,      X,          SRAM,       T,       C, ops
                 (load_A, load_B, load_X, memory_status, store_X, store_C, ops) 
             )
+        else:
+            other_alu_operations = imm_operations + other_alu_operations
 
         if (nb_others > 0):
-            pass
+            strategy += alu_strategy(acc_block_buffer_size=acc_block_buffer_size, out_block_buffer_size=out_block_buffer_size, block_size=block_size,
+                                     alu_operations=other_alu_operations, isFollowingGemm=doGemm)
 
 
     # Debug
@@ -526,6 +532,183 @@ def strategy_4(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
     # Return the strategy
     return strategy
 
+
+###############################################
+
+def alu_strategy(acc_block_buffer_size=4, out_block_buffer_size=4, block_size=16,
+                 alu_operations=[], isFollowingGemm=True):
+    # Get the minimal size of the buffer multiple by block_size to have the number of vectors
+    buffer_size = min(acc_block_buffer_size, out_block_buffer_size) * block_size
+
+    # Init the strategy
+    strategy = []
+
+    # Iterate over the alu_ops
+    for i, alu_ops in enumerate(alu_operations):
+        # Check the type of operation
+        if (alu_ops[0].endswith("_IMM") or alu_ops[0] == "RELU"):
+
+            # Define the steps
+            for tuple_idx in range(0, len(alu_ops[2]), buffer_size):
+                # Get the element to work on
+                vector_to_load = [ alu_ops[2][tuple_idx:tuple_idx+buffer_size] ]
+                # Define the ops to perform
+                ops = [alu_ops[0]] + [alu_ops[1]] + [vector_to_load]
+
+                # Append the strategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]
+                if (isFollowingGemm == False and i == 0):
+                    strategy.append(
+                        ([], [], vector_to_load, vector_to_load, [], vector_to_load, ops)
+                    )
+                else:
+                    strategy.append(
+                        ([], [], [], vector_to_load, vector_to_load, vector_to_load, ops)
+                    )
+
+        # NOT IMM ALU
+        else: 
+            # Split the operations
+            split_ops = split_alu_operations(alu_ops[2], buffer_size)
+            current_dst = []
+
+            # Iterate over the different splits
+            for split_idx, split in enumerate(split_ops):
+                # Get the vector to load and store
+                vector_to_store = split[2]
+                vector_to_load = split[1]
+
+                # Get the memory_state
+                if (len(split[0])==0):
+                    memory_state = current_dst + vector_to_load
+                else:
+                    memory_state = vector_to_load
+                    current_dst = split[0]
+                
+                # Define the ops to perform
+                current_ops = alu_ops[2].copy()
+                current_ops = filter_ops_by_memory_state(current_ops, memory_state)
+                ops = [alu_ops[0]] + [alu_ops[1]] + [current_ops]
+
+                # Append the strategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]
+                if (isFollowingGemm == False and i == 0):
+                    strategy.append(
+                        ([], [], vector_to_load, memory_state, [], vector_to_store, ops)
+                    )
+                else:
+                    strategy.append(
+                        ([], [], [], memory_state, vector_to_load, vector_to_store, ops)
+                    )
+                
+    # Return the strategy
+    return strategy
+
+# ---------------------------------------------
+
+def split_alu_operations(data_list, n):
+    if n <= 0:
+        raise ValueError("Value of n must be positive!")
+
+    # The list to load
+    item_list = []
+
+    # The local parameters
+    current_step = []
+    current_key = []
+    current_capacity = n
+
+    for key, values_list in data_list:
+        item_cost = 1 + len(values_list)
+
+        # CASE 1: the item is too big to fit a step 
+        if item_cost > n:
+            # Finalise the current step if it exists
+            if current_step:
+                item_list.append(
+                    (current_key, current_step, [])
+                )
+            
+            # First step is the split with the key and the n-first elements
+            step_with_key = [key] + values_list[:n - 1]
+            item_list.append(
+                ([key], step_with_key, [])
+            )
+            
+            # Load the remaining steps (n by n)
+            remaining_value = values_list[n - 1:]
+            for i in range(0, len(remaining_value), n-1):
+                item_list.append(
+                    ([], remaining_value[i:i + n-1], [])
+                )
+            
+            # Update the last item
+            last_item = item_list[-1]
+            item_list[-1] = ([], last_item[1], [key])
+            
+            # At the end, reset the list and the capacity
+            current_step = []
+            current_key = []
+            current_capacity = n
+            continue
+
+        # CASE 2: the new item does not fit in the step -> new step
+        if item_cost > current_capacity:
+            item_list.append(
+                (current_key, current_step, current_key)
+            )
+            current_step = [key] + values_list
+            current_key = [key]
+            current_capacity = n - item_cost
+        
+        # CASE 3: the item fits in the current step -> append
+        else:
+            current_step.extend([key] + values_list)
+            current_key.append(key)
+            current_capacity -= item_cost
+
+    # Add the last step to the list
+    if current_step:
+        item_list.append(
+            (current_key, current_step, current_key)
+        )
+    
+    # Return the item_list
+    return item_list
+
+# ---------------------------------------------
+
+def filter_ops_by_memory_state(ops_list, memory_state):
+  """
+  Filters a list of operations to keep only the keys and values
+  present in the memory state.
+
+  Args:
+    ops_list: The list of operations in the format [((key), [values]), ...].
+    memory_state: A list of the tuples present in memory.
+
+  Returns:
+    A new, filtered list.
+  """
+  # Convert memory_state to a set for much faster lookups (O(1) on average)
+  memory_set = set(memory_state)
+  
+  filtered_ops_list = []
+  
+  # Iterate through each block (key, values_list)
+  for key, values_list in ops_list:
+    
+    # 1. Only process the block if its key is present in the memory state
+    if key in memory_set:
+      
+      # 2. If so, filter the associated values list
+      filtered_values = [
+          value for value in values_list if value in memory_set
+      ]
+      
+      # 3. If the filtered list of values is not empty, add the new entry to the result
+      if filtered_values:
+        filtered_ops_list.append((key, filtered_values))
+        
+  return filtered_ops_list
 
 ###############################################
 
