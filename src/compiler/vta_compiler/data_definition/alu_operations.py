@@ -165,7 +165,12 @@ def create_alu_operations_list(operations_dict, nb_C_blocks=1, C_blocks_col=1, b
                         block_information.append( ((dst_block_idx+col, dst_row), (src_block_idx+col, src_row)) )
 
             # Append the current alu_ops
-            alu_ops.append(block_information)
+            if (nb_iteration > 0):
+                alu_ops.append(block_information)
+
+            # Sort the alu_ops
+            alu_ops = sort_alu_operations(alu_ops)
+
             # Append the list with the current alu_ops
             alu_operations_list.append(alu_ops)
 
@@ -246,3 +251,23 @@ def delete_matrix_row(input_blocks, blocks_col=1, block_size=16, idx_to_delete=[
     
     # Return the blocks and the sorted idx_to_delete
     return blocks, idx_to_delete
+
+# ---------------------------------------------
+
+# SORT_ALU_OPERATIONS
+# -------------------
+def sort_alu_operations(alu_ops):
+    # Check if it is a IMM or RELU
+    if (alu_ops[0].endswith("_IMM") or alu_ops[0] == "RELU"):
+        # Do nothing
+        pass
+    else:
+        # Gather the DST vector together
+        dict_ops = {}
+        for key, value in alu_ops[2]:
+            dict_ops.setdefault(key, []).append(value)
+
+        # Convert dict_ops in a list
+        alu_ops[2] = list( dict_ops.items() )
+
+    return alu_ops

@@ -54,22 +54,22 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
     #                     \n\t nb_A//A_blocks_col ({nb_A//A_blocks_col}) = nb_C//C_blocks_col ({nb_C//C_blocks_col}), \
     #                     \n\t B_blocks_col ({B_blocks_col}) = C_blocks_col ({C_blocks_col}), \
     #                     \n\t nb_X ({nb_X}) = nb_C ({nb_C})!\n\n")
-    
+
+
+    # Get the alu_imm operations 
+    imm_operations = []
+    nb_alu_imm = next( (i for i, op in enumerate(alu_operations) if (not op[0].endswith("_IMM") and op[0] != "RELU")), len(alu_operations) )
+    for i in range(0, nb_alu_imm):
+        imm_operations.append( alu_operations[i] )
+
+    # Get the other operations
+    other_alu_operations = []
+    for i in range(nb_alu_imm, len(alu_operations)):
+        other_alu_operations.append( alu_operations[i] )
+
     # Check if the data fits
     if ((nb_A > inp_block_buffer_size) or (nb_B > wgt_block_buffer_size) or (nb_C > out_block_buffer_size)):
         isOverfitting = True
-
-        # Get the alu_imm operations 
-        imm_operations = []
-        nb_alu_imm = next( (i for i, op in enumerate(alu_operations) if (not op[0].endswith("_IMM") and op[0] != "RELU")), len(alu_operations) )
-        for i in range(0, nb_alu_imm):
-            imm_operations.append( alu_operations[i] )
-
-        # Get the other operations
-        other_alu_operations = []
-        for i in range(nb_alu_imm, len(alu_operations)):
-            other_alu_operations.append( alu_operations[i] )
-
 
         # Common parameters for all strategies
         params = {
@@ -99,21 +99,28 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
     
     else: # No overfitting
         isOverfitting = False
+        strategy = []
 
-        # Load A and B and get the operations
-        load_A = [i for i in range(0, nb_A)]
-        load_B = [i for i in range(0, nb_B)]
-        ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, C_blocks_col)
-        
-        # Add ALU operations
-        ops = ops + alu_operations
+        # Step 0: perform GeMM and ALU IMM
+        if (nb_A > 0 and nb_B > 0):
+            # Load the blocks
+            store_C = [i for i in range(0, nb_C)]
+            load_A = [i for i in range(0, nb_A)]
+            load_B = [i for i in range(0, nb_B)]
+            load_X = [i for i in range(0, nb_X)]
 
-        strategy = [([i for i in range(0, nb_C)],
-                     load_A,
-                     load_B,
-                     [i for i in range(0, nb_X)],
-                     ops)]
-    
+            # Get the GEMM operations
+            ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, C_blocks_col)
+            # Add ALU operations
+            ops = ops + imm_operations
+
+            # Append
+            strategy.append( (store_C, load_A, load_B, load_X, ops) )
+
+        if (len(other_alu_operations) > 0):
+            pass
+
+
     # Debug
     if (debug):
         print("\n\nMATRIX PARTITIONING:")
@@ -133,7 +140,9 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
     # Return if it is overfitting and the strategy [([Ci], [Ai], [Bi], [Xi])]
     return isOverfitting, strategy
 
-# ---------------------------------------------
+
+###############################################
+
 
 def strategy_1(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_col=1, nb_C=1, C_blocks_col=1,
                inp_block_buffer_size=4, wgt_block_buffer_size=32, acc_block_buffer_size=4, out_block_buffer_size=4,
@@ -499,7 +508,9 @@ def strategy_4(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
     # Return the strategy
     return strategy
 
-# ---------------------------------------------
+
+###############################################
+
 
 def euclidian_division(dividend, divisor):
     """
@@ -569,7 +580,8 @@ def imm_alu_on_blocks(imm_operations, store_C):
         
     return to_execute
 
-# ---------------------------------------------
+
+###############################################
 
 if __name__ == "__main__": 
     strategy_selector = 2
