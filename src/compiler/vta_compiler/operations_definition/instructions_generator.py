@@ -82,8 +82,8 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
     out_addr = [addr for addr in dram_addresses if addr.get("type") == "OUT"]
 
 
-   # LOAD MODULE (input: CMP->LD, output: LD->CMP)
-   # -----------
+    # LOAD MODULE (input: CMP->LD, output: LD->CMP)
+    # -----------
     # Check if INP and WGT must be loaded
     nb_inp = len(step[0])
     nb_wgt = len(step[1])
@@ -136,8 +136,8 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
         )
 
 
-   # COMPUTE MODULE (input: LD->CMP, output: CMP->LD & CMP->ST)
-   # --------------
+    # COMPUTE MODULE (input: LD->CMP, output: CMP->LD & CMP->ST)
+    # --------------
     nbLoadAcc = len(step[2])
     nb_gemm = sum(1 for item in step[6] if item[0] == 'GeMM')
     nb_alu = len(step[6]) - nb_gemm
@@ -149,20 +149,32 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
     # INSN - LOAD ACC
     isLastCompute = False if (doGemm == True or doAlu == True) else True
     for i, block_idx in enumerate(step[2]):
-        # Get the idx of the block in DRAM and the location in SRAM
-        current_block_addr = find_logical_block_addr_by_idx(block_idx, acc_addr)
-        current_sram_base=0x0000 + i*block_size
-
         # Acknowledge LOAD ready signal (first load)
         pop_prev_dep = 1 if (i == 0) else 0 
         # Ready signal to STORE (last load)
         push_next_dep = 1 if (i == nb_alu-1 and isLastCompute == True) else 0 
 
+        # Check if block_idx is an int (i.e., a full block) or a tuple (i.e., a vector)
+        if isinstance(block_idx, tuple):
+            # Get the idx of the block in DRAM and the location in SRAM
+            current_block_addr = find_logical_block_addr_by_idx(block_idx[0], acc_addr)
+            current_dram = current_block_addr + block_idx[1]
+            current_sram_base=0x0000 + i
 
-        # INSN LOAD ACC - load a full block_size x block_size matrix
-        insn_buffer.append(
-            load_store_instruction(buffer_type="ACC", pop_prev_dep=pop_prev_dep, pop_next_dep=0, push_prev_dep=0, push_next_dep=push_next_dep, sram_base=current_sram_base, dram_base=current_block_addr, y_size=1, x_size=block_size, x_stride=block_size)
-        )
+            # INSN LOAD ACC - load a full block_size x block_size matrix
+            insn_buffer.append(
+                load_store_instruction(buffer_type="ACC", pop_prev_dep=pop_prev_dep, pop_next_dep=0, push_prev_dep=0, push_next_dep=push_next_dep, sram_base=current_sram_base, dram_base=current_dram, y_size=1, x_size=1, x_stride=1)
+            )
+
+        else: # Full block
+            # Get the idx of the block in DRAM and the location in SRAM
+            current_block_addr = find_logical_block_addr_by_idx(block_idx, acc_addr)
+            current_sram_base=0x0000 + i*block_size
+
+            # INSN LOAD ACC - load a full block_size x block_size matrix
+            insn_buffer.append(
+                load_store_instruction(buffer_type="ACC", pop_prev_dep=pop_prev_dep, pop_next_dep=0, push_prev_dep=0, push_next_dep=push_next_dep, sram_base=current_sram_base, dram_base=current_block_addr, y_size=1, x_size=block_size, x_stride=block_size)
+            )
 
     # INSTRUCTION LOAD UOP + GEMM
     isFirstCompute = False if (doLoadAcc == True) else True
@@ -222,7 +234,6 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
 
     # INSTRUCTION LOAD UOP + ALU
     isFirstCompute = False if (doLoadAcc == True or doGemm == True) else True
-    to_store = []
 
     for alu_idx in range(nb_gemm, nb_gemm+nb_alu):
         alu = step[6][alu_idx]
@@ -253,24 +264,50 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
 
         # Generate the UOP for the current ALU
         for i, current_alu in enumerate(alu[2]):
-            if (isImm == False):
-                dst_block_idx = block_idx_in_sram(current_alu[0][0], memory_status) * block_size
-                dst_vector_idx = current_alu[0][1] + dst_block_idx
-                src_block_idx = block_idx_in_sram(current_alu[1][0], memory_status)
-                src_vector_idx = current_alu[1][1] + src_block_idx
-            else: 
-                dst_block_idx = block_idx_in_sram(current_alu[0], memory_status) * block_size
-                dst_vector_idx = current_alu[1] + dst_block_idx
+            # Current alu: (dst_vector, [src_vector]) where dst_vector and src_vector are tuples
+            #           or (block_idx, line)
+
+            # Get dst_vector (tuple) and src_vector (list)
+            dst_vector, src_vectors = get_dst_src_from_current_alu(current_alu=current_alu, alu=alu)
+
+            # Check if memory_status is a tuple (vector-wise load)
+            if (isinstance(memory_status[0], tuple)):
+                # There is one DST vector for a list of SRC vectors
+                dst_vector_idx = block_idx_in_sram(dst_vector, memory_status)
+                # Iterate on the SRC list
+                for vector in src_vectors:
+                    src_vector_idx = block_idx_in_sram(vector, memory_status)
+                    # UOP
+                    uop_buffer.append(VTAUop( 
+                        dst_idx=dst_vector_idx, 
+                        src_idx=src_vector_idx,
+                        wgt_idx=0
+                    ))
+
+            # Else it is int -> a block is loaded
+            else:
+                # There is one DST vector for a list of SRC vectors
+                dst_block_idx = block_idx_in_sram(dst_vector[0], memory_status) * block_size
+                dst_vector_idx = dst_vector[1] + dst_block_idx
+                # Iterate on the SRC list
+                for vector in src_vectors:
+                    src_block_idx = block_idx_in_sram(vector[0], memory_status) * block_size
+                    src_vector_idx = vector[1] + src_block_idx
+                    # UOP
+                    uop_buffer.append(VTAUop( 
+                        dst_idx=dst_vector_idx, 
+                        src_idx=src_vector_idx,
+                        wgt_idx=0
+                    ))
             
-            to_store.append( dst_vector_idx )
-
-            # UOP
-            uop_buffer.append(VTAUop( 
-                dst_idx=dst_vector_idx, 
-                src_idx=src_vector_idx if (isImm == False) else 0,
-                wgt_idx=0
-            ))
-
+            # If src_vectors is empty -> UOP
+            if (len(src_vectors) == 0):
+                # UOP
+                uop_buffer.append(VTAUop( 
+                    dst_idx=dst_vector_idx, 
+                    src_idx=0,
+                    wgt_idx=0
+                ))
 
         # Acknowledge LOAD ready signal (first load)
         pop_prev_dep = 1 if (alu_idx == nb_gemm and isFirstCompute == True) else 0 
@@ -283,7 +320,7 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
         )
  
         # INSN - ALU
-        insn_buffer.append(VTAAluInsn( # I9: ALU - SHR (Average Pooling 3/3)
+        insn_buffer.append(VTAAluInsn( 
             opcode=4, # 4-ALU
             # DEP FLAG
             pop_prev_dep=0,
@@ -316,42 +353,63 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, block_size
         )
 
 
-   # STORE MODULE (input: CMP->LD & CMP->ST, output: CMP->LD)
-   # ------------
-    nb_out = len(step[5])
-    # INSN - STORE
-    if (len(to_store) == 0 or isImm == True):
-        for i, block_idx in enumerate(step[5]):
-            # Get the idx of the block in DRAM and the location in SRAM
-            current_block_addr = find_logical_block_addr_by_idx(block_idx, out_addr)
-            current_sram_base=0x0000 + i*block_size
+    # STORE MODULE (input: CMP->LD & CMP->ST, output: CMP->LD)
+    # ------------
+    to_store = step[5]
+    dram_state = step[4]
+    nb_out = len(to_store)
 
-            # Acknowledge COMPUTE ready signal (first store)
-            pop_prev_dep = 1 if (i == 0) else 0
-            # Ready signal to COMPUTE
-            push_prev_dep = 1 if (i == nb_out - 1) else 0
+    # If nb_out > 0 -> Store
+    if (nb_out > 0):
+        # Check if to_store is composed of tuple (vector-wise) or integer (block)
+        if (isinstance(to_store[0], tuple)):
+            for i, dst_vector in enumerate(to_store):
+                # Acknowledge COMPUTE ready signal (first store)
+                pop_prev_dep = 1 if (i == 0) else 0
+                # Ready signal to COMPUTE
+                push_prev_dep = 1 if (i == nb_out - 1) else 0
 
+                # Get the SRAM address
+                if (isinstance(memory_status[0], tuple)):
+                    dst_sram_addr = block_idx_in_sram(dst_vector, memory_status)
+                else: 
+                    dst_block_idx = block_idx_in_sram(dst_vector[0], memory_status)
+                    dst_sram_addr = dst_vector[1] + dst_block_idx * block_size
+                
+                # Get the DRAM address
+                out_dram_base = int( out_addr[0]['logical_base_address'], 16)
+                dst_dram_addr = dram_state.index(dst_vector) + out_dram_base
 
-            # INSN STORE OUT - store a full block_size x block_size matrix
-            insn_buffer.append(
-                load_store_instruction(buffer_type="OUT", pop_prev_dep=pop_prev_dep, pop_next_dep=0, push_prev_dep=push_prev_dep, push_next_dep=0, sram_base=current_sram_base, dram_base=current_block_addr, y_size=1, x_size=block_size, x_stride=block_size)
-            )
-    else:
-        for i, line in enumerate(to_store):
-            # Get the idx of the block in DRAM and the location in SRAM
-            current_dram_base = int( out_addr[0]["logical_base_address"], 16) + i
-            current_sram_base=line
+                # INSN STORE OUT - store a vector
+                insn_buffer.append(
+                    load_store_instruction(buffer_type="OUT", pop_prev_dep=pop_prev_dep, pop_next_dep=0, push_prev_dep=push_prev_dep, push_next_dep=0, sram_base=dst_sram_addr, dram_base=dst_dram_addr, y_size=1, x_size=1, x_stride=1)
+                )
+        else: 
+            for i, block_idx in enumerate(to_store):
+                # Get the idx of the block in DRAM and the location in SRAM
+                current_block_addr = find_logical_block_addr_by_idx(block_idx, out_addr)
+                current_sram_base=0x0000 + i*block_size
 
-            # Acknowledge COMPUTE ready signal (first store)
-            pop_prev_dep = 1 if (i == 0) else 0
-            # Ready signal to COMPUTE
-            push_prev_dep = 1 if (i == len(to_store) - 1) else 0
+                # Acknowledge COMPUTE ready signal (first store)
+                pop_prev_dep = 1 if (i == 0) else 0
+                # Ready signal to COMPUTE
+                push_prev_dep = 1 if (i == nb_out - 1) else 0
 
-            # INSN STORE OUT - store a full block_size x block_size matrix
-            insn_buffer.append(
-                load_store_instruction(buffer_type="OUT", pop_prev_dep=pop_prev_dep, pop_next_dep=0, push_prev_dep=push_prev_dep, push_next_dep=0, sram_base=current_sram_base, dram_base=current_dram_base, y_size=1, x_size=1, x_stride=1)
-            )
+                # INSN STORE OUT - store a full block_size x block_size matrix
+                insn_buffer.append(
+                    load_store_instruction(buffer_type="OUT", pop_prev_dep=pop_prev_dep, pop_next_dep=0, push_prev_dep=push_prev_dep, push_next_dep=0, sram_base=current_sram_base, dram_base=current_block_addr, y_size=1, x_size=block_size, x_stride=block_size)
+                )
     
+    # Nothing to store
+    else: 
+        # INSN - NOP-STORE-STAGE (input: CMP->LD & CMP->ST, output: CMP->LD & ST->CMP)
+        insn_buffer.append( 
+            nop_stage_instruction(module="STORE", pop_prev_dep=1, pop_next_dep=0, push_prev_dep=1, push_next_dep=0)
+        )
+
+
+    # COMPUTE MODULE (input: CMP->LD & ST->CMP, output: CMP->LD)
+    # --------------
     # INSN - NOP-COMPUTE-STAGE (input: CMP->LD & ST->CMP, output: CMP->LD)
     insn_buffer.append( 
         nop_stage_instruction(module="COMPUTE", pop_prev_dep=0, pop_next_dep=1, push_prev_dep=0, push_next_dep=0)
@@ -468,7 +526,7 @@ def find_logical_block_addr_by_idx(block_idx, addr_dict):
 # ---------------------------------------------
 
 # FIND_UOP_ADDR
-# ----------------------
+# -------------
 def find_uop_addr(uop_addr, uop_buffer_size, uop_counter):
     uop_logic_addr = int( uop_addr[0]["logical_base_address"], 16)
     current_uop_addr = uop_logic_addr + uop_counter + uop_buffer_size
@@ -477,6 +535,32 @@ def find_uop_addr(uop_addr, uop_buffer_size, uop_counter):
 # ---------------------------------------------
 
 # BLOCK_IDX_IN_SRAM
-# --------------------
+# -----------------
 def block_idx_in_sram(block_idx, memory_status):
     return memory_status.index(block_idx)
+
+# ---------------------------------------------
+
+# GET_DST_SRC_FROM_CURRENT_ALU
+# ----------------------------
+def get_dst_src_from_current_alu(current_alu, alu):
+    """
+    Obtain the DST vector and the SRC vector from an ALU operations
+    Input:
+        - current_alu (tuple): Either (block_idx, vector_idx) or ((block_idx, vector_idx), [list of src vectors])
+        - alu (list): The ALU definition ['OP_NAME', [param], [list of tuples]]
+    Output:
+        - dst_vector (tuple): The DST vector extracted from the list of vectors
+        - src_vector (list): The list of SRC vector extracted from the list of vectors
+    """
+    # If it is a vector-scalar operation: just a DST vector
+    if (alu[0].endswith("_IMM") or alu[0] == "RELU"):
+        dst_vector = current_alu
+        src_vector = []
+    
+    # If vector-vector operation: [dst_vector, [src_vectors]]
+    else:
+        dst_vector = current_alu[0]
+        src_vector = current_alu[1]
+
+    return dst_vector, src_vector

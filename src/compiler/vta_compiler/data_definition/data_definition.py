@@ -105,7 +105,7 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
 
     # Create the dictionary for the ALU operations
     #   (for ALU vector-vector operation, the source vector can be deleted)
-    alu_operations_list, idx_to_delete = ALU.create_alu_operations_list(operations_dict=operations_dict, nb_C_blocks=len(ACC_blocks_ref), C_blocks_col=ACC_blocks_col, block_size=block_size)
+    alu_operations_list, idx_to_delete, idx_to_store = ALU.create_alu_operations_list(operations_dict=operations_dict, nb_C_blocks=len(ACC_blocks_ref), C_blocks_col=ACC_blocks_col, block_size=block_size)
 
     # Execute the operations: ["OPS", [DST, SRC]] or ["OPS", [DST, SRC, NB_ITERATION]]
     for alu_ops in alu_operations_list:
@@ -210,10 +210,11 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
             print(f"\n C {i} - {block.shape}")
             print(block)
         
-        print(f"\nDeleted rows: \n {idx_to_delete}\n")
+        print(f"\nDeleted rows: \n {idx_to_delete}")
+        print(f"Tuples to store: \n {idx_to_store}\n")
 
     # ---------------------------------------------
     # RETURN 
 
-    return A_blocks, A_blocks_col, B_blocks, B_blocks_col, X_blocks, X_blocks_col, ALU_blocks, C_blocks, C_blocks_col, C_init, alu_operations_list, idx_to_delete, doGemm
+    return A_blocks, A_blocks_col, B_blocks, B_blocks_col, X_blocks, X_blocks_col, ALU_blocks, C_blocks, C_blocks_col, C_init, alu_operations_list, idx_to_store, doGemm
 

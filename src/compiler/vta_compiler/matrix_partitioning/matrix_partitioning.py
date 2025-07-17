@@ -1,6 +1,8 @@
 # IMPORT PACKAGES
 # ---------------
 import numpy as np
+import collections
+import pprint
 
 
 ###############################################
@@ -10,7 +12,7 @@ import numpy as np
 # -------------------
 def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_col=1, nb_C=1, C_blocks_col=1,
                         inp_block_buffer_size=4, wgt_block_buffer_size=32, acc_block_buffer_size=4, out_block_buffer_size=4,
-                        alu_operations=[], idx_to_delete=[],
+                        alu_operations=[], idx_to_store=[],
                         strategy_selector=1, block_size=16,
                         debug=True):
     """
@@ -24,7 +26,8 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
         - $_block_buffer_size (int): the number of blocks that fit the related SRAM buffer
         - alu_operations (list): a list of the ALU operations to perfom
         - idx_to_delete (list): a list of the output matrix's row indexes not to store
-        - strategy_selector (int): an integer in [1..4] to select a strategy
+        - strategy_selector (int): an integer in [1..4] to select a strategy on GeMM
+        - block_size (int): an integer coming from the VTA configuration
         - debug (boolean): a boolean to print the execution information
     Outputs:
         - isOverfitting (boolean): it is true if at least one matrix overfits the SRAM (i.e., a strategy is applied)
@@ -35,9 +38,14 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
                 2. [Bi]: The B weight elements to load
                 3. [Xi]: The X accumulator elemments to load
                 4. [Mi]: The current elements within the SRAM ACC buffer
-                5. [Ti]: The temporary elements to load from OUT region within DRAM
+                5. [Ti]: TO REMOVE
                 6. [Ci]: The C output elements to store in OUT region within DRAM
                 7. [Operations]: The operations to perform at each step
+    
+     Remarks: three case are supported:
+        - CASE 1: Matrix multiplication (GeMM) without overfitting followed by ALU operations (either vector-scalar or vector-vector)
+        - CASE 2: Matrix multiplication (GeMM) with overfitting followed by vector-scalar operations
+        - CASE 3: ALU operations
     """
     # Check strategy assumptions
     if not ( (acc_block_buffer_size == out_block_buffer_size) \
@@ -51,94 +59,102 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
                         \n\t nb_A%A_blocks_col = {nb_A%A_blocks_col} \
                         \n\t nb_B%B_blocks_col = {nb_B%B_blocks_col} \
                         \n\t nb_C%C_blocks_col = {nb_C%C_blocks_col} \n\n")
+    
+    # Init the output
+    isOverfitting = False
+    strategy = []
+
+    # CASE 1 & 2: MATRIX MULTIPLICATION
     if (nb_A != 0 and nb_B != 0):
+        # Additional data consistency verification
         if ( (nb_A//A_blocks_col != nb_C//C_blocks_col) or (B_blocks_col != C_blocks_col) or (nb_X != nb_C) ):
             raise Exception(f"ERROR: Data are not consistent: results should be equal: \
                             \n\t nb_A//A_blocks_col ({nb_A//A_blocks_col}) = nb_C//C_blocks_col ({nb_C//C_blocks_col}), \
                             \n\t B_blocks_col ({B_blocks_col}) = C_blocks_col ({C_blocks_col}), \
                             \n\t nb_X ({nb_X}) = nb_C ({nb_C})!\n\n")
-
-
-    # Get the alu_imm operations 
-    imm_operations = []
-    nb_alu_imm = next( (i for i, op in enumerate(alu_operations) if (not op[0].endswith("_IMM") and op[0] != "RELU")), len(alu_operations) )
-    for i in range(0, nb_alu_imm):
-        imm_operations.append( alu_operations[i] )
-
-    # Get the other operations
-    other_alu_operations = []
-    for i in range(nb_alu_imm, len(alu_operations)):
-        other_alu_operations.append( alu_operations[i] )
-    nb_others = len( other_alu_operations )
-
-    # Check if the data fits
-    if ((nb_A > inp_block_buffer_size) or (nb_B > wgt_block_buffer_size) or (nb_C > out_block_buffer_size)):
-        isOverfitting = True
-
-        # Common parameters for all strategies
-        params = {
-            'nb_A': nb_A, 'A_blocks_col': A_blocks_col,
-            'nb_B': nb_B, 'B_blocks_col': B_blocks_col,
-            'nb_X': nb_X, 'X_blocks_col': X_blocks_col,
-            'nb_C': nb_C, 'C_blocks_col': C_blocks_col,
-            'inp_block_buffer_size': inp_block_buffer_size,
-            'wgt_block_buffer_size': wgt_block_buffer_size,
-            'acc_block_buffer_size': acc_block_buffer_size,
-            'out_block_buffer_size': out_block_buffer_size,
-            'alu_operations': imm_operations, 
-            'other_alu': True if (nb_others > 0) else False
-        }
         
-        # Apply the strategy:
-        if (strategy_selector == 1):
-            strategy = strategy_1(**params)
-        elif (strategy_selector == 2):
-            strategy = strategy_2(**params)
-        elif (strategy_selector == 3):
-            strategy = strategy_3(**params)
-        elif (strategy_selector == 4):
-            strategy = strategy_4(**params)
-        else:
-            raise Exception(f"ERROR: Matrix partitioning strategy {strategy_selector} does not exist!\n\n")
-    
-    else: # No overfitting
-        isOverfitting = False
-        strategy = []
-
-        # Is there a GeMM operation
-        doGemm = True if (nb_A > 0 and nb_B > 0) else False
-
-        # Step 0: perform GeMM and ALU IMM
-        if (doGemm):
-            # Create the list to load and store
+        # CASE 1: NO OVERFITTING
+        if ((nb_A < inp_block_buffer_size) and (nb_B < wgt_block_buffer_size) and (nb_C < out_block_buffer_size)):
+            isOverfitting = False
+            
+            # Load all the blocks ([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])
             load_A = [i for i in range(0, nb_A)]
             load_B = [i for i in range(0, nb_B)]
             load_X = [i for i in range(0, nb_X)]
             memory_status = load_X
-            if (nb_others > 0):
-                store_X = [i for i in range(0, nb_C)]
-                store_C = []
-            else:
-                store_X = []
-                store_C = [i for i in range(0, nb_C)]
+            dram_state = [] # TODO: not used
+            store_C = load_X
 
             # Get the GEMM operations
             ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, C_blocks_col)
+
             # Add ALU operations
-            ops = ops + imm_operations
+            ops = ops + alu_operations
 
-            # Append
-            strategy.append( 
-                #     A,      B,      X,          SRAM,       T,       C, ops
-                (load_A, load_B, load_X, memory_status, store_X, store_C, ops) 
-            )
+            # Create the strategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]
+            strategy = [ (load_A, load_B, load_X, memory_status, dram_state, store_C, ops) ]
+
+        # CASE 2: OVERFITTING
+        else: # ((nb_A > inp_block_buffer_size) or (nb_B > wgt_block_buffer_size) or (nb_C > out_block_buffer_size))
+            isOverfitting = False
+
+            # Check if the operations in alu_operations are only vector-scalar
+            for alu_ops in alu_operations:
+                if (alu_ops[0] != "RELU" and not alu_ops[0].endswith("_IMM")):
+                    raise Exception(f"ERROR: {alu_ops[0]} is not supported when there is an overfitting GeMM operations!\n\n")
+            
+            # Gather the parameters (common parameters for all strategies) within a dictionnary and execute the strategy
+            params = {
+                'nb_A': nb_A, 'A_blocks_col': A_blocks_col,
+                'nb_B': nb_B, 'B_blocks_col': B_blocks_col,
+                'nb_X': nb_X, 'X_blocks_col': X_blocks_col,
+                'nb_C': nb_C, 'C_blocks_col': C_blocks_col,
+                'inp_block_buffer_size': inp_block_buffer_size,
+                'wgt_block_buffer_size': wgt_block_buffer_size,
+                'acc_block_buffer_size': acc_block_buffer_size,
+                'out_block_buffer_size': out_block_buffer_size,
+                'alu_operations': alu_operations
+            }
+            
+            # Apply the strategy:
+            if (strategy_selector == 1):
+                strategy = strategy_1(**params)
+            elif (strategy_selector == 2):
+                strategy = strategy_2(**params)
+            elif (strategy_selector == 3):
+                strategy = strategy_3(**params)
+            elif (strategy_selector == 4):
+                strategy = strategy_4(**params)
+            else:
+                raise Exception(f"ERROR: Matrix partitioning strategy {strategy_selector} does not exist!\n\n")
+    
+
+    # CASE 3: ALU OPERATIONS
+    else:
+        # Check if it fits
+        if (nb_X < acc_block_buffer_size):
+            isOverfitting = False
+            
+            # Load all the blocks ([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])
+            load_A = []
+            load_B = []
+            load_X = [i for i in range(0, nb_X)]
+            memory_status = load_X
+            dram_state = idx_to_store
+            store_C = dram_state
+
+            # Create the strategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]
+            strategy = [ (load_A, load_B, load_X, memory_status, dram_state, store_C, alu_operations) ]
+
+        # It does not fit
         else:
-            other_alu_operations = imm_operations + other_alu_operations
+            isOverfitting = True
 
-        if (nb_others > 0):
-            strategy += alu_strategy(acc_block_buffer_size=acc_block_buffer_size, out_block_buffer_size=out_block_buffer_size, block_size=block_size,
-                                     alu_operations=other_alu_operations, isFollowingGemm=doGemm)
+            # Sort the alu_operations
+            sorted_alu_operations = sort_alu_by_dst(alu_operations)
 
+            # Define the strategy
+            strategy = alu_strategy(sorted_alu_ops=sorted_alu_operations, acc_block_buffer_size=acc_block_buffer_size)
 
     # Debug
     if (debug):
@@ -165,7 +181,7 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
 
 def strategy_1(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_col=1, nb_C=1, C_blocks_col=1,
                inp_block_buffer_size=4, wgt_block_buffer_size=32, acc_block_buffer_size=4, out_block_buffer_size=4,
-               alu_operations=[], other_alu=False):
+               alu_operations=[]):
     """
     Strategy 1 focuses on quickly compute one C element. It loads A row-by-row and B column-by-column.
     """
@@ -244,7 +260,7 @@ def strategy_1(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
 
 def strategy_2(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_col=1, nb_C=1, C_blocks_col=1,
                inp_block_buffer_size=4, wgt_block_buffer_size=32, acc_block_buffer_size=4, out_block_buffer_size=4,
-               alu_operations=[], other_alu=False):
+               alu_operations=[]):
     """
     Strategy 2 performs region-based computation, tiling matrices into smaller square regions.
     """
@@ -341,7 +357,7 @@ def strategy_2(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
 
 def strategy_3(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_col=1, nb_C=1, C_blocks_col=1,
                inp_block_buffer_size=4, wgt_block_buffer_size=32, acc_block_buffer_size=4, out_block_buffer_size=4,
-               alu_operations=[], other_alu=False):
+               alu_operations=[]):
     """
     Strategy 3 computes C column-by-column. It loads A column-by-column and single element of B.
     """
@@ -441,7 +457,7 @@ def strategy_3(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
 
 def strategy_4(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_col=1, nb_C=1, C_blocks_col=1,
                inp_block_buffer_size=4, wgt_block_buffer_size=32, acc_block_buffer_size=4, out_block_buffer_size=4,
-               alu_operations=[], other_alu=False):
+               alu_operations=[]):
     """
     Strategy 4 computes C row-by-row. It loads single element of A and B row-by-row.
     """
@@ -535,180 +551,219 @@ def strategy_4(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
 
 ###############################################
 
-def alu_strategy(acc_block_buffer_size=4, out_block_buffer_size=4, block_size=16,
-                 alu_operations=[], isFollowingGemm=True):
-    # Get the minimal size of the buffer multiple by block_size to have the number of vectors
-    buffer_size = min(acc_block_buffer_size, out_block_buffer_size) * block_size
 
-    # Init the strategy
+# ALU Strategy Generation
+# -----------------------
+# TODO: bug - do not support OP overfitting followed by IMM
+def alu_strategy(sorted_alu_ops, acc_block_buffer_size):
+    """
+    Generates a loading and execution strategy for ALU operations based on a limited buffer size.
+    This version enforces a strict sequential execution order for operations targeting the same destination.
+
+    Inputs:
+        - sorted_alu_ops (list): A list of ALU operations, pre-sorted by destination vector.
+        - acc_block_buffer_size (int): The number of blocks that fit the accumulator SRAM buffer.
+
+    Outputs:
+        - strategy (list of tuple): Each tuple represents a computation step.
+          The tuple is composed of several lists: ([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations]).
+            1. [Ai]: The A input elements to load (empty for ALU).
+            2. [Bi]: The B weight elements to load (empty for ALU).
+            3. [Xi]: The X accumulator elements to load for this step.
+            4. [Mi]: The current elements within the SRAM ACC buffer (memory status).
+            5. [Ti]: The elements that have been computed and stored back to DRAM so far.
+            6. [Ci]: The C output elements to store in DRAM in this step.
+            7. [Operations]: The ALU operations to perform in this step.
+    """
+    if acc_block_buffer_size <= 0:
+        raise ValueError("Buffer size must be strictly positive.")
+
+    # Step 1: Group operations by destination vector
+    grouped_ops = collections.OrderedDict()
+    for op in sorted_alu_ops:
+        dst, srcs = parse_alu_op(op)
+        if dst not in grouped_ops:
+            grouped_ops[dst] = {'ops': [], 'all_srcs': set()}
+        grouped_ops[dst]['ops'].append(op)
+        grouped_ops[dst]['all_srcs'].update(srcs)
+
     strategy = []
+    buffer = set()
+    saved_dsts = set()  # Tracks destinations that have been fully computed and saved
 
-    # Iterate over the alu_ops
-    for i, alu_ops in enumerate(alu_operations):
-        # Check the type of operation
-        if (alu_ops[0].endswith("_IMM") or alu_ops[0] == "RELU"):
-
-            # Define the steps
-            for tuple_idx in range(0, len(alu_ops[2]), buffer_size):
-                # Get the element to work on
-                vector_to_load = [ alu_ops[2][tuple_idx:tuple_idx+buffer_size] ]
-                # Define the ops to perform
-                ops = [alu_ops[0]] + [alu_ops[1]] + [vector_to_load]
-
-                # Append the strategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]
-                if (isFollowingGemm == False and i == 0):
-                    strategy.append(
-                        ([], [], vector_to_load, vector_to_load, [], vector_to_load, ops)
-                    )
-                else:
-                    strategy.append(
-                        ([], [], [], vector_to_load, vector_to_load, vector_to_load, ops)
-                    )
-
-        # NOT IMM ALU
-        else: 
-            # Split the operations
-            split_ops = split_alu_operations(alu_ops[2], buffer_size)
-            current_dst = []
-
-            # Iterate over the different splits
-            for split_idx, split in enumerate(split_ops):
-                # Get the vector to load and store
-                vector_to_store = split[2]
-                vector_to_load = split[1]
-
-                # Get the memory_state
-                if (len(split[0])==0):
-                    memory_state = current_dst + vector_to_load
-                else:
-                    memory_state = vector_to_load
-                    current_dst = split[0]
-                
-                # Define the ops to perform
-                current_ops = alu_ops[2].copy()
-                current_ops = filter_ops_by_memory_state(current_ops, memory_state)
-                ops = [alu_ops[0]] + [alu_ops[1]] + [current_ops]
-
-                # Append the strategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]
-                if (isFollowingGemm == False and i == 0):
-                    strategy.append(
-                        ([], [], vector_to_load, memory_state, [], vector_to_store, ops)
-                    )
-                else:
-                    strategy.append(
-                        ([], [], [], memory_state, vector_to_load, vector_to_store, ops)
-                    )
-                
-    # Return the strategy
-    return strategy
-
-# ---------------------------------------------
-
-def split_alu_operations(data_list, n):
-    if n <= 0:
-        raise ValueError("Value of n must be positive!")
-
-    # The list to load
-    item_list = []
-
-    # The local parameters
-    current_step = []
-    current_key = []
-    current_capacity = n
-
-    for key, values_list in data_list:
-        item_cost = 1 + len(values_list)
-
-        # CASE 1: the item is too big to fit a step 
-        if item_cost > n:
-            # Finalise the current step if it exists
-            if current_step:
-                item_list.append(
-                    (current_key, current_step, [])
-                )
-            
-            # First step is the split with the key and the n-first elements
-            step_with_key = [key] + values_list[:n - 1]
-            item_list.append(
-                ([key], step_with_key, [])
-            )
-            
-            # Load the remaining steps (n by n)
-            remaining_value = values_list[n - 1:]
-            for i in range(0, len(remaining_value), n-1):
-                item_list.append(
-                    ([], remaining_value[i:i + n-1], [])
-                )
-            
-            # Update the last item
-            last_item = item_list[-1]
-            item_list[-1] = ([], last_item[1], [key])
-            
-            # At the end, reset the list and the capacity
-            current_step = []
-            current_key = []
-            current_capacity = n
+    # Step 2: Iterate through all operations to build the strategy
+    for op in sorted_alu_ops:
+        dst, _ = parse_alu_op(op)
+        # If this destination has already been processed and saved, skip it
+        if dst in saved_dsts:
             continue
 
-        # CASE 2: the new item does not fit in the step -> new step
-        if item_cost > current_capacity:
-            item_list.append(
-                (current_key, current_step, current_key)
-            )
-            current_step = [key] + values_list
-            current_key = [key]
-            current_capacity = n - item_cost
+        # Get all operations and sources for the current destination
+        data = grouped_ops[dst]
+        all_ops_for_dst = data['ops']
+        all_srcs_for_dst = data['all_srcs']
         
-        # CASE 3: the item fits in the current step -> append
-        else:
-            current_step.extend([key] + values_list)
-            current_key.append(key)
-            current_capacity -= item_cost
+        if acc_block_buffer_size < 1:
+            raise ValueError("Buffer size must be at least 1.")
 
-    # Add the last step to the list
-    if current_step:
-        item_list.append(
-            (current_key, current_step, current_key)
-        )
-    
-    # Return the item_list
-    return item_list
+        # This list will track pending operations for the destination
+        pending_ops_for_dst = list(all_ops_for_dst)
+
+        # Ensure the destination vector is prioritized but clear other unnecessary items from buffer
+        buffer.intersection_update({dst})
+        vectors_to_load = sorted(list(all_srcs_for_dst - buffer))
+        if dst not in buffer:
+            vectors_to_load.insert(0, dst)
+
+        # Step 3: Load vectors in chunks and execute operations
+        i = 0
+        while i < len(vectors_to_load):
+            free_slots = acc_block_buffer_size - len(buffer)
+            # If buffer is full, evict non-essential vectors
+            if free_slots <= 0:
+                eviction_candidates = buffer - {dst}
+                if not eviction_candidates:
+                    raise RuntimeError(f"Logic Error: Buffer is full for dst={dst} with nothing to evict.")
+                buffer.difference_update(eviction_candidates)
+                free_slots = acc_block_buffer_size - len(buffer)
+
+            # Load the next chunk of vectors
+            chunk_to_load = vectors_to_load[i : i + free_slots]
+            buffer.update(chunk_to_load)
+            i += len(chunk_to_load)
+
+            ops_for_this_step = []
+            
+            # --- Sequential Processing Logic ---
+            # Process pending operations as long as progress can be made.
+            while pending_ops_for_dst:
+                # Always check the *first* operation in the pending queue.
+                op_to_check = pending_ops_for_dst[0]
+                
+                filtered_op = filter_op_for_step(op_to_check, buffer)
+                
+                if not filtered_op:
+                    # The head-of-line operation is not yet executable.
+                    # Cannot proceed further for this destination in this step.
+                    break
+                
+                # The operation is executable, add it to the current step.
+                ops_for_this_step.append(filtered_op)
+                
+                # Check if the op is fully completed with the current buffer state.
+                _, original_srcs = parse_alu_op(op_to_check)
+                if all(src in buffer for src in original_srcs):
+                    # Yes, it's complete. Remove it from the pending queue.
+                    pending_ops_for_dst.pop(0)
+                    # Continue to see if the *new* head-of-line op is also executable.
+                    continue
+                else:
+                    # No, it's only partially executed. We cannot start the next one.
+                    break
+            
+            # Check if this is the final load for the current destination group
+            is_final_step_for_dst = (i >= len(vectors_to_load))
+            to_save_this_step = [dst] if is_final_step_for_dst else []
+            if is_final_step_for_dst:
+                saved_dsts.add(dst)
+
+            # Create the strategy step tuple: ([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Ops])
+            step = ([], [], sorted(chunk_to_load), sorted(list(buffer)), sorted(list(saved_dsts)), to_save_this_step, ops_for_this_step)
+            
+            # Only add a step if it involves loading or executing operations
+            if chunk_to_load or ops_for_this_step:
+                strategy.append(step)
+            
+    return strategy
+
+
+###############################################
+
+# ALU Operation Parsing
+# ---------------------
+
+def parse_alu_op(alu_op):
+    """
+    Parses an ALU operation to extract its destination and source vectors.
+
+    Inputs:
+        - alu_op (list): A list representing a single ALU operation.
+          Format: [op_name, params, tuples_list]
+
+    Outputs:
+        - dst_vector (tuple or int): The destination vector index.
+        - src_vectors (list): A list of source vector indices.
+    """
+    op_name, params, tuples_list = alu_op
+    first_element = tuples_list[0]
+
+    # Check the format of the tuple to distinguish destination and sources
+    if isinstance(first_element[0], int):
+        # Format: (dst, ...) for scalar ops or ops with immediate values
+        dst_vector = first_element
+        src_vectors = []
+    else:
+        # Format: ((dst), [src1, src2, ...]) for vector-vector operations
+        dst_vector = first_element[0]
+        src_vectors = first_element[1]
+
+    return dst_vector, src_vectors
 
 # ---------------------------------------------
 
-def filter_ops_by_memory_state(ops_list, memory_state):
-  """
-  Filters a list of operations to keep only the keys and values
-  present in the memory state.
+def filter_op_for_step(alu_op, buffer_set):
+    """
+    Filters an ALU operation based on the current buffer content to determine
+    if it can be partially or fully executed in the current step.
 
-  Args:
-    ops_list: The list of operations in the format [((key), [values]), ...].
-    memory_state: A list of the tuples present in memory.
+    Inputs:
+        - alu_op (list): The ALU operation to check.
+        - buffer_set (set): A set of vector indices currently in the buffer.
 
-  Returns:
-    A new, filtered list.
-  """
-  # Convert memory_state to a set for much faster lookups (O(1) on average)
-  memory_set = set(memory_state)
-  
-  filtered_ops_list = []
-  
-  # Iterate through each block (key, values_list)
-  for key, values_list in ops_list:
+    Outputs:
+        - (list or None): A new operation list for the current step if executable,
+          otherwise None.
+    """
+    op_name, params, tuples_list = alu_op
+    dst_vector, src_vectors = parse_alu_op(alu_op)
+
+    # The destination must be in the buffer to perform the operation
+    if dst_vector not in buffer_set:
+        return None
+
+    # For operations without source vectors (e.g., with immediate values)
+    if not src_vectors:
+        return [op_name, params, [(dst_vector)]]
+
+    # Filter source vectors that are currently in the buffer
+    filtered_srcs = [src for src in src_vectors if src in buffer_set]
+    return [op_name, params, [((dst_vector), filtered_srcs)]]
+
+
+###############################################
+
+
+def get_dst_src_vectors(alu_ops):
+    """
+    Obtain the DST vector and the SRC vector from an ALU operations
+    Input:
+        - alu_ops (list): The shape of the list is ['OP_NAME', [some parameters], [list of vectors]]
+    Output:
+        - dst_vector (tuple): The DST vector extracted from the list of vectors
+        - src_vector (list): The list of SRC vector extracted from the list of vectors
+    """
+    # If it is a vector-scalar operation: just a DST vector
+    if (alu_ops[0].endswith("_IMM") or alu_ops[0] == "RELU"):
+        dst_vector = alu_ops[2][0]
+        src_vector = []
     
-    # 1. Only process the block if its key is present in the memory state
-    if key in memory_set:
-      
-      # 2. If so, filter the associated values list
-      filtered_values = [
-          value for value in values_list if value in memory_set
-      ]
-      
-      # 3. If the filtered list of values is not empty, add the new entry to the result
-      if filtered_values:
-        filtered_ops_list.append((key, filtered_values))
-        
-  return filtered_ops_list
+    # If vector-vector operation: [dst_vector, [src_vectors]]
+    else:
+        dst_vector = alu_ops[2][0][0]
+        src_vector = alu_ops[2][0][1]
+
+    return dst_vector, src_vector
+
 
 ###############################################
 
@@ -756,7 +811,6 @@ def get_operations(load_A, load_B, A_blocks_col, B_blocks_col, C_blocks_col):
                 
     return operations
 
-
 # ---------------------------------------------
 
 def imm_alu_on_blocks(imm_operations, store_C):
@@ -780,6 +834,38 @@ def imm_alu_on_blocks(imm_operations, store_C):
             to_execute.append(current_ops)
         
     return to_execute
+
+# ---------------------------------------------
+
+def sort_alu_by_dst(alu_operations=[]):
+    """
+    Regroup the ALU operations using the same DST vector
+    Input:
+        - alu_operations (list): the operations to perform (a sublist can contain multiple DST vectors)
+    Output:
+        - sorted_list (list): the sorted list of ALU operations (each sublist contains a single DST vector)
+    """
+    # Step 1: Flatten the list.
+    # This ensures that each operation in the new list has exactly one output tuple.
+    # Operations with multiple tuples ("_IMM") are duplicated.
+    flattened_list = []
+    for op_name, params, tuples_list in alu_operations:
+        if len(tuples_list) > 1:
+            # Create a new list entry for each tuple in the list
+            for t in tuples_list:
+                flattened_list.append([op_name, params, [t]])
+        else:
+            # Keep the operation as is if it has only one tuple
+            flattened_list.append([op_name, params, tuples_list])
+
+    # Step 2: Sort the flattened list.
+    # The sorting key checks the structure of the tuple data to find the correct (a,b) pair.
+    # It handles both direct tuples like (a, b) and nested ones like ((a, b), [...]).
+    sorted_list = sorted(
+        flattened_list,
+        key=lambda op: op[2][0][0] if isinstance(op[2][0][0], tuple) else op[2][0]
+    )
+    return sorted_list
 
 
 ###############################################
