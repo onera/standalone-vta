@@ -22,7 +22,7 @@ def operations_definition(strategy=[], dram_addresses=[],
     uop_buffer = []
     memory_status = []
     uop_counter = 0
-    semaphore_state = (0, 0, 0, 0) # (LD->CMP, CMP->LD, CMP->ST, ST->CMP)
+    semaphore = [0, 0, 0, 1] # (LD->CMP, CMP->ST, ST->CMP, CMP->LD)
 
     # Number of strategy steps
     nb_steps = len(strategy)
@@ -36,12 +36,13 @@ def operations_definition(strategy=[], dram_addresses=[],
     for i, step in enumerate(strategy):
         memory_status = step[3]
 
-        new_insn, new_buffer, uop_counter = strategy_step(step, dram_addresses, memory_status, uop_counter, block_size)
+        new_insn, new_buffer, uop_counter, semaphore = strategy_step(step, dram_addresses, memory_status, uop_counter, semaphore, block_size)
         insn_buffer = insn_buffer + new_insn
         uop_buffer = uop_buffer + new_buffer
 
     # 2 - Termination sequence (input: CMP->LD, output: /)
     insn_buffer += termination_sequence() 
+    semaphore[3] -= 1
 
  
 
@@ -73,6 +74,9 @@ def operations_definition(strategy=[], dram_addresses=[],
                 elif (field_name == "sram_base" or field_name == "dram_base"):
                     field_value = f"{getattr(insn, field_name)} - {hex(getattr(insn, field_name))}"
                 print(f"{field_name}: {field_value}")
+        
+        # Print the semaphore
+        print(f"\n\nSemaphore: {semaphore}")
 
         print(f"\n\nUOPs: ({len(uop_buffer)})")
         for i, uop in enumerate(uop_buffer):
