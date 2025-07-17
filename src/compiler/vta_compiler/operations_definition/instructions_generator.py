@@ -169,9 +169,10 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
         pop_prev_dep = 1 if (i == 0) else 0 
         # Ready signal to STORE (last load)
         push_next_dep = 1 if (i == nb_alu-1 and isLastCompute == True) else 0 
+        # Ready signal to LOAD (NO GeMM)
+        push_prev_dep = 1 if (i == 0 and doGemm == False) else 0 
         # Nothing else
         pop_next_dep = 0
-        push_prev_dep = 0
 
         # Check if block_idx is an int (i.e., a full block) or a tuple (i.e., a vector)
         if isinstance(block_idx, tuple):
@@ -198,7 +199,7 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
 
             # INSN LOAD ACC - load a full block_size x block_size matrix
             insn_buffer.append(
-                load_store_instruction(buffer_type="ACC", pop_prev_dep=pop_prev_dep, pop_next_dep=0, push_prev_dep=0, push_next_dep=push_next_dep, sram_base=current_sram_base, dram_base=current_block_addr, y_size=1, x_size=block_size, x_stride=block_size)
+                load_store_instruction(buffer_type="ACC", pop_prev_dep=pop_prev_dep, pop_next_dep=0, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep, sram_base=current_sram_base, dram_base=current_block_addr, y_size=1, x_size=block_size, x_stride=block_size)
             )
 
             # Update semaphore (LD->CMP, CMP->ST, ST->CMP, CMP->LD)
@@ -366,7 +367,7 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
 
         # Acknowledge LOAD ready signal (first load)
         pop_prev_dep = 1 if (alu_idx == nb_gemm and isFirstCompute == True) else 0 
-        # Ready signal to LOAD (last load)
+        # Ready signal to LOAD (first load)
         push_prev_dep = 1 if (alu_idx == nb_gemm and isFirstCompute == True) else 0 
         # Nothing else
         pop_next_dep = 0
