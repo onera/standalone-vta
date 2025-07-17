@@ -293,6 +293,7 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
 
     for alu_idx in range(nb_gemm, nb_gemm+nb_alu):
         alu = step[6][alu_idx]
+        nb_uop = 0
         
         # Define the opcode
         if (alu[0].startswith("MAX") or alu[0] == "RELU" or alu[0] == "MAXPOOL"):
@@ -339,6 +340,7 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
                         src_idx=src_vector_idx,
                         wgt_idx=0
                     ))
+                    nb_uop += 1
 
             # Else it is int -> a block is loaded
             else:
@@ -355,6 +357,7 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
                         src_idx=src_vector_idx,
                         wgt_idx=0
                     ))
+                    nb_uop += 1
             
             # If src_vectors is empty -> UOP
             if (len(src_vectors) == 0):
@@ -364,6 +367,7 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
                     src_idx=0,
                     wgt_idx=0
                 ))
+                nb_uop += 1
 
         # Acknowledge LOAD ready signal (first load)
         pop_prev_dep = 1 if (alu_idx == nb_gemm and isFirstCompute == True) else 0 
@@ -375,7 +379,7 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
 
         # INSN LOAD UOP
         insn_buffer.append(
-            load_store_instruction(buffer_type="UOP", pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep, sram_base=0, dram_base=current_uop_addr, y_size=1, x_size=len(alu[2]), x_stride=len(alu[2]))
+            load_store_instruction(buffer_type="UOP", pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep, sram_base=0, dram_base=current_uop_addr, y_size=1, x_size=nb_uop, x_stride=nb_uop)
         )
 
         # Update semaphore (LD->CMP, CMP->ST, ST->CMP, CMP->LD)
@@ -402,7 +406,7 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
             # Operations
             reset=0, # 0-no, 1-reset
             uop_bgn=0,
-            uop_end=len(alu[2]),
+            uop_end=nb_uop,
             loop_out=1,
             loop_in=1,
             # UNUSED
