@@ -1,8 +1,5 @@
 package util
 
-import vta.core
-import vta.core.CoreParams
-
 import java.io.{File, FileInputStream, InputStream}
 import scala.collection.convert.ImplicitConversions.`map AsJavaMap`
 import scala.language.postfixOps
@@ -25,7 +22,7 @@ object BinaryReader {
 
     val INP: DataTypeValue = new DataTypeValue(0, params("LOG_BLOCK"), samePrecision(params("LOG_INP_WIDTH")))
     val WGT: DataTypeValue = new DataTypeValue(1, params("LOG_BLOCK") * params("LOG_BLOCK"), samePrecision(params("LOG_WGT_WIDTH")))
-    val OUT: DataTypeValue = new DataTypeValue(2, params("LOG_BLOCK"), samePrecision(params("LOG_INP_WIDTH")))
+    val OUT: DataTypeValue = new DataTypeValue(2, params("LOG_BLOCK"), samePrecision(params("LOG_INP_WIDTH"))) // toujours 8 ?
     val UOP: DataTypeValue = new DataTypeValue(3, 3, Map(0 -> 11, 1 -> 11, 2 -> 10))
     val ACC: DataTypeValue = new DataTypeValue(4, params("LOG_BLOCK"), samePrecision(params("LOG_ACC_WIDTH")))
     val INSN: DataTypeValue = new DataTypeValue(5, 1, samePrecision(128))
@@ -97,7 +94,7 @@ object BinaryReader {
     }
     else if (dataType.precision(0) > 8) {
       for {
-        inst <- binaryData.grouped(dataType.precision(0) / 8).toArray // 4 pour acc
+        inst <- binaryData.grouped(dataType.precision(0) / 8).toArray
       } yield {
         inst.reverse
       }
@@ -107,24 +104,6 @@ object BinaryReader {
         inst <- binaryData.grouped(sizeOfElement / 8).toArray
       } yield inst
     }
-//    if (dataType.id != ACC.id)
-//      for {
-//        inst <- binaryData.grouped(sizeOfElement / 8).toArray
-//      } yield {
-//        if (dataType.doReversal)
-//          inst.reverse
-//        else
-//          inst
-//      }
-//    else { // For ACC, data size is 32 bits instead of 8
-//      {
-//        for {
-//          inst <- binaryData.grouped(4).toArray
-//        } yield {
-//          inst.reverse
-//        }
-//      }.flatten.grouped(64).toArray // Size of 1 ACC vector = 4 Bytes * 16 = 64 Bytes
-//    }
   }
 
   /**

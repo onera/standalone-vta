@@ -17,14 +17,6 @@ class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: 
   val computeSimulator = new ComputeSimulator(
     c, insn, uop, input, weight, out, acc, expected_out, base_addresses,
     doCompare, debug, fromResources = true)
-
-  computeSimulator.getOutScratchpad.toSeq.sortBy(_._1).foreach { case (key, values) =>
-    val hexKey = Integer.toHexString(key.toInt)
-    println(s"Logical address (Hex) : ${"0" * (8 - hexKey.length)}$hexKey")
-    println(s"Values : ${values.mkString(", ")}")
-  }
-
-
 }
 
 
@@ -59,6 +51,19 @@ class ComputeApp_16x16 extends GenericTest("ComputeApp_16x16", (p:Parameters) =>
   "examples_compute/16x16/expected_out.bin",
   "examples_compute/16x16/memory_addresses.csv",
   true))
+
+/* Matrix 16x16 multiply with matrix 16x16 (WGT and INP are int16) */
+class ComputeApp_16x16_int16 extends GenericTest("ComputeApp_16x16_int16", (p:Parameters) =>
+  new Compute(false)(p), (c: Compute) => new ComputeTest(c,
+  "examples_compute/16x16_int16/instructions.bin",
+  "examples_compute/16x16_int16/uop.bin",
+  "examples_compute/16x16_int16/input.bin",
+  "examples_compute/16x16_int16/weight.bin",
+  "examples_compute/16x16_int16/out_init.bin",
+  "examples_compute/16x16_int16/accumulator.bin",
+  "examples_compute/16x16_int16/expected_out_sram.bin",
+  "examples_compute/16x16_int16/memory_addresses.csv",
+  true, debug = true))
 
 /* Matrix 32x32 multiply with matrix 32x32 */
 class ComputeApp_32x32 extends GenericTest("ComputeApp_32x32", (p:Parameters) =>
