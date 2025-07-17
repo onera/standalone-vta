@@ -122,7 +122,6 @@ def create_alu_operations_list(operations_dict, nb_C_blocks=1, C_blocks_col=1, b
                     # Append block_information of the row
                     for col in range(0, C_blocks_col):
                         block_information.append( (dst_block_idx+col, dst_row) )
-                        idx_to_store.append ( (dst_block_idx+col, dst_row) )
                 
                 else: # Vector-vector
                     # Update the DST vector index
