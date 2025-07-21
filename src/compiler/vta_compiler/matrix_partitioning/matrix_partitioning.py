@@ -153,8 +153,10 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
             # Sort the alu_operations
             sorted_alu_operations = sort_alu_by_dst(alu_operations)
 
+            buffer_size = acc_block_buffer_size * block_size
+
             # Define the strategy
-            strategy = alu_strategy(sorted_alu_ops=sorted_alu_operations, acc_block_buffer_size=acc_block_buffer_size)
+            strategy = alu_strategy(sorted_alu_ops=sorted_alu_operations, acc_buffer_size=buffer_size)
 
     # Debug
     if (debug):
@@ -554,15 +556,14 @@ def strategy_4(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
 
 # ALU Strategy Generation
 # -----------------------
-# TODO: bug - do not support OP overfitting followed by IMM
-def alu_strategy(sorted_alu_ops, acc_block_buffer_size):
+def alu_strategy(sorted_alu_ops, acc_buffer_size):
     """
     Generates a loading and execution strategy for ALU operations based on a limited buffer size.
     This version enforces a strict sequential execution order for operations targeting the same destination.
 
     Inputs:
         - sorted_alu_ops (list): A list of ALU operations, pre-sorted by destination vector.
-        - acc_block_buffer_size (int): The number of blocks that fit the accumulator SRAM buffer.
+        - acc_buffer_size (int): The number of vectors that fit the accumulator SRAM buffer.
 
     Outputs:
         - strategy (list of tuple): Each tuple represents a computation step.
@@ -575,173 +576,148 @@ def alu_strategy(sorted_alu_ops, acc_block_buffer_size):
             6. [Ci]: The C output elements to store in DRAM in this step.
             7. [Operations]: The ALU operations to perform in this step.
     """
-    if acc_block_buffer_size <= 0:
-        raise ValueError("Buffer size must be strictly positive.")
-
-    # Step 1: Group operations by destination vector
-    grouped_ops = collections.OrderedDict()
-    for op in sorted_alu_ops:
-        dst, srcs = parse_alu_op(op)
-        if dst not in grouped_ops:
-            grouped_ops[dst] = {'ops': [], 'all_srcs': set()}
-        grouped_ops[dst]['ops'].append(op)
-        grouped_ops[dst]['all_srcs'].update(srcs)
-
+    # Init the strategy [([], [], [Xi], [SRAM], [DRAM], [Ci], [Ops])]
     strategy = []
-    buffer = set()
-    saved_dsts = set()  # Tracks destinations that have been fully computed and saved
+    load_X = []
+    sram_status = []
+    dram_status = []
+    store_C = []
+    ops = []
 
-    # Step 2: Iterate through all operations to build the strategy
-    for op in sorted_alu_ops:
-        dst, _ = parse_alu_op(op)
-        # If this destination has already been processed and saved, skip it
-        if dst in saved_dsts:
-            continue
+    # Capacity
+    capacity = acc_buffer_size
 
-        # Get all operations and sources for the current destination
-        data = grouped_ops[dst]
-        all_ops_for_dst = data['ops']
-        all_srcs_for_dst = data['all_srcs']
-        
-        if acc_block_buffer_size < 1:
-            raise ValueError("Buffer size must be at least 1.")
+    # Nb of ALU operations
+    nb_alu = len(sorted_alu_ops)
 
-        # This list will track pending operations for the destination
-        pending_ops_for_dst = list(all_ops_for_dst)
+    if (capacity < 2):
+        raise Exception(f"ERROR: The capacity of the buffer is {capacity} but it must be at least 2 (to load a DST vector and a SRC vector)! \n\n")
+    
+    # Iterate over all the alu_operations, each ALU contains a single DST vector
+    for alu_idx, alu_ops in enumerate(sorted_alu_ops):
+        # Get the DST and SRC vectors
+        dst_vector, src_vectors = get_dst_src_vectors(alu_ops=alu_ops)
 
-        # Ensure the destination vector is prioritized but clear other unnecessary items from buffer
-        buffer.intersection_update({dst})
-        vectors_to_load = sorted(list(all_srcs_for_dst - buffer))
-        if dst not in buffer:
-            vectors_to_load.insert(0, dst)
+        # Append ops
+        ops.append(alu_ops)
 
-        # Step 3: Load vectors in chunks and execute operations
-        i = 0
-        while i < len(vectors_to_load):
-            free_slots = acc_block_buffer_size - len(buffer)
-            # If buffer is full, evict non-essential vectors
-            if free_slots <= 0:
-                eviction_candidates = buffer - {dst}
-                if not eviction_candidates:
-                    raise RuntimeError(f"Logic Error: Buffer is full for dst={dst} with nothing to evict.")
-                buffer.difference_update(eviction_candidates)
-                free_slots = acc_block_buffer_size - len(buffer)
+        # Check if the DST_vector is in SRAM
+        if (not dst_vector in sram_status):
+            # Load the DST vector (init store)
+            load_X.append(dst_vector)
+            store_C.append(dst_vector)
+            sram_status.append(dst_vector)
 
-            # Load the next chunk of vectors
-            chunk_to_load = vectors_to_load[i : i + free_slots]
-            buffer.update(chunk_to_load)
-            i += len(chunk_to_load)
+        capacity = acc_buffer_size - len(sram_status)
 
-            ops_for_this_step = []
-            
-            # --- Sequential Processing Logic ---
-            # Process pending operations as long as progress can be made.
-            while pending_ops_for_dst:
-                # Always check the *first* operation in the pending queue.
-                op_to_check = pending_ops_for_dst[0]
-                
-                filtered_op = filter_op_for_step(op_to_check, buffer)
-                
-                if not filtered_op:
-                    # The head-of-line operation is not yet executable.
-                    # Cannot proceed further for this destination in this step.
-                    break
-                
-                # The operation is executable, add it to the current step.
-                ops_for_this_step.append(filtered_op)
-                
-                # Check if the op is fully completed with the current buffer state.
-                _, original_srcs = parse_alu_op(op_to_check)
-                if all(src in buffer for src in original_srcs):
-                    # Yes, it's complete. Remove it from the pending queue.
-                    pending_ops_for_dst.pop(0)
-                    # Continue to see if the *new* head-of-line op is also executable.
+        # Iterate over the SRC vectors
+
+        for src_idx, src_vector in enumerate(src_vectors):
+            if (capacity == 0):
+                # Filter the ops
+                filtered_ops = filter_op_for_step(alu_ops=ops, sram_status=sram_status)
+                # Append the strategy [([], [], [Xi], [SRAM], [DRAM], [Ci], [Ops])]
+                strategy.append( ([], [], load_X, sram_status, dram_status, [], filtered_ops) )
+
+                # Reset the capacity (minus 1 for the DST vector)
+                capacity = acc_buffer_size - 1
+                # Reset the lists (SRAM maintains DST vector)
+                load_X = []
+                sram_status = store_C.copy()
+
+            # Update load and SRAM and the capacity
+            load_X.append(src_vector)
+            sram_status.append(src_vector)
+            capacity = acc_buffer_size - len(sram_status)
+
+        # Check if it is the last ALU
+        if (alu_idx < nb_alu - 1):
+            # Check if the next ALU uses the same DST vector
+            next_dst, next_src = get_dst_src_vectors(sorted_alu_ops[alu_idx+1])
+
+            # Check if the next ALU is a vector-scalar operation
+            if (sorted_alu_ops[alu_idx+1][0].endswith("_IMM") or sorted_alu_ops[alu_idx+1][0] == "RELU"):
+                if (next_dst in sram_status):
                     continue
-                else:
-                    # No, it's only partially executed. We cannot start the next one.
-                    break
             
-            # Check if this is the final load for the current destination group
-            is_final_step_for_dst = (i >= len(vectors_to_load))
-            to_save_this_step = [dst] if is_final_step_for_dst else []
-            if is_final_step_for_dst:
-                saved_dsts.add(dst)
+            # Vectore-vector operation
+            else: 
+                # Check the size of the next ALU_ops
+                if ((next_dst in sram_status and len(next_src) < capacity) or (len(next_src) < capacity - 1)):
+                    # If the next ALU fit the buffer, continue the step
+                    continue
+                # If it the same DST vector but it does not fit, finalise the step but do not store
+                elif (next_dst in sram_status):
+                    # Filter the ops
+                    filtered_ops = filter_op_for_step(alu_ops=ops, sram_status=sram_status)
+                    # Append the strategy [([], [], [Xi], [SRAM], [DRAM], [Ci], [Ops])]
+                    strategy.append( ([], [], load_X, sram_status, dram_status, [], filtered_ops) )
+                    # Reset
+                    load_X = []
+                    sram_status = store_C.copy()
+                    ops = []
+                    capacity = acc_buffer_size - len(sram_status)
+                    continue
 
-            # Create the strategy step tuple: ([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Ops])
-            step = ([], [], sorted(chunk_to_load), sorted(list(buffer)), sorted(list(saved_dsts)), to_save_this_step, ops_for_this_step)
-            
-            # Only add a step if it involves loading or executing operations
-            if chunk_to_load or ops_for_this_step:
-                strategy.append(step)
-            
+
+        # Else, finalise the step
+
+        # Update the DRAM
+        dram_status = dram_status + store_C
+        # Filter the ops
+        filtered_ops = filter_op_for_step(alu_ops=ops, sram_status=sram_status)
+        # Append the strategy [([], [], [Xi], [SRAM], [DRAM], [Ci], [Ops])]
+        strategy.append( ([], [], load_X, sram_status, dram_status, store_C, filtered_ops) )
+
+        # Reset the lists and the capacity
+        load_X = []
+        sram_status = []
+        store_C = []
+        capacity = acc_buffer_size - len(sram_status)
+        ops = []
+
+    # Return the strategy
     return strategy
 
 
 ###############################################
 
-# ALU Operation Parsing
-# ---------------------
 
-def parse_alu_op(alu_op):
+def filter_op_for_step(alu_ops, sram_status):
     """
-    Parses an ALU operation to extract its destination and source vectors.
+    Filter the current ALU operation regarding the SRAM status (perform the operations only on the loaded vectors).
 
     Inputs:
-        - alu_op (list): A list representing a single ALU operation.
-          Format: [op_name, params, tuples_list]
+        - alu_ops (list): The ALU operation to filter.
+        - sram_status (list): The list of loaded vectors.
 
     Outputs:
-        - dst_vector (tuple or int): The destination vector index.
-        - src_vectors (list): A list of source vector indices.
+        - filtered_ops (list): The filtered ALU operations.
     """
-    op_name, params, tuples_list = alu_op
-    first_element = tuples_list[0]
+    # Init the final list
+    filtered_ops = []
 
-    # Check the format of the tuple to distinguish destination and sources
-    if isinstance(first_element[0], int):
-        # Format: (dst, ...) for scalar ops or ops with immediate values
-        dst_vector = first_element
-        src_vectors = []
-    else:
-        # Format: ((dst), [src1, src2, ...]) for vector-vector operations
-        dst_vector = first_element[0]
-        src_vectors = first_element[1]
+    # Iterate over the alu ops
+    for alu_op in alu_ops:
+        op_name, params, tuples_list = alu_op
 
-    return dst_vector, src_vectors
+        # If Vector-scalar, it is okay
+        if (op_name.endswith("_IMM") or op_name == " RELU"):
+            filtered_ops.append(alu_op)
+        
+        # If vector-vector operation, iterate over the src_list
+        else:
+            filtered_src = []
+            # Iterate over the src_vector
+            for src_vector in tuples_list[0][1]:
+                if (src_vector in sram_status):
+                    filtered_src.append(src_vector)
+            
+            filtered_ops.append( [op_name, params, [( tuples_list[0][0], filtered_src )]] )
+    
+    return filtered_ops
 
 # ---------------------------------------------
-
-def filter_op_for_step(alu_op, buffer_set):
-    """
-    Filters an ALU operation based on the current buffer content to determine
-    if it can be partially or fully executed in the current step.
-
-    Inputs:
-        - alu_op (list): The ALU operation to check.
-        - buffer_set (set): A set of vector indices currently in the buffer.
-
-    Outputs:
-        - (list or None): A new operation list for the current step if executable,
-          otherwise None.
-    """
-    op_name, params, tuples_list = alu_op
-    dst_vector, src_vectors = parse_alu_op(alu_op)
-
-    # The destination must be in the buffer to perform the operation
-    if dst_vector not in buffer_set:
-        return None
-
-    # For operations without source vectors (e.g., with immediate values)
-    if not src_vectors:
-        return [op_name, params, [(dst_vector)]]
-
-    # Filter source vectors that are currently in the buffer
-    filtered_srcs = [src for src in src_vectors if src in buffer_set]
-    return [op_name, params, [((dst_vector), filtered_srcs)]]
-
-
-###############################################
-
 
 def get_dst_src_vectors(alu_ops):
     """

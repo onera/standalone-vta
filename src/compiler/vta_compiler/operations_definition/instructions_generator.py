@@ -179,7 +179,10 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
             # Get the idx of the block in DRAM and the location in SRAM
             current_block_addr = find_logical_block_addr_by_idx(block_idx[0], acc_addr)
             current_dram = current_block_addr + block_idx[1]
-            current_sram_base=0x0000 + i
+
+            # Get the SRAM base find 
+            sram_base = block_idx_in_sram(block_idx, memory_status)
+            current_sram_base=sram_base
 
             # INSN LOAD ACC - load a full block_size x block_size matrix
             insn_buffer.append(
