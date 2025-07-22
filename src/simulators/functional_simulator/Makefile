@@ -23,6 +23,7 @@
 # Define the compilation option (compiler: gcc, flags: -Wall)
 CC := g++ 
 CFLAGS = -std=c++17 -lstdc++fs -Wall -g
+DEBUGFLAG := -DDEBUG_SIM=false
 #-fsanitize=address 
 
 # Define the variables for the configuration (vta_config.json)
@@ -64,9 +65,9 @@ build/functional_simulator: build/vta_config_def.txt $(OBJS) lib_tvm
 	build/virtual_memory.o build/sim_tlpp.o \
 	build/sim_driver.o \
 	$(OBJ_LIB_TVM) -o $@
-	@echo
-	@echo "Successful link!"
-	@echo "To run the executable: ./build/functional_simulator"
+# 	@echo
+# 	@echo "Successful link!"
+# 	@echo "To run the executable: ./build/functional_simulator"
 
 # TEMPO
 build/tempo: build/vta_config_def.txt $(OBJS) lib_tvm
@@ -85,24 +86,24 @@ tempo: build/tempo
 # ----------------------------------
 # Compile the main file:
 build/functional_simulator.o: src/functional_simulator.cc include/simulator_header.h
-	$(CC) $(VTA_DEFS) $(CFLAGS) -o build/functional_simulator.o -c src/functional_simulator.cc
+	$(CC) $(VTA_DEFS) $(DEBUGFLAG) $(CFLAGS) -o build/functional_simulator.o -c src/functional_simulator.cc
 
 # Compile the function file (used by main):
 build/simulator_functions.o: src/simulator_functions.cc include/simulator_header.h
-	$(CC) $(VTA_DEFS) $(CFLAGS) -o build/simulator_functions.o -c src/simulator_functions.cc
+	$(CC) $(VTA_DEFS) $(DEBUGFLAG) $(CFLAGS) -o build/simulator_functions.o -c src/simulator_functions.cc
 
 # Compile simulator files
 build/sim_driver.o: src/sim_driver.cc include/driver.h build/vta_config_def.txt
-	$(CC) $(VTA_DEFS) $(CFLAGS) -c src/sim_driver.cc -o build/sim_driver.o
+	$(CC) $(VTA_DEFS) $(DEBUGFLAG) $(CFLAGS) -c src/sim_driver.cc -o build/sim_driver.o
 
 build/sim_tlpp.o: src/sim_tlpp.cc include/sim_tlpp.h build/vta_config_def.txt
-	$(CC) $(VTA_DEFS) $(CFLAGS) -c src/sim_tlpp.cc -o build/sim_tlpp.o
+	$(CC) $(VTA_DEFS) $(DEBUGFLAG) $(CFLAGS) -c src/sim_tlpp.cc -o build/sim_tlpp.o
 
 build/virtual_memory.o: src/virtual_memory.cc include/virtual_memory.h build/vta_config_def.txt
-	$(CC) $(VTA_DEFS) $(CFLAGS) -c src/virtual_memory.cc -o build/virtual_memory.o
+	$(CC) $(VTA_DEFS) $(DEBUGFLAG) $(CFLAGS) -c src/virtual_memory.cc -o build/virtual_memory.o
 
 build/reshape.o: src/reshape.cc include/simulator_header.h
-	$(CC) $(VTA_DEFS) $(CFLAGS) -c src/reshape.cc -o build/reshape.o
+	$(CC) $(VTA_DEFS) $(DEBUGFLAG) $(CFLAGS) -c src/reshape.cc -o build/reshape.o
 
 # Generic rules for all in one (require to execute $ make depend)
 #build/%.o: src/%.cc build/vta_config_def.txt
