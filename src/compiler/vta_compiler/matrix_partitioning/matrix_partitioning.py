@@ -623,8 +623,6 @@ def alu_strategy(sorted_alu_ops, acc_buffer_size):
                 # Append the strategy [([], [], [Xi], [SRAM], [DRAM], [Ci], [Ops])]
                 strategy.append( ([], [], load_X, sram_status, dram_status, [], filtered_ops) )
 
-                # Reset the capacity (minus 1 for the DST vector)
-                capacity = acc_buffer_size - 1
                 # Reset the lists (SRAM maintains DST vector)
                 load_X = []
                 sram_status = store_C.copy()
