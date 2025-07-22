@@ -2,8 +2,8 @@
 
 We present here two Jupyter notebooks, which aim to explain how to use the standalone-vta, and illustrate the data generation and manipulation in the standalone-vta/src/compiler/vta_compiler, to be used in standalone-vta/src/simulators.
 
-- [Tutorial 1 : data_definition](https://mybinder.org/v2/gh/onera/standalone-vta/b3aba2fd42a10fb793de7befd4ae31d99a59e8c9?urlpath=lab%2Ftree%2Ftutorials%2Ftutorial1_data_definition.ipynb)
-- [Tutorial 2 : operations_definition](https://mybinder.org/v2/gh/onera/standalone-vta/b3aba2fd42a10fb793de7befd4ae31d99a59e8c9?urlpath=lab%2Ftree%2Ftutorials%2Ftutorial2_operations_definition.ipynb)
+- [Tutorial 1 : data_definition](https://mybinder.org/v2/gh/onera/standalone-vta/15-add-link-to-binder-in-readmemd-for-notebooks?urlpath=%2Fdoc%2Ftree%2Ftutorials%2Ftutorial1_data_definition.ipynb)
+- [Tutorial 2 : operations_definition](https://mybinder.org/v2/gh/onera/standalone-vta/15-add-link-to-binder-in-readmemd-for-notebooks?urlpath=%2Fdoc%2Ftree%2Ftutorials%2Ftutorial2_operations_definition.ipynb)
 
 ## TUTORIAL 1 : using vta_compiler/data_definition
 
