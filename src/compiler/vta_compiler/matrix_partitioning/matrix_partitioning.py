@@ -82,8 +82,12 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
             load_B = [i for i in range(0, nb_B)]
             load_X = [i for i in range(0, nb_X)]
             memory_status = load_X
-            dram_state = [] # TODO: not used
-            store_C = load_X
+            if (len(idx_to_store) > 0):
+                dram_state = idx_to_store
+                store_C = idx_to_store
+            else:
+                dram_state = load_X
+                store_C = load_X
 
             # Get the GEMM operations
             ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, C_blocks_col)

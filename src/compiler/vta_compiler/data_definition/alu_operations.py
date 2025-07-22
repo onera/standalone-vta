@@ -63,7 +63,6 @@ def create_alu_operations_list(operations_dict, nb_C_blocks=1, C_blocks_col=1, b
     """
     # Init the output
     alu_operations_list = []
-    idx_to_delete = []
     idx_to_store = []
 
     # If there is ALU operations, append the list
@@ -82,10 +81,6 @@ def create_alu_operations_list(operations_dict, nb_C_blocks=1, C_blocks_col=1, b
                 alu_ops = ["RELU", [[0, 1], 0, nb_iteration]]
                 dst_idx = 0
                 dst_step = 1
-            elif alu_ops[0].endswith("POOL"):
-                nb_iteration = 0
-                alu_ops, pool_idx_to_delete = pool_alu_ops(alu_ops, nb_C_blocks, C_blocks_col, block_size)
-                idx_to_delete = idx_to_delete + pool_idx_to_delete
             
             # Check if the ALU is iterative or not
             elif (len(alu_ops[1]) == 3): # ITERATIVE
@@ -126,8 +121,6 @@ def create_alu_operations_list(operations_dict, nb_C_blocks=1, C_blocks_col=1, b
                 else: # Vector-vector
                     # Update the DST vector index
                     local_src_idx = src_idx + src_step*nb
-                    # Add it to the idx to delete
-                    idx_to_delete.append(local_src_idx)
 
                     # Define the position within a block (first block of a row)
                     src_block_idx = (local_src_idx // block_size) * C_blocks_col
@@ -151,122 +144,41 @@ def create_alu_operations_list(operations_dict, nb_C_blocks=1, C_blocks_col=1, b
     # Sort the idx_to_store
     idx_to_store = sorted(set(idx_to_store))
 
-    return alu_operations_list, idx_to_delete, idx_to_store
-
-# ---------------------------------------------
-
-# POOL_OPERATIONS
-# ---------------
-def pool_operations(matrix, alu_ops):
-    # Get the information from alu_ops
-    op = alu_ops[0]
-    tensor_height, tensor_width = alu_ops[1][0]
-    kernel_height, kernel_width = alu_ops[1][1]
-
-    # Compute the number of kernel within the tensor
-    nb_h = tensor_height // kernel_height
-    nb_w = tensor_width // kernel_width
-    # Iterate over all the resulting vectors (get the dst_idx)
-    for i in range(0, nb_h):
-        for j in range(0, nb_w):
-            dst_idx = (i*tensor_width)*kernel_height + j*kernel_width
-            # Get the src_idx
-            for h in range(0, kernel_height):
-                for w in range(0, kernel_width):
-                    # Do not get the very first element (which is dst_idx)
-                    if (h == 0 and w == 0):
-                        continue
-                    # Get the src_idx and add it to idx_to_delete
-                    src_idx = dst_idx + h*tensor_width + w
-
-                    # Perform the operations
-                    if (op == "MAXPOOL"):
-                        matrix[dst_idx] = np.maximum(matrix[dst_idx], matrix[src_idx])
-                    elif (op == "AVGPOOL"):
-                        matrix[dst_idx] = np.add(matrix[dst_idx], matrix[src_idx])
-                    else: 
-                        raise Exception(f"ERROR: ALU non-supported operations ({op})! \n\n")
-            # If AVGPOOL, perform the mean operation
-            if (op == "AVGPOOL"):
-                matrix[dst_idx] = np.divide(matrix[dst_idx], kernel_height*kernel_width)
-
-    return matrix
-
-# ---------------------------------------------
-
-# POOL_ALU_OPS
-# ------------
-def pool_alu_ops(alu_ops, nb_C_blocks=1, C_blocks_col=1, block_size=16):
-    # Get the information from alu_ops
-    op = alu_ops[0]
-    tensor_height, tensor_width = alu_ops[1][0]
-    kernel_height, kernel_width = alu_ops[1][1]
-
-    # Compute the number of kernel within the tensor
-    nb_h = tensor_height // kernel_height
-    nb_w = tensor_width // kernel_width
-
-    # Get the pair of operations and the idx to delete
-    pair_ops = []
-    idx_to_delete = []
-    # Iterate over all the resulting vectors (get the dst_idx)
-    for i in range(0, nb_h):
-        for j in range(0, nb_w):
-            dst_idx = (i*tensor_width)*kernel_height + j*kernel_width
-
-            # Get the src_idx
-            for h in range(0, kernel_height):
-                for w in range(0, kernel_width):
-                    # Do not get the very first element (which is dst_idx)
-                    if (h == 0 and w == 0):
-                        continue
-                    # Get the src_idx and add it to idx_to_delete
-                    src_idx = dst_idx + h*tensor_width + w
-                    idx_to_delete.append(src_idx)
-
-                    # Get the index of the 1st block in the row
-                    dst_block_idx = (dst_idx // block_size) * C_blocks_col
-                    dst_row = dst_idx % block_size
-
-                    # Get the index of the 1st block in the row
-                    src_block_idx = (src_idx // block_size) * C_blocks_col
-                    src_row = src_idx % block_size
-
-                    # Append pair_ops
-                    for col in range(0, C_blocks_col):
-                        pair_ops.append( ((dst_block_idx+col, dst_row), (src_block_idx+col, src_row)) )
-
-    # Append the current alu_ops
-    alu_ops_updated = [op, alu_ops[1], pair_ops]
-    return alu_ops_updated, idx_to_delete
+    return alu_operations_list, idx_to_store
 
 # ---------------------------------------------
 
 # DELETE MATRIX ROW
 # -----------------
-def delete_matrix_row(input_blocks, blocks_col=1, block_size=16, idx_to_delete=[], matrix_height=1, padding=0):
-    # Add the padding in the idx_to_delete
-    for i in range(padding):
-        idx_to_delete.append(i+matrix_height)
-
-    # Sort the list and remove duplicata
-    idx_to_delete = sorted(set(idx_to_delete))
-
+def delete_matrix_row(input_blocks, blocks_col=1, block_size=16, idx_to_store=[], matrix_height=1, padding=0):
+    # If idx_to_store is empty, everything is stored
+    if (len(idx_to_store) == 0):
+        return input_blocks
+    
+    # Else, store the right vectors
+    
+    # Define the number of blocks
+    nb_block = len(input_blocks)
+    
     # Copy the matrix and not modify the previous
     blocks = input_blocks.copy()
 
-    # Iterate on the index
-    for idx in reversed(idx_to_delete):
-        # Compute the local index within the block
-        block_idx = (idx // block_size) * blocks_col
-        local_idx = idx % block_size
+    # Init the idx to delete
+    idx_to_delete = []
+    for b in range(0, nb_block):
+        for v in reversed(range(0, block_size)):
+            if (b, v) in idx_to_store:
+                # Skip this idx
+                continue
+            else: # Else append the idx to delete
+                idx_to_delete.append( (b,v) )
 
-        # Iterate over all the blocks in the same row
-        for col in range(blocks_col):
-            blocks[block_idx+col] = np.delete(blocks[block_idx+col], local_idx, axis=0)
-    
-    # Return the blocks and the sorted idx_to_delete
-    return blocks, idx_to_delete
+    # Iterate over the list to delete and remove the vector
+    for block_idx, vector_idx in idx_to_delete:
+        blocks[block_idx] = np.delete( blocks[block_idx], vector_idx, axis=0 )
+
+    # Return the blocks
+    return blocks
 
 # ---------------------------------------------
 

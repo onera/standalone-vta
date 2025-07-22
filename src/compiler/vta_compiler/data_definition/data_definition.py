@@ -105,7 +105,7 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
 
     # Create the dictionary for the ALU operations
     #   (for ALU vector-vector operation, the source vector can be deleted)
-    alu_operations_list, idx_to_delete, idx_to_store = ALU.create_alu_operations_list(operations_dict=operations_dict, nb_C_blocks=len(ACC_blocks_ref), C_blocks_col=ACC_blocks_col, block_size=block_size)
+    alu_operations_list, idx_to_store = ALU.create_alu_operations_list(operations_dict=operations_dict, nb_C_blocks=len(ACC_blocks_ref), C_blocks_col=ACC_blocks_col, block_size=block_size)
 
     # Execute the operations: ["OPS", [DST, SRC]] or ["OPS", [DST, SRC, NB_ITERATION]]
     for alu_ops in alu_operations_list:
@@ -147,7 +147,7 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
 
     # Remove non-necessary row in ALU to get C
     padding = ACC_padded_ref.shape[0] - C_row
-    C_blocks, idx_to_delete = ALU.delete_matrix_row(ALU_blocks, blocks_col=C_blocks_col, block_size=block_size, idx_to_delete=idx_to_delete, matrix_height=C_row, padding=padding)
+    C_blocks = ALU.delete_matrix_row(ALU_blocks, blocks_col=C_blocks_col, block_size=block_size, idx_to_store=idx_to_store, matrix_height=C_row, padding=padding)
 
     # ---------------------------------------------
     # DEBUG
@@ -210,8 +210,7 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
             print(f"\n C {i} - {block.shape}")
             print(block)
         
-        print(f"\nDeleted rows: \n {idx_to_delete}")
-        print(f"Tuples to store: \n {idx_to_store}\n")
+        print(f"Tuples to store (if empty, everything is stored): \n {idx_to_store}\n")
 
     # ---------------------------------------------
     # RETURN 
