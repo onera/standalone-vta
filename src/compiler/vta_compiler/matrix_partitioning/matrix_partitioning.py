@@ -11,7 +11,7 @@ import pprint
 # Matrix partitioning
 # -------------------
 def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_col=1, nb_C=1, C_blocks_col=1,
-                        inp_block_buffer_size=4, wgt_block_buffer_size=32, acc_block_buffer_size=4, out_block_buffer_size=4,
+                        inp_buffer_size=4*256, wgt_buffer_size=32*16, acc_buffer_size=4*256, out_buffer_size=4*256,
                         alu_operations=[], idx_to_store=[],
                         strategy_selector=1, block_size=16,
                         debug=True):
@@ -48,10 +48,10 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
         - CASE 3: ALU operations
     """
     # Check strategy assumptions
-    if not ( (acc_block_buffer_size == out_block_buffer_size) \
+    if not ( (acc_buffer_size == out_buffer_size) \
            and (nb_X == nb_C) and (X_blocks_col == C_blocks_col) ):
         raise Exception(f"ERROR: Assumptions for matrix partitioning: \
-                        \n\t 1. acc_block_buffer_size ({acc_block_buffer_size}) = out_block_buffer_size ({out_block_buffer_size}); \
+                        \n\t 1. acc_buffer_size ({acc_buffer_size}) = out_buffer_size ({out_buffer_size}); \
                         \n\t 2. nb_X ({nb_X}) = nb_C ({nb_C}) and X_blocks_col ({X_blocks_col}) = C_blocks_col ({C_blocks_col})! \n\n")
     # Check data consistency
     if ( (nb_A%A_blocks_col != 0) or (nb_B%B_blocks_col != 0) or (nb_C%C_blocks_col != 0) ):
@@ -63,6 +63,12 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
     # Init the output
     isOverfitting = False
     strategy = []
+
+    # Define the block capacity
+    inp_block_buffer_size = int( inp_buffer_size / block_size )
+    wgt_block_buffer_size = wgt_buffer_size
+    acc_block_buffer_size = int( acc_buffer_size / block_size )
+    out_block_buffer_size = acc_block_buffer_size
 
     # CASE 1 & 2: MATRIX MULTIPLICATION
     if (nb_A != 0 and nb_B != 0):
@@ -157,10 +163,8 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
             # Sort the alu_operations
             sorted_alu_operations = sort_alu_by_dst(alu_operations)
 
-            buffer_size = acc_block_buffer_size * block_size
-
             # Define the strategy
-            strategy = alu_strategy(sorted_alu_ops=sorted_alu_operations, acc_buffer_size=buffer_size)
+            strategy = alu_strategy(sorted_alu_ops=sorted_alu_operations, acc_buffer_size=acc_buffer_size)
 
     # Debug
     if (debug):

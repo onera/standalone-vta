@@ -34,10 +34,8 @@ def main(operations_dict, vta_config_dict, debug=True):
     wgt_buffer_size = conf.buffer_size(vta_config_dict["LOG_WGT_BUFF_SIZE"], vta_config_dict["LOG_WGT_WIDTH"], block_size*block_size)
     acc_buffer_size = conf.buffer_size(vta_config_dict["LOG_ACC_BUFF_SIZE"], vta_config_dict["LOG_ACC_WIDTH"], block_size)
     out_buffer_size = acc_buffer_size
-    inp_block_buffer_size = int( inp_buffer_size / block_size )
-    wgt_block_buffer_size = wgt_buffer_size
-    acc_block_buffer_size = int( acc_buffer_size / block_size )
-    out_block_buffer_size = acc_block_buffer_size
+
+    uop_buffer_size = conf.buffer_size(vta_config_dict["LOG_UOP_BUFF_SIZE"], 5, 1)
 
     # Others configuration
     random_bound = 4
@@ -101,8 +99,8 @@ def main(operations_dict, vta_config_dict, debug=True):
     isOverfitting, strategy = \
         MP.matrix_partitioning(nb_A=nb_A, A_blocks_col=A_blocks_col, nb_B=nb_B, B_blocks_col=B_blocks_col, 
                                nb_X=nb_X, X_blocks_col=X_blocks_col, nb_C=nb_C, C_blocks_col=C_blocks_col,
-                               inp_block_buffer_size=inp_block_buffer_size, wgt_block_buffer_size=wgt_block_buffer_size, 
-                               acc_block_buffer_size=acc_block_buffer_size, out_block_buffer_size=out_block_buffer_size,
+                               inp_buffer_size=inp_buffer_size, wgt_buffer_size=wgt_buffer_size, 
+                               acc_buffer_size=acc_buffer_size, out_buffer_size=out_buffer_size,
                                alu_operations=alu_operations, idx_to_store=idx_to_store,
                                strategy_selector=strategy_selector, block_size=block_size,
                                debug=debug)
