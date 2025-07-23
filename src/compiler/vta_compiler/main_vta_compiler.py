@@ -43,10 +43,11 @@ def main(operations_dict, vta_config_dict, debug=True):
 
     # ---------------------------------------------
     # DATA DEFINITION
-
-    A_blocks, A_blocks_col, B_blocks, B_blocks_col, X_blocks, X_blocks_col, ALU_blocks, C_blocks, C_blocks_col, C_init, alu_operations, idx_to_store, doGemm = \
+    print(f"\nDEBUG: DATA DEFINITION")
+    A_blocks, A_blocks_col, B_blocks, B_blocks_col, X_blocks, X_blocks_col, Y_blocks, ALU_blocks, C_blocks, C_blocks_col, C_init, alu_operations, idx_to_store, doGemm, doAddMatrix = \
         DF.data_definition(operations_dict, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype,
                            block_size=block_size, random_bound=random_bound, debug=debug)
+    print(f"\nDEBUG: END DATA DEFINITION \n\n")
 
 
     # ---------------------------------------------
@@ -58,6 +59,7 @@ def main(operations_dict, vta_config_dict, debug=True):
     object_list = [("INP", A_blocks),
                    ("WGT", B_blocks),
                    ("ACC", X_blocks),
+                   ("ADD_ACC", Y_blocks),
                    ("OUT", C_blocks, forced_allocation_size),
                    ("UOP", [])]
 
@@ -71,11 +73,14 @@ def main(operations_dict, vta_config_dict, debug=True):
     else:
         dram_offset = 0x0000
 
+
+    print(f"\nDEBUG: DRAM ALLOCATION")
     # Allocate the object
     base_addresses_list, current_dram_addr = \
         DA.dram_allocation(object_list, base_addr=base_address, block_size=block_size, 
                            inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype,
                            dram_offset=dram_offset, debug=debug)
+    print(f"\nDEBUG: END DRAM ALLOCATION\n\n")
 
 
     # ---------------------------------------------
@@ -94,6 +99,7 @@ def main(operations_dict, vta_config_dict, debug=True):
     # Select a strategy in case of overfitting
     strategy_selector = 1
 
+    print(f"\nDEBUG: MATRIX PARTITIONING")
     # Apply matrix partitioning (check is overfit then applies selected trategy)
     # => Strategy 1 is the most naive, but works in the most of the cases (strategies 2 to 4 have more constrained assumptions)
     isOverfitting, strategy = \
@@ -102,18 +108,22 @@ def main(operations_dict, vta_config_dict, debug=True):
                                inp_buffer_size=inp_buffer_size, wgt_buffer_size=wgt_buffer_size, 
                                acc_buffer_size=acc_buffer_size, out_buffer_size=out_buffer_size,
                                alu_operations=alu_operations, idx_to_store=idx_to_store,
+                               doAddMatrix=doAddMatrix,
                                strategy_selector=strategy_selector, block_size=block_size,
                                debug=debug)
+    print(f"\nDEBUG: END MATRIX PARTITIONING \n\n")
 	
 
     # ---------------------------------------------
     # OPERATIONS DEFINITION
 
+    print(f"\nDEBUG: OPERATION DEFINITION")
     insn_buffer, uop_buffer = \
         OP.operations_definition(strategy=strategy, dram_addresses=base_addresses_list,
-                                 operations_dict=operations_dict, block_size=block_size,
+                                 operations_dict=operations_dict, block_size=block_size, uop_buffer_size=uop_buffer_size,
                                  A_blocks_col=A_blocks_col, B_blocks_col=B_blocks_col, X_blocks_col=X_blocks_col, C_blocks_col=C_blocks_col,
                                  debug=debug)
+    print(f"\nDEBUG: END OPERATION DEFINITION \n\n")
     
     # Update DRAM allocation
     object_list = [("UOP", uop_buffer),
@@ -129,6 +139,7 @@ def main(operations_dict, vta_config_dict, debug=True):
     # ---------------------------------------------
     # DATA BINARISATION
 
+    print(f"\nDEBUG: BINARISATION")
     # Setup the output folder (standalone-vta/compiler_output/)
     output_dir = compiler_output_setup()
 
@@ -137,6 +148,7 @@ def main(operations_dict, vta_config_dict, debug=True):
     A_blocks_file_path = filepath_definition(output_dir, 'input.bin')
     B_blocks_file_path = filepath_definition(output_dir, 'weight.bin')
     X_blocks_file_path = filepath_definition(output_dir, 'accumulator.bin')
+    Y_blocks_file_path = filepath_definition(output_dir, 'add_accumulator.bin')
     C_blocks_file_path = filepath_definition(output_dir, 'expected_out.bin')
     C_init_file_path = filepath_definition(output_dir, 'out_init.bin')
     ALU_blocks_file_path = filepath_definition(output_dir, 'expected_out_sram.bin')
@@ -155,6 +167,11 @@ def main(operations_dict, vta_config_dict, debug=True):
     # Write X_blocks matrix
     with open(X_blocks_file_path, 'wb') as f:
         for block in X_blocks:
+            block.tofile(f)
+
+    # Write Y_blocks matrix
+    with open(Y_blocks_file_path, 'wb') as f:
+        for block in Y_blocks:
             block.tofile(f)
     
     # Write C_blocks (expected result)

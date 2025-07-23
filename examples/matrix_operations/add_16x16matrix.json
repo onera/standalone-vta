@@ -1,0 +1,9 @@
+{
+  "MATRICES" : [
+    {
+      "ACCUMULATOR": [16, 16],
+      "ADD_ACCUMULATOR": [16, 16]
+    }
+  ],
+  "BASE_ADDRESS" : "0000"
+}

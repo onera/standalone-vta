@@ -13,6 +13,7 @@ import pprint
 def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_col=1, nb_C=1, C_blocks_col=1,
                         inp_buffer_size=4*256, wgt_buffer_size=32*16, acc_buffer_size=4*256, out_buffer_size=4*256,
                         alu_operations=[], idx_to_store=[],
+                        doAddMatrix=False,
                         strategy_selector=1, block_size=16,
                         debug=True):
     """
@@ -137,6 +138,32 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
                 strategy = strategy_4(**params)
             else:
                 raise Exception(f"ERROR: Matrix partitioning strategy {strategy_selector} does not exist!\n\n")
+    
+    # CASE X:
+    elif (doAddMatrix == True):
+        # Define the operation
+        ops = [["ADD_ACC"]]
+
+        # Check if it fits
+        if (2*nb_X < acc_block_buffer_size):
+            isOverfitting = False
+            
+            # Load all the blocks ([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])
+            load_A = []
+            load_B = []
+            load_X = [i for i in range(0, nb_X)]
+            memory_status = load_X
+            dram_state = load_X
+            store_C = load_X
+
+            # Create the strategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]
+            strategy = [ (load_A, load_B, load_X, memory_status, dram_state, store_C, ops) ]
+
+        # It does not fit
+        else:
+            isOverfitting = True
+            pass
+
     
 
     # CASE 3: ALU OPERATIONS

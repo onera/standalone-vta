@@ -51,7 +51,7 @@ matrix_overfitting: ## Multiply a 4x2-blocks INP with a 2x3-blocks WGT
 test_matmul:
 	make clean
 	python $(MAKEFILE_DIR)matrix_operations/testing/test_matmul_relu.py
-	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/testing/matmul_relu.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
+	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/testing/matmul_relu.json $(CONFIG)/vta_config.json False
 	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
 
 # MATRIX POOLING EXAMPLE
@@ -65,12 +65,24 @@ matrix_maxpool_overfitting: ## Apply a maxpool with a 3x3-kernel on a flatten 6x
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/matrix_maxpool.json $(MAKEFILE_DIR)matrix_operations/alternative_config/config_pool_overfitting.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
 	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
 
+matrix_maxpool_big_overfitting: ## Apply a maxpool with a 3x3-kernel on a flatten 6x6-tensor, buffers can only store 4 vectors (Multiple steps are required by MAX)
+	make clean
+	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/matrix_maxpool.json $(MAKEFILE_DIR)matrix_operations/alternative_config/config_pool_big_overfitting.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
+	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
+
 # Test
 test_maxpool:
 	make clean
 	python $(MAKEFILE_DIR)matrix_operations/testing/test_maxpool.py
-	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/testing/maxpool.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
+	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/testing/maxpool.json $(CONFIG)/vta_config.json True > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
 	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
+
+# ADDING 2 MATRICES EXAMPLES
+matrix_add: ## Add two 16x16 matrices together
+	make clean
+	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/add_16x16matrix.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
+	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
+
 
 
 # CREATE OUTPUTS DIRECTORIES

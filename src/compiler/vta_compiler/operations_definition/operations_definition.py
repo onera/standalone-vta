@@ -14,7 +14,7 @@ else:
 # OPERATIONS DEFINITION
 # ---------------------
 def operations_definition(strategy=[], dram_addresses=[],
-                          operations_dict={}, block_size=16,
+                          operations_dict={}, block_size=16, uop_buffer_size=8192,
                           A_blocks_col=1, B_blocks_col=1, X_blocks_col=1, C_blocks_col=1,
                           debug=True):
     # Init the lists of instructions, UOPs and semaphore
@@ -36,7 +36,7 @@ def operations_definition(strategy=[], dram_addresses=[],
     for i, step in enumerate(strategy):
         memory_status = step[3]
 
-        new_insn, new_buffer, uop_counter, semaphore = strategy_step(step, dram_addresses, memory_status, uop_counter, semaphore, block_size)
+        new_insn, new_buffer, uop_counter, semaphore = strategy_step(step, dram_addresses, memory_status, uop_counter, semaphore, block_size, uop_buffer_size)
         insn_buffer = insn_buffer + new_insn
         uop_buffer = uop_buffer + new_buffer
 

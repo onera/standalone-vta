@@ -26,6 +26,7 @@ int execute_simulator(bool debug) {
     std::string fileInpPath = construct_path("input.bin");
     std::string fileWgtPath = construct_path("weight.bin");
     std::string fileAccPath = construct_path("accumulator.bin");
+    std::string fileAddAccPath = construct_path("add_accumulator.bin");
     std::string fileUopPath = construct_path("uop.bin");
     std::string fileInsnPath = construct_path("instructions.bin");
     std::string fileExpectedOutPath = construct_path("expected_out.bin");
@@ -35,6 +36,7 @@ int execute_simulator(bool debug) {
     std::vector<int8_t> inpA = read_binary_file<int8_t>(fileInpPath);
     std::vector<int8_t> wgtB = read_binary_file<int8_t>(fileWgtPath);
     std::vector<int32_t> accX = read_binary_file<int32_t>(fileAccPath);
+    std::vector<int32_t> accY = read_binary_file<int32_t>(fileAddAccPath);
     std::vector<uop_t> uop_buffer = read_binary_file<uop_t>(fileUopPath);
     std::vector<instruction_t> insn_buffer = read_binary_file<instruction_t>(fileInsnPath);
 
@@ -66,6 +68,7 @@ int execute_simulator(bool debug) {
     void* mem_inpA = VTAMemAlloc(inpA.size() * sizeof(int8_t), 1);
     void* mem_wgtB = VTAMemAlloc(wgtB.size() * sizeof(int8_t), 1);
     void* mem_accX = VTAMemAlloc(accX.size() * sizeof(int32_t), 1);
+    void* mem_accY = VTAMemAlloc(accY.size() * sizeof(int32_t), 1);
     void* mem_outC = VTAMemAlloc(outC_size * sizeof(int8_t), 1);
     void* mem_uop = VTAMemAlloc(uop_buffer.size() * sizeof(uop_t), 1);
     void* mem_insn = VTAMemAlloc(insn_buffer.size() * sizeof(instruction_t), 1);
@@ -77,6 +80,7 @@ int execute_simulator(bool debug) {
     vta_phy_addr_t phy_add_outC = VTAMemGetPhyAddr(mem_outC);
     vta_phy_addr_t phy_add_uop = VTAMemGetPhyAddr(mem_uop);
     vta_phy_addr_t phy_add_accX = VTAMemGetPhyAddr(mem_accX);
+    vta_phy_addr_t phy_add_accY = VTAMemGetPhyAddr(mem_accY);
 
     if (debug == true)
     {
@@ -84,11 +88,13 @@ int execute_simulator(bool debug) {
             " inpA = phy:0x%x, logic:0x%x (logic = phy/16) \n"
             " wgtB = phy:0x%x, logic:0x%x (logic = phy/256) \n"
             " accX = phy:0x%x, logic:0x%x (logic = phy/64) \n"
+            " accY = phy:0x%x, logic:0x%x (logic = phy/64) \n"
             " outC = phy:0x%x, logic:0x%x (logic = phy/16) \n"
             " uop = phy:0x%x, logic:0x%x (logic = phy/4) \n"
             " insn = phy:0x%x, logic:0x%x (logic = phy/16) \n\n",
             phy_add_inpA, phy_add_inpA / 16, phy_add_wgtB, phy_add_wgtB / 256,
-            phy_add_accX, phy_add_accX / 64, phy_add_outC, phy_add_outC / 16, 
+            phy_add_accX, phy_add_accX / 64, phy_add_accY, phy_add_accY / 64,
+            phy_add_outC, phy_add_outC / 16, 
             phy_add_uop, phy_add_uop / 4, phy_add_insn, phy_add_insn / 16);
     }
 
@@ -127,6 +133,7 @@ int execute_simulator(bool debug) {
     VTAMemCopyFromHost(mem_inpA, inpA.data(), inpA.size() * sizeof(int8_t));
     VTAMemCopyFromHost(mem_wgtB, wgtB.data(), wgtB.size() * sizeof(int8_t));
     VTAMemCopyFromHost(mem_accX, accX.data(), accX.size() * sizeof(int32_t));
+    VTAMemCopyFromHost(mem_accY, accY.data(), accY.size() * sizeof(int32_t));
     VTAMemCopyFromHost(mem_outC, outC.data(), outC_size * sizeof(int8_t)); 
     VTAMemCopyFromHost(mem_uop, uop_buffer.data(), uop_buffer.size() * sizeof(uop_t));
     VTAMemCopyFromHost(mem_insn, insn_buffer.data(), insn_buffer.size() * sizeof(instruction_t));
@@ -165,6 +172,7 @@ int execute_simulator(bool debug) {
     VTAMemFree(mem_outC);
     VTAMemFree(mem_uop);
     VTAMemFree(mem_accX);
+    VTAMemFree(mem_accY);
     VTAMemFree(mem_insn);
 
     // The program has failed
@@ -195,6 +203,10 @@ int execute_simulator(bool debug) {
 
         printf("accX = {");
         print_int32_vector(accX.data(), accX.size());
+        printf("\n} \n\n");
+
+        printf("accY = {");
+        print_int32_vector(accY.data(), accY.size());
         printf("\n} \n\n");
 
         printf("expected_out = {");

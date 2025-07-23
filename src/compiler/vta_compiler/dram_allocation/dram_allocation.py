@@ -32,7 +32,7 @@ def dram_allocation(object_list, base_addr=0x0000, block_size=16,
             logical_divisor = np.dtype(inp_dtype).itemsize * block_size
         elif (obj_type == "WGT"):
             logical_divisor = np.dtype(wgt_dtype).itemsize * block_size * block_size
-        elif (obj_type == "ACC"):
+        elif (obj_type == "ACC" or obj_type == "ADD_ACC"):
             logical_divisor = np.dtype(acc_dtype).itemsize * block_size
         elif (obj_type == "UOP"):
             logical_divisor = 4
@@ -41,6 +41,10 @@ def dram_allocation(object_list, base_addr=0x0000, block_size=16,
         else:
             raise Exception(f"ERROR: Unknown object type ({obj_type})! \n\n")
 
+        # If not value nor forced size, skip the object
+        if (not obj_value and forced_size == 0):
+            continue
+        
         # Get the object address
         obj_addr, current_dram_addr = addresses_computation(obj_type, obj_value, page_size, current_dram_addr, dram_offset, logical_divisor, forced_size)
 
@@ -115,6 +119,8 @@ def get_block_name(obj_type, index):
         block_name = f"B{index}"
     elif (obj_type == "ACC"):
         block_name = f"X{index}"
+    elif (obj_type == "ADD_ACC"):
+        block_name = f"Y{index}"
     elif (obj_type == "OUT"):
         block_name = f"C{index}"
     else:
