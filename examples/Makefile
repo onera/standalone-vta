@@ -74,7 +74,7 @@ matrix_maxpool_big_overfitting: ## Apply a maxpool with a 3x3-kernel on a flatte
 test_maxpool:
 	make clean
 	python $(MAKEFILE_DIR)matrix_operations/testing/test_maxpool.py
-	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/testing/maxpool.json $(CONFIG)/vta_config.json True > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
+	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/testing/maxpool.json $(CONFIG)/vta_config.json False
 	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
 
 # ADDING 2 MATRICES EXAMPLES

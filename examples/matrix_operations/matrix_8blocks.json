@@ -6,6 +6,7 @@
       "ACCUMULATOR": [64, 48]
     }
   ],
+  "GEMM": ["INPUT", "WEIGHT", "ACCUMULATOR"],
   "ALU" : [
     ["RELU"]
   ],

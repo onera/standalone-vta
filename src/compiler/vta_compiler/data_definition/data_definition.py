@@ -21,142 +21,206 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
     if not "MATRICES" in operations_dict:
         raise Exception(f"ERROR: the operation is not a matrix operations!\n\n")
 
-    # Get the size of the matrices for performing a GeMM
+    # Get the matrices
+    matrices = operations_dict["MATRICES"][0]
+    
+
+    # INIT
+    # ---
+    # Matrix names
+    input_name = ''
+    weight_name = ''
+    acc_name = ''
+    acc_bis_name = ''
+
+    # Flags (GeMM, Add 2 matrices, other ALU operations)
     doGemm = False
-    if "INPUT" in operations_dict["MATRICES"][0] \
-      and "WEIGHT" in operations_dict["MATRICES"][0]:
+    doMulConstant = False
+    doAcc = False
+
+    doAddMatrix = False
+
+    doAlu = False
+
+
+    # GET THE OPERATIONS
+    # ---
+    # Check if there is a GEMM (and if it is a MUL with a constant)
+    if "GEMM" in operations_dict:
         doGemm = True
-        A_row, A_col = operations_dict["MATRICES"][0]["INPUT"]
-        B_row, B_col = operations_dict["MATRICES"][0]["WEIGHT"]
-        C_row, C_col = (A_row, B_col)
+        mul_constant = 0
 
-        # Check size consistency
-        if (A_col != B_row):
-            raise Exception(f"ERROR: Matrices not consistent: A_col={A_col} != B_row={B_row}! \n\n")
-        
-        # Define the values of the elements within the matrices
-        if not "INPUT_VALUES" in operations_dict["MATRICES"][0]:
-            A_matrix = MG.matrix_creation(n_row=A_row, n_col=A_col, isInitRandom=True, random_bound=random_bound, dtype=inp_dtype)
-        else: # TODO: read the INPUT_VALUE (a binary file?)
-            pass 
-        if not "WEIGHT_VALUES" in operations_dict["MATRICES"][0]:
-            B_matrix = MG.matrix_creation(n_row=B_row, n_col=B_col, isInitRandom=True, random_bound=random_bound, dtype=wgt_dtype)
-        else: # TODO: read the WEIGHT_VALUE (a binary file?)
-            pass
-    
-    if "ACCUMULATOR" in operations_dict["MATRICES"][0]:
-        # Check the consistency or get the dimension
-        if (doGemm == True):
-            if ((operations_dict["MATRICES"][0]["ACCUMULATOR"][0] != C_row) 
-             or (operations_dict["MATRICES"][0]["ACCUMULATOR"][1] != C_col)):
-                raise Exception(f"ERROR: Matrices not consistent on ACCUMULATOR: should be [{C_row}, {C_col}]! \n\n")
+        # Get the name of the matrix
+        input_name = operations_dict['GEMM'][0]
+        weight_name_value = operations_dict['GEMM'][1]
+
+        # Check if the weight is a constant (int) or a matrix (str name)
+        if isinstance(weight_name_value, str):
+            weight_name = weight_name_value
+            # Check if there is an accumulator
+            if len(operations_dict['GEMM']) == 3:
+                doAcc = True
+                acc_name = operations_dict['GEMM'][2]
         else:
-            C_row, C_col = operations_dict["MATRICES"][0]["ACCUMULATOR"]
-            A_row, A_col = (C_row, block_size)
-            B_row, B_col = (block_size, C_col)
-            A_matrix = MG.matrix_creation(n_row=A_row, n_col=A_col, isInitRandom=False, dtype=inp_dtype)
-            B_matrix = MG.matrix_creation(n_row=B_row, n_col=B_col, isInitRandom=False, dtype=wgt_dtype)
+            doMulConstant = True
+            mul_constant = weight_name_value
 
-        # Define the values of the elements within the accumulator
-        if not "ACCUMULATOR_VALUE" in operations_dict["MATRICES"][0]:
-            X_matrix = MG.matrix_creation(n_row=C_row, n_col=C_col, isInitRandom=True, random_bound=random_bound, dtype=acc_dtype)
-        else: # TODO: read the ACCUMULATOR_VALUE (a binary file?)  
+    # Check if there is ALU operations to perform
+    alu_operations = []
+    if "ALU" in operations_dict:
+        # Get the operation and the number of operations
+        alu_operations = operations_dict["ALU"]
+        nb_alu = len(alu_operations)
+
+        # Check if it is an ADD between two matrices
+        if "ADD_ACC" in alu_operations:
+            doAddMatrix = True
+            doAcc = True
+
+            if nb_alu > 1:
+                raise Exception(f"ERROR: there are {nb_alu} operations while only one can be performed ('ADD_ACC')!\n\n")
+            if doGemm == True:
+                raise Exception(f"ERROR: 'ADD_ACC' operations cannot follow GeMM operations!\n\n")
+            
+            # Get the operations and the name of the matrices
+            add_acc_ops = alu_operations[0]
+            acc_name, acc_bis_name = add_acc_ops[1]
+        
+        # Else, define the name of the ACC matrix
+        else:
+            doAlu = True
+            if doGemm == False:
+                doAcc = True
+                acc_name = next( name for name in matrices.keys() if not name.endswith("_VALUES") )
+    
+    # If no operations, there is a problem
+    if doGemm == False and doAddMatrix == False and doAlu == False:
+        raise Exception(f"ERROR: No operations!\n\n")   
+
+
+    # DEFINE THE MATRICES
+    # ---
+    if (doGemm == True):
+        # Input matrix
+        A_row, A_col = matrices[input_name]
+        # Define the values of the elements within the matrices
+        if not (input_name+"_VALUES") in matrices:
+            A_matrix = MG.matrix_creation(n_row=A_row, n_col=A_col, isInitRandom=True, random_bound=random_bound, dtype=inp_dtype)
+        else: # TODO: read the INPUT_VALUES
+            pass 
+
+        # Weight matrix
+        if (doMulConstant == True):
+            B_row = block_size
+            B_col = block_size
+            B_matrix = MG.matrix_creation(n_row=B_row, n_col=B_col, isInitRandom=False, random_bound=mul_constant, dtype=wgt_dtype)
+        else:
+            B_row, B_col = matrices[weight_name]
+            # Check dimension consistency
+            if (A_col != B_row):
+                raise Exception(f"ERROR: Matrices not consistent: A_col={A_col} != B_row={B_row}! \n\n")
+
+            if not (weight_name+"_VALUES") in matrices:
+                B_matrix = MG.matrix_creation(n_row=B_row, n_col=B_col, isInitRandom=True, random_bound=random_bound, dtype=wgt_dtype)
+            else: # TODO: read the WEIGHT_VALUES
+                pass
+    else: # doGemm == False
+        A_matrix = MG.matrix_creation(n_row=0, n_col=0, isInitRandom=False, random_bound=0, dtype=inp_dtype)
+        B_matrix = MG.matrix_creation(n_row=0, n_col=0, isInitRandom=False, random_bound=0, dtype=wgt_dtype)
+        
+    # Accumulator matrix
+    if (doAcc == True):
+        X_row, X_col = matrices[acc_name]
+        # Check dimension consistency
+        if (doGemm == True and X_row != A_row):
+            raise Exception(f"ERROR: Matrices not consistent: X_row={X_row} != A_row={A_row}! \n\n")
+        if (doGemm == True and X_col != B_col):
+            raise Exception(f"ERROR: Matrices not consistent: X_col={X_col} != B_col={B_col}! \n\n")
+
+        if not (acc_name+"_VALUES") in matrices:
+            X_matrix = MG.matrix_creation(n_row=X_row, n_col=X_col, isInitRandom=True, random_bound=random_bound, dtype=acc_dtype)
+        else: # TODO: read the binary values
             pass
-    
-    else: #not "ACCUMULATOR" in operations_dict["MATRICES"][0]
-        # Init the accumulator to 0
-        X_matrix = MG.matrix_creation(n_row=C_row, n_col=C_col, isInitRandom=False, dtype=acc_dtype)
+    else: # Else set X to 0
+        X_row, X_col = (A_row, B_col)
+        X_matrix = MG.matrix_creation(n_row=X_row, n_col=X_col, isInitRandom=False, random_bound=0, dtype=acc_dtype)
 
-    
-    # Second ACCUMULATOR input
-    if "ADD_ACCUMULATOR" in operations_dict["MATRICES"][0]:
-        # Check the consistency
-        if ((operations_dict["MATRICES"][0]["ADD_ACCUMULATOR"][0] != C_row) 
-        or (operations_dict["MATRICES"][0]["ADD_ACCUMULATOR"][1] != C_col)):
-            raise Exception(f"ERROR: Matrices not consistent on ADD_ACCUMULATOR: should be [{C_row}, {C_col}]! \n\n")
-        # Create a flag
-        doAddMatrix = True
-        # Define the value 
-        if not "ADD_ACCUMULATOR_VALUE" in operations_dict["MATRICES"][0]:
-            Y_matrix = MG.matrix_creation(n_row=C_row, n_col=C_col, isInitRandom=True, random_bound=random_bound, dtype=acc_dtype)
-        else: # TODO: read the ACCUMULATOR_VALUE (a binary file?)  
+    # ACC_BIS matrix
+    if (doAddMatrix):
+        Y_row, Y_col = matrices[acc_bis_name]
+        # Check dimension consistency
+        if (Y_row != X_row):
+            raise Exception(f"ERROR: Matrices not consistent: Y_row={Y_row} != X_row={X_row}! \n\n")
+        if (Y_col != X_col):
+            raise Exception(f"ERROR: Matrices not consistent: Y_col={Y_col} != X_col={X_col}! \n\n")
+
+        if not (acc_bis_name+"_VALUES") in matrices:
+            Y_matrix = MG.matrix_creation(n_row=Y_row, n_col=Y_col, isInitRandom=True, random_bound=random_bound, dtype=acc_dtype)
+        else: # TODO: read the binary values
             pass
-    else:
-        # Create a flag
-        doAddMatrix = False
-        # Create an empty matrix
-        Y_matrix = MG.matrix_creation(n_row=0, n_col=0, isInitRandom=True, random_bound=random_bound, dtype=acc_dtype)
+    else: # doAddMatrix == False
+        Y_matrix = MG.matrix_creation(n_row=0, n_col=0, isInitRandom=False, random_bound=0, dtype=acc_dtype)
 
-    
+    # Output matrix (init to 0)
+    C_row, C_col = (X_row, X_col)
+    C_init = MG.matrix_creation(n_row=C_row, n_col=C_col, isInitRandom=False, random_bound=0, dtype=inp_dtype)
 
-    # Initialisation of the output for simulator instantiation
-    C_init = MG.matrix_creation(n_row=C_row, n_col=C_col, isInitRandom=False, dtype=inp_dtype)
 
 
     # ---------------------------------------------
-    # APPLY HARDWARE CONSTRAINTS (pad + split)
+    # APPLY HARDWARE CONSTRAINTS
+    #   => Padding: Pad the matrix to make n_row and n_col a multiple of block_size
+    #   => Splitting: Split the matrix in submatrix of size (block_size, block_size)
 
     # Check if A is a vector or a matrix (i.e., A_row = 1)
     isSquare = True # TODO: For now, always square
     #isSquare = False if (operations_dict["MATRICES"][0]["INPUT"][0] == 1) else True
 
-    # Pad the matrix to make n_row and n_col a multiple of block_size
+    # PADDING
     A_padded = MG.matrix_padding(matrix=A_matrix, block_size=block_size, isWeight=False, isSquare=isSquare)
     B_padded = MG.matrix_padding(matrix=B_matrix, block_size=block_size, isWeight=True, isSquare=isSquare)
     X_padded = MG.matrix_padding(matrix=X_matrix, block_size=block_size, isWeight=False, isSquare=isSquare)
     Y_padded = MG.matrix_padding(matrix=Y_matrix, block_size=block_size, isWeight=False, isSquare=isSquare)
 
-    # Split the matrix in submatrix of size (block_size, block_size)
+    # SPLITTING
     A_blocks, A_blocks_col = MS.matrix_splitting(matrix=A_padded, block_size=block_size, isWeight=False, isSquare=isSquare)
     B_blocks, B_blocks_col = MS.matrix_splitting(matrix=B_padded, block_size=block_size, isWeight=True, isSquare=isSquare)
     X_blocks, X_blocks_col = MS.matrix_splitting(matrix=X_padded, block_size=block_size, isWeight=False, isSquare=isSquare)
     Y_blocks, _ = MS.matrix_splitting(matrix=Y_padded, block_size=block_size, isWeight=False, isSquare=isSquare)
 
+
+
     # ---------------------------------------------
     # PERFORM MATRIX MULTIPLICATION
 
-    ACC_ref = MM.matrix_multiplication(A_matrix, B_matrix, X_matrix, acc_dtype=acc_dtype)
-    ACC_padded_ref = MM.matrix_multiplication(A_padded, B_padded, X_padded, acc_dtype=acc_dtype)
-    ACC_blocks_ref, ACC_blocks_col = MS.matrix_splitting(matrix=ACC_padded_ref, block_size=block_size, isWeight=False, isSquare=isSquare)
-    _, combinations = MM.block_matrix_multiply(A_blocks, B_blocks, A_blocks_col, B_blocks_col, block_size=block_size)
+    if (doGemm == True):
+        # Perform the reference computation
+        ACC_ref = MM.matrix_multiplication(A_matrix, B_matrix, X_matrix, acc_dtype=acc_dtype)
+        ACC_padded_ref = MM.matrix_multiplication(A_padded, B_padded, X_padded, acc_dtype=acc_dtype)
+        # Copy the ref to keep a trace of the GeMM execution
+        ALU_matrix = ACC_padded_ref.copy()
+
+        # Split to obtain a result similar to the VTA output
+        ACC_blocks_ref, ACC_blocks_col = MS.matrix_splitting(matrix=ACC_padded_ref, block_size=block_size, isWeight=False, isSquare=isSquare)
+        _, combinations = MM.block_matrix_multiply(A_blocks, B_blocks, A_blocks_col, B_blocks_col, block_size=block_size)
 
     # ---------------------------------------------
     # PERFORM ALU OPERATIONS
 
     # Define the intermediate ALU_matrix
-    if (doAddMatrix == True):
+    elif (doAddMatrix == True):
         ALU_matrix = X_padded + Y_padded
-    else:
-        ALU_matrix = ACC_padded_ref.copy()
 
-    # Create the dictionary for the ALU operations
-    #   (for ALU vector-vector operation, the source vector can be deleted)
-    alu_operations_list, idx_to_store = ALU.create_alu_operations_list(operations_dict=operations_dict, nb_C_blocks=len(ACC_blocks_ref), C_blocks_col=ACC_blocks_col, block_size=block_size)
+    else: # doGemm == False and doAddMatrix == False
+        ALU_matrix = X_padded
 
-    # Execute the operations: ["OPS", [DST, SRC]] or ["OPS", [DST, SRC, NB_ITERATION]]
-    for alu_ops in alu_operations_list:
-        # Check if the operation is unique or iterative
-        if (len(alu_ops[1]) == 3): # Iterative: ["OPS", [[first DST idx, step], [first SRC idx, step], NB_ITERATION]]
-            for nb in range(0, alu_ops[1][2]):
-                # Get the current indexes
-                elem_dst = alu_ops[1][0][0] + alu_ops[1][0][1] * nb # 1st idx + step * nb
+    
+    # Perform other ALU operations
+    idx_to_store = []
+    if (doAlu == True):
+        ALU_matrix, alu_operations, idx_to_store = ALU.alu_operations(matrix=ALU_matrix, alu_operations=alu_operations, block_size=block_size)
 
-                 # Check the type of operation (vector-scalar or vector-vector)
-                if (alu_ops[0].endswith("_IMM") or alu_ops[0] == "RELU"): # Vector-scalar
-                    isIMM = True
-                    elem_src = alu_ops[1][1]
-                else: # Vector-vector: the index of the second vector can be deleted
-                    isIMM = False
-                    elem_src = alu_ops[1][1][0] + alu_ops[1][1][1] * nb
-                ALU_matrix = ALU.alu_operations(ALU_matrix, alu_operation=alu_ops[0], dst_idx=elem_dst, elem2=elem_src, isIMM=isIMM)
 
-        else: # Unique
-             # Check the type of operation (vector-scalar or vector-vector)
-            if (alu_ops[0].endswith("_IMM")): # Vector-scalar
-                isIMM = True
-            else: # Vector-vector: the index of the second vector can be deleted
-                isIMM = False
-            ALU_matrix = ALU.alu_operations(ALU_matrix, alu_operation=alu_ops[0], dst_idx=alu_ops[1][0], elem2=alu_ops[1][1], isIMM=isIMM)
 
     # ---------------------------------------------
     # TRUNCATE AND CLEAN OUTPUT
@@ -165,11 +229,13 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
     ALU_trunc = TR.truncate(ALU_matrix, inp_dtype)
 
     # Split ALU_trunc for expected result before store (final output buffer)
-    ALU_blocks, C_blocks_col = MS.matrix_splitting(matrix=ALU_trunc, block_size=block_size, isWeight=False, isSquare=isSquare)
+    ALU_blocks, _ = MS.matrix_splitting(matrix=ALU_trunc, block_size=block_size, isWeight=False, isSquare=isSquare)
 
     # Remove non-necessary row in ALU to get C
-    padding = ACC_padded_ref.shape[0] - C_row
-    C_blocks = ALU.delete_matrix_row(ALU_blocks, blocks_col=C_blocks_col, block_size=block_size, idx_to_store=idx_to_store, matrix_height=C_row, padding=padding)
+    padding = ALU_matrix.shape[0] - C_row
+    C_blocks = ALU.delete_matrix_row(ALU_blocks, blocks_col=X_blocks_col, block_size=block_size, idx_to_store=idx_to_store, matrix_height=C_row, padding=padding)
+
+
 
     # ---------------------------------------------
     # DEBUG
@@ -179,12 +245,17 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
         print(f"A_matrix ({A_matrix.shape}): \n{A_matrix}\n")
         print(f"B_matrix ({B_matrix.shape}): \n{B_matrix}\n")
         print(f"X_matrix ({X_matrix.shape}): \n{X_matrix}\n")
+        print(f"Y_matrix ({Y_matrix.shape}): \n{Y_matrix}\n")
+
 
         print("\nPADDED MATRICES:")
         if (doGemm):
             print(f"A_padded ({A_padded.shape}): \n{A_padded}\n")
             print(f"B_padded ({B_padded.shape}): \n{B_padded}\n")
         print(f"X_padded ({X_padded.shape}): \n{X_padded}\n")
+        if (doAddMatrix):
+            print(f"Y_padded ({Y_padded.shape}): \n{Y_padded}\n")
+
 
         print("\n\nSPLITTED MATRICES:")
         if (doGemm):
@@ -204,11 +275,10 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
         for i, block in enumerate(X_blocks):
             print("\n X", i)
             print(block)
-        
         if (doAddMatrix):
             print(f"\n\nY_blocks (blocks_col = {X_blocks_col})")
             for i, block in enumerate(Y_blocks):
-                print("\n X", i)
+                print("\n Y", i)
                 print(block)
         
         if (doGemm):
@@ -224,16 +294,22 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
                 print(combination)
     
         print("\n\nALU OPERATIONS:")
-        for alu_ops in alu_operations_list:
-            print(f" {alu_ops[0]}: {alu_ops[1]} -> within blocks: {alu_ops[2]}")
-        print(f"\nALU_matrix ({ALU_matrix.shape}): \n{ALU_matrix}\n")
-        print(f"ALU_blocks truncated (blocks_col = {C_blocks_col})")
-        for i, block in enumerate(ALU_blocks):
-            print("\n ALU (OUT)", i)
-            print(block)
+        if (doAddMatrix):
+            print(f" {add_acc_ops[0]}: {alu_ops[1]}")
+        elif (doAlu):
+            for alu_ops in alu_operations:
+                print(f" {alu_ops[0]}: {alu_ops[1]} -> within blocks: {alu_ops[2]}")
+        
+        if (doAddMatrix or doAlu):
+            print(f"\nALU_matrix ({ALU_matrix.shape}): \n{ALU_matrix}\n")
+            print(f"ALU_blocks truncated (blocks_col = {X_blocks_col})")
+            for i, block in enumerate(ALU_blocks):
+                print("\n ALU (OUT)", i)
+                print(block)
+
 
         print("\n\nOUTPUT MATRIX:")
-        print(f"C_blocks (blocks_col = {C_blocks_col})")
+        print(f"C_blocks (blocks_col = {X_blocks_col})")
         for i, block in enumerate(C_blocks):
             print(f"\n C {i} - {block.shape}")
             print(block)
@@ -243,5 +319,8 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
     # ---------------------------------------------
     # RETURN 
 
-    return A_blocks, A_blocks_col, B_blocks, B_blocks_col, X_blocks, X_blocks_col, Y_blocks, ALU_blocks, C_blocks, C_blocks_col, C_init, alu_operations_list, idx_to_store, doGemm, doAddMatrix
+    return A_blocks, A_blocks_col, B_blocks, B_blocks_col, \
+           X_blocks, Y_blocks, ALU_blocks, C_blocks, C_init, X_blocks_col, \
+           alu_operations, idx_to_store, \
+           doGemm, doAddMatrix, doAlu
 

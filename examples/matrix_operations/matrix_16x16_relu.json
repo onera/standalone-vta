@@ -5,6 +5,7 @@
       "WEIGHT": [16, 16]
     }
   ],
+  "GEMM": ["INPUT", "WEIGHT"],
   "ALU" : [
     ["MAX_IMM", [[0,1], 0, 16]]
   ],

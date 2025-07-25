@@ -26,6 +26,7 @@ def generate_json_matrix_definition(file_name="matmul_relu.json"):
             "ACCUMULATOR": [Ah, Bw]
             }
         ],
+        "GEMM": ["INPUT", "WEIGHT", "ACCUMULATOR"],
         "ALU": [
             ["RELU"]
         ],

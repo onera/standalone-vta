@@ -15,7 +15,7 @@ else:
 # ---------------------
 def operations_definition(strategy=[], dram_addresses=[],
                           operations_dict={}, block_size=16, uop_buffer_size=8192,
-                          A_blocks_col=1, B_blocks_col=1, X_blocks_col=1, C_blocks_col=1,
+                          A_blocks_col=1, B_blocks_col=1, X_blocks_col=1,
                           debug=True):
     # Init the lists of instructions, UOPs and semaphore
     insn_buffer = []
@@ -94,7 +94,7 @@ if __name__ == "__main__":
     # Define the strategies: A=[1, 4], B=[4, 2] C=[1, 2]
     A_blocks_col = 4
     B_blocks_col = 2
-    C_blocks_col = 2
+    X_blocks_col = 2
 
     # 1 - no overfitting
     strategy_1 = [([0, 1], [0, 1, 2, 3], [0, 1, 2, 3, 5, 6, 7], [0, 1])]
