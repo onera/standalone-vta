@@ -23,14 +23,20 @@ def operations_definition(strategy=[], dram_addresses=[],
     uop_buffer = []
     memory_status = []
     uop_counter = 0
-    
-    semaphore = [0, 0, 0, 1] # (LD->CMP, CMP->ST, ST->CMP, CMP->LD)
+
+    # Create a semaphore dictionnary
+    semaphore = {
+        "LD->CMP": 0,
+        "CMP->ST": 0,
+        "ST->CMP": 0,
+        "CMP->LD": 0
+    }
 
     # Number of strategy steps
     nb_steps = len(strategy)
 
     # 0 - Reset (input: /, output: CMP->LD)
-    new_insn, new_buffer, uop_counter = reset_sequence(strategy, dram_addresses, uop_counter, block_size)
+    new_insn, new_buffer, semaphore, uop_counter = reset_sequence(strategy, semaphore, dram_addresses, uop_counter, block_size)
     insn_buffer = insn_buffer + new_insn
     uop_buffer = uop_buffer + new_buffer
 
@@ -38,13 +44,13 @@ def operations_definition(strategy=[], dram_addresses=[],
     for i, step in enumerate(strategy):
         memory_status = step[3]
 
-        new_insn, new_buffer, uop_counter, semaphore = strategy_step(step, dram_addresses, memory_status, uop_counter, semaphore, block_size, uop_buffer_size)
+        new_insn, new_buffer, semaphore, uop_counter = strategy_step(step, semaphore, dram_addresses, memory_status, uop_counter, block_size, uop_buffer_size)
         insn_buffer = insn_buffer + new_insn
         uop_buffer = uop_buffer + new_buffer
 
     # 2 - Termination sequence (input: CMP->LD, output: /)
-    insn_buffer += termination_sequence() 
-    semaphore[3] -= 1
+    new_insn, semaphore = termination_sequence(semaphore) 
+    insn_buffer = insn_buffer + new_insn
 
  
 
@@ -78,7 +84,7 @@ def operations_definition(strategy=[], dram_addresses=[],
                 print(f"{field_name}: {field_value}")
         
         # Print the semaphore
-        print(f"\n\nSemaphore: {semaphore}")
+        print(f"\n\nSemaphore: \n\t {semaphore}")
 
         print(f"\n\nUOPs: ({len(uop_buffer)})")
         for i, uop in enumerate(uop_buffer):

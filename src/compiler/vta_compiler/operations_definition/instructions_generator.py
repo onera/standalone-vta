@@ -12,7 +12,7 @@ except:
 
 # RESET SEQUENCE
 # --------------
-def reset_sequence(strategy, dram_addresses, uop_counter=0, block_size=16):
+def reset_sequence(strategy, semaphore, dram_addresses, uop_counter=0, block_size=16):
     """Reset instructions ensure that no residual data remain that could affect the execution"""
     # Init
     insn_buffer = []
@@ -32,36 +32,34 @@ def reset_sequence(strategy, dram_addresses, uop_counter=0, block_size=16):
         src_idx=0,
         wgt_idx=0
     ))
+
     # INSN - LOAD UOP
-    insn_buffer.append(
-        load_store_instruction(buffer_type="UOP", pop_prev_dep=0, pop_next_dep=0, push_prev_dep=0, push_next_dep=0, sram_base=0, dram_base=uop_addr, y_size=1, x_size=1, x_stride=1)
-    )
+    # Manage the semaphore
+    pop_prev_dep = 0
+    pop_next_dep = 0
+    push_prev_dep = 0
+    push_next_dep = 0
 
-    insn_buffer.append(VTAGemInsn( # I1: GEMM RESET
-        opcode=2, # 2-GEMM
-        # DEP FLAG
-        pop_prev_dep=0,
-        pop_next_dep=0,
-        push_prev_dep=1, # Ready signal to LOAD
-        push_next_dep=0,
-        # Operations
-        reset=1, # 0-no, 1-reset
-        uop_bgn=len(uop_buffer) - 1,
-        uop_end=len(uop_buffer),
-        loop_out=reset_size, # Reset reset_size blocks
-        loop_in=block_size, # Reset a block
-        # UNUSED
-        unused=0, # UNUSED
-        # Index factors
-        dst_factor_out=block_size, # Reset reset_size blocks
-        dst_factor_in=1, # Reset a block
-        src_factor_out=0,
-        src_factor_in=0,
-        wgt_factor_out=0,
-        wgt_factor_in=0
-    ))
+    # Generate LOAD UOP
+    new_insn, semaphore = load_store_instruction(buffer_type="UOP", pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep, sram_base=0, dram_base=uop_addr, y_size=1, x_size=1, x_stride=1, semaphore=semaphore)
+    insn_buffer.append( new_insn )
 
-    return insn_buffer, uop_buffer, uop_counter + len(uop_buffer)
+    # INSN - GEMM RESET
+    # Manage the semaphore
+    pop_prev_dep = 0
+    pop_next_dep = 0
+    push_prev_dep = 1 # Ready signal to LOAD
+    push_next_dep = 0
+
+    # Generate GEMM reset
+    new_insn, semaphore = gemm_instruction(reset=1, pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep,
+                                uop_begin=0, uop_end=1,
+                                lp_out=reset_size, dst_out=block_size, src_out=0, wgt_out=0,
+                                lp_in=block_size, dst_in=1, src_in=0, wgt_in=0,
+                                semaphore=semaphore)
+    insn_buffer.append( new_insn )
+
+    return insn_buffer, uop_buffer, semaphore, uop_counter + len(uop_buffer)
 
 
 # ---------------------------------------------
@@ -69,7 +67,7 @@ def reset_sequence(strategy, dram_addresses, uop_counter=0, block_size=16):
 
 # STRATEGY STEP
 # -------------
-def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=[0, 0, 0, 1], block_size=16, uop_buffer_size=8192):
+def strategy_step(step, semaphore, dram_addresses, memory_status, uop_counter=0, block_size=16, uop_buffer_size=8192):
     # Init
     insn_buffer = []
     uop_buffer = []
@@ -111,13 +109,8 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
             push_next_dep = ready_signal if (i == nb_inp-1) else 0 
 
             # INSN LOAD INP - load a full block_size x block_size matrix
-            insn_buffer.append(
-                load_store_instruction(buffer_type="INP", pop_prev_dep=0, pop_next_dep=pop_next_dep, push_prev_dep=0, push_next_dep=push_next_dep, sram_base=current_sram_base, dram_base=current_block_addr, y_size=1, x_size=block_size, x_stride=block_size)
-            )
-
-            # Update semaphore (LD->CMP, CMP->ST, ST->CMP, CMP->LD)
-            semaphore[0] += push_next_dep
-            semaphore[3] -= pop_next_dep
+            new_insn, semaphore = load_store_instruction(buffer_type="INP", pop_prev_dep=0, pop_next_dep=pop_next_dep, push_prev_dep=0, push_next_dep=push_next_dep, sram_base=current_sram_base, dram_base=current_block_addr, y_size=1, x_size=block_size, x_stride=block_size, semaphore=semaphore)
+            insn_buffer.append( new_insn )
     
     else: # Single load instructions
         # Get the first block address
@@ -135,13 +128,8 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
         push_next_dep = ready_signal  
 
         # INSN LOAD INP
-        insn_buffer.append(
-            load_store_instruction(buffer_type="INP", pop_prev_dep=0, pop_next_dep=pop_next_dep, push_prev_dep=0, push_next_dep=push_next_dep, sram_base=sram_addr, dram_base=first_block_address, y_size=y_size, x_size=block_size, x_stride=stride)
-        )
-
-        # Update semaphore (LD->CMP, CMP->ST, ST->CMP, CMP->LD)
-        semaphore[0] += push_next_dep
-        semaphore[3] -= pop_next_dep
+        new_insn, semaphore = load_store_instruction(buffer_type="INP", pop_prev_dep=0, pop_next_dep=pop_next_dep, push_prev_dep=0, push_next_dep=push_next_dep, sram_base=sram_addr, dram_base=first_block_address, y_size=y_size, x_size=block_size, x_stride=stride, semaphore=semaphore)
+        insn_buffer.append( new_insn )
 
 
     # INSN - LOAD WGT
@@ -160,13 +148,8 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
             push_next_dep = 1 if (i == nb_wgt-1) else 0
 
             # INSN LOAD WGT - load a WGT matrix
-            insn_buffer.append(
-                load_store_instruction(buffer_type="WGT", pop_prev_dep=0, pop_next_dep=pop_next_dep, push_prev_dep=0, push_next_dep=push_next_dep, sram_base=current_sram_base, dram_base=current_block_addr, y_size=1, x_size=1, x_stride=1)
-            )
-
-            # Update semaphore (LD->CMP, CMP->ST, ST->CMP, CMP->LD)
-            semaphore[0] += push_next_dep
-            semaphore[3] -= pop_next_dep
+            new_insn, semaphore = load_store_instruction(buffer_type="WGT", pop_prev_dep=0, pop_next_dep=pop_next_dep, push_prev_dep=0, push_next_dep=push_next_dep, sram_base=current_sram_base, dram_base=current_block_addr, y_size=1, x_size=1, x_stride=1, semaphore=semaphore)
+            insn_buffer.append( new_insn )
     
     else: # Single load instructions
         # Get the first block address
@@ -184,13 +167,8 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
         push_next_dep = 1
 
         # INSN LOAD WGT
-        insn_buffer.append(
-            load_store_instruction(buffer_type="WGT", pop_prev_dep=0, pop_next_dep=pop_next_dep, push_prev_dep=0, push_next_dep=push_next_dep, sram_base=sram_addr, dram_base=first_block_address, y_size=y_size, x_size=1, x_stride=idx_gap)
-        )
-
-        # Update semaphore (LD->CMP, CMP->ST, ST->CMP, CMP->LD)
-        semaphore[0] += push_next_dep
-        semaphore[3] -= pop_next_dep
+        new_insn, semaphore = load_store_instruction(buffer_type="WGT", pop_prev_dep=0, pop_next_dep=pop_next_dep, push_prev_dep=0, push_next_dep=push_next_dep, sram_base=sram_addr, dram_base=first_block_address, y_size=y_size, x_size=1, x_stride=idx_gap, semaphore=semaphore)
+        insn_buffer.append( new_insn )
     
 
     # Acknowledge and send ready if no load
@@ -201,13 +179,8 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
         push_next_dep = 1
 
         # INSN - NOP-MEMORY-STAGE (load) (input: CMP->LD, output: LD->CMP)
-        insn_buffer.append( 
-            nop_stage_instruction(module="LOAD", pop_prev_dep=0, pop_next_dep=pop_next_dep, push_prev_dep=0, push_next_dep=push_next_dep)
-        )
-
-        # Update semaphore (LD->CMP, CMP->ST, ST->CMP, CMP->LD)
-        semaphore[0] += push_next_dep
-        semaphore[3] -= pop_next_dep
+        new_insn, semaphore = nop_stage_instruction(module="LOAD", pop_prev_dep=0, pop_next_dep=pop_next_dep, push_prev_dep=0, push_next_dep=push_next_dep, semaphore=semaphore)
+        insn_buffer.append( new_insn )
 
 
     # COMPUTE MODULE (input: LD->CMP, output: CMP->LD & CMP->ST)
@@ -252,15 +225,8 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
                 current_sram_base=sram_base
 
                 # INSN LOAD ACC - load a full block_size x block_size matrix
-                insn_buffer.append(
-                    load_store_instruction(buffer_type="ACC", pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep, sram_base=current_sram_base, dram_base=current_dram, y_size=1, x_size=1, x_stride=1)
-                )
-
-                # Update semaphore (LD->CMP, CMP->ST, ST->CMP, CMP->LD)
-                semaphore[0] -= pop_prev_dep
-                semaphore[1] += push_next_dep
-                semaphore[2] -= pop_next_dep
-                semaphore[3] += push_prev_dep
+                new_insn, semaphore = load_store_instruction(buffer_type="ACC", pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep, sram_base=current_sram_base, dram_base=current_dram, y_size=1, x_size=1, x_stride=1, semaphore=semaphore)
+                insn_buffer.append( new_insn )
 
             else: # Full block
                 # Get the idx of the block in DRAM and the location in SRAM
@@ -268,15 +234,9 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
                 current_sram_base=0x0000 + i*block_size
 
                 # INSN LOAD ACC - load a full block_size x block_size matrix
-                insn_buffer.append(
-                    load_store_instruction(buffer_type="ACC", pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep, sram_base=current_sram_base, dram_base=current_block_addr, y_size=1, x_size=block_size, x_stride=block_size)
-                )
+                new_insn, semaphore = load_store_instruction(buffer_type="ACC", pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep, sram_base=current_sram_base, dram_base=current_block_addr, y_size=1, x_size=block_size, x_stride=block_size, semaphore=semaphore)
+                insn_buffer.append( new_insn )
 
-                # Update semaphore (LD->CMP, CMP->ST, ST->CMP, CMP->LD)
-                semaphore[0] -= pop_prev_dep
-                semaphore[1] += push_next_dep
-                semaphore[2] -= pop_next_dep
-                semaphore[3] += push_prev_dep
 
     else: # Single load instruction
         # Get the first block address
@@ -298,15 +258,8 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
         pop_next_dep = 0
 
         # INSN LOAD ACC
-        insn_buffer.append(
-            load_store_instruction(buffer_type="ACC", pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep, sram_base=sram_addr, dram_base=first_block_address, y_size=y_size, x_size=block_size, x_stride=stride)
-        )
-
-        # Update semaphore (LD->CMP, CMP->ST, ST->CMP, CMP->LD)
-        semaphore[0] -= pop_prev_dep
-        semaphore[1] += push_next_dep
-        semaphore[2] -= pop_next_dep
-        semaphore[3] += push_prev_dep
+        new_insn, semaphore = load_store_instruction(buffer_type="ACC", pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep, sram_base=sram_addr, dram_base=first_block_address, y_size=y_size, x_size=block_size, x_stride=stride, semaphore=semaphore)
+        insn_buffer.append( new_insn )
 
     # Load the second accumulator
     if (doAddAcc == True):
@@ -328,15 +281,8 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
                 current_sram_base=(nbLoadAcc + i) * block_size
 
                 # INSN LOAD ACC - load a full block_size x block_size matrix
-                insn_buffer.append(
-                    load_store_instruction(buffer_type="ACC", pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep, sram_base=current_sram_base, dram_base=current_block_addr, y_size=1, x_size=block_size, x_stride=block_size)
-                )
-
-                # Update semaphore (LD->CMP, CMP->ST, ST->CMP, CMP->LD)
-                semaphore[0] -= pop_prev_dep
-                semaphore[1] += push_next_dep
-                semaphore[2] -= pop_next_dep
-                semaphore[3] += push_prev_dep
+                new_insn, semaphore = load_store_instruction(buffer_type="ACC", pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep, sram_base=current_sram_base, dram_base=current_block_addr, y_size=1, x_size=block_size, x_stride=block_size, semaphore=semaphore)
+                insn_buffer.append( new_insn )
 
         else: # Single load instruction
             # Get the first block address
@@ -358,15 +304,8 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
             pop_next_dep = 0
 
             # INSN LOAD ACC
-            insn_buffer.append(
-                load_store_instruction(buffer_type="ACC", pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep, sram_base=sram_addr, dram_base=first_block_address, y_size=y_size, x_size=block_size, x_stride=stride)
-            )
-
-            # Update semaphore (LD->CMP, CMP->ST, ST->CMP, CMP->LD)
-            semaphore[0] -= pop_prev_dep
-            semaphore[1] += push_next_dep
-            semaphore[2] -= pop_next_dep
-            semaphore[3] += push_prev_dep
+            new_insn, semaphore = load_store_instruction(buffer_type="ACC", pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep, sram_base=sram_addr, dram_base=first_block_address, y_size=y_size, x_size=block_size, x_stride=stride, semaphore=semaphore)
+            insn_buffer.append( new_insn )
 
 
 
@@ -406,15 +345,8 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
             push_next_dep = 0
 
             # INSN UOP
-            insn_buffer.append(
-                load_store_instruction(buffer_type="UOP", pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep, sram_base=0, dram_base=current_uop_addr, y_size=1, x_size=nb_uop, x_stride=nb_uop)
-            )
-
-            # Update semaphore (LD->CMP, CMP->ST, ST->CMP, CMP->LD)
-            semaphore[0] -= pop_prev_dep
-            semaphore[1] += push_next_dep
-            semaphore[2] -= pop_next_dep
-            semaphore[3] += push_prev_dep
+            new_insn, semaphore = load_store_instruction(buffer_type="UOP", pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep, sram_base=0, dram_base=current_uop_addr, y_size=1, x_size=nb_uop, x_stride=nb_uop, semaphore=semaphore)
+            insn_buffer.append( new_insn )
 
             # Ready signal to STORE (last compute)
             push_next_dep = 1 if (isLastCompute == True) else 0
@@ -425,35 +357,12 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
             pop_next_dep = 0
 
             # INSN - GEMM
-            insn_buffer.append(VTAGemInsn( 
-                opcode=2, # 2-GEMM
-                # DEP FLAG
-                pop_prev_dep=pop_prev_dep,
-                pop_next_dep=pop_next_dep,
-                push_prev_dep=push_prev_dep,
-                push_next_dep=push_next_dep,
-                # Operations
-                reset=0, # 0-no, 1-reset
-                uop_bgn=0,
-                uop_end=nb_uop,
-                loop_out=1,
-                loop_in=block_size, # Compute a block
-                # UNUSED
-                unused=0, # UNUSED
-                # Index factors
-                dst_factor_out=0, 
-                dst_factor_in=1, # Compute a block
-                src_factor_out=0,
-                src_factor_in=1,
-                wgt_factor_out=0,
-                wgt_factor_in=0
-            ))
-
-            # Update semaphore (LD->CMP, CMP->ST, ST->CMP, CMP->LD)
-            semaphore[0] -= pop_prev_dep
-            semaphore[1] += push_next_dep
-            semaphore[2] -= pop_next_dep
-            semaphore[3] += push_prev_dep
+            new_insn, semaphore = gemm_instruction(reset=0, pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep,
+                                                   uop_begin=0, uop_end=nb_uop,
+                                                   lp_out=1, dst_out=0, src_out=0, wgt_out=0,
+                                                   lp_in=block_size, dst_in=1, src_in=1, wgt_in=0,
+                                                   semaphore=semaphore)
+            insn_buffer.append( new_insn )
 
         # Else, there are too many UOP
         else: 
@@ -478,38 +387,16 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
                     local_dram = current_uop_addr + (i - local_nb_uop)
 
                     # INSN UOP
-                    insn_buffer.append(
-                        load_store_instruction(buffer_type="UOP", pop_prev_dep=pop_prev_dep, pop_next_dep=0, push_prev_dep=0, push_next_dep=0, sram_base=0, dram_base=local_dram, y_size=1, x_size=local_nb_uop, x_stride=local_nb_uop)
-                    )
+                    new_insn, semaphore = load_store_instruction(buffer_type="UOP", pop_prev_dep=pop_prev_dep, pop_next_dep=0, push_prev_dep=0, push_next_dep=0, sram_base=0, dram_base=local_dram, y_size=1, x_size=local_nb_uop, x_stride=local_nb_uop, semaphore=semaphore)
+                    insn_buffer.append( new_insn )
+
                     # INSN - GEMM
-                    insn_buffer.append(VTAGemInsn( 
-                        opcode=2, # 2-GEMM
-                        # DEP FLAG
-                        pop_prev_dep=0,
-                        pop_next_dep=0,
-                        push_prev_dep=push_prev_dep,
-                        push_next_dep=push_next_dep,
-                        # Operations
-                        reset=0, # 0-no, 1-reset
-                        uop_bgn=0,
-                        uop_end=local_nb_uop,
-                        loop_out=1,
-                        loop_in=block_size, # Compute a block
-                        # UNUSED
-                        unused=0, # UNUSED
-                        # Index factors
-                        dst_factor_out=0, 
-                        dst_factor_in=1, # Compute a block
-                        src_factor_out=0,
-                        src_factor_in=1,
-                        wgt_factor_out=0,
-                        wgt_factor_in=0
-                    ))
-                    # Update semaphore (LD->CMP, CMP->ST, ST->CMP, CMP->LD)
-                    semaphore[0] -= pop_prev_dep
-                    semaphore[1] += push_next_dep
-                    semaphore[2] -= pop_next_dep
-                    semaphore[3] += push_prev_dep
+                    new_insn, semaphore = gemm_instruction(reset=0, pop_prev_dep=0, pop_next_dep=0, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep,
+                                                           uop_begin=0, uop_end=local_nb_uop,
+                                                           lp_out=1, dst_out=0, src_out=0, wgt_out=0,
+                                                           lp_in=block_size, dst_in=1, src_in=1, wgt_in=0,
+                                                           semaphore={})
+                    insn_buffer.append( new_insn )
 
                     # Reset capacity and local number of uop
                     local_nb_uop = 0
@@ -541,15 +428,8 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
         push_next_dep = 0
 
         # INSN LOAD UOP
-        insn_buffer.append(
-            load_store_instruction(buffer_type="UOP", pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep, sram_base=0, dram_base=current_uop_addr, y_size=1, x_size=nb_uop, x_stride=nb_uop)
-        )
-
-        # Update semaphore (LD->CMP, CMP->ST, ST->CMP, CMP->LD)
-        semaphore[0] -= pop_prev_dep
-        semaphore[1] += push_next_dep
-        semaphore[2] -= pop_next_dep
-        semaphore[3] += push_prev_dep
+        new_insn, semaphore = load_store_instruction(buffer_type="UOP", pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep, sram_base=0, dram_base=current_uop_addr, y_size=1, x_size=nb_uop, x_stride=nb_uop, semaphore=semaphore)
+        insn_buffer.append( new_insn )
 
         # Ready signal to STORE 
         push_next_dep = 1
@@ -559,36 +439,15 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
         push_prev_dep = 0
 
         # INSN - ALU
-        insn_buffer.append(VTAAluInsn( 
-            opcode=4, # 4-ALU
-            # DEP FLAG
-            pop_prev_dep=pop_prev_dep,
-            pop_next_dep=pop_next_dep,
-            push_prev_dep=push_prev_dep,
-            push_next_dep=push_next_dep,
-            # Operations
-            reset=0, # 0-no, 1-reset
-            uop_bgn=0,
-            uop_end=nb_uop,
-            loop_out=nbLoadAcc,
-            loop_in=block_size,
-            # UNUSED
-            unused=0, # UNUSED
-            # Index factors
-            dst_factor_out=block_size,
-            dst_factor_in=1, 
-            src_factor_out=block_size,
-            src_factor_in=1, 
-            alu_opcode=2, # 0-MIN, 1-MAX, 2-ADD, 3-SHR, 4-MUL
-            use_imm=0, # 0-no, 1-yes
-            imm=0
-        ))
+        alu_opcode = 2 # 0-MIN, 1-MAX, 2-ADD, 3-SHR, 4-MUL
+        new_insn, semaphore = alu_instruction(alu_opcode=alu_opcode, pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep,
+                                              uop_begin=0, uop_end=nb_uop,
+                                              lp_out=nbLoadAcc, dst_out=block_size, src_out=block_size, 
+                                              lp_in=block_size, dst_in=1, src_in=1, 
+                                              use_imm=0, imm=0,
+                                              semaphore=semaphore)
+        insn_buffer.append( new_insn )
 
-        # Update semaphore (LD->CMP, CMP->ST, ST->CMP, CMP->LD)
-        semaphore[0] -= pop_prev_dep
-        semaphore[1] += push_next_dep
-        semaphore[2] -= pop_next_dep
-        semaphore[3] += push_prev_dep
 
     else:
         for alu_idx in range(nb_gemm, nb_gemm+nb_alu):
@@ -680,15 +539,8 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
                 push_next_dep = 0
 
                 # INSN LOAD UOP
-                insn_buffer.append(
-                    load_store_instruction(buffer_type="UOP", pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep, sram_base=0, dram_base=current_uop_addr, y_size=1, x_size=nb_uop, x_stride=nb_uop)
-                )
-
-                # Update semaphore (LD->CMP, CMP->ST, ST->CMP, CMP->LD)
-                semaphore[0] -= pop_prev_dep
-                semaphore[1] += push_next_dep
-                semaphore[2] -= pop_next_dep
-                semaphore[3] += push_prev_dep
+                new_insn, semaphore = load_store_instruction(buffer_type="UOP", pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep, sram_base=0, dram_base=current_uop_addr, y_size=1, x_size=nb_uop, x_stride=nb_uop, semaphore=semaphore)
+                insn_buffer.append( new_insn )
 
                 # Ready signal to STORE (last alu)
                 push_next_dep = 1 if (alu_idx == (nb_gemm+nb_alu) - 1) else 0
@@ -698,36 +550,16 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
                 push_prev_dep = 0
         
                 # INSN - ALU
-                insn_buffer.append(VTAAluInsn( 
-                    opcode=4, # 4-ALU
-                    # DEP FLAG
-                    pop_prev_dep=pop_prev_dep,
-                    pop_next_dep=pop_next_dep,
-                    push_prev_dep=push_prev_dep,
-                    push_next_dep=push_next_dep,
-                    # Operations
-                    reset=0, # 0-no, 1-reset
-                    uop_bgn=0,
-                    uop_end=nb_uop,
-                    loop_out=1,
-                    loop_in=1,
-                    # UNUSED
-                    unused=0, # UNUSED
-                    # Index factors
-                    dst_factor_out=0,
-                    dst_factor_in=0, 
-                    src_factor_out=0,
-                    src_factor_in=0, 
-                    alu_opcode=alu_opcode, # 0-MIN, 1-MAX, 2-ADD, 3-SHR, 4-MUL
-                    use_imm=1 if (isImm == True) else 0, # 0-no, 1-yes
-                    imm=imm if (isImm == True) else 0
-                ))
+                use_imm=1 if (isImm == True) else 0
+                imm=imm if (isImm == True) else 0
+                new_insn, semaphore = alu_instruction(alu_opcode=alu_opcode, pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep,
+                                                      uop_begin=0, uop_end=nb_uop,
+                                                      lp_out=1, dst_out=0, src_out=0, 
+                                                      lp_in=1, dst_in=0, src_in=0, 
+                                                      use_imm=use_imm, imm=imm,
+                                                      semaphore=semaphore)
+                insn_buffer.append( new_insn )
 
-                # Update semaphore (LD->CMP, CMP->ST, ST->CMP, CMP->LD)
-                semaphore[0] -= pop_prev_dep
-                semaphore[1] += push_next_dep
-                semaphore[2] -= pop_next_dep
-                semaphore[3] += push_prev_dep
             
             # Else, there are too many UOP
             else:
@@ -752,39 +584,19 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
                         local_dram = current_uop_addr + (i - local_nb_uop)
 
                         # INSN UOP
-                        insn_buffer.append(
-                            load_store_instruction(buffer_type="UOP", pop_prev_dep=pop_prev_dep, pop_next_dep=0, push_prev_dep=push_prev_dep, push_next_dep=0, sram_base=0, dram_base=local_dram, y_size=1, x_size=local_nb_uop, x_stride=local_nb_uop)
-                        )
+                        new_insn, semaphore = load_store_instruction(buffer_type="UOP", pop_prev_dep=pop_prev_dep, pop_next_dep=0, push_prev_dep=push_prev_dep, push_next_dep=0, sram_base=0, dram_base=local_dram, y_size=1, x_size=local_nb_uop, x_stride=local_nb_uop, semaphore=semaphore)
+                        insn_buffer.append( new_insn )
+
                         # INSN - ALU
-                        insn_buffer.append(VTAAluInsn( 
-                            opcode=4, # 4-ALU
-                            # DEP FLAG
-                            pop_prev_dep=0,
-                            pop_next_dep=0,
-                            push_prev_dep=0,
-                            push_next_dep=push_next_dep,
-                            # Operations
-                            reset=0, # 0-no, 1-reset
-                            uop_bgn=0,
-                            uop_end=local_nb_uop,
-                            loop_out=1,
-                            loop_in=1,
-                            # UNUSED
-                            unused=0, # UNUSED
-                            # Index factors
-                            dst_factor_out=0,
-                            dst_factor_in=0, 
-                            src_factor_out=0,
-                            src_factor_in=0, 
-                            alu_opcode=alu_opcode, # 0-MIN, 1-MAX, 2-ADD, 3-SHR, 4-MUL
-                            use_imm=1 if (isImm == True) else 0, # 0-no, 1-yes
-                            imm=imm if (isImm == True) else 0
-                        ))
-                        # Update semaphore (LD->CMP, CMP->ST, ST->CMP, CMP->LD)
-                        semaphore[0] -= pop_prev_dep
-                        semaphore[1] += push_next_dep
-                        semaphore[2] -= pop_next_dep
-                        semaphore[3] += push_prev_dep
+                        use_imm=1 if (isImm == True) else 0
+                        imm=imm if (isImm == True) else 0
+                        new_insn, semaphore = alu_instruction(alu_opcode=alu_opcode, pop_prev_dep=0, pop_next_dep=0, push_prev_dep=0, push_next_dep=push_next_dep,
+                                                              uop_begin=0, uop_end=local_nb_uop,
+                                                              lp_out=1, dst_out=0, src_out=0, 
+                                                              lp_in=1, dst_in=0, src_in=0, 
+                                                              use_imm=use_imm, imm=imm,
+                                                              semaphore=semaphore)
+                        insn_buffer.append( new_insn )
 
                         # Reset capacity and local number of uop
                         local_nb_uop = 0
@@ -808,15 +620,8 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
         pop_next_dep = 0
 
         # INSN - NOP-COMPUTE-STAGE (input: LD->CMP, output: CMP->LD & CMP->ST)
-        insn_buffer.append( 
-            nop_stage_instruction(module="COMPUTE", pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep)
-        )
-
-        # Update semaphore (LD->CMP, CMP->ST, ST->CMP, CMP->LD)
-        semaphore[0] -= pop_prev_dep
-        semaphore[1] += push_next_dep
-        semaphore[2] -= pop_next_dep
-        semaphore[3] += push_prev_dep
+        new_insn, semaphore = nop_stage_instruction(module="COMPUTE", pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep, semaphore=semaphore)
+        insn_buffer.append( new_insn )
 
 
     # STORE MODULE (input: CMP->LD & CMP->ST, output: CMP->LD)
@@ -847,13 +652,8 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
                 dst_dram_addr = dram_state.index(dst_vector) + out_dram_base
 
                 # INSN STORE OUT - store a vector
-                insn_buffer.append(
-                    load_store_instruction(buffer_type="OUT", pop_prev_dep=pop_prev_dep, pop_next_dep=0, push_prev_dep=push_prev_dep, push_next_dep=0, sram_base=dst_sram_addr, dram_base=dst_dram_addr, y_size=1, x_size=1, x_stride=1)
-                )
-
-                # Update semaphore (LD->CMP, CMP->ST, ST->CMP, CMP->LD)
-                semaphore[1] -= pop_prev_dep
-                semaphore[2] += push_prev_dep
+                new_insn, semaphore = load_store_instruction(buffer_type="OUT", pop_prev_dep=pop_prev_dep, pop_next_dep=0, push_prev_dep=push_prev_dep, push_next_dep=0, sram_base=dst_sram_addr, dram_base=dst_dram_addr, y_size=1, x_size=1, x_stride=1, semaphore=semaphore)
+                insn_buffer.append( new_insn )
 
         else: 
             for i, block_idx in enumerate(to_store):
@@ -867,13 +667,8 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
                 push_prev_dep = 1 if (i == nb_out - 1) else 0
 
                 # INSN STORE OUT - store a full block_size x block_size matrix
-                insn_buffer.append(
-                    load_store_instruction(buffer_type="OUT", pop_prev_dep=pop_prev_dep, pop_next_dep=0, push_prev_dep=push_prev_dep, push_next_dep=0, sram_base=current_sram_base, dram_base=current_block_addr, y_size=1, x_size=block_size, x_stride=block_size)
-                )
-
-                # Update semaphore (LD->CMP, CMP->ST, ST->CMP, CMP->LD)
-                semaphore[1] -= pop_prev_dep
-                semaphore[2] += push_prev_dep
+                new_insn, semaphore = load_store_instruction(buffer_type="OUT", pop_prev_dep=pop_prev_dep, pop_next_dep=0, push_prev_dep=push_prev_dep, push_next_dep=0, sram_base=current_sram_base, dram_base=current_block_addr, y_size=1, x_size=block_size, x_stride=block_size, semaphore=semaphore)
+                insn_buffer.append( new_insn )
     
     # Nothing to store
     else: 
@@ -883,13 +678,8 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
         push_prev_dep = 1 
 
         # INSN - NOP-STORE-STAGE (input: CMP->LD & CMP->ST, output: CMP->LD & ST->CMP)
-        insn_buffer.append( 
-            nop_stage_instruction(module="STORE", pop_prev_dep=pop_prev_dep, pop_next_dep=0, push_prev_dep=push_prev_dep, push_next_dep=0)
-        )
-
-        # Update semaphore (LD->CMP, CMP->ST, ST->CMP, CMP->LD)
-        semaphore[1] -= pop_prev_dep
-        semaphore[2] += push_prev_dep
+        new_insn, semaphore = nop_stage_instruction(module="STORE", pop_prev_dep=pop_prev_dep, pop_next_dep=0, push_prev_dep=push_prev_dep, push_next_dep=0, semaphore=semaphore)
+        insn_buffer.append( new_insn )
 
 
     # COMPUTE MODULE (input: CMP->LD & ST->CMP, output: CMP->LD)
@@ -902,18 +692,11 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
     push_next_dep = 0
 
     # INSN - NOP-COMPUTE-STAGE (input: CMP->LD & ST->CMP, output: CMP->LD)
-    insn_buffer.append( 
-        nop_stage_instruction(module="COMPUTE", pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep)
-    )
-
-    # Update semaphore (LD->CMP, CMP->ST, ST->CMP, CMP->LD)
-    semaphore[0] -= pop_prev_dep
-    semaphore[1] += push_next_dep
-    semaphore[2] -= pop_next_dep
-    semaphore[3] += push_prev_dep
+    new_insn, semaphore = nop_stage_instruction(module="COMPUTE", pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep, semaphore=semaphore)
+    insn_buffer.append( new_insn )
 
     # Return the sequences
-    return insn_buffer, uop_buffer, uop_counter + len(uop_buffer), semaphore
+    return insn_buffer, uop_buffer, semaphore, uop_counter + len(uop_buffer)
 
 
 # ---------------------------------------------
@@ -921,20 +704,18 @@ def strategy_step(step, dram_addresses, memory_status, uop_counter=0, semaphore=
 
 # TERMINATION SEQUENCE (input: CMP->LD, output: /)
 # --------------------
-def termination_sequence():
+def termination_sequence(semaphore):
     # Init
     insn_buffer = []
 
     # INSN - NOP-MEMORY-STAGE (LOAD) (input: CMP->LD, output: LD->CMP)
-    insn_buffer.append( 
-        nop_stage_instruction(module="LOAD", pop_prev_dep=0, pop_next_dep=1, push_prev_dep=0, push_next_dep=1)
-    )
+    new_insn,semaphore = nop_stage_instruction(module="LOAD", pop_prev_dep=0, pop_next_dep=1, push_prev_dep=0, push_next_dep=1, semaphore=semaphore)
+    insn_buffer.append( new_insn )
 
 
     # INSN -  NOP-COMPUTE-STAGE (input: LD->CMP, output: /)
-    insn_buffer.append( 
-        nop_stage_instruction(module="COMPUTE", pop_prev_dep=1, pop_next_dep=0, push_prev_dep=0, push_next_dep=0)
-    )
+    new_insn, semaphore = nop_stage_instruction(module="COMPUTE", pop_prev_dep=1, pop_next_dep=0, push_prev_dep=0, push_next_dep=0, semaphore=semaphore)
+    insn_buffer.append( new_insn )
 
     # INSN - FINISH
     insn_buffer.append(VTAMemInsn( 
@@ -959,57 +740,8 @@ def termination_sequence():
         x_pad_right=0
     ))
 
-    return insn_buffer
+    return insn_buffer, semaphore
 
-
-###############################################
-
-# NOP_STAGE_INSTRUCTION
-# ---------------------
-def nop_stage_instruction(module="COMPUTE", pop_prev_dep=0, pop_next_dep=0, push_prev_dep=0, push_next_dep=0):
-    # Init
-    opcode = 0
-    buffer_id = 0
-
-    # Check the type of module
-    if (module == "LOAD"):
-        opcode = 0 # LOAD
-        buffer_id = 2 # INP BUFFER
-    elif (module == "COMPUTE"):
-        opcode = 0 # LOAD
-        buffer_id = 0 # UOP BUFFER
-    elif (module == "STORE"):
-        opcode = 1 # STORE
-        buffer_id = 4 # OUT BUFFER
-    else:
-        raise Exception(f"ERROR: NOP-STAGE non-supported ({module}), must be either: 'LOAD', 'COMPUTE', 'STORE'! \n\n")
-
-    # The instruction
-    nop_insn = VTAMemInsn(
-        opcode=opcode, # 0-LOAD, 1-STORE, 3-FINISH
-        # DEP FLAG
-        pop_prev_dep=pop_prev_dep,
-        pop_next_dep=pop_next_dep,
-        push_prev_dep=push_prev_dep, 
-        push_next_dep=push_next_dep, 
-        # Memory interaction
-        buffer_id=buffer_id, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
-        sram_base=0x0000,
-        dram_base=0x00000000,
-        unused=0, # UNUSED
-        # Operation over the data
-        y_size=0,
-        x_size=0,
-        x_stride=0,
-        y_pad_top=0,
-        y_pad_bottom=0,
-        x_pad_left=0,
-        x_pad_right=0
-    )
-
-    return nop_insn
-
-# ---------------------------------------------
 
 ###############################################
 
