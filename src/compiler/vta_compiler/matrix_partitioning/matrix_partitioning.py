@@ -17,7 +17,7 @@ from matrix_partitioning.utils_strategies import *
 def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_col=1,
                         inp_buffer_size=4*256, wgt_buffer_size=32*16, acc_buffer_size=4*256, out_buffer_size=4*256,
                         alu_operations=[], idx_to_store=[],
-                        doGemm=False, doAddMatrix=False, doAlu=False,
+                        flag_dict={},
                         strategy_selector=1, block_size=16,
                         debug=True):
     """
@@ -31,12 +31,11 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
         - $_block_buffer_size (int): the number of blocks that fit the related SRAM buffer
         - alu_operations (list): a list of the ALU operations to perfom
         - idx_to_delete (list): a list of the output matrix's row indexes not to store
-        - do* (boolean): perform the specific operations
+        - flag_dict (dict): a dictionary of flags
         - strategy_selector (int): an integer in [1..4] to select a strategy on GeMM
         - block_size (int): an integer coming from the VTA configuration
         - debug (boolean): a boolean to print the execution information
     Outputs:
-        - isOverfitting (boolean): it is true if at least one matrix overfits the SRAM (i.e., a strategy is applied)
         - strategy (list of tuple): each tuple represents a computation step. 
             The tuple is composed of several lists: ([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations]). 
             Each list correspond to a specific action to perform at this step: 
@@ -47,6 +46,7 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
                 5. [Ti]: The current elements stored back in the DRAM
                 6. [Ci]: The C output elements to store in OUT region within DRAM
                 7. [Operations]: The operations to perform at each step
+        - flag_dict (dict): the updated flag_dict with 'isOverfitting' flag
     
      Remarks: the supported cases are:
         - CASE 1: Matrix multiplication (GeMM) without overfitting followed by ALU operations (either vector-scalar or vector-vector)
@@ -59,6 +59,11 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
         raise Exception(f"ERROR: Assumptions for matrix partitioning: \
                         \n\t 1. acc_buffer_size ({acc_buffer_size}) = out_buffer_size ({out_buffer_size})! \n\n")
     
+    # Get the flags
+    doGemm = flag_dict["doGemm"]
+    doAddMatrix = flag_dict["doAddMatrix"]
+    doAlu = flag_dict["doAddMatrix"]
+    
     # Init the output
     isOverfitting = False
     strategy = []
@@ -70,7 +75,7 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
     out_block_buffer_size = acc_block_buffer_size
 
     # CASE 1 & 2: MATRIX MULTIPLICATION
-    if doGemm == True:
+    if (doGemm == True):
         # Check data consistency
         if ( (nb_A%A_blocks_col != 0) or (nb_B%B_blocks_col != 0) or (nb_X%X_blocks_col != 0) ):
             raise Exception(f"ERROR: Data are not consistent: results should be 0 \
@@ -216,8 +221,9 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
         for i, step in enumerate(strategy):
             print(f"\nStep {i}: {step}")
 
-    # Return if it is overfitting and the strategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]
-    return isOverfitting, strategy
+    # Return the strategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])] and the flags
+    flag_dict["isOverfitting"] = isOverfitting
+    return strategy, flag_dict
 
 
 ###############################################

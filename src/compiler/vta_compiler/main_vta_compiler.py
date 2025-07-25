@@ -46,7 +46,7 @@ def main(operations_dict, vta_config_dict, debug=True):
     A_blocks, A_blocks_col, B_blocks, B_blocks_col, \
         X_blocks, Y_blocks, ALU_blocks, C_blocks, C_init, X_blocks_col, \
         alu_operations, idx_to_store, \
-        doGemm, doAddMatrix, doAlu = \
+        flag_dict = \
             DF.data_definition(operations_dict, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype,
                                block_size=block_size, random_bound=random_bound, debug=debug)
 
@@ -86,7 +86,7 @@ def main(operations_dict, vta_config_dict, debug=True):
     # MATRIX PARTITIONING
 
     # Compute the data for matrix partitioning
-    if (doGemm):
+    if (flag_dict["doGemm"] == True):
         nb_A = len(A_blocks)
         nb_B = len(B_blocks)
     else:
@@ -98,14 +98,13 @@ def main(operations_dict, vta_config_dict, debug=True):
     strategy_selector = 1
 
     # Apply matrix partitioning (check is overfit then applies selected trategy)
-    # => Strategy 1 is the most naive, but works in the most of the cases (strategies 2 to 4 have more constrained assumptions)
-    isOverfitting, strategy = \
+    strategy, flag_dict = \
         MP.matrix_partitioning(nb_A=nb_A, A_blocks_col=A_blocks_col, nb_B=nb_B, B_blocks_col=B_blocks_col, 
                                nb_X=nb_X, X_blocks_col=X_blocks_col,
                                inp_buffer_size=inp_buffer_size, wgt_buffer_size=wgt_buffer_size, 
                                acc_buffer_size=acc_buffer_size, out_buffer_size=out_buffer_size,
                                alu_operations=alu_operations, idx_to_store=idx_to_store,
-                               doGemm=doGemm, doAddMatrix=doAddMatrix, doAlu=doAlu,
+                               flag_dict=flag_dict,
                                strategy_selector=strategy_selector, block_size=block_size,
                                debug=debug)
 	
@@ -115,7 +114,8 @@ def main(operations_dict, vta_config_dict, debug=True):
 
     insn_buffer, uop_buffer = \
         OP.operations_definition(strategy=strategy, dram_addresses=base_addresses_list,
-                                 operations_dict=operations_dict, block_size=block_size, uop_buffer_size=uop_buffer_size,
+                                 operations_dict=operations_dict, flag_dict=flag_dict,
+                                 block_size=block_size, uop_buffer_size=uop_buffer_size,
                                  A_blocks_col=A_blocks_col, B_blocks_col=B_blocks_col, X_blocks_col=X_blocks_col,
                                  debug=debug)
     

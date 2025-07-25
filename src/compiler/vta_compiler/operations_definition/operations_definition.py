@@ -14,7 +14,8 @@ else:
 # OPERATIONS DEFINITION
 # ---------------------
 def operations_definition(strategy=[], dram_addresses=[],
-                          operations_dict={}, block_size=16, uop_buffer_size=8192,
+                          operations_dict={}, flag_dict={},
+                          block_size=16, uop_buffer_size=8192,
                           A_blocks_col=1, B_blocks_col=1, X_blocks_col=1,
                           debug=True):
     # Init the lists of instructions, UOPs and semaphore

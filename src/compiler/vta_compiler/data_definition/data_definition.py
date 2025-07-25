@@ -142,7 +142,10 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
         else: # TODO: read the binary values
             pass
     else: # Else set X to 0
-        X_row, X_col = (A_row, B_col)
+        if (doMulConstant == True):
+            X_row, X_col = (A_row, A_col)
+        else:
+            X_row, X_col = (A_row, B_col)
         X_matrix = MG.matrix_creation(n_row=X_row, n_col=X_col, isInitRandom=False, random_bound=0, dtype=acc_dtype)
 
     # ACC_BIS matrix
@@ -319,8 +322,17 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
     # ---------------------------------------------
     # RETURN 
 
+    # Gather the flag in a dictionnary
+    flag_dict = {
+        "doGemm": doGemm,
+        "doMulConstant": doMulConstant,
+        "doAcc": doAcc,
+        "doAddMatrix": doAddMatrix,
+        "doAlu": doAlu
+    }
+
     return A_blocks, A_blocks_col, B_blocks, B_blocks_col, \
            X_blocks, Y_blocks, ALU_blocks, C_blocks, C_init, X_blocks_col, \
            alu_operations, idx_to_store, \
-           doGemm, doAddMatrix, doAlu
+           flag_dict
 
