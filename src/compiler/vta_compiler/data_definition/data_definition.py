@@ -73,8 +73,9 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
         nb_alu = len(alu_operations)
 
         # Check if it is an ADD between two matrices
-        if "ADD_ACC" in alu_operations:
+        if "ADD_ACC" in alu_operations[0]:
             doAddMatrix = True
+            doAlu = False
             doAcc = True
 
             if nb_alu > 1:
@@ -94,7 +95,7 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
                 acc_name = next( name for name in matrices.keys() if not name.endswith("_VALUES") )
     
     # If no operations, there is a problem
-    if doGemm == False and doAddMatrix == False and doAlu == False:
+    if doGemm == False and doAlu == False and doAddMatrix == False:
         raise Exception(f"ERROR: No operations!\n\n")   
 
 
@@ -220,7 +221,7 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
     
     # Perform other ALU operations
     idx_to_store = []
-    if (doAlu == True):
+    if (doAlu == True and doAddMatrix == False):
         ALU_matrix, alu_operations, idx_to_store = ALU.alu_operations(matrix=ALU_matrix, alu_operations=alu_operations, block_size=block_size)
 
 
@@ -298,7 +299,7 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
     
         print("\n\nALU OPERATIONS:")
         if (doAddMatrix):
-            print(f" {add_acc_ops[0]}: {alu_ops[1]}")
+            print(f" {add_acc_ops[0]}: {add_acc_ops[1]}")
         elif (doAlu):
             for alu_ops in alu_operations:
                 print(f" {alu_ops[0]}: {alu_ops[1]} -> within blocks: {alu_ops[2]}")

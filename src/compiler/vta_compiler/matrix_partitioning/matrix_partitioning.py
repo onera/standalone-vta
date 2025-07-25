@@ -161,7 +161,7 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
             store_C = load_X
 
             # Create the strategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]
-            strategy = [ (load_A, load_B, load_X, memory_status, dram_state, store_C, ops) ]
+            strategy = [ (load_A, load_B, load_X, memory_status, dram_state, store_C, alu_operations) ]
 
         # It does not fit
         else:
