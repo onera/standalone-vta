@@ -19,10 +19,13 @@ def dram_allocation(object_list, base_addr=0x0000, block_size=16,
 
     # Define the addresses list
     base_addresses = []
-    forced_size = 0
 
     # Iterate over the object
     for obj_type, *rest in object_list:
+        # Reset forced_size
+        forced_size = 0
+
+        # Get the object value and the forced size (if it exists)
         obj_value = rest[0]
         if (len(rest) == 2):
             forced_size = rest[1]

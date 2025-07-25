@@ -61,7 +61,7 @@ def main(operations_dict, vta_config_dict, debug=True):
                    ("ACC", X_blocks),
                    ("ADD_ACC", Y_blocks),
                    ("OUT", C_blocks, forced_allocation_size),
-                   ("UOP", [])]
+                   ("UOP", [], 4)]
 
     # Get the offsets
     if "BASE_ADDRESS" in operations_dict:
