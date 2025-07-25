@@ -60,7 +60,7 @@ def main(operations_dict, vta_config_dict, debug=True):
     object_list = [("INP", A_blocks),
                    ("WGT", B_blocks),
                    ("ACC", X_blocks),
-                   ("ADD_ACC", Y_blocks),
+                   ("ACC_BIS", Y_blocks),
                    ("OUT", C_blocks, forced_allocation_size),
                    ("UOP", [], 4)]
 

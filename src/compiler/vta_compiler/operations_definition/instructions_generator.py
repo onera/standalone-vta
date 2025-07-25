@@ -79,7 +79,7 @@ def strategy_step(step, semaphore, dram_addresses, memory_status, uop_counter=0,
     inp_addr = [addr for addr in dram_addresses if addr.get("type") == "INP"]
     wgt_addr = [addr for addr in dram_addresses if addr.get("type") == "WGT"]
     acc_addr = [addr for addr in dram_addresses if addr.get("type") == "ACC"]
-    add_acc_addr = [addr for addr in dram_addresses if addr.get("type") == "ADD_ACC"]
+    acc_bis_addr = [addr for addr in dram_addresses if addr.get("type") == "ACC_BIS"]
     out_addr = [addr for addr in dram_addresses if addr.get("type") == "OUT"]
 
 
@@ -198,7 +198,7 @@ def strategy_step(step, semaphore, dram_addresses, memory_status, uop_counter=0,
     doAlu = False if (nb_alu == 0) else True
 
     # Check if we add two matrices
-    doAddAcc = False if (len(add_acc_addr) == 0) else True
+    doAddAcc = False if (len(acc_bis_addr) == 0) else True
 
     # INSN - LOAD ACC
     isLastCompute = False if (doGemm == True or doAlu == True) else True
@@ -279,7 +279,7 @@ def strategy_step(step, semaphore, dram_addresses, memory_status, uop_counter=0,
 
                 # Full block
                 # Get the idx of the block in DRAM and the location in SRAM
-                current_block_addr = find_logical_block_addr_by_idx(block_idx, add_acc_addr)
+                current_block_addr = find_logical_block_addr_by_idx(block_idx, acc_bis_addr)
                 current_sram_base=(nbLoadAcc + i) * block_size
 
                 # INSN LOAD ACC - load a full block_size x block_size matrix
@@ -288,7 +288,7 @@ def strategy_step(step, semaphore, dram_addresses, memory_status, uop_counter=0,
 
         else: # Single load instruction
             # Get the first block address
-            first_block_address = find_logical_block_addr_by_idx(load_X[0], add_acc_addr)
+            first_block_address = find_logical_block_addr_by_idx(load_X[0], acc_bis_addr)
             # Sram is 0x0000
             sram_addr = nbLoadAcc * block_size
 
