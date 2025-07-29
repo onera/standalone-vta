@@ -62,7 +62,8 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
     # Get the flags
     doGemm = flag_dict["doGemm"]
     doAddMatrix = flag_dict["doAddMatrix"]
-    doAlu = flag_dict["doAddMatrix"]
+    doMulConstant = flag_dict["doMulConstant"]
+    doAlu = flag_dict["doAlu"]
     
     # Init the output
     isOverfitting = False
@@ -201,21 +202,23 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
     if (debug):
         print("\n\nMATRIX PARTITIONING:")
         print(f"Number of storable blocks within each SRAM buffer: \
-            \n INP: {inp_block_buffer_size} blocks, \
-            \n WGT: {wgt_block_buffer_size} blocks, \
-            \n ACC=OUT: {out_block_buffer_size} blocks \n")
-        print(f"The operations are: ")
+            \n INP: {inp_block_buffer_size} blocks ({inp_buffer_size} vectors), \
+            \n WGT: {wgt_block_buffer_size} blocks ({wgt_buffer_size} vectors), \
+            \n ACC=OUT: {out_block_buffer_size} blocks ({out_buffer_size} vectors) \n")
         print(f"The operations are:  \
             \n\t doGemm: {doGemm}, \
             \n\t doAddMatrix: {doAddMatrix}, \
-            \n doAlu: {doAlu} \n")
+            \n\t doAlu: {doAlu} \n")
         print(f"Number of blocks to load: ")
         if (doGemm):
             print(f" INP: {nb_A} blocks (including A_blocks_col = {A_blocks_col}), \
             \n WGT: {nb_B} blocks (including B_blocks_col = {B_blocks_col}),")
-        print(f" ACC=: {nb_X} blocks (including X_blocks_col = {X_blocks_col})\n")
+        print(f" ACC=: {nb_X} blocks (including X_blocks_col = {X_blocks_col}) - {nb_X * block_size} vectors \n")
 
-        print(f"\nDoes matrix overfit SRAM? {isOverfitting} \nThe strategy to address it: {strategy_selector}")
+
+        print(f"\nDoes matrix overfit SRAM? {isOverfitting}")
+        if (doGemm):
+            print(f"The strategy to address it: {strategy_selector}")
 
         print(f"\nStrategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]: (nb of steps: {len(strategy)})")
         for i, step in enumerate(strategy):

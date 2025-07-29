@@ -84,8 +84,8 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
                 raise Exception(f"ERROR: 'ADD_ACC' operations cannot follow GeMM operations!\n\n")
             
             # Get the operations and the name of the matrices
-            add_acc_ops = alu_operations[0]
-            acc_name, acc_bis_name = add_acc_ops[1]
+            acc_bis_ops = alu_operations[0]
+            acc_name, acc_bis_name = acc_bis_ops[1]
         
         # Else, define the name of the ACC matrix
         else:
@@ -299,7 +299,7 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
     
         print("\n\nALU OPERATIONS:")
         if (doAddMatrix):
-            print(f" {add_acc_ops[0]}: {add_acc_ops[1]}")
+            print(f" {acc_bis_ops[0]}: {acc_bis_ops[1]}")
         elif (doAlu):
             for alu_ops in alu_operations:
                 print(f" {alu_ops[0]}: {alu_ops[1]} -> within blocks: {alu_ops[2]}")

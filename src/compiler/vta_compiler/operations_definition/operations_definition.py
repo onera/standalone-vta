@@ -2,9 +2,11 @@
 # ---------------
 if __name__ == "__main__": 
     from structures import *
+    from step_instructions import *
     from instructions_generator import *
 else:
     from operations_definition.structures import *
+    from operations_definition.step_instructions import *
     from operations_definition.instructions_generator import *
 
 
@@ -32,8 +34,10 @@ def operations_definition(strategy=[], dram_addresses=[],
         "CMP->LD": 0
     }
 
-    # Number of strategy steps
-    nb_steps = len(strategy)
+    # # Dump instructions
+    # new_insn, new_buffer, semaphore = dump_instructions(nb_insn=10000, semaphore=semaphore) 
+    # insn_buffer = insn_buffer + new_insn
+    # uop_buffer = uop_buffer + new_buffer
 
     # 0 - Reset (input: /, output: CMP->LD)
     new_insn, new_buffer, semaphore, uop_counter = reset_sequence(strategy, semaphore, dram_addresses, uop_counter, block_size)
@@ -44,9 +48,12 @@ def operations_definition(strategy=[], dram_addresses=[],
     for i, step in enumerate(strategy):
         memory_status = step[3]
 
-        new_insn, new_buffer, semaphore, uop_counter = strategy_step(step, semaphore, dram_addresses, memory_status, uop_counter, block_size, uop_buffer_size)
+        # new_insn, new_buffer, semaphore, uop_counter = strategy_step(step, semaphore, dram_addresses, memory_status, uop_counter, block_size, uop_buffer_size)
+
+        new_insn, new_buffer, semaphore, uop_counter = step_instructions(step, semaphore, dram_addresses, uop_counter, block_size, uop_buffer_size)
         insn_buffer = insn_buffer + new_insn
         uop_buffer = uop_buffer + new_buffer
+
 
     # 2 - Termination sequence (input: CMP->LD, output: /)
     new_insn, semaphore = termination_sequence(semaphore) 

@@ -69,7 +69,7 @@ def check_constant_gap(numbers: list) -> int:
     if len(numbers) < 2:
         return -1
     
-    # If it is a tuple, return 1
+    # If it is a tuple, return -1
     if isinstance(numbers[0], tuple):
         return -1
 

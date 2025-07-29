@@ -65,7 +65,7 @@ def alu_strategy(sorted_alu_ops, acc_buffer_size):
         # Iterate over the SRC vectors
 
         for src_idx, src_vector in enumerate(src_vectors):
-            if (capacity == 0):
+            if (capacity < 1):
                 # Filter the ops
                 filtered_ops = filter_op_for_step(alu_ops=ops, sram_status=sram_status)
                 # Append the strategy [([], [], [Xi], [SRAM], [DRAM], [Ci], [Ops])]
@@ -90,12 +90,16 @@ def alu_strategy(sorted_alu_ops, acc_buffer_size):
                 if (next_dst in sram_status):
                     continue
             
-            # Vectore-vector operation
+            # Vector-vector operation
             else: 
                 # Check the size of the next ALU_ops
-                if ((next_dst in sram_status and len(next_src) < capacity) or (len(next_src) < capacity - 1)):
+                if ( (next_dst in sram_status) and (len(next_src) < capacity) ):
                     # If the next ALU fit the buffer, continue the step
                     continue
+                elif (len(next_src) < capacity - 1):
+                    # If the next ALU fit the buffer, continue the step
+                    continue
+
                 # If it the same DST vector but it does not fit, finalise the step but do not store
                 elif (next_dst in sram_status):
                     # Filter the ops

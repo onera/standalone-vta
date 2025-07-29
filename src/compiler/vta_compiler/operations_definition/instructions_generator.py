@@ -710,14 +710,37 @@ def termination_sequence(semaphore):
     # Init
     insn_buffer = []
 
-    # INSN - NOP-MEMORY-STAGE (LOAD) (input: CMP->LD, output: LD->CMP)
-    new_insn,semaphore = nop_stage_instruction(module="LOAD", pop_prev_dep=0, pop_next_dep=1, push_prev_dep=0, push_next_dep=1, semaphore=semaphore)
-    insn_buffer.append( new_insn )
+    # Check the semaphore
+    cmp_ld_signal = semaphore["CMP->LD"]
+    ld_cmp_signal = semaphore["LD->CMP"]
+    cmp_st_signal = semaphore["CMP->ST"]
+    st_cmp_signal = semaphore["ST->CMP"]
 
+    if (cmp_ld_signal > 0):
+        push_next_dep = 1 if (ld_cmp_signal == 0) else 0
+
+        # INSN - NOP-MEMORY-STAGE (LOAD) 
+        new_insn, semaphore = nop_stage_instruction(module="LOAD", pop_prev_dep=0, pop_next_dep=1, push_prev_dep=0, push_next_dep=push_next_dep, semaphore=semaphore)
+        insn_buffer.append( new_insn )
+
+    if (cmp_st_signal > 0):
+        push_prev_dep = 1 if (st_cmp_signal == 0) else 0
+
+        # INSN - NOP-MEMORY-STAGE (STORE) 
+        new_insn, semaphore = nop_stage_instruction(module="STORE", pop_prev_dep=0, pop_next_dep=1, push_prev_dep=push_prev_dep, push_next_dep=0, semaphore=semaphore)
+        insn_buffer.append( new_insn )
+
+    # Check again the semaphore
+    ld_cmp_signal = semaphore["LD->CMP"]
+    st_cmp_signal = semaphore["ST->CMP"]
+
+    pop_prev_dep = 1 if (ld_cmp_signal > 0) else 0
+    pop_next_dep = 1 if (st_cmp_signal > 0) else 0
 
     # INSN -  NOP-COMPUTE-STAGE (input: LD->CMP, output: /)
-    new_insn, semaphore = nop_stage_instruction(module="COMPUTE", pop_prev_dep=1, pop_next_dep=0, push_prev_dep=0, push_next_dep=0, semaphore=semaphore)
+    new_insn, semaphore = nop_stage_instruction(module="COMPUTE", pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=0, push_next_dep=0, semaphore=semaphore)
     insn_buffer.append( new_insn )
+
 
     # INSN - FINISH
     insn_buffer.append(VTAMemInsn( 
@@ -744,3 +767,54 @@ def termination_sequence(semaphore):
 
     return insn_buffer, semaphore
 
+
+
+###############################################
+
+
+# DUMP_INSTRUCTIONS
+# -----------------
+def dump_instructions(nb_insn=1, semaphore={}):
+    """Generate a given number of NOP-COMPUTE-STAGE instructions"""
+    # Init
+    insn_buffer = []
+    uop_buffer = []
+
+    # UOP - reset
+    uop_buffer.append(VTAUop( 
+        dst_idx=0, 
+        src_idx=0,
+        wgt_idx=0
+    ))
+
+
+    # INSN -  NOP-COMPUTE-STAGE
+    for i in range(0, nb_insn-1):
+        new_insn, semaphore = nop_stage_instruction(module="STORE", pop_prev_dep=0, pop_next_dep=0, push_prev_dep=0, push_next_dep=0, semaphore=semaphore)
+        insn_buffer.append( new_insn )
+
+
+    # INSN - FINISH
+    insn_buffer.append(VTAMemInsn( 
+        opcode=3, # 0-LOAD, 1-STORE, 3-FINISH
+        # DEP FLAG
+        pop_prev_dep=0,
+        pop_next_dep=0,
+        push_prev_dep=0,
+        push_next_dep=0,
+        # Memory interaction
+        buffer_id=0, # 0-UOP, 1-WGT, 2-INP, 3-ACC, 4-OUT, 5-ACC8bit
+        sram_base=0x0000,
+        dram_base=0x00000000,
+        unused=0, # UNUSED
+        # Operation over the data
+        y_size=0,
+        x_size=0,
+        x_stride=0,
+        y_pad_top=0,
+        y_pad_bottom=0,
+        x_pad_left=0,
+        x_pad_right=0
+    ))
+
+    return insn_buffer, uop_buffer, semaphore
