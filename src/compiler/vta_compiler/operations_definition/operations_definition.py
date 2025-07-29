@@ -2,11 +2,9 @@
 # ---------------
 if __name__ == "__main__": 
     from structures import *
-    from step_instructions import *
     from instructions_generator import *
 else:
     from operations_definition.structures import *
-    from operations_definition.step_instructions import *
     from operations_definition.instructions_generator import *
 
 
@@ -39,12 +37,12 @@ def operations_definition(strategy=[], dram_addresses=[],
     # insn_buffer = insn_buffer + new_insn
     # uop_buffer = uop_buffer + new_buffer
 
-    # 0 - Reset (input: /, output: CMP->LD)
+    # 0 - Reset 
     new_insn, new_buffer, semaphore, uop_counter = reset_sequence(strategy, semaphore, dram_addresses, uop_counter, block_size)
     insn_buffer = insn_buffer + new_insn
     uop_buffer = uop_buffer + new_buffer
 
-    # 1 - strategy step (input: CMP->LD, output: CMP->LD)
+    # 1 - strategy step 
     for i, step in enumerate(strategy):
         memory_status = step[3]
 
@@ -55,7 +53,7 @@ def operations_definition(strategy=[], dram_addresses=[],
         uop_buffer = uop_buffer + new_buffer
 
 
-    # 2 - Termination sequence (input: CMP->LD, output: /)
+    # 2 - Termination sequence 
     new_insn, semaphore = termination_sequence(semaphore) 
     insn_buffer = insn_buffer + new_insn
 

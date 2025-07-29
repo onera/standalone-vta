@@ -3,10 +3,12 @@
 try:
     from structures import *
     from utils_operations import *
+    from step_instructions import *
     from instructions_template import *
 except:
     from operations_definition.structures import *
     from operations_definition.utils_operations import *
+    from operations_definition.step_instructions import *
     from operations_definition.instructions_template import *
 
 ###############################################
@@ -56,7 +58,7 @@ def reset_sequence(strategy, semaphore, dram_addresses, uop_counter=0, block_siz
     # Generate GEMM reset
     new_insn, semaphore = gemm_instruction(reset=1, pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep,
                                 uop_begin=0, uop_end=1,
-                                lp_out=reset_size, dst_out=block_size, src_out=0, wgt_out=0,
+                                lp_out=1, dst_out=block_size, src_out=0, wgt_out=0,
                                 lp_in=block_size, dst_in=1, src_in=0, wgt_in=0,
                                 semaphore=semaphore)
     insn_buffer.append( new_insn )
@@ -65,6 +67,68 @@ def reset_sequence(strategy, semaphore, dram_addresses, uop_counter=0, block_siz
 
 
 # ---------------------------------------------
+
+# STEP_INSTRUCTIONS
+# -----------------
+def step_instructions(step, semaphore, dram_addresses, uop_counter=0, block_size=16, uop_buffer_size=8192):
+    # Init the buffers
+    insn_buffer = []
+    uop_buffer = []
+
+    # Get the DRAM addresses for each object
+    uop_addr = [addr for addr in dram_addresses if addr.get("type") == "UOP"]
+    inp_addr = [addr for addr in dram_addresses if addr.get("type") == "INP"]
+    wgt_addr = [addr for addr in dram_addresses if addr.get("type") == "WGT"]
+    acc_addr = [addr for addr in dram_addresses if addr.get("type") == "ACC"]
+    acc_bis_addr = [addr for addr in dram_addresses if addr.get("type") == "ACC_BIS"]
+    out_addr = [addr for addr in dram_addresses if addr.get("type") == "OUT"]
+
+    # Get the step elements ([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])
+    load_A = step[0]
+    load_B = step[1]
+    load_X = step[2]
+    sram_state = step[3]
+    dram_state = step[4]
+    store_C = step[5]
+    ops = step[6]
+
+    nb_out = len(store_C)
+
+    # 0 - LOAD INP and WGT
+    # ---
+    # Check if we load INP or WGT
+    if (len(load_A) > 0 or len(load_B) > 0):
+        new_insn, semaphore = step_load(load_A, load_B, inp_addr, wgt_addr, block_size, semaphore)
+        insn_buffer = insn_buffer + new_insn
+
+
+    # 1 - LOAD ACC
+    # ---
+    # Check we load ACC
+    if (len(load_X) > 0):
+        new_insn, semaphore = step_load_acc(load_X, sram_state, acc_addr, acc_bis_addr, block_size, semaphore)
+        insn_buffer = insn_buffer + new_insn
+
+
+    # 2 - LOAD UOP + GEMM + ALU
+    # ---
+    doStore = False if (nb_out == 0) else True
+    
+    new_insn, new_uop, semaphore = step_compute(ops, load_A, load_B, load_X, sram_state, uop_addr, uop_buffer_size, uop_counter, doStore, block_size, semaphore)
+    insn_buffer = insn_buffer + new_insn
+    uop_buffer = uop_buffer + new_uop
+
+
+    # 3 - STORE
+    # ---
+    if (doStore == True):
+        new_insn, semaphore = step_store(store_C, sram_state, dram_state, out_addr, block_size, semaphore)
+        insn_buffer = insn_buffer + new_insn
+
+
+    # Return
+    # ---
+    return insn_buffer, uop_buffer, semaphore, uop_counter + len(uop_buffer)
 
 
 # STRATEGY STEP
