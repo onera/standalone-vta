@@ -167,7 +167,9 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
         # It does not fit
         else:
             isOverfitting = True
-            pass
+            
+            #Apply the strategy
+            strategy = TS.two_matrices_strategy(nb_X=nb_X, acc_block_buffer_size=acc_block_buffer_size, alu_operations=alu_operations)
 
     
     # CASE 4: ALU OPERATIONS

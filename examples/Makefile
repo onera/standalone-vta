@@ -83,6 +83,13 @@ matrix_add: ## Add two 16x16 matrices together
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/add_16x16matrix.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
 	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
 
+# Test
+test_add:
+	make clean
+	python $(MAKEFILE_DIR)matrix_operations/testing/test_add.py
+	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/testing/add_two_matrices.json $(CONFIG)/vta_config.json False
+	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
+
 
 
 # CREATE OUTPUTS DIRECTORIES
