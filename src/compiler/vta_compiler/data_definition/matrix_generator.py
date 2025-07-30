@@ -15,6 +15,17 @@ def matrix_creation(n_row=16, n_col=16, isInitRandom=True, random_bound=0, dtype
     # Return the matrix
     return matrix
 
+def matrix_diagonal(diag_value=0, block_size=16, dtype=np.int8):
+    """Create a diagonal matrix with dtype values (e.g., int8 or int32)."""
+    # Check if the diag value is an integer
+    if (isinstance(diag_value, int)):
+        matrix = diag_value * np.eye(block_size, dtype=dtype)
+    else:
+        raise Exception(f"ERROR: Multiplication constant is in a non-supported data-type ({type(B).__name__}), only integer or matrix are supported! \n\n")
+        
+    # Return the matrix
+    return matrix
+
 
 def matrix_padding(matrix, block_size=16, isWeight=False, isSquare=True):
     """Pad the matrix such that its shape is a multiple of block_size.

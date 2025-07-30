@@ -7,6 +7,47 @@ from matrix_partitioning.utils_strategies import *
 
 ###############################################
 
+def mul_constant_strategy(nb_A, inp_block_buffer_size, acc_block_buffer_size, out_block_buffer_size, alu_operations):
+    # Define buffer size which is the minimal size of the buffer
+    buffer_size = min(inp_block_buffer_size, acc_block_buffer_size, out_block_buffer_size)
+
+    # Init strategy
+    strategy = [] # [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]
+
+    if (buffer_size < 2):
+        raise Exception(f"ERROR: The capacity of the buffer is {buffer_size} but it must be at least 2 (to load two blocks)! \n\n")
+
+    # Create the step
+    for i in range(0, nb_A, buffer_size):
+
+        # Load B only once
+        if (i == 0):
+            load_B = [0]
+        else:
+            load_B = []
+
+
+        # The last element to store at this step
+        end = min(i + buffer_size, nb_A)
+
+        # Create the list load_A, load_X and store_C
+        load_A = list( range(i, end) )
+
+        # Define the operations
+        ops = get_mul_constant_operations(load_A) \
+            + imm_alu_on_blocks(alu_operations, load_A)
+
+        # Append the strategy 
+        strategy.append( (load_A, load_B, load_A, load_A, [], load_A, ops) )
+
+
+    # Return the strategy
+    return strategy
+
+
+
+###############################################
+
 
 def strategy_1(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_col=1,
                inp_block_buffer_size=4, wgt_block_buffer_size=32, acc_block_buffer_size=4, out_block_buffer_size=4,
@@ -50,7 +91,7 @@ def strategy_1(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
                 load_B.append( k * B_blocks_col + j )
 
             # Get the operations
-            ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, X_blocks_col)
+            ops = get_gemm_operations(load_A, load_B, A_blocks_col, B_blocks_col, X_blocks_col)
             
             # Append the strategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]
             if (idx_delta == 0): # First: load X
@@ -71,7 +112,7 @@ def strategy_1(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
                 load_B.append( k * B_blocks_col + j )
 
             # Get the operations
-            ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, X_blocks_col) \
+            ops = get_gemm_operations(load_A, load_B, A_blocks_col, B_blocks_col, X_blocks_col) \
                 + imm_alu_on_blocks(alu_operations, load_X)
 
             # Append the strategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]
@@ -168,7 +209,7 @@ def strategy_2(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
                 load_X = x_indices if k_step == 0 else []
 
                 # Get the operations
-                ops = get_operations(a_indices, b_indices, A_blocks_col, B_blocks_col, X_blocks_col)
+                ops = get_gemm_operations(a_indices, b_indices, A_blocks_col, B_blocks_col, X_blocks_col)
                 
                 # Append the strategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]
                 strategy.append((a_indices, b_indices, load_X, x_indices, [], [], ops))
@@ -236,7 +277,7 @@ def strategy_3(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
                         store_C.append( i * X_blocks_col + j )
 
                 # Get the operations
-                ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, X_blocks_col) \
+                ops = get_gemm_operations(load_A, load_B, A_blocks_col, B_blocks_col, X_blocks_col) \
                     + imm_alu_on_blocks(alu_operations, store_C)
 
                 # Append the strategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]
@@ -273,7 +314,7 @@ def strategy_3(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
                         store_C.append( i * X_blocks_col + j )
                 
                 # Get the operations
-                ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, X_blocks_col) \
+                ops = get_gemm_operations(load_A, load_B, A_blocks_col, B_blocks_col, X_blocks_col) \
                     + imm_alu_on_blocks(alu_operations, store_C)
 
                 # Append the strategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]
@@ -333,7 +374,7 @@ def strategy_4(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
                         store_C.append( i * X_blocks_col + j )
                 
                 # Get the operations
-                ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, X_blocks_col) \
+                ops = get_gemm_operations(load_A, load_B, A_blocks_col, B_blocks_col, X_blocks_col) \
                     + imm_alu_on_blocks(alu_operations, store_C)
 
                 # Append the strategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]
@@ -368,7 +409,7 @@ def strategy_4(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_
                         store_C.append( i * X_blocks_col + j )
                 
                 # Get the operations
-                ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, X_blocks_col) \
+                ops = get_gemm_operations(load_A, load_B, A_blocks_col, B_blocks_col, X_blocks_col) \
                     + imm_alu_on_blocks(alu_operations, store_C)
 
                 # Append the strategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]

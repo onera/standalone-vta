@@ -54,6 +54,21 @@ test_matmul:
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/testing/matmul_relu.json $(CONFIG)/vta_config.json False
 	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
 
+
+# MATRIX MULTIPLICATION WITH SCALAR EXAMPLES
+matrix_mul_constant: ## Mutliply a 16x16-matrices with a constant
+	make clean
+	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/matrix_mul_constant.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
+	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
+
+# Test
+test_mul_constant:
+	make clean
+	python $(MAKEFILE_DIR)matrix_operations/testing/test_mul_constant.py
+	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/testing/mul_constant.json $(CONFIG)/vta_config.json False
+	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
+
+
 # MATRIX POOLING EXAMPLE
 matrix_maxpool: ## Apply a maxpool with a 3x3-kernel on a flatten 6x6-tensor
 	make clean
@@ -77,6 +92,7 @@ test_maxpool:
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/testing/maxpool.json $(CONFIG)/vta_config.json False
 	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
 
+
 # ADDING 2 MATRICES EXAMPLES
 matrix_add: ## Add two 16x16 matrices together
 	make clean
@@ -91,6 +107,21 @@ test_add:
 	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
 
 
+# GENERAL TESTS
+###############
+test:
+	@make clean
+	@echo "test_matmul"
+	@make test_matmul
+	@echo "test_mul_constant"
+	@make test_mul_constant
+	@echo "test_maxpool"
+	@make test_maxpool
+	@echo "test_add"
+	@make test_add
+	@echo "SUCCESS!"
+
+
 
 # CREATE OUTPUTS DIRECTORIES
 ############################
@@ -102,10 +133,14 @@ $(SIMULATOR_OUTPUT_DIR):
 
 # CLEAN
 #######
-.PHONY: clean debug help
+.PHONY: clean debug help force_clean
 clean: ## Clean the project generated files (standalone/compiler_output/ and standalone/simulator_output/)
 	-rm $(COMPILER_OUTPUT_DIR)/*.*
 	-rm $(SIMULATOR_OUTPUT_DIR)/*.*
+
+force_clean:
+	make clean
+	cd $(FSIM_DIR) && make clean
 
 
 # DEBUG

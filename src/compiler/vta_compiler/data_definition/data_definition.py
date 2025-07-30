@@ -112,9 +112,7 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
 
         # Weight matrix
         if (doMulConstant == True):
-            B_row = block_size
-            B_col = block_size
-            B_matrix = MG.matrix_creation(n_row=B_row, n_col=B_col, isInitRandom=False, random_bound=mul_constant, dtype=wgt_dtype)
+            B_matrix = MG.matrix_diagonal(diag_value=mul_constant, block_size=block_size, dtype=wgt_dtype)
         else:
             B_row, B_col = matrices[weight_name]
             # Check dimension consistency
@@ -199,14 +197,19 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
 
     if (doGemm == True):
         # Perform the reference computation
-        ACC_ref = MM.matrix_multiplication(A_matrix, B_matrix, X_matrix, acc_dtype=acc_dtype)
-        ACC_padded_ref = MM.matrix_multiplication(A_padded, B_padded, X_padded, acc_dtype=acc_dtype)
+        if (doMulConstant == True):
+            #ACC_ref = MM.matrix_multiplication(A_matrix, B_matrix, X_matrix, acc_dtype=acc_dtype)
+            ACC_padded_ref = MM.matrix_multiplication(A_padded, mul_constant, X_padded, acc_dtype=acc_dtype)
+        else:
+            #ACC_ref = MM.matrix_multiplication(A_matrix, B_matrix, X_matrix, acc_dtype=acc_dtype)
+            ACC_padded_ref = MM.matrix_multiplication(A_padded, B_padded, X_padded, acc_dtype=acc_dtype)
         # Copy the ref to keep a trace of the GeMM execution
         ALU_matrix = ACC_padded_ref.copy()
 
         # Split to obtain a result similar to the VTA output
         ACC_blocks_ref, ACC_blocks_col = MS.matrix_splitting(matrix=ACC_padded_ref, block_size=block_size, isWeight=False, isSquare=isSquare)
-        _, combinations = MM.block_matrix_multiply(A_blocks, B_blocks, A_blocks_col, B_blocks_col, block_size=block_size)
+        if (doMulConstant == False):
+            _, combinations = MM.block_matrix_multiply(A_blocks, B_blocks, A_blocks_col, B_blocks_col, block_size=block_size)
 
     # ---------------------------------------------
     # PERFORM ALU OPERATIONS
@@ -247,7 +250,10 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
     if (debug):
         print("\nINITIAL MATRICES:")
         print(f"A_matrix ({A_matrix.shape}): \n{A_matrix}\n")
-        print(f"B_matrix ({B_matrix.shape}): \n{B_matrix}\n")
+        if (doMulConstant):
+            print(f"B constant: \n{mul_constant}\n")
+        else:
+            print(f"B_matrix ({B_matrix.shape}): \n{B_matrix}\n")
         print(f"X_matrix ({X_matrix.shape}): \n{X_matrix}\n")
         print(f"Y_matrix ({Y_matrix.shape}): \n{Y_matrix}\n")
 
@@ -287,15 +293,17 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
         
         if (doGemm):
             print("\n\nACC=A*B+X RESULTING MATRICES:")
-            print(f"ACC_ref ({ACC_ref.shape}): \n{ACC_ref}\n")
+            #print(f"ACC_ref ({ACC_ref.shape}): \n{ACC_ref}\n")
             print(f"ACC_padded_ref ({ACC_padded_ref.shape}): \n{ACC_padded_ref}\n")
             print(f"\n\nACC_blocks_ref (blocks_col = {ACC_blocks_col})")
             for i, block in enumerate(ACC_blocks_ref):
                 print("\n ACC", i)
                 print(block)
-            print("\n\nACC=A*B+X by blocks COMBINATIONS:")
-            for combination in combinations:
-                print(combination)
+
+            if (doMulConstant == False):
+                print("\n\nACC=A*B+X by blocks COMBINATIONS:")
+                for combination in combinations:
+                    print(combination)
     
         print("\n\nALU OPERATIONS:")
         if (doAddMatrix):

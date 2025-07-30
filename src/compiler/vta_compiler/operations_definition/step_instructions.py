@@ -335,7 +335,10 @@ def step_compute(ops, load_A, load_B, load_X, sram_state, uop_addr, uop_buffer_s
             # Define the UOP idx
             c_sram_idx = block_idx_in_sram(op[1], sram_state)
             a_sram_idx = block_idx_in_sram(op[2], load_A)
-            b_sram_idx = block_idx_in_sram(op[3], load_B)
+            if (len(load_B) > 0):
+                b_sram_idx = block_idx_in_sram(op[3], load_B)
+            else:
+                b_sram_idx = 0
 
             # UOP
             uop_buffer.append(VTAUop( 

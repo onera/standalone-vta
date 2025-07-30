@@ -83,10 +83,12 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
                             \n\t nb_A%A_blocks_col = {nb_A%A_blocks_col} \
                             \n\t nb_B%B_blocks_col = {nb_B%B_blocks_col} \
                             \n\t nb_X%X_blocks_col = {nb_X%X_blocks_col} \n\n")
-        if ( (nb_A//A_blocks_col != nb_X//X_blocks_col) or (B_blocks_col != X_blocks_col) ):
-            raise Exception(f"ERROR: Data are not consistent: results should be equal: \
-                            \n\t nb_A//A_blocks_col ({nb_A//A_blocks_col}) = nb_X//X_blocks_col ({nb_X//X_blocks_col}), \
-                            \n\t B_blocks_col ({B_blocks_col}) = X_blocks_col ({X_blocks_col})!\n\n")
+
+        if (doMulConstant == False):   
+            if ( (nb_A//A_blocks_col != nb_X//X_blocks_col) or (B_blocks_col != X_blocks_col) ):
+                raise Exception(f"ERROR: Data are not consistent: results should be equal: \
+                                \n\t nb_A//A_blocks_col ({nb_A//A_blocks_col}) = nb_X//X_blocks_col ({nb_X//X_blocks_col}), \
+                                \n\t B_blocks_col ({B_blocks_col}) = X_blocks_col ({X_blocks_col})!\n\n")
         
         # CASE 1: NO OVERFITTING
         if ((nb_A < inp_block_buffer_size) and (nb_B < wgt_block_buffer_size) and (nb_X < out_block_buffer_size)):
@@ -105,7 +107,12 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
                 store_C = load_X
 
             # Get the GEMM operations
-            ops = get_operations(load_A, load_B, A_blocks_col, B_blocks_col, X_blocks_col)
+            if (doMulConstant == True):
+                # Multiply the A's blocks with B0
+                ops = get_mul_constant_operations(load_A)
+            else: 
+                # Perform classic multiplication
+                ops = get_gemm_operations(load_A, load_B, A_blocks_col, B_blocks_col, X_blocks_col)
 
             # Add ALU operations
             ops = ops + alu_operations
@@ -121,30 +128,38 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
             for alu_ops in alu_operations:
                 if (alu_ops[0] != "RELU" and not alu_ops[0].endswith("_IMM")):
                     raise Exception(f"ERROR: {alu_ops[0]} is not supported when there is an overfitting GeMM operations!\n\n")
-            
-            # Gather the parameters (common parameters for all strategies) within a dictionnary and execute the strategy
-            params = {
-                'nb_A': nb_A, 'A_blocks_col': A_blocks_col,
-                'nb_B': nb_B, 'B_blocks_col': B_blocks_col,
-                'nb_X': nb_X, 'X_blocks_col': X_blocks_col,
-                'inp_block_buffer_size': inp_block_buffer_size,
-                'wgt_block_buffer_size': wgt_block_buffer_size,
-                'acc_block_buffer_size': acc_block_buffer_size,
-                'out_block_buffer_size': out_block_buffer_size,
-                'alu_operations': alu_operations
-            }
-            
-            # Apply the strategy:
-            if (strategy_selector == 1):
-                strategy = GS.strategy_1(**params)
-            elif (strategy_selector == 2):
-                strategy = GS.strategy_2(**params)
-            elif (strategy_selector == 3):
-                strategy = GS.strategy_3(**params)
-            elif (strategy_selector == 4):
-                strategy = GS.strategy_4(**params)
+
+            # Check if it is a Multiplication with a constant
+            if (doMulConstant == True):
+                # Apply the strategy
+                strategy = GS.mul_constant_strategy(nb_A, inp_block_buffer_size, acc_block_buffer_size, out_block_buffer_size, alu_operations)
+
+            # Else perform the gemm strategy
             else:
-                raise Exception(f"ERROR: Matrix partitioning strategy {strategy_selector} does not exist!\n\n")
+            
+                # Gather the parameters (common parameters for all strategies) within a dictionnary and execute the strategy
+                params = {
+                    'nb_A': nb_A, 'A_blocks_col': A_blocks_col,
+                    'nb_B': nb_B, 'B_blocks_col': B_blocks_col,
+                    'nb_X': nb_X, 'X_blocks_col': X_blocks_col,
+                    'inp_block_buffer_size': inp_block_buffer_size,
+                    'wgt_block_buffer_size': wgt_block_buffer_size,
+                    'acc_block_buffer_size': acc_block_buffer_size,
+                    'out_block_buffer_size': out_block_buffer_size,
+                    'alu_operations': alu_operations
+                }
+                
+                # Apply the strategy:
+                if (strategy_selector == 1):
+                    strategy = GS.strategy_1(**params)
+                elif (strategy_selector == 2):
+                    strategy = GS.strategy_2(**params)
+                elif (strategy_selector == 3):
+                    strategy = GS.strategy_3(**params)
+                elif (strategy_selector == 4):
+                    strategy = GS.strategy_4(**params)
+                else:
+                    raise Exception(f"ERROR: Matrix partitioning strategy {strategy_selector} does not exist!\n\n")
     
     # CASE 3: TWO MATRICES OPERATIONS
     elif (doAddMatrix == True):
@@ -207,15 +222,12 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
             \n INP: {inp_block_buffer_size} blocks ({inp_buffer_size} vectors), \
             \n WGT: {wgt_block_buffer_size} blocks ({wgt_buffer_size} vectors), \
             \n ACC=OUT: {out_block_buffer_size} blocks ({out_buffer_size} vectors) \n")
-        print(f"The operations are:  \
-            \n\t doGemm: {doGemm}, \
-            \n\t doAddMatrix: {doAddMatrix}, \
-            \n\t doAlu: {doAlu} \n")
+        print(f"The operations are: \n {flag_dict} \n")
         print(f"Number of blocks to load: ")
         if (doGemm):
             print(f" INP: {nb_A} blocks (including A_blocks_col = {A_blocks_col}), \
             \n WGT: {nb_B} blocks (including B_blocks_col = {B_blocks_col}),")
-        print(f" ACC=: {nb_X} blocks (including X_blocks_col = {X_blocks_col}) - {nb_X * block_size} vectors \n")
+        print(f" ACC=OUT: {nb_X} blocks (including X_blocks_col = {X_blocks_col}) - {nb_X * block_size} vectors \n")
 
 
         print(f"\nDoes matrix overfit SRAM? {isOverfitting}")

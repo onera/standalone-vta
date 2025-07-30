@@ -84,7 +84,7 @@ def euclidian_division(dividend, divisor):
 
 # ---------------------------------------------
 
-def get_operations(load_A, load_B, A_blocks_col, B_blocks_col, X_blocks_col):
+def get_gemm_operations(load_A, load_B, A_blocks_col, B_blocks_col, X_blocks_col):
     """
     Generates the list of GeMM operations for a given set of loaded A and B blocks.
     An operation is valid if a block A[i, k] and a block B[k, j] are both loaded.
@@ -109,6 +109,21 @@ def get_operations(load_A, load_B, A_blocks_col, B_blocks_col, X_blocks_col):
             for j, b_idx in b_lookup[k]:
                 c_idx = i * X_blocks_col + j
                 operations.append(("GeMM", c_idx, a_idx, b_idx))
+                
+    return operations
+
+# ---------------------------------------------
+
+def get_mul_constant_operations(load_A):
+    """
+    Generates the list of GeMM operations for a given set of loaded A and a scalar.
+    """
+    operations = []
+
+    # Iterate over the loaded blocks
+    for a_idx in load_A:
+        # Create the operations (C and A are the same index)
+        operations.append(("GeMM", a_idx, a_idx, 0))
                 
     return operations
 
