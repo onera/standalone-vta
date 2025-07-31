@@ -7,6 +7,8 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  # Manual workflow execution
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -24,12 +26,8 @@ jobs:
           auto-activate-base: false
           environment-file: environment_setup/standalone-vta.yml
           activate-environment: standalone-vta
-      - name: Build Lenet5 instructions and data
-        run: make lenet5
-      - name: Display compiler results
-        run: cat compiler_output/prompt_data.txt
-      - name: Display simulator results
-        run: cat simulators_output/fsim_report.txt
+      - name: Tests VTA compiler and functional simulator
+        run: cd examples && make test
 
   cycle-accurate-simulator-test:
     runs-on: ubuntu-latest
