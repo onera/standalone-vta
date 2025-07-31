@@ -13,9 +13,9 @@ def generate_json_matrix_definition(file_name="matmul_relu.json"):
     output_dir = os.path.join(script_dir, file_name)
 
     # Generate random values for dimension, keeping the consistency for C = X + A*B
-    Ah = random.randint(1, 2048)
-    Aw_Bh = random.randint(1, 2048)
-    Bw = random.randint(1, 2048)
+    Ah = random.randint(1, 2048) # 8192
+    Aw_Bh = random.randint(1, 2048) # 8192
+    Bw = random.randint(1, 2048) # 8192
 
     # Create a python dictionnary
     matrix_definition = {
@@ -37,7 +37,10 @@ def generate_json_matrix_definition(file_name="matmul_relu.json"):
     with open(output_dir, 'w') as f:
         json.dump(matrix_definition, f, indent=2) # indent=2 for better readibility
 
-    print(f"File '{file_name}' is successfully generated!")
+    print(f"File '{file_name}' is successfully generated! \
+            \n\t A = {Ah}x{Aw_Bh} \
+            \n\t B = {Aw_Bh}x{Bw} \
+            \n\t Total multiplied elements = {Ah * Aw_Bh + Aw_Bh * Bw} \n")
 
 # Appel de la fonction pour créer le fichier
 generate_json_matrix_definition()

@@ -338,6 +338,7 @@ def step_compute(ops, load_A, load_B, load_X, sram_state, uop_addr, uop_buffer_s
             if (len(load_B) > 0):
                 b_sram_idx = block_idx_in_sram(op[3], load_B)
             else:
+                # Multiply with a constant (B0 diagonal matrix)
                 b_sram_idx = 0
 
             # UOP

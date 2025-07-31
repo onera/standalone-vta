@@ -13,8 +13,8 @@ def generate_json_matrix_definition(file_name="maxpool.json"):
     output_dir = os.path.join(script_dir, file_name)
 
     # Generate random values for dimension
-    Xh = random.randint(8, 2048)
-    Xw = random.randint(1, 2048)
+    Xh = random.randint(8, 2048) # 8192
+    Xw = random.randint(1, 2048) # 8192
 
     # Define the number of ALU
     nb_alu = random.randint(1, Xh//4)
@@ -45,7 +45,9 @@ def generate_json_matrix_definition(file_name="maxpool.json"):
     with open(output_dir, 'w') as f:
         json.dump(matrix_definition, f, indent=2) # indent=2 for better readibility
 
-    print(f"File '{file_name}' is successfully generated!")
+    print(f"File '{file_name}' is successfully generated!\
+            \n\t X = {Xh}x{Xw} \
+            \n\t Total elements = {Xh * Xw} \n")
 
 # Appel de la fonction pour créer le fichier
 generate_json_matrix_definition()

@@ -111,14 +111,19 @@ test_add:
 ###############
 test:
 	@make clean
+	@echo ""
 	@echo "test_matmul"
 	@make test_matmul
+	@echo ""
 	@echo "test_mul_constant"
 	@make test_mul_constant
+	@echo ""
 	@echo "test_maxpool"
 	@make test_maxpool
+	@echo ""
 	@echo "test_add"
 	@make test_add
+	@echo ""
 	@echo "SUCCESS!"
 
 
