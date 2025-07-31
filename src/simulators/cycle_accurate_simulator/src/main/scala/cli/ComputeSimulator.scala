@@ -2,8 +2,8 @@ package cli
 
 import chisel3.assert
 import chiseltest.iotesters.PeekPokeTester
-import util.BinaryReader.{DataType, computeCSVFile, computeAddresses}
-import util.BinaryReader.DataType.DataTypeValue
+import util.BinaryReader.{DataType, computeAddresses, computeCSVFile}
+import util.BinaryReader.DataType.{DataTypeValue, INP}
 import util.GenericSim
 import vta.core.{Compute, TensorMaster}
 import vta.core.ISA.{FNSH, GEMM, LACC, LINP, LUOP, LWGT, SOUT, VADD, VMAX, VMIN, VSHX}
@@ -483,6 +483,8 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
   if (debug) {
     print(s"\n\t END COMPUTE TESTS! \n\t (done in ${cycle_counter} cycles)\n\n")
   }
+
+
 
   def getOutScratchpad: Map[BigInt, Array[BigInt]] = {
     out_scratchpad

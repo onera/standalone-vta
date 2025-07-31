@@ -2,6 +2,7 @@ package util
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should
+import util.BinaryReader.DataType.DataTypeValue
 import util.BinaryReader._
 
 import java.io.File
@@ -39,6 +40,44 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
         data(0) should equal(inpFirstVector)
       case Failure(exception) =>
         fail(s"Error while computing addresses for INP : ${exception.getMessage}")
+    }
+  }
+
+  // Testing reverseLE for int16 vectors
+  it should "reverse correctly an INP vector (int16)" in {
+    val INP: DataTypeValue = new DataTypeValue(1, 16, Map.empty.withDefaultValue(16))
+    val inp = Array("00", "01", "02", "03", "04", "05", "06", "07", "FF", "FE", "FD", "FC", "FB", "FA", "10", "11").map(hex => Integer.parseInt(hex, 16).toByte)
+    val inp_ref = Array(Array("01", "00", "03", "02", "05", "04", "07", "06", "FE", "FF", "FC", "FD", "FA", "FB", "11", "10").map(hex => Integer.parseInt(hex, 16).toByte))
+    inp_ref should equal(reverseLE(inp, INP))
+  }
+
+  // Testing computeAddresses for int16 vectors
+  it should "decode correctly an INP vector (int16)" in {
+    val INP: DataTypeValue = new DataTypeValue(1, 16, Map.empty.withDefaultValue(16))
+    val inp_int16 = computeAddresses("examples_compute/int16/input.bin", INP, "00000000", isDRAM = false, fromResources = true)
+    val inp0_ref =  Array(0, -3, 2, -2, -4, 0, -4, 2, -2, -1, -4, -2, -4, -3, -1, 2)
+    val inp15_ref = Array(1, -4, -2, -1,  0,  1, -3,  2, -3,  0,  2,  0,  0, -1, -4,  0)
+    inp_int16 match {
+      case Success(data) =>
+        data(0) should equal(inp0_ref)
+        data(15) should equal(inp15_ref)
+      case Failure(exception) =>
+        fail(s"Error while computing addresses for INP (int16) : ${exception.getMessage}")
+    }
+  }
+
+  // Testing computeAddresses for int32 vectors
+  it should "decode correctly an INP vector (int32)" in {
+    val INP: DataTypeValue = new DataTypeValue(1, 16, Map.empty.withDefaultValue(32))
+    val inp_int32 = computeAddresses("examples_compute/int32/input.bin", INP, "00000000", isDRAM = false, fromResources = true)
+    val inp0_ref =  Array(2, -3,  1, -3, -4, -4, -4, -4, -1, -2, -1, -4, -3, -1,  1, -3)
+    val inp15_ref = Array(-3, -1, -4, -2, -3, -2, -2, -1, 2,  0, 1, -4, -3,  1, -4, -2)
+    inp_int32 match {
+      case Success(data) =>
+        data(0) should equal(inp0_ref)
+        data(15) should equal(inp15_ref)
+      case Failure(exception) =>
+        fail(s"Error while computing addresses for INP (int32) : ${exception.getMessage}")
     }
   }
 
@@ -148,19 +187,6 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
         fail(s"Error while computing addresses for INP with an offset : ${exception.getMessage}")
     }
   }
-
-//  it should "decode the content of binary files in /compiler_output" in {
-//    // test done on files for matrix_16x16 - will work for make FILENAME=matrix_16x16
-//    val baseAddr = computeCSVFile("memory_addresses.csv", fromResources = false)
-//    val inp = computeAddresses("input.bin", DataType.INP, baseAddr("inp"), isDRAM = false, fromResources = false)
-//    val inp_vec0 = Array(-1, 0, -3, -4, -2, -2, 2, -2, 0, -3, -4, 2, 0, -4, -4, 1)
-//    inp match {
-//      case Success(data) =>
-//        data(0) should equal(inp_vec0)
-//      case Failure(exception) =>
-//        fail(s"Error while computing addresses for INP : ${exception.getMessage}")
-//    }
-//  }
 
 
   /* Decoding WGT */
@@ -1215,6 +1241,64 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
         data(3) should equal(wgtVec_3)
       case Failure(exception) =>
         fail(s"Error while computing addresses for WGT : ${exception.getMessage}")
+    }
+  }
+
+  it should "decode a WGT vector in Int-16" in {
+    val WGT: DataTypeValue = new DataTypeValue(1, 256, Map.empty.withDefaultValue(16))
+    val wgt_int16 = computeAddresses("examples_compute/int16/weight.bin", WGT, "00000000", isDRAM = false, fromResources = true)
+    val wgt0_ref = Array(
+      Array(-1, 2, -1, -2, 1, -3, 0, 0, 1, -2, 0, -2, 1, 2, 0, 1),
+      Array(2, -2, -3, -2, -2, 2, 1, -4, -1, -1, -3, 0, 1, 1, -2, 0),
+      Array(-4, -1, -2, 1, -1, 2, 2, 1, -3, 0, 1, -3, -3, 1, 0, -4),
+      Array(-2, 0, -1, -3, -4, 0, 0, -3, -4, -3, 0, -2, 0, -1, -2, -4),
+      Array(0, -3, 2, -3, -1, 1, -1, 1, -2, -2, 2, -1, -3, 2, -2, 1),
+      Array(-3, -1, -4, -4, -2, -4, 0, -4, 2, -1, 2, 0, 0, -2, 0, 0),
+      Array(1, -3, 2, -1, -4, -4, -2, 1, 2, 2, 2, 0, -3, -2, -3, -3),
+      Array(-2, -4, -2, 2, 2, -3, 0, -3, 0, 2, -2, -1, 2, 1, 1, 2),
+      Array(0, 1, 0, 1, -4, -4, 2, -3, 0, 0, -4, -2, 1, -2, -4, 0),
+      Array(0, -3, 1, -1, 2, 2, -4, -1, -2, -3, -1, 0, 1, -3, -2, -4),
+      Array(-2, -4, 1, -3, 0, 1, -3, -4, -3, 2, -4, 2, -4, -2, 2, 2),
+      Array(1, 2, -2, 1, -4, -1, -4, -3, -3, -3, -4, 2, 1, -1, 2, -3),
+      Array(-3, -2, 0, 0, 2, 0, -2, -4, 2, 0, 0, -1, -4, 0, 2, -1),
+      Array(-2, 0, -1, -1, -1, 2, -3, 1, -3, 1, 2, 1, 2, 1, 1, -1),
+      Array(-2, -1, 0, 1, -2, -2, 1, -3, 2, 0, 1, 1, -4, 2, -3, -3),
+      Array(1, -2, 2, -3, 0, -3, 2, -3, 2, -1, -1, 2, 0, -3, -4, -2)
+    ).flatten.map(BigInt(_))
+    wgt_int16 match {
+      case Success(data) =>
+        data(0) should equal(wgt0_ref)
+      case Failure(exception) =>
+        fail(s"Error while computing addresses for WGT (int16) : ${exception.getMessage}")
+    }
+  }
+
+  it should "decode a WGT vector in Int-32" in {
+    val WGT: DataTypeValue = new DataTypeValue(1, 256, Map.empty.withDefaultValue(32))
+    val wgt_int32 = computeAddresses("examples_compute/int32/weight.bin", WGT, "00000000", isDRAM = false, fromResources = true)
+    val wgt0_ref = Array(
+      Array(-1, 2, -4, 1, -1, -2, 0, -4, -1, -3, -3, -2, 0, -2, -4, -3),
+      Array(-1, -3, -3, 2, -4, -2, 1, -1, 2, 1, -1, -1, -3, -1, -4, 2),
+      Array(-2, 2, 1, -2, 1, 1, 0, -4, -2, 2, -4, 2, 0, -4, -3, -3),
+      Array(-2, 1, 2, -2, -3, 0, -1, 1, 1, 1, -3, -1, 0, 2, -1, -1),
+      Array(2, -3, -3, -4, 1, 2, 0, 1, -2, -2, -3, -3, -1, -1, 0, 0),
+      Array(-1, -4, 1, -2, -4, -3, -1, 0, 0, -1, 2, -1, 0, 1, 0, -2),
+      Array(-4, 0, -1, -3, 1, 2, -3, 0, 2, -2, -1, -3, 1, 1, -2, 2),
+      Array(0, -2, -3, -1, 1, 0, -1, -2, -4, -4, -1, 1, 0, -1, -4, -2),
+      Array(1, -3, -1, 0, 2, 0, 1, 2, -4, 2, -3, 1, -3, -4, -4, -2),
+      Array(0, -3, -2, -1, -1, 0, 1, -3, 1, -4, 1, -4, -2, -4, -4, 1),
+      Array(0, -3, 2, -2, 2, -4, -3, 0, 1, 1, 2, -1, -2, -1, 1, -1),
+      Array(-4, -3, 0, -3, -2, 1, -2, -2, 0, 2, -2, -1, 2, -1, -2, 1),
+      Array(-2, 0, 0, -1, -4, -1, -1, 0, 2, -2, -4, -2, -4, -2, -1, -4),
+      Array(-2, -2, 1, -1, 1, 0, 2, -4, 0, -1, -2, -3, -3, 0, -3, -3),
+      Array(2, -3, 1, -2, -2, 2, -3, -4, -4, 2, 2, 0, -3, 1, 0, -1),
+      Array(-3, 0, 0, -4, 2, 1, 1, 2, -1, -2, -1, -2, 1, -3, 0, 0)
+    ).flatten.map(BigInt(_))
+    wgt_int32 match {
+      case Success(data) =>
+        data(0) should equal(wgt0_ref)
+      case Failure(exception) =>
+        fail(s"Error while computing addresses for WGT (int32) : ${exception.getMessage}")
     }
   }
 
