@@ -1,0 +1,10 @@
+{
+  "MATRICES" : [
+    {
+      "INPUT": [1, 84],
+      "WEIGHT": [84, 10]
+    }
+  ],
+  "GEMM": ["INPUT", "WEIGHT"],
+  "BASE_ADDRESS" : "0000"
+}
