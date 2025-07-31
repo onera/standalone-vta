@@ -15,7 +15,7 @@ This project aims to improve the VTA's usability and applicability, particularly
 
 ## Repository Structure
 
-*   `tutorials/` : Contains a Jupyter tutorial in two parts explaining and illustrating the use of the VTA compiler. (Temporary) It can be accessed here : https://mybinder.org/v2/gh/onera/standalone-vta/1a13d1d6aae5d06c3a12f96612cbc5c0d8a89f38?urlpath=lab%2Ftree%2FDocumentation%2Fcompiler_doc.ipynb
+*   `tutorials/` : Contains a Jupyter tutorial in two parts explaining and illustrating the use of the VTA compiler.
 *   `compiler/`: Contains the standalone VTA compiler, data definition, and operation definition tools.
     *   `data_definition/`: Tools for generating binary data to be executed by the VTA.
     *   `operations_definition/`: Tools for generating VTA instructions.

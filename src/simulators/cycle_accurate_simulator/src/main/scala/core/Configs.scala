@@ -44,11 +44,11 @@ class CoreConfig extends Config((site, here, up) => {
       uopBits = 32,
       accBits = params("LOG_ACC_WIDTH"),
       outBits = params("LOG_INP_WIDTH"),
-      uopMemDepth = (params("LOG_UOP_BUFF_SIZE") * pow(2, 3)).toInt / (params("LOG_BATCH") * pow(2, 0).toInt * pow(2, 5).toInt), // 2048 de base mais ici 8192
-      inpMemDepth = (params("LOG_INP_BUFF_SIZE") * pow(2, 3).toInt) / (params("LOG_BATCH") * params("LOG_BLOCK") * params("LOG_INP_WIDTH")), // 2048
-      wgtMemDepth = (params("LOG_WGT_BUFF_SIZE") * pow(2, 3).toInt) / (params("LOG_BATCH") * params("LOG_BLOCK") * params("LOG_BLOCK") * params("LOG_WGT_WIDTH")), // 1024
-      accMemDepth = (params("LOG_ACC_BUFF_SIZE") * pow(2, 3).toInt) / (params("LOG_BATCH") * params("LOG_BLOCK") * params("LOG_ACC_WIDTH")), // 2048
-      outMemDepth = (params("LOG_INP_BUFF_SIZE") * pow(2, 3).toInt) / (params("LOG_BATCH") * params("LOG_BLOCK") * params("LOG_INP_WIDTH")), // 2048
+      uopMemDepth = (params("LOG_UOP_BUFF_SIZE") * pow(2, 3)).toInt / (params("LOG_BATCH") * pow(2, 0).toInt * pow(2, 5).toInt), // is 2048 here but used to be 8192
+      inpMemDepth = (params("LOG_INP_BUFF_SIZE") * pow(2, 3).toInt) / (params("LOG_BATCH") * params("LOG_BLOCK") * params("LOG_INP_WIDTH")),
+      wgtMemDepth = (params("LOG_WGT_BUFF_SIZE") * pow(2, 3).toInt) / (params("LOG_BATCH") * params("LOG_BLOCK") * params("LOG_BLOCK") * params("LOG_WGT_WIDTH")),
+      accMemDepth = (params("LOG_ACC_BUFF_SIZE") * pow(2, 3).toInt) / (params("LOG_BATCH") * params("LOG_BLOCK") * params("LOG_ACC_WIDTH")),
+      outMemDepth = (params("LOG_INP_BUFF_SIZE") * pow(2, 3).toInt) / (params("LOG_BATCH") * params("LOG_BLOCK") * params("LOG_INP_WIDTH")),
       instQueueEntries = 512
     )
 })
