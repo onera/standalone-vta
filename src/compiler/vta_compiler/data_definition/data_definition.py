@@ -107,8 +107,9 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
         # Define the values of the elements within the matrices
         if not (input_name+"_VALUES") in matrices:
             A_matrix = MG.matrix_creation(n_row=A_row, n_col=A_col, isInitRandom=True, random_bound=random_bound, dtype=inp_dtype)
-        else: # TODO: read the INPUT_VALUES
-            pass 
+        else: # Read the INPUT_VALUES
+            inp_file = matrices[input_name+"_VALUES"] # NOTE: the file path given in JSON must be an absolute path
+            A_matrix = MG.create_matrix_from_binary(file=inp_file, h=A_row, w=A_col, dtype=inp_dtype) 
 
         # Weight matrix
         if (doMulConstant == True):
@@ -121,8 +122,9 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
 
             if not (weight_name+"_VALUES") in matrices:
                 B_matrix = MG.matrix_creation(n_row=B_row, n_col=B_col, isInitRandom=True, random_bound=random_bound, dtype=wgt_dtype)
-            else: # TODO: read the WEIGHT_VALUES
-                pass
+            else: # Read the WEIGHT_VALUES
+                wgt_file = matrices[weight_name+"_VALUES"] # NOTE: the file path given in JSON must be an absolute path
+                B_matrix = MG.create_matrix_from_binary(file=wgt_file, h=B_row, w=B_col, dtype=wgt_dtype) 
     else: # doGemm == False
         A_matrix = MG.matrix_creation(n_row=0, n_col=0, isInitRandom=False, random_bound=0, dtype=inp_dtype)
         B_matrix = MG.matrix_creation(n_row=0, n_col=0, isInitRandom=False, random_bound=0, dtype=wgt_dtype)
@@ -138,8 +140,9 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
 
         if not (acc_name+"_VALUES") in matrices:
             X_matrix = MG.matrix_creation(n_row=X_row, n_col=X_col, isInitRandom=True, random_bound=random_bound, dtype=acc_dtype)
-        else: # TODO: read the binary values
-            pass
+        else: # Read the ACC_VALUES
+            acc_file = matrices[acc_name+"_VALUES"] # NOTE: the file path given in JSON must be an absolute path
+            X_matrix = MG.create_matrix_from_binary(file=acc_file, h=X_row, w=X_col, dtype=acc_dtype) 
     else: # Else set X to 0
         if (doMulConstant == True):
             X_row, X_col = (A_row, A_col)
@@ -158,8 +161,9 @@ def data_definition(operations_dict, inp_dtype=np.int8, wgt_dtype=np.int8, acc_d
 
         if not (acc_bis_name+"_VALUES") in matrices:
             Y_matrix = MG.matrix_creation(n_row=Y_row, n_col=Y_col, isInitRandom=True, random_bound=random_bound, dtype=acc_dtype)
-        else: # TODO: read the binary values
-            pass
+        else: # Read the ACC_VALUES
+            acc_bis_file = matrices[acc_bis_name+"_VALUES"] # NOTE: the file path given in JSON must be an absolute path
+            Y_matrix = MG.create_matrix_from_binary(file=acc_bis_file, h=Y_row, w=Y_col, dtype=acc_dtype) 
     else: # doAddMatrix == False
         Y_matrix = MG.matrix_creation(n_row=0, n_col=0, isInitRandom=False, random_bound=0, dtype=acc_dtype)
 
