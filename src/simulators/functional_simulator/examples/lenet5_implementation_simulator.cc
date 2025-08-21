@@ -153,20 +153,6 @@ int lenet5_implementation() {
     void* mem_insn_L1 = VTAMemAlloc(insn_buffer_L1.size() * sizeof(instruction_t), 1);
     // Get physical address for INSN
     vta_phy_addr_t phy_add_insn_L1 = VTAMemGetPhyAddr(mem_insn_L1);
-    // DEBUG
-    printf("\nDEBUG L1: INSN=0x%x \n", phy_add_insn_L1);
-    vta_phy_addr_t phy_inpL1 = VTAMemGetPhyAddr(mem_inpA_L1);
-    printf("DEBUG L1: INP=0x%x \n", phy_inpL1);
-    vta_phy_addr_t phy_wgtL1 = VTAMemGetPhyAddr(mem_wgtB_L1);
-    printf("DEBUG L1: WGT=0x%x \n", phy_wgtL1);
-    vta_phy_addr_t phy_accL1 = VTAMemGetPhyAddr(mem_accX_L1);
-    printf("DEBUG L1: ACC=0x%x \n", phy_accL1);
-    vta_phy_addr_t phy_YL1 = VTAMemGetPhyAddr(mem_accY_L1);
-    printf("DEBUG L1: Y=0x%x \n", phy_YL1);
-    vta_phy_addr_t phy_outL1 = VTAMemGetPhyAddr(mem_outC_L1);
-    printf("DEBUG L1: OUT=0x%x \n", phy_outL1);
-    vta_phy_addr_t phy_uopL1 = VTAMemGetPhyAddr(mem_uop_L1);
-    printf("DEBUG L1: UOP=0x%x \n", phy_uopL1);
 
     // LAYER 2
     void* mem_inpA_L2 = VTAMemAlloc(inpA_L2.size() * sizeof(int8_t), 1);
@@ -178,20 +164,6 @@ int lenet5_implementation() {
     void* mem_insn_L2 = VTAMemAlloc(insn_buffer_L2.size() * sizeof(instruction_t), 1);
     // Get physical address for INSN
     vta_phy_addr_t phy_add_insn_L2 = VTAMemGetPhyAddr(mem_insn_L2);
-    // DEBUG
-    printf("\nDEBUG L2: INSN=0x%x \n", phy_add_insn_L2);
-    vta_phy_addr_t phy_inpL2 = VTAMemGetPhyAddr(mem_inpA_L2);
-    printf("DEBUG L2: INP=0x%x \n", phy_inpL2);
-    vta_phy_addr_t phy_wgtL2 = VTAMemGetPhyAddr(mem_wgtB_L2);
-    printf("DEBUG L2: WGT=0x%x \n", phy_wgtL2);
-    vta_phy_addr_t phy_accL2 = VTAMemGetPhyAddr(mem_accX_L2);
-    printf("DEBUG L2: ACC=0x%x \n", phy_accL2);
-    vta_phy_addr_t phy_YL2 = VTAMemGetPhyAddr(mem_accY_L2);
-    printf("DEBUG L2: Y=0x%x \n", phy_YL2);
-    vta_phy_addr_t phy_outL2 = VTAMemGetPhyAddr(mem_outC_L2);
-    printf("DEBUG L2: OUT=0x%x \n", phy_outL2);
-    vta_phy_addr_t phy_uopL2 = VTAMemGetPhyAddr(mem_uop_L2);
-    printf("DEBUG L2: UOP=0x%x \n", phy_uopL2);
 
     // LAYER 3
     void* mem_inpA_L3 = VTAMemAlloc(inpA_L3.size() * sizeof(int8_t), 1);
@@ -203,20 +175,6 @@ int lenet5_implementation() {
     void* mem_insn_L3 = VTAMemAlloc(insn_buffer_L3.size() * sizeof(instruction_t), 1);
     // Get physical address for INSN
     vta_phy_addr_t phy_add_insn_L3 = VTAMemGetPhyAddr(mem_insn_L3);
-    // DEBUG
-    printf("\nDEBUG L3: INSN=0x%x \n", phy_add_insn_L3);
-    vta_phy_addr_t phy_inpL3 = VTAMemGetPhyAddr(mem_inpA_L3);
-    printf("DEBUG L3: INP=0x%x \n", phy_inpL3);
-    vta_phy_addr_t phy_wgtL3 = VTAMemGetPhyAddr(mem_wgtB_L3);
-    printf("DEBUG L3: WGT=0x%x \n", phy_wgtL3);
-    vta_phy_addr_t phy_accL3 = VTAMemGetPhyAddr(mem_accX_L3);
-    printf("DEBUG L3: ACC=0x%x \n", phy_accL3);
-    vta_phy_addr_t phy_YL3 = VTAMemGetPhyAddr(mem_accY_L3);
-    printf("DEBUG L3: Y=0x%x \n", phy_YL3);
-    vta_phy_addr_t phy_outL3 = VTAMemGetPhyAddr(mem_outC_L3);
-    printf("DEBUG L3: OUT=0x%x \n", phy_outL3);
-    vta_phy_addr_t phy_uopL3 = VTAMemGetPhyAddr(mem_uop_L3);
-    printf("DEBUG L3: UOP=0x%x \n", phy_uopL3);
 
     // LAYER 4
     void* mem_inpA_L4 = VTAMemAlloc(inpA_L4.size() * sizeof(int8_t), 1);
@@ -228,20 +186,6 @@ int lenet5_implementation() {
     void* mem_insn_L4 = VTAMemAlloc(insn_buffer_L4.size() * sizeof(instruction_t), 1);
     // Get physical address for INSN
     vta_phy_addr_t phy_add_insn_L4 = VTAMemGetPhyAddr(mem_insn_L4);
-    // DEBUG
-    printf("\nDEBUG L4: INSN=0x%x \n", phy_add_insn_L4);
-    vta_phy_addr_t phy_inpL4 = VTAMemGetPhyAddr(mem_inpA_L4);
-    printf("DEBUG L4: INP=0x%x \n", phy_inpL4);
-    vta_phy_addr_t phy_wgtL4 = VTAMemGetPhyAddr(mem_wgtB_L4);
-    printf("DEBUG L4: WGT=0x%x \n", phy_wgtL4);
-    vta_phy_addr_t phy_accL4 = VTAMemGetPhyAddr(mem_accX_L4);
-    printf("DEBUG L4: ACC=0x%x \n", phy_accL4);
-    vta_phy_addr_t phy_YL4 = VTAMemGetPhyAddr(mem_accY_L4);
-    printf("DEBUG L4: Y=0x%x \n", phy_YL4);
-    vta_phy_addr_t phy_outL4 = VTAMemGetPhyAddr(mem_outC_L4);
-    printf("DEBUG L4: OUT=0x%x \n", phy_outL4);
-    vta_phy_addr_t phy_uopL4 = VTAMemGetPhyAddr(mem_uop_L4);
-    printf("DEBUG L4: UOP=0x%x \n", phy_uopL4);
 
     // LAYER 5
     void* mem_inpA_L5 = VTAMemAlloc(inpA_L5.size() * sizeof(int8_t), 1);
@@ -253,20 +197,6 @@ int lenet5_implementation() {
     void* mem_insn_L5 = VTAMemAlloc(insn_buffer_L5.size() * sizeof(instruction_t), 1);
     // Get physical address for INSN
     vta_phy_addr_t phy_add_insn_L5 = VTAMemGetPhyAddr(mem_insn_L5);
-    // DEBUG
-    printf("\nDEBUG L5: INSN=0x%x \n", phy_add_insn_L5);
-    vta_phy_addr_t phy_inpL5 = VTAMemGetPhyAddr(mem_inpA_L5);
-    printf("DEBUG L5: INP=0x%x \n", phy_inpL5);
-    vta_phy_addr_t phy_wgtL5 = VTAMemGetPhyAddr(mem_wgtB_L5);
-    printf("DEBUG L5: WGT=0x%x \n", phy_wgtL5);
-    vta_phy_addr_t phy_accL5 = VTAMemGetPhyAddr(mem_accX_L5);
-    printf("DEBUG L5: ACC=0x%x \n", phy_accL5);
-    vta_phy_addr_t phy_YL5 = VTAMemGetPhyAddr(mem_accY_L5);
-    printf("DEBUG L5: Y=0x%x \n", phy_YL5);
-    vta_phy_addr_t phy_outL5 = VTAMemGetPhyAddr(mem_outC_L5);
-    printf("DEBUG L5: OUT=0x%x \n", phy_outL5);
-    vta_phy_addr_t phy_uopL5 = VTAMemGetPhyAddr(mem_uop_L5);
-    printf("DEBUG L5: UOP=0x%x \n", phy_uopL5);
 
 
     // INITIALISE THE DRAM MEMORY
