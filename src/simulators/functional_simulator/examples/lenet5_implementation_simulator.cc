@@ -10,7 +10,6 @@
     EXECUTE_SIMULATOR
 *********************/
 int lenet5_implementation() {
-    printf("\nExecute lenet5_implementation_simulator:\n");
 
     // READ THE BINARIES FILES
     // -----------------------
@@ -23,200 +22,318 @@ int lenet5_implementation() {
         return (currentPath / ".." / ".." / ".." / "compiler_output" / filename).string();
     };
 
-    // Input is overwritten (MAX size = 784*32 vectors)
-    std::string fileInpPath = construct_path("input.bin"); 
-
-    // Five weight files
+    // LAYER 1
+    // Define the path
+    std::string fileInpL1Path = construct_path("input_L1.bin");
     std::string fileWgtL1Path = construct_path("weight_L1.bin");
-    std::string fileWgtL2Path = construct_path("weight_L2.bin");
-    std::string fileWgtL3Path = construct_path("weight_L3.bin");
-    std::string fileWgtL4Path = construct_path("weight_L4.bin");
-    std::string fileWgtL5Path = construct_path("weight_L5.bin");
-
-    // No accumulator
-    // Five UOPs and instructions
+    std::string fileAccL1Path = construct_path("accumulator_L1.bin");
+    std::string fileAddAccL1Path = construct_path("add_accumulator_L1.bin");
     std::string fileUopL1Path = construct_path("uop_L1.bin");
-    std::string fileUopL2Path = construct_path("uop_L2.bin");
-    std::string fileUopL3Path = construct_path("uop_L3.bin");
-    std::string fileUopL4Path = construct_path("uop_L4.bin");
-    std::string fileUopL5Path = construct_path("uop_L5.bin");
     std::string fileInsnL1Path = construct_path("instructions_L1.bin");
+    std::string fileExpectedOutL1Path = construct_path("expected_out_L1.bin");
+    std::string fileExpectedOutSramL1Path = construct_path("expected_out_sram_L1.bin");
+    // Read binaries
+    std::vector<int8_t> inpA_L1 = read_binary_file<int8_t>(fileInpL1Path);
+    std::vector<int8_t> wgtB_L1 = read_binary_file<int8_t>(fileWgtL1Path);
+    std::vector<int32_t> accX_L1 = read_binary_file<int32_t>(fileAccL1Path);
+    std::vector<int32_t> accY_L1 = read_binary_file<int32_t>(fileAddAccL1Path);
+    std::vector<uop_t> uop_buffer_L1 = read_binary_file<uop_t>(fileUopL1Path);
+    std::vector<instruction_t> insn_buffer_L1 = read_binary_file<instruction_t>(fileInsnL1Path);
+    std::vector<int8_t> expected_out_L1 = read_binary_file<int8_t>(fileExpectedOutL1Path);
+    // Handle the output file differently
+    std::vector<int8_t> expected_out_sram_L1 = read_binary_file<int8_t>(fileExpectedOutSramL1Path);
+    std::vector<int8_t> outC_L1;
+    size_t outC_L1_size = expected_out_sram_L1.size(); 
+    outC_L1.resize(outC_L1_size);
+
+    // LAYER 2
+    std::string fileInpL2Path = construct_path("input_L2.bin");
+    std::string fileWgtL2Path = construct_path("weight_L2.bin");
+    std::string fileAccL2Path = construct_path("accumulator_L2.bin");
+    std::string fileAddAccL2Path = construct_path("add_accumulator_L2.bin");
+    std::string fileUopL2Path = construct_path("uop_L2.bin");
     std::string fileInsnL2Path = construct_path("instructions_L2.bin");
+    std::string fileExpectedOutL2Path = construct_path("expected_out_L2.bin");
+    std::string fileExpectedOutSramL2Path = construct_path("expected_out_sram_L2.bin");
+    // Read binaries
+    std::vector<int8_t> inpA_L2 = read_binary_file<int8_t>(fileInpL2Path);
+    std::vector<int8_t> wgtB_L2 = read_binary_file<int8_t>(fileWgtL2Path);
+    std::vector<int32_t> accX_L2 = read_binary_file<int32_t>(fileAccL2Path);
+    std::vector<int32_t> accY_L2 = read_binary_file<int32_t>(fileAddAccL2Path);
+    std::vector<uop_t> uop_buffer_L2 = read_binary_file<uop_t>(fileUopL2Path);
+    std::vector<instruction_t> insn_buffer_L2 = read_binary_file<instruction_t>(fileInsnL2Path);
+    std::vector<int8_t> expected_out_L2 = read_binary_file<int8_t>(fileExpectedOutL2Path);
+    // Handle the output file differently
+    std::vector<int8_t> expected_out_sram_L2 = read_binary_file<int8_t>(fileExpectedOutSramL2Path);
+    std::vector<int8_t> outC_L2;
+    size_t outC_L2_size = expected_out_sram_L2.size(); 
+    outC_L2.resize(outC_L2_size);
+
+    // LAYER 3
+    std::string fileInpL3Path = construct_path("input_L3.bin");
+    std::string fileWgtL3Path = construct_path("weight_L3.bin");
+    std::string fileAccL3Path = construct_path("accumulator_L3.bin");
+    std::string fileAddAccL3Path = construct_path("add_accumulator_L3.bin");
+    std::string fileUopL3Path = construct_path("uop_L3.bin");
     std::string fileInsnL3Path = construct_path("instructions_L3.bin");
+    std::string fileExpectedOutL3Path = construct_path("expected_out_L3.bin");
+    std::string fileExpectedOutSramL3Path = construct_path("expected_out_sram_L3.bin");
+    // Read binaries
+    std::vector<int8_t> inpA_L3 = read_binary_file<int8_t>(fileInpL3Path);
+    std::vector<int8_t> wgtB_L3 = read_binary_file<int8_t>(fileWgtL3Path);
+    std::vector<int32_t> accX_L3 = read_binary_file<int32_t>(fileAccL3Path);
+    std::vector<int32_t> accY_L3 = read_binary_file<int32_t>(fileAddAccL3Path);
+    std::vector<uop_t> uop_buffer_L3 = read_binary_file<uop_t>(fileUopL3Path);
+    std::vector<instruction_t> insn_buffer_L3 = read_binary_file<instruction_t>(fileInsnL3Path);
+    std::vector<int8_t> expected_out_L3 = read_binary_file<int8_t>(fileExpectedOutL3Path);
+    // Handle the output file differently
+    std::vector<int8_t> expected_out_sram_L3 = read_binary_file<int8_t>(fileExpectedOutSramL3Path);
+    std::vector<int8_t> outC_L3;
+    size_t outC_L3_size = expected_out_sram_L3.size(); 
+    outC_L3.resize(outC_L3_size);
+
+    // LAYER 4
+    std::string fileInpL4Path = construct_path("input_L4.bin");
+    std::string fileWgtL4Path = construct_path("weight_L4.bin");
+    std::string fileAccL4Path = construct_path("accumulator_L4.bin");
+    std::string fileAddAccL4Path = construct_path("add_accumulator_L4.bin");
+    std::string fileUopL4Path = construct_path("uop_L4.bin");
     std::string fileInsnL4Path = construct_path("instructions_L4.bin");
+    std::string fileExpectedOutL4Path = construct_path("expected_out_L4.bin");
+    std::string fileExpectedOutSramL4Path = construct_path("expected_out_sram_L4.bin");
+    // Read binaries
+    std::vector<int8_t> inpA_L4 = read_binary_file<int8_t>(fileInpL4Path);
+    std::vector<int8_t> wgtB_L4 = read_binary_file<int8_t>(fileWgtL4Path);
+    std::vector<int32_t> accX_L4 = read_binary_file<int32_t>(fileAccL4Path);
+    std::vector<int32_t> accY_L4 = read_binary_file<int32_t>(fileAddAccL4Path);
+    std::vector<uop_t> uop_buffer_L4 = read_binary_file<uop_t>(fileUopL4Path);
+    std::vector<instruction_t> insn_buffer_L4 = read_binary_file<instruction_t>(fileInsnL4Path);
+    std::vector<int8_t> expected_out_L4 = read_binary_file<int8_t>(fileExpectedOutL4Path);
+    // Handle the output file differently
+    std::vector<int8_t> expected_out_sram_L4 = read_binary_file<int8_t>(fileExpectedOutSramL4Path);
+    std::vector<int8_t> outC_L4;
+    size_t outC_L4_size = expected_out_sram_L4.size(); 
+    outC_L4.resize(outC_L4_size);
+
+    // LAYER 5
+    std::string fileInpL5Path = construct_path("input_L5.bin");
+    std::string fileWgtL5Path = construct_path("weight_L5.bin");
+    std::string fileAccL5Path = construct_path("accumulator_L5.bin");
+    std::string fileAddAccL5Path = construct_path("add_accumulator_L5.bin");
+    std::string fileUopL5Path = construct_path("uop_L5.bin");
     std::string fileInsnL5Path = construct_path("instructions_L5.bin");
-
-    // Read input files into vectors
-    std::vector<int8_t> inp = read_binary_file<int8_t>(fileInpPath);
-
-    std::vector<int8_t> wgtL1 = read_binary_file<int8_t>(fileWgtL1Path);
-    std::vector<int8_t> wgtL2 = read_binary_file<int8_t>(fileWgtL2Path);
-    std::vector<int8_t> wgtL3 = read_binary_file<int8_t>(fileWgtL3Path);
-    std::vector<int8_t> wgtL4 = read_binary_file<int8_t>(fileWgtL4Path);
-    std::vector<int8_t> wgtL5 = read_binary_file<int8_t>(fileWgtL5Path);
-
-    std::vector<uop_t> uopL1 = read_binary_file<uop_t>(fileUopL1Path);
-    std::vector<uop_t> uopL2 = read_binary_file<uop_t>(fileUopL2Path);
-    std::vector<uop_t> uopL3 = read_binary_file<uop_t>(fileUopL3Path);
-    std::vector<uop_t> uopL4 = read_binary_file<uop_t>(fileUopL4Path);
-    std::vector<uop_t> uopL5 = read_binary_file<uop_t>(fileUopL5Path);
-
-    std::vector<instruction_t> insnL1 = read_binary_file<instruction_t>(fileInsnL1Path);
-    std::vector<instruction_t> insnL2 = read_binary_file<instruction_t>(fileInsnL2Path);
-    std::vector<instruction_t> insnL3 = read_binary_file<instruction_t>(fileInsnL3Path);
-    std::vector<instruction_t> insnL4 = read_binary_file<instruction_t>(fileInsnL4Path);
-    std::vector<instruction_t> insnL5 = read_binary_file<instruction_t>(fileInsnL5Path);
-
-    // Other vectors
-    std::vector<int8_t> intermediate_result;
-    size_t intermediate_size = 196*16;
-    intermediate_result.resize(intermediate_size, 0);
-
-    std::vector<int8_t> reshaped_result;
-    size_t reshaped_size = 160*112;
-    reshaped_result.resize(reshaped_size, 0);
+    std::string fileExpectedOutL5Path = construct_path("expected_out_L5.bin");
+    std::string fileExpectedOutSramL5Path = construct_path("expected_out_sram_L5.bin");
+    // Read binaries
+    std::vector<int8_t> inpA_L5 = read_binary_file<int8_t>(fileInpL5Path);
+    std::vector<int8_t> wgtB_L5 = read_binary_file<int8_t>(fileWgtL5Path);
+    std::vector<int32_t> accX_L5 = read_binary_file<int32_t>(fileAccL5Path);
+    std::vector<int32_t> accY_L5 = read_binary_file<int32_t>(fileAddAccL5Path);
+    std::vector<uop_t> uop_buffer_L5 = read_binary_file<uop_t>(fileUopL5Path);
+    std::vector<instruction_t> insn_buffer_L5 = read_binary_file<instruction_t>(fileInsnL5Path);
+    std::vector<int8_t> expected_out_L5 = read_binary_file<int8_t>(fileExpectedOutL5Path);
+    // Handle the output file differently
+    std::vector<int8_t> expected_out_sram_L5 = read_binary_file<int8_t>(fileExpectedOutSramL5Path);
+    std::vector<int8_t> outC_L5;
+    size_t outC_L5_size = expected_out_sram_L5.size(); 
+    outC_L5.resize(outC_L5_size);
     
-    std::vector<int8_t> out;
-    size_t out_size = 16;
-    out.resize(out_size, 0);
-    
+
 
     // ALLOCATE MEMORY SPACE
     // ---------------------
-    void* mem_inp = VTAMemAlloc(inp.size() * sizeof(int8_t), 1);
 
-    void* mem_wgtL1 = VTAMemAlloc(wgtL1.size() * sizeof(int8_t), 1);
-    void* mem_wgtL2 = VTAMemAlloc(wgtL2.size() * sizeof(int8_t), 1);
-    void* mem_wgtL3 = VTAMemAlloc(wgtL3.size() * sizeof(int8_t), 1);
-    void* mem_wgtL4 = VTAMemAlloc(wgtL4.size() * sizeof(int8_t), 1);
-    void* mem_wgtL5 = VTAMemAlloc(wgtL5.size() * sizeof(int8_t), 1);
+    // LAYER 1
+    void* mem_inpA_L1 = VTAMemAlloc(inpA_L1.size() * sizeof(int8_t), 1);
+    void* mem_wgtB_L1 = VTAMemAlloc(wgtB_L1.size() * sizeof(int8_t), 1);
+    void* mem_accX_L1 = VTAMemAlloc(accX_L1.size() * sizeof(int32_t), 1);
+    void* mem_accY_L1 = VTAMemAlloc(accY_L1.size() * sizeof(int32_t), 1);
+    void* mem_outC_L1 = VTAMemAlloc(outC_L1_size * sizeof(int8_t), 1);
+    void* mem_uop_L1 = VTAMemAlloc(uop_buffer_L1.size() * sizeof(uop_t), 1);
+    void* mem_insn_L1 = VTAMemAlloc(insn_buffer_L1.size() * sizeof(instruction_t), 1);
+    // Get physical address for INSN
+    vta_phy_addr_t phy_add_insn_L1 = VTAMemGetPhyAddr(mem_insn_L1);
+    // DEBUG
+    printf("\nDEBUG L1: INSN=0x%x \n", phy_add_insn_L1);
+    vta_phy_addr_t phy_inpL1 = VTAMemGetPhyAddr(mem_inpA_L1);
+    printf("DEBUG L1: INP=0x%x \n", phy_inpL1);
+    vta_phy_addr_t phy_wgtL1 = VTAMemGetPhyAddr(mem_wgtB_L1);
+    printf("DEBUG L1: WGT=0x%x \n", phy_wgtL1);
+    vta_phy_addr_t phy_accL1 = VTAMemGetPhyAddr(mem_accX_L1);
+    printf("DEBUG L1: ACC=0x%x \n", phy_accL1);
+    vta_phy_addr_t phy_YL1 = VTAMemGetPhyAddr(mem_accY_L1);
+    printf("DEBUG L1: Y=0x%x \n", phy_YL1);
+    vta_phy_addr_t phy_outL1 = VTAMemGetPhyAddr(mem_outC_L1);
+    printf("DEBUG L1: OUT=0x%x \n", phy_outL1);
+    vta_phy_addr_t phy_uopL1 = VTAMemGetPhyAddr(mem_uop_L1);
+    printf("DEBUG L1: UOP=0x%x \n", phy_uopL1);
 
-    void* mem_out = VTAMemAlloc(out_size * sizeof(int8_t), 1);
+    // LAYER 2
+    void* mem_inpA_L2 = VTAMemAlloc(inpA_L2.size() * sizeof(int8_t), 1);
+    void* mem_wgtB_L2 = VTAMemAlloc(wgtB_L2.size() * sizeof(int8_t), 1);
+    void* mem_accX_L2 = VTAMemAlloc(accX_L2.size() * sizeof(int32_t), 1);
+    void* mem_accY_L2 = VTAMemAlloc(accY_L2.size() * sizeof(int32_t), 1);
+    void* mem_outC_L2 = VTAMemAlloc(outC_L2_size * sizeof(int8_t), 1);
+    void* mem_uop_L2 = VTAMemAlloc(uop_buffer_L2.size() * sizeof(uop_t), 1);
+    void* mem_insn_L2 = VTAMemAlloc(insn_buffer_L2.size() * sizeof(instruction_t), 1);
+    // Get physical address for INSN
+    vta_phy_addr_t phy_add_insn_L2 = VTAMemGetPhyAddr(mem_insn_L2);
+    // DEBUG
+    printf("\nDEBUG L2: INSN=0x%x \n", phy_add_insn_L2);
+    vta_phy_addr_t phy_inpL2 = VTAMemGetPhyAddr(mem_inpA_L2);
+    printf("DEBUG L2: INP=0x%x \n", phy_inpL2);
+    vta_phy_addr_t phy_wgtL2 = VTAMemGetPhyAddr(mem_wgtB_L2);
+    printf("DEBUG L2: WGT=0x%x \n", phy_wgtL2);
+    vta_phy_addr_t phy_accL2 = VTAMemGetPhyAddr(mem_accX_L2);
+    printf("DEBUG L2: ACC=0x%x \n", phy_accL2);
+    vta_phy_addr_t phy_YL2 = VTAMemGetPhyAddr(mem_accY_L2);
+    printf("DEBUG L2: Y=0x%x \n", phy_YL2);
+    vta_phy_addr_t phy_outL2 = VTAMemGetPhyAddr(mem_outC_L2);
+    printf("DEBUG L2: OUT=0x%x \n", phy_outL2);
+    vta_phy_addr_t phy_uopL2 = VTAMemGetPhyAddr(mem_uop_L2);
+    printf("DEBUG L2: UOP=0x%x \n", phy_uopL2);
 
-    void* mem_uopL1 = VTAMemAlloc(uopL1.size() * sizeof(uop_t), 1);
-    void* mem_uopL2 = VTAMemAlloc(uopL2.size() * sizeof(uop_t), 1);
-    void* mem_uopL3 = VTAMemAlloc(uopL3.size() * sizeof(uop_t), 1);
-    void* mem_uopL4 = VTAMemAlloc(uopL4.size() * sizeof(uop_t), 1);
-    void* mem_uopL5 = VTAMemAlloc(uopL5.size() * sizeof(uop_t), 1);
+    // LAYER 3
+    void* mem_inpA_L3 = VTAMemAlloc(inpA_L3.size() * sizeof(int8_t), 1);
+    void* mem_wgtB_L3 = VTAMemAlloc(wgtB_L3.size() * sizeof(int8_t), 1);
+    void* mem_accX_L3 = VTAMemAlloc(accX_L3.size() * sizeof(int32_t), 1);
+    void* mem_accY_L3 = VTAMemAlloc(accY_L3.size() * sizeof(int32_t), 1);
+    void* mem_outC_L3 = VTAMemAlloc(outC_L3_size * sizeof(int8_t), 1);
+    void* mem_uop_L3 = VTAMemAlloc(uop_buffer_L3.size() * sizeof(uop_t), 1);
+    void* mem_insn_L3 = VTAMemAlloc(insn_buffer_L3.size() * sizeof(instruction_t), 1);
+    // Get physical address for INSN
+    vta_phy_addr_t phy_add_insn_L3 = VTAMemGetPhyAddr(mem_insn_L3);
+    // DEBUG
+    printf("\nDEBUG L3: INSN=0x%x \n", phy_add_insn_L3);
+    vta_phy_addr_t phy_inpL3 = VTAMemGetPhyAddr(mem_inpA_L3);
+    printf("DEBUG L3: INP=0x%x \n", phy_inpL3);
+    vta_phy_addr_t phy_wgtL3 = VTAMemGetPhyAddr(mem_wgtB_L3);
+    printf("DEBUG L3: WGT=0x%x \n", phy_wgtL3);
+    vta_phy_addr_t phy_accL3 = VTAMemGetPhyAddr(mem_accX_L3);
+    printf("DEBUG L3: ACC=0x%x \n", phy_accL3);
+    vta_phy_addr_t phy_YL3 = VTAMemGetPhyAddr(mem_accY_L3);
+    printf("DEBUG L3: Y=0x%x \n", phy_YL3);
+    vta_phy_addr_t phy_outL3 = VTAMemGetPhyAddr(mem_outC_L3);
+    printf("DEBUG L3: OUT=0x%x \n", phy_outL3);
+    vta_phy_addr_t phy_uopL3 = VTAMemGetPhyAddr(mem_uop_L3);
+    printf("DEBUG L3: UOP=0x%x \n", phy_uopL3);
 
-    void* mem_intermediate = VTAMemAlloc(intermediate_size * sizeof(int8_t), 1);
+    // LAYER 4
+    void* mem_inpA_L4 = VTAMemAlloc(inpA_L4.size() * sizeof(int8_t), 1);
+    void* mem_wgtB_L4 = VTAMemAlloc(wgtB_L4.size() * sizeof(int8_t), 1);
+    void* mem_accX_L4 = VTAMemAlloc(accX_L4.size() * sizeof(int32_t), 1);
+    void* mem_accY_L4 = VTAMemAlloc(accY_L4.size() * sizeof(int32_t), 1);
+    void* mem_outC_L4 = VTAMemAlloc(outC_L4_size * sizeof(int8_t), 1);
+    void* mem_uop_L4 = VTAMemAlloc(uop_buffer_L4.size() * sizeof(uop_t), 1);
+    void* mem_insn_L4 = VTAMemAlloc(insn_buffer_L4.size() * sizeof(instruction_t), 1);
+    // Get physical address for INSN
+    vta_phy_addr_t phy_add_insn_L4 = VTAMemGetPhyAddr(mem_insn_L4);
+    // DEBUG
+    printf("\nDEBUG L4: INSN=0x%x \n", phy_add_insn_L4);
+    vta_phy_addr_t phy_inpL4 = VTAMemGetPhyAddr(mem_inpA_L4);
+    printf("DEBUG L4: INP=0x%x \n", phy_inpL4);
+    vta_phy_addr_t phy_wgtL4 = VTAMemGetPhyAddr(mem_wgtB_L4);
+    printf("DEBUG L4: WGT=0x%x \n", phy_wgtL4);
+    vta_phy_addr_t phy_accL4 = VTAMemGetPhyAddr(mem_accX_L4);
+    printf("DEBUG L4: ACC=0x%x \n", phy_accL4);
+    vta_phy_addr_t phy_YL4 = VTAMemGetPhyAddr(mem_accY_L4);
+    printf("DEBUG L4: Y=0x%x \n", phy_YL4);
+    vta_phy_addr_t phy_outL4 = VTAMemGetPhyAddr(mem_outC_L4);
+    printf("DEBUG L4: OUT=0x%x \n", phy_outL4);
+    vta_phy_addr_t phy_uopL4 = VTAMemGetPhyAddr(mem_uop_L4);
+    printf("DEBUG L4: UOP=0x%x \n", phy_uopL4);
 
-    void* mem_insnL1 = VTAMemAlloc(insnL1.size() * sizeof(instruction_t), 1);
-    void* mem_insnL2 = VTAMemAlloc(insnL2.size() * sizeof(instruction_t), 1);
-    void* mem_insnL3 = VTAMemAlloc(insnL3.size() * sizeof(instruction_t), 1);
-    void* mem_insnL4 = VTAMemAlloc(insnL4.size() * sizeof(instruction_t), 1);
-    void* mem_insnL5 = VTAMemAlloc(insnL5.size() * sizeof(instruction_t), 1);
-
-    // Get physical addresses
-    vta_phy_addr_t phy_add_insnL1 = VTAMemGetPhyAddr(mem_insnL1);
-    vta_phy_addr_t phy_add_insnL2 = VTAMemGetPhyAddr(mem_insnL2);
-    vta_phy_addr_t phy_add_insnL3 = VTAMemGetPhyAddr(mem_insnL3);
-    vta_phy_addr_t phy_add_insnL4 = VTAMemGetPhyAddr(mem_insnL4);
-    vta_phy_addr_t phy_add_insnL5 = VTAMemGetPhyAddr(mem_insnL5);
-
-    vta_phy_addr_t phy_add_inp = VTAMemGetPhyAddr(mem_inp);
-    vta_phy_addr_t phy_add_wgtL1 = VTAMemGetPhyAddr(mem_wgtL1);
-    vta_phy_addr_t phy_add_wgtL2 = VTAMemGetPhyAddr(mem_wgtL2);
-    vta_phy_addr_t phy_add_wgtL3 = VTAMemGetPhyAddr(mem_wgtL3);
-    vta_phy_addr_t phy_add_wgtL4 = VTAMemGetPhyAddr(mem_wgtL4);
-    vta_phy_addr_t phy_add_wgtL5 = VTAMemGetPhyAddr(mem_wgtL5);
-    vta_phy_addr_t phy_add_out = VTAMemGetPhyAddr(mem_out);
-    vta_phy_addr_t phy_add_uopL1 = VTAMemGetPhyAddr(mem_uopL1);
-    vta_phy_addr_t phy_add_uopL2 = VTAMemGetPhyAddr(mem_uopL2);
-    vta_phy_addr_t phy_add_uopL3 = VTAMemGetPhyAddr(mem_uopL3);
-    vta_phy_addr_t phy_add_uopL4 = VTAMemGetPhyAddr(mem_uopL4);
-    vta_phy_addr_t phy_add_uopL5 = VTAMemGetPhyAddr(mem_uopL5);
-    vta_phy_addr_t phy_add_res = VTAMemGetPhyAddr(mem_intermediate);
-    printf("\nDEBUG: PHYSICAL (phy) vs LOGIC (logic) ADDRESS: \n"
-           " inp = phy:0x%x, logic:0x%x (logic = phy/16) \n"
-           " wgtL1 = phy:0x%x, logic:0x%x (logic = phy/256) \n"
-           " wgtL2 = phy:0x%x, logic:0x%x (logic = phy/256) \n"
-           " wgtL3 = phy:0x%x, logic:0x%x (logic = phy/256) \n"
-           " wgtL4 = phy:0x%x, logic:0x%x (logic = phy/256) \n"
-           " wgtL5 = phy:0x%x, logic:0x%x (logic = phy/256) \n"
-           " out = phy:0x%x, logic:0x%x (logic = phy/16) \n"
-           " uopL1 = phy:0x%x, logic:0x%x (logic = phy/4) \n"
-           " uopL2 = phy:0x%x, logic:0x%x (logic = phy/4) \n"
-           " uopL3 = phy:0x%x, logic:0x%x (logic = phy/4) \n"
-           " uopL4 = phy:0x%x, logic:0x%x (logic = phy/4) \n"
-           " uopL5 = phy:0x%x, logic:0x%x (logic = phy/4) \n"
-           " res = phy:0x%x, logic:0x%x (logic = phy/16) \n\n",
-           phy_add_inp, phy_add_inp / 16, 
-           phy_add_wgtL1, phy_add_wgtL1 / 256, phy_add_wgtL2, phy_add_wgtL2 / 256, phy_add_wgtL3, phy_add_wgtL3 / 256,
-           phy_add_wgtL4, phy_add_wgtL4 / 256, phy_add_wgtL5, phy_add_wgtL5 / 256,
-           phy_add_out, phy_add_out / 16, 
-           phy_add_uopL1, phy_add_uopL1 / 4, phy_add_uopL2, phy_add_uopL2 / 4, phy_add_uopL3, phy_add_uopL3 / 4,
-           phy_add_uopL4, phy_add_uopL4 / 4, phy_add_uopL5, phy_add_uopL5 / 4,
-           phy_add_res, phy_add_res / 16);
+    // LAYER 5
+    void* mem_inpA_L5 = VTAMemAlloc(inpA_L5.size() * sizeof(int8_t), 1);
+    void* mem_wgtB_L5 = VTAMemAlloc(wgtB_L5.size() * sizeof(int8_t), 1);
+    void* mem_accX_L5 = VTAMemAlloc(accX_L5.size() * sizeof(int32_t), 1);
+    void* mem_accY_L5 = VTAMemAlloc(accY_L5.size() * sizeof(int32_t), 1);
+    void* mem_outC_L5 = VTAMemAlloc(outC_L5_size * sizeof(int8_t), 1);
+    void* mem_uop_L5 = VTAMemAlloc(uop_buffer_L5.size() * sizeof(uop_t), 1);
+    void* mem_insn_L5 = VTAMemAlloc(insn_buffer_L5.size() * sizeof(instruction_t), 1);
+    // Get physical address for INSN
+    vta_phy_addr_t phy_add_insn_L5 = VTAMemGetPhyAddr(mem_insn_L5);
+    // DEBUG
+    printf("\nDEBUG L5: INSN=0x%x \n", phy_add_insn_L5);
+    vta_phy_addr_t phy_inpL5 = VTAMemGetPhyAddr(mem_inpA_L5);
+    printf("DEBUG L5: INP=0x%x \n", phy_inpL5);
+    vta_phy_addr_t phy_wgtL5 = VTAMemGetPhyAddr(mem_wgtB_L5);
+    printf("DEBUG L5: WGT=0x%x \n", phy_wgtL5);
+    vta_phy_addr_t phy_accL5 = VTAMemGetPhyAddr(mem_accX_L5);
+    printf("DEBUG L5: ACC=0x%x \n", phy_accL5);
+    vta_phy_addr_t phy_YL5 = VTAMemGetPhyAddr(mem_accY_L5);
+    printf("DEBUG L5: Y=0x%x \n", phy_YL5);
+    vta_phy_addr_t phy_outL5 = VTAMemGetPhyAddr(mem_outC_L5);
+    printf("DEBUG L5: OUT=0x%x \n", phy_outL5);
+    vta_phy_addr_t phy_uopL5 = VTAMemGetPhyAddr(mem_uop_L5);
+    printf("DEBUG L5: UOP=0x%x \n", phy_uopL5);
 
 
     // INITIALISE THE DRAM MEMORY
     // --------------------------
-      // --- PROFILER SETUP ---
-      printf("DEBUG: Setting up profiler...\n");
-      // Get PackedFunc pointers from the TVM registry
-      const tvm::runtime::PackedFunc* profiler_clear = tvm::runtime::Registry::Get("vta.simulator.profiler_clear");
-      const tvm::runtime::PackedFunc* profiler_status = tvm::runtime::Registry::Get("vta.simulator.profiler_status");
-      const tvm::runtime::PackedFunc* profiler_debug_mode = tvm::runtime::Registry::Get("vta.simulator.profiler_debug_mode");
-  
-      // Check if the functions were found
-      if (!profiler_clear || !profiler_status || !profiler_debug_mode) {
-          std::cerr << "ERROR: Could not find profiler functions in the TVM registry. "
-                    << "Ensure TVM runtime is initialized and VTA simulator modules are loaded." << std::endl;
-          return -1;
-      }
-       printf("DEBUG: Profiler functions retrieved.\n");
-  
-      // Clear any previous profiler statistics
-      (*profiler_clear)();
-      printf("DEBUG: Profiler cleared.\n");
-  
-      // Set debug mode (optional)
-      // 0: Normal execution
-      // 1: Skip execution (only count operations) - useful for performance modeling
-      int debug_flag = 0; // Set to 1 to skip actual computation
-      (*profiler_debug_mode)(debug_flag);
-      printf("DEBUG: Profiler debug mode set to %d.\n", debug_flag);
-      // --- END PROFILER SETUP ---
-  
 
-    // Copy data to VTA memory
-    VTAMemCopyFromHost(mem_inp, inp.data(), inp.size() * sizeof(int8_t));
+    // LAYER 1
+    VTAMemCopyFromHost(mem_inpA_L1, inpA_L1.data(), inpA_L1.size() * sizeof(int8_t));
+    VTAMemCopyFromHost(mem_wgtB_L1, wgtB_L1.data(), wgtB_L1.size() * sizeof(int8_t));
+    VTAMemCopyFromHost(mem_accX_L1, accX_L1.data(), accX_L1.size() * sizeof(int32_t));
+    VTAMemCopyFromHost(mem_accY_L1, accY_L1.data(), accY_L1.size() * sizeof(int32_t));
+    VTAMemCopyFromHost(mem_outC_L1, outC_L1.data(), outC_L1_size * sizeof(int8_t)); 
+    VTAMemCopyFromHost(mem_uop_L1, uop_buffer_L1.data(), uop_buffer_L1.size() * sizeof(uop_t));
+    VTAMemCopyFromHost(mem_insn_L1, insn_buffer_L1.data(), insn_buffer_L1.size() * sizeof(instruction_t));
 
-    VTAMemCopyFromHost(mem_wgtL1, wgtL1.data(), wgtL1.size() * sizeof(int8_t));
-    VTAMemCopyFromHost(mem_wgtL2, wgtL2.data(), wgtL2.size() * sizeof(int8_t));
-    VTAMemCopyFromHost(mem_wgtL3, wgtL3.data(), wgtL3.size() * sizeof(int8_t));
-    VTAMemCopyFromHost(mem_wgtL4, wgtL4.data(), wgtL4.size() * sizeof(int8_t));
-    VTAMemCopyFromHost(mem_wgtL5, wgtL5.data(), wgtL5.size() * sizeof(int8_t));
+    // LAYER 2
+    VTAMemCopyFromHost(mem_inpA_L2, inpA_L2.data(), inpA_L2.size() * sizeof(int8_t));
+    VTAMemCopyFromHost(mem_wgtB_L2, wgtB_L2.data(), wgtB_L2.size() * sizeof(int8_t));
+    VTAMemCopyFromHost(mem_accX_L2, accX_L2.data(), accX_L2.size() * sizeof(int32_t));
+    VTAMemCopyFromHost(mem_accY_L2, accY_L2.data(), accY_L2.size() * sizeof(int32_t));
+    VTAMemCopyFromHost(mem_outC_L2, outC_L2.data(), outC_L2_size * sizeof(int8_t)); 
+    VTAMemCopyFromHost(mem_uop_L2, uop_buffer_L2.data(), uop_buffer_L2.size() * sizeof(uop_t));
+    VTAMemCopyFromHost(mem_insn_L2, insn_buffer_L2.data(), insn_buffer_L2.size() * sizeof(instruction_t));
 
-    //VTAMemCopyFromHost(mem_out, out.data(), out_size * sizeof(int8_t)); // Empty
-    
-    VTAMemCopyFromHost(mem_uopL1, uopL1.data(), uopL1.size() * sizeof(uop_t));
-    VTAMemCopyFromHost(mem_uopL2, uopL2.data(), uopL2.size() * sizeof(uop_t));
-    VTAMemCopyFromHost(mem_uopL3, uopL3.data(), uopL3.size() * sizeof(uop_t));
-    VTAMemCopyFromHost(mem_uopL4, uopL4.data(), uopL4.size() * sizeof(uop_t));
-    VTAMemCopyFromHost(mem_uopL5, uopL5.data(), uopL5.size() * sizeof(uop_t));
+    // LAYER 3
+    VTAMemCopyFromHost(mem_inpA_L3, inpA_L3.data(), inpA_L3.size() * sizeof(int8_t));
+    VTAMemCopyFromHost(mem_wgtB_L3, wgtB_L3.data(), wgtB_L3.size() * sizeof(int8_t));
+    VTAMemCopyFromHost(mem_accX_L3, accX_L3.data(), accX_L3.size() * sizeof(int32_t));
+    VTAMemCopyFromHost(mem_accY_L3, accY_L3.data(), accY_L3.size() * sizeof(int32_t));
+    VTAMemCopyFromHost(mem_outC_L3, outC_L3.data(), outC_L3_size * sizeof(int8_t)); 
+    VTAMemCopyFromHost(mem_uop_L3, uop_buffer_L3.data(), uop_buffer_L3.size() * sizeof(uop_t));
+    VTAMemCopyFromHost(mem_insn_L3, insn_buffer_L3.data(), insn_buffer_L3.size() * sizeof(instruction_t));
 
-    //VTAMemCopyFromHost(mem_intermediate, intermediate_result.data(), intermediate_size * sizeof(int8_t)); // Empty
+    // LAYER 4
+    VTAMemCopyFromHost(mem_inpA_L4, inpA_L4.data(), inpA_L4.size() * sizeof(int8_t));
+    VTAMemCopyFromHost(mem_wgtB_L4, wgtB_L4.data(), wgtB_L4.size() * sizeof(int8_t));
+    VTAMemCopyFromHost(mem_accX_L4, accX_L4.data(), accX_L4.size() * sizeof(int32_t));
+    VTAMemCopyFromHost(mem_accY_L4, accY_L4.data(), accY_L4.size() * sizeof(int32_t));
+    VTAMemCopyFromHost(mem_outC_L4, outC_L4.data(), outC_L4_size * sizeof(int8_t)); 
+    VTAMemCopyFromHost(mem_uop_L4, uop_buffer_L4.data(), uop_buffer_L4.size() * sizeof(uop_t));
+    VTAMemCopyFromHost(mem_insn_L4, insn_buffer_L4.data(), insn_buffer_L4.size() * sizeof(instruction_t));
 
-    VTAMemCopyFromHost(mem_insnL1, insnL1.data(), insnL1.size() * sizeof(instruction_t));
-    VTAMemCopyFromHost(mem_insnL2, insnL2.data(), insnL2.size() * sizeof(instruction_t));
-    VTAMemCopyFromHost(mem_insnL3, insnL3.data(), insnL3.size() * sizeof(instruction_t));
-    VTAMemCopyFromHost(mem_insnL4, insnL4.data(), insnL4.size() * sizeof(instruction_t));
-    VTAMemCopyFromHost(mem_insnL5, insnL5.data(), insnL5.size() * sizeof(instruction_t));
+    // LAYER 5
+    VTAMemCopyFromHost(mem_inpA_L5, inpA_L5.data(), inpA_L5.size() * sizeof(int8_t));
+    VTAMemCopyFromHost(mem_wgtB_L5, wgtB_L5.data(), wgtB_L5.size() * sizeof(int8_t));
+    VTAMemCopyFromHost(mem_accX_L5, accX_L5.data(), accX_L5.size() * sizeof(int32_t));
+    VTAMemCopyFromHost(mem_accY_L5, accY_L5.data(), accY_L5.size() * sizeof(int32_t));
+    VTAMemCopyFromHost(mem_outC_L5, outC_L5.data(), outC_L5_size * sizeof(int8_t)); 
+    VTAMemCopyFromHost(mem_uop_L5, uop_buffer_L5.data(), uop_buffer_L5.size() * sizeof(uop_t));
+    VTAMemCopyFromHost(mem_insn_L5, insn_buffer_L5.data(), insn_buffer_L5.size() * sizeof(instruction_t));
 
-    // Init VTA device
+
+    // LAYER EXECUTION
+    // ---------------
+    // Allocate VTA device
     VTADeviceHandle vta_device = VTADeviceAlloc();
+    int execution_flag;
 
-    // LAYER 1 EXECUTION
-    // -----------------
-    int execution_flag = VTADeviceRun(vta_device, phy_add_insnL1, insnL1.size(), 0);
 
-    // Reshape result
-    VTAMemCopyToHost(intermediate_result.data(), mem_intermediate, intermediate_result.size() * sizeof(int8_t));
+    // EXECUTE LAYER 1
+    execution_flag = VTADeviceRun(vta_device, phy_add_insn_L1, insn_buffer_L1.size(), 0);
 
-    reshaped_result = reshape(
-        intermediate_result, //const std::vector<int8_t>& vector,
+    // Copy result back
+    VTAMemCopyToHost(outC_L1.data(), mem_outC_L1, outC_L1_size * sizeof(int8_t)); 
+
+    // RESHAPE
+    inpA_L2 = reshape(
+        outC_L1, //const std::vector<int8_t>& vector,
         1, //int block_col = 1,
         16, //int block_size = 16,
         196, //int out_matrix_height = 196,
@@ -228,22 +345,19 @@ int lenet5_implementation() {
         {5,5},//std::pair<int, int> kernel_size = {5, 5},
         1,//int stride = 1,
         true);//bool isSquare = true);
-    
-    VTAMemCopyFromHost(mem_inp, reshaped_result.data(), 112*160 * sizeof(int8_t));
+
+    VTAMemCopyFromHost(mem_inpA_L2, inpA_L2.data(), 112*160 * sizeof(int8_t));
 
 
-    // LAYER 2 EXECUTION
-    // -----------------
-    execution_flag = VTADeviceRun(vta_device, phy_add_insnL2, insnL2.size(), 0);
+    // EXECUTE LAYER 2
+    execution_flag = VTADeviceRun(vta_device, phy_add_insn_L2, insn_buffer_L2.size(), 0);
 
-    // Reshape result
-    intermediate_result.resize(25*16, 0);
-    reshaped_result.resize(25*16, 0);
+    // Copy result back
+    VTAMemCopyToHost(outC_L2.data(), mem_outC_L2, outC_L2_size * sizeof(int8_t)); 
 
-    VTAMemCopyToHost(intermediate_result.data(), mem_intermediate, intermediate_result.size() * sizeof(int8_t));
-
-    reshaped_result = reshape(
-        intermediate_result, //const std::vector<int8_t>& vector,
+    // RESHAPE
+    inpA_L3 = reshape(
+        outC_L2, //const std::vector<int8_t>& vector,
         1, //int block_col,
         16, //int block_size,
         25, //int out_matrix_height,
@@ -256,72 +370,122 @@ int lenet5_implementation() {
         1,//int stride = 1,
         false);//bool isSquare = true);
 
-    VTAMemCopyFromHost(mem_inp, reshaped_result.data(), reshaped_result.size() * sizeof(int8_t));
+    VTAMemCopyFromHost(mem_inpA_L3, inpA_L3.data(), 25*16 * sizeof(int8_t));
 
 
-    // LAYER 3 EXECUTION
-    // -----------------
-    execution_flag = VTADeviceRun(vta_device, phy_add_insnL3, insnL3.size(), 0);
+    // EXECUTE LAYER 3
+    execution_flag = VTADeviceRun(vta_device, phy_add_insn_L3, insn_buffer_L3.size(), 0);
 
-    // LAYER 4 EXECUTION
-    // -----------------
-    execution_flag = VTADeviceRun(vta_device, phy_add_insnL4, insnL4.size(), 0);
+    // Copy result back
+    VTAMemCopyToHost(outC_L3.data(), mem_outC_L3, outC_L3_size * sizeof(int8_t)); 
 
-    // LAYER 5 EXECUTION
-    // -----------------
-    execution_flag = VTADeviceRun(vta_device, phy_add_insnL5, insnL5.size(), 0);
-    printf("\nThe execution returns: %d \n\t(return 0 if running is successful, 1 if timeout)\n", execution_flag);
+    // RESHAPE
+    // Not here (specific case)
+    inpA_L4 = outC_L3;
 
-    // Copy the final output result
-    VTAMemCopyToHost(out.data(), mem_out, out.size() * sizeof(int8_t)); 
+    VTAMemCopyFromHost(mem_inpA_L4, inpA_L4.data(), outC_L3_size * sizeof(int8_t));
+
+
+    // EXECUTE LAYER 4
+    execution_flag = VTADeviceRun(vta_device, phy_add_insn_L4, insn_buffer_L4.size(), 0);
+
+    // Copy result back
+    VTAMemCopyToHost(outC_L4.data(), mem_outC_L4, outC_L4_size * sizeof(int8_t)); 
+
+    // RESHAPE
+    // Not here (specific case)
+    inpA_L5 = outC_L4;
+
+    VTAMemCopyFromHost(mem_inpA_L5, inpA_L5.data(), outC_L4_size * sizeof(int8_t));
+
+
+    // EXECUTE LAYER 5
+    execution_flag = VTADeviceRun(vta_device, phy_add_insn_L5, insn_buffer_L5.size(), 0);
+
+    // Copy result back
+    VTAMemCopyToHost(outC_L5.data(), mem_outC_L5, outC_L5_size * sizeof(int8_t)); 
+
 
 
     // FREE MEMORY
     // -----------
 
-    // --- PROFILER RESULTS ---
-    printf("DEBUG: Retrieving profiler status...\n");
-    std::string profile_json = (*profiler_status)(); // Get profiler results as JSON
-    std::cout << "\n--- Profiler Status ---" << std::endl;
-    std::cout << profile_json << std::endl;
-    // --- END PROFILER RESULTS ---
     // Free VTA device
     VTADeviceFree(vta_device);
 
-    // Free VTA memory
-    VTAMemFree(mem_inp);
+    // Free LAYER 1
+    VTAMemFree(mem_inpA_L1);
+    VTAMemFree(mem_wgtB_L1);
+    VTAMemFree(mem_accX_L1);
+    VTAMemFree(mem_accY_L1);
+    VTAMemFree(mem_outC_L1);
+    VTAMemFree(mem_uop_L1);
+    VTAMemFree(mem_insn_L1);
 
-    VTAMemFree(mem_wgtL1);
-    VTAMemFree(mem_wgtL2);
-    VTAMemFree(mem_wgtL3);
-    VTAMemFree(mem_wgtL4);
-    VTAMemFree(mem_wgtL5);
+    // Free LAYER 2
+    VTAMemFree(mem_inpA_L2);
+    VTAMemFree(mem_wgtB_L2);
+    VTAMemFree(mem_accX_L2);
+    VTAMemFree(mem_accY_L2);
+    VTAMemFree(mem_outC_L2);
+    VTAMemFree(mem_uop_L2);
+    VTAMemFree(mem_insn_L2);
 
-    VTAMemFree(mem_out);
+    // Free LAYER 3
+    VTAMemFree(mem_inpA_L3);
+    VTAMemFree(mem_wgtB_L3);
+    VTAMemFree(mem_accX_L3);
+    VTAMemFree(mem_accY_L3);
+    VTAMemFree(mem_outC_L3);
+    VTAMemFree(mem_uop_L3);
+    VTAMemFree(mem_insn_L3);
 
-    VTAMemFree(mem_uopL1);
-    VTAMemFree(mem_uopL2);
-    VTAMemFree(mem_uopL3);
-    VTAMemFree(mem_uopL4);
-    VTAMemFree(mem_uopL5);
+    // Free LAYER 4
+    VTAMemFree(mem_inpA_L4);
+    VTAMemFree(mem_wgtB_L4);
+    VTAMemFree(mem_accX_L4);
+    VTAMemFree(mem_accY_L4);
+    VTAMemFree(mem_outC_L4);
+    VTAMemFree(mem_uop_L4);
+    VTAMemFree(mem_insn_L4);
 
-    VTAMemFree(mem_intermediate);
+    // Free LAYER 5
+    VTAMemFree(mem_inpA_L5);
+    VTAMemFree(mem_wgtB_L5);
+    VTAMemFree(mem_accX_L5);
+    VTAMemFree(mem_accY_L5);
+    VTAMemFree(mem_outC_L5);
+    VTAMemFree(mem_uop_L5);
+    VTAMemFree(mem_insn_L5);
 
-    VTAMemFree(mem_insnL1);
-    VTAMemFree(mem_insnL2);
-    VTAMemFree(mem_insnL3);
-    VTAMemFree(mem_insnL4);
-    VTAMemFree(mem_insnL5);
+
+    // The program has failed
+    if (execution_flag != 0)
+    {
+        return EXIT_FAILURE;
+    }
 
 
     // GET THE RESULT
     // --------------
-    // Print results    
-    printf("\n\nRESULT:\n");
-    print_int8_vector(out.data(), out_size);
-    printf("\n\n Execution DONE! \n\n");
+    // Resize the output
+    outC_L5_size = expected_out_L5.size();
+    outC_L5.resize(outC_L5_size);
 
-    return 0;
+    printf("\n\n Final result= {");
+    print_int8_vector(outC_L5.data(), outC_L5_size); // Use the actual size
+    printf("\n} \n\n");
+
+    bool isCorrect = true;
+    isCorrect = compare_vector(outC_L5.data(), expected_out_L5.data(), outC_L5_size);
+    if (isCorrect)
+    {
+        return EXIT_SUCCESS;
+    }
+    else
+    {
+        return EXIT_FAILURE;
+    }
 }
 
 
@@ -329,6 +493,5 @@ int lenet5_implementation() {
     MAIN FUNCTION
 *****************/
 int main() {
-    lenet5_implementation();
-    return 0;
+    return lenet5_implementation();
 }

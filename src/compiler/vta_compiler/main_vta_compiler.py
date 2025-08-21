@@ -188,7 +188,7 @@ def main(operations_dict, vta_config_dict, debug=True):
 
 
     # DRAM ALLOCATION
-    base_addresses_file_path = filepath_definition(output_dir, 'memory_addresses.csv')
+    base_addresses_file_path = filepath_definition(output_dir, 'memory_addresses'+name+'.csv')
 
     with open(base_addresses_file_path, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
@@ -197,8 +197,8 @@ def main(operations_dict, vta_config_dict, debug=True):
 
     
     # OPERATIONS DEFINITION
-    insn_file_path = filepath_definition(output_dir, "instructions.bin")
-    uop_file_path = filepath_definition(output_dir, "uop.bin")
+    insn_file_path = filepath_definition(output_dir, 'instructions'+name+'.bin')
+    uop_file_path = filepath_definition(output_dir, 'uop'+name+'.bin')
     with open(insn_file_path, "wb") as f:
         for insn in insn_buffer:
             f.write(insn)

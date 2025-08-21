@@ -1,0 +1,11 @@
+{
+  "NAME": "_L5",
+  "MATRICES" : [
+    {
+      "INPUT": [1, 84],
+      "WEIGHT": [84, 10]
+    }
+  ],
+  "GEMM": ["INPUT", "WEIGHT"],
+  "BASE_ADDRESS" : "4511f"
+}
