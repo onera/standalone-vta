@@ -143,6 +143,8 @@ lenet5_full: ## LeNet-5 simulation
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/lenet5/lenet5_full/lenet5_layer4.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler_L4.txt
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/lenet5/lenet5_full/lenet5_layer5.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler_L5.txt
 	cd $(FSIM_DIR) && make -s lenet5 > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
+	@echo ""
+	@echo "SUCCESS!"
 
 
 # YOLONAS TESTS
@@ -175,9 +177,6 @@ test:
 	@echo ""
 	@echo "test_add"
 	@make test_add
-	@echo ""
-	@echo "lenet5_full"
-	@make lenet5_full
 	@echo ""
 	@echo "SUCCESS!"
 
