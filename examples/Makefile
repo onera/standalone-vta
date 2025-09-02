@@ -176,6 +176,9 @@ test:
 	@echo "test_add"
 	@make test_add
 	@echo ""
+	@echo "lenet5_full"
+	@make lenet5_full
+	@echo ""
 	@echo "SUCCESS!"
 
 
@@ -191,7 +194,7 @@ $(SIMULATOR_OUTPUT_DIR):
 # CLEAN
 #######
 .PHONY: clean debug help force_clean
-clean: ## Clean the project generated files (standalone/compiler_output/ and standalone/simulator_output/)
+clean: | $(COMPILER_OUTPUT_DIR) $(SIMULATOR_OUTPUT_DIR) ## Clean the project generated files (standalone/compiler_output/ and standalone/simulator_output/)
 	-rm $(COMPILER_OUTPUT_DIR)/*.*
 	-rm $(SIMULATOR_OUTPUT_DIR)/*.*
 
