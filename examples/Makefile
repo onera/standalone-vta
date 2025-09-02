@@ -134,7 +134,7 @@ lenet5_layer5:
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/lenet5/lenet5_layer5.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
 	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
 
-lenet5_full: 
+lenet5_full: ## LeNet-5 simulation
 	make clean 
 	python $(MAKEFILE_DIR)matrix_operations/lenet5/lenet5_full/main_reference_lenet5.py > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/lenet5/lenet5_full/lenet5_layer1.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler_L1.txt
