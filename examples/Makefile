@@ -136,6 +136,7 @@ lenet5_layer5:
 
 lenet5_full: 
 	make clean 
+	python $(MAKEFILE_DIR)matrix_operations/lenet5/lenet5_full/main_reference_lenet5.py > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/lenet5/lenet5_full/lenet5_layer1.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler_L1.txt
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/lenet5/lenet5_full/lenet5_layer2.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler_L2.txt
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/lenet5/lenet5_full/lenet5_layer3.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler_L3.txt

@@ -3,7 +3,8 @@
   "MATRICES" : [
     {
       "INPUT": [1, 84],
-      "WEIGHT": [84, 10]
+      "WEIGHT": [84, 10],
+      "WEIGHT_VALUES": "/home/afauregi/Documents/standalone-vta/compiler_output/wgt_L5.bin"
     }
   ],
   "GEMM": ["INPUT", "WEIGHT"],

@@ -3,12 +3,13 @@
   "MATRICES" : [
     {
       "INPUT": [1, 400],
-      "WEIGHT": [400, 120]
+      "WEIGHT": [400, 120],
+      "WEIGHT_VALUES": "/home/afauregi/Documents/standalone-vta/compiler_output/wgt_L3.bin"
     }
   ],
   "GEMM": ["INPUT", "WEIGHT"],
   "ALU" : [
     ["RELU"]
   ],
-  "BASE_ADDRESS" : "2853f"
+  "BASE_ADDRESS" : "284cf"
 }

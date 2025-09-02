@@ -137,6 +137,11 @@ int lenet5_implementation() {
     std::vector<int8_t> outC_L5;
     size_t outC_L5_size = expected_out_sram_L5.size(); 
     outC_L5.resize(outC_L5_size);
+
+
+    // Expected result
+    std::string fileExpectedPath = construct_path("final.bin");
+    std::vector<int8_t> final_expected = read_binary_file<int8_t>(fileExpectedPath);
     
 
 
@@ -298,9 +303,9 @@ int lenet5_implementation() {
         5,//int out_tensor_width,
         {5,5},//std::pair<int, int> kernel_size,
         1,//int stride = 1,
-        false);//bool isSquare = true);
+        true);//bool isSquare = true);
 
-    VTAMemCopyFromHost(mem_inpA_L3, inpA_L3.data(), 25*16 * sizeof(int8_t));
+    VTAMemCopyFromHost(mem_inpA_L3, inpA_L3.data(), 25*16*16 * sizeof(int8_t));
 
 
     // EXECUTE LAYER 3
@@ -313,7 +318,7 @@ int lenet5_implementation() {
     // Not here (specific case)
     inpA_L4 = outC_L3;
 
-    VTAMemCopyFromHost(mem_inpA_L4, inpA_L4.data(), outC_L3_size * sizeof(int8_t));
+    VTAMemCopyFromHost(mem_inpA_L4, inpA_L4.data(), 128*16 * sizeof(int8_t));
 
 
     // EXECUTE LAYER 4
@@ -398,16 +403,12 @@ int lenet5_implementation() {
 
     // GET THE RESULT
     // --------------
-    // Resize the output
-    outC_L5_size = expected_out_L5.size();
-    outC_L5.resize(outC_L5_size);
-
     printf("\n\n Final result= {");
-    print_int8_vector(outC_L5.data(), outC_L5_size); // Use the actual size
+    print_int8_vector(outC_L5.data(), outC_L5.size()); // Use the actual size
     printf("\n} \n\n");
 
     bool isCorrect = true;
-    isCorrect = compare_vector(outC_L5.data(), expected_out_L5.data(), outC_L5_size);
+    isCorrect = compare_vector(outC_L5.data(), final_expected.data(), final_expected.size());
     if (isCorrect)
     {
         return EXIT_SUCCESS;
