@@ -11,7 +11,11 @@ DATA_FILE := examples.data_$(FILENAME)
 INSN_FILE := insn_$(FILENAME)
 
 # Default example
-all: $(FILENAME)
+all:
+	@echo "LeNet-5 Compilation and Simulation"
+	@echo "For more test, go in the folder examples/ ('cd examples/')"
+	cd examples/ && make -s lenet5_full 
+
 
 # Execution with specified FILENAME
 $(FILENAME): | compiler_output/ simulators_output/
