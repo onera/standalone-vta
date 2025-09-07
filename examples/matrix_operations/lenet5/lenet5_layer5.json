@@ -1,8 +1,8 @@
 {
   "MATRICES" : [
     {
-      "INPUT": [16, 16],
-      "WEIGHT": [16, 16]
+      "INPUT": [1, 84],
+      "WEIGHT": [84, 10]
     }
   ],
   "GEMM": ["INPUT", "WEIGHT"],

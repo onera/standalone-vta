@@ -16,19 +16,19 @@
   #include <vector>
 
   // Configuration
-  #include "config/config_header.h" // Instruction and UOP types
+  #include "../config/config_header.h" // Instruction and UOP types
 
   // VTA's libraries
-  #include "include/driver.h"
-  #include "include/sim_tlpp.h"
-  #include "include/virtual_memory.h"
+  #include "../include/driver.h"
+  #include "../include/sim_tlpp.h"
+  #include "../include/virtual_memory.h"
 
 
   /******************************
     Execute simulator's prototype
   *******************************/
   // Execute simulator using binary files
-  int execute_simulator(void);
+  int execute_simulator(bool debug=false);
 
   /********************
     READ BINARY FILES

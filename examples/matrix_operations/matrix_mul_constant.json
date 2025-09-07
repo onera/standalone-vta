@@ -1,0 +1,9 @@
+{
+  "MATRICES" : [
+    {
+      "INPUT": [16, 16]
+    }
+  ],
+  "GEMM": ["INPUT", 2],
+  "BASE_ADDRESS" : "0000"
+}

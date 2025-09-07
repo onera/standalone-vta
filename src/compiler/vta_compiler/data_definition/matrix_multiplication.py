@@ -30,12 +30,22 @@ def matrix_int8_multiplication(A, B, useClip=False, useReLU=False):
 
 
 def matrix_multiplication(A, B, X, acc_dtype=np.int32):
-    """Multiply the two matrix together. Return the ACC matrix in acc_dtype."""
-    # Compute ACC in int16
-    ACC = X + np.matmul(A.astype(acc_dtype), B.astype(acc_dtype))
+    """Multiply two matrices (or a matrix and an integer). Return the ACC matrix in acc_dtype."""
+    # Check if B is a matrix
+    if isinstance(B, np.ndarray):
+        ACC = X + np.matmul(A.astype(acc_dtype), B.astype(acc_dtype))
+
+    # Else, it is an scalar
+    elif isinstance(B, int): 
+        ACC = X + (A.astype(acc_dtype) * B)
+    
+    # If not a matrix nor a integer, there is an error
+    else:
+        raise Exception(f"ERROR: Multiplication constant is in a non-supported data-type ({type(B).__name__}), only integer or matrix are supported! \n\n")
 
     # Return ACC
     return ACC
+
 
 def block_matrix_multiply(A_blocks, B_blocks, A_blocks_col, B_blocks_col, block_size=16):
     """Multiply blocks of A with blocks of B and provide the multiplication combinations."""

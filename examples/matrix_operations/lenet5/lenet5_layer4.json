@@ -1,10 +1,13 @@
 {
   "MATRICES" : [
     {
-      "INPUT": [16, 16],
-      "WEIGHT": [16, 16]
+      "INPUT": [1, 120],
+      "WEIGHT": [120, 84]
     }
   ],
   "GEMM": ["INPUT", "WEIGHT"],
+  "ALU" : [
+    ["RELU"]
+  ],
   "BASE_ADDRESS" : "0000"
 }

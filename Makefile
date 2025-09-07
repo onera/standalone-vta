@@ -11,13 +11,17 @@ DATA_FILE := examples.data_$(FILENAME)
 INSN_FILE := insn_$(FILENAME)
 
 # Default example
-all: $(FILENAME)
+all:
+	@echo "LeNet-5 Compilation and Simulation"
+	@echo "For more test, go in the folder examples/ ('cd examples/')"
+	cd examples/ && make -s lenet5_full 
+
 
 # Execution with specified FILENAME
 $(FILENAME): | compiler_output/ simulators_output/
 	python src/compiler/vta_compiler/data_definition/main_matrix_generator.py $(DATA_FILE) > compiler_output/prompt_data.txt
 	python src/compiler/vta_compiler/operations_definition/examples/$(INSN_FILE).py > compiler_output/prompt_insn.txt
-	cd src/simulators/functional_simulator && make -s execute > $(MAKEFILE_DIR)simulators_output/fsim_report.txt
+	cd src/simulators/functional_simulator && make -s tempo > $(MAKEFILE_DIR)simulators_output/fsim_report.txt
 
 # Execution of LeNet-5
 lenet5: | compiler_output/ simulators_output/

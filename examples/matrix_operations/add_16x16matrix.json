@@ -1,0 +1,12 @@
+{
+  "MATRICES" : [
+    {
+      "ACCUMULATOR": [16, 16],
+      "ADD_ACCUMULATOR": [16, 16]
+    }
+  ],
+  "ALU" : [
+    ["ADD_ACC", ["ACCUMULATOR", "ADD_ACCUMULATOR"]]
+  ],
+  "BASE_ADDRESS" : "0000"
+}
