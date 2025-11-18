@@ -53,33 +53,22 @@ def create_alu_operations_list(alu_operations, C_row=1, C_col=1, block_size=16):
     alu_operations_list = []
 
     # Compute C_blocks_col
-    C_blocks_col = C_col // block_size
+    C_blocks_col = (C_col + block_size - 1) // block_size
 
     # Iterate over all the ALU
     for alu_ops in alu_operations:
         block_information = []
         
-        # Check if the ALU is iterative or not
-        if (len(alu_ops[1]) == 3): # ITERATIVE
-            # Define the DST vector index (in the unsplitted matrix)
-            dst_idx = alu_ops[1][0][0]
-            dst_step = alu_ops[1][0][1]
-            # Define the SRC vector index if vector-vector operation
-            if not alu_ops[0].endswith("_IMM") and alu_ops[0] != "RELU" :
-                src_idx = alu_ops[1][1][0]
-                src_step = alu_ops[1][1][1]
-            # Define the number of iteration
-            nb_iteration = alu_ops[1][2]
-        else: # UNIQUE
-            # Define the DST vector index (in the unsplitted matrix)
-            dst_idx = alu_ops[1][0]
-            dst_step = 0
-            # Define the SRC vector index if vector-vector operation
-            if not alu_ops[0].endswith("_IMM") and alu_ops[0] != "RELU" :
-                src_idx = alu_ops[1][1]
-                src_step = 0
-            # Define the number of iteration
-            nb_iteration = 1
+        # Define the DST vector index (in the unsplitted matrix)
+        dst_idx = alu_ops[1][0][0]
+        dst_step = alu_ops[1][0][1]
+
+        # Define the SRC vector index if vector-vector operation
+        if not alu_ops[0].endswith("_IMM") and alu_ops[0] != "RELU" :
+            src_idx = alu_ops[1][1][0]
+            src_step = alu_ops[1][1][1]
+        # Define the number of iteration
+        nb_iteration = alu_ops[1][2]
 
         # For each iteration append block_information
         for nb in range(0, nb_iteration):

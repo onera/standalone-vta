@@ -160,7 +160,8 @@ def main(vta_config_dict, operations_dict, base_address, dram_offset,
     # DATA DEFINITION
     # ---------------
     A_blocks, A_blocks_col, B_blocks, B_blocks_col, \
-        X_blocks, Y_blocks, C_blocks, C_blocks_col = \
+        X_blocks, Y_blocks, C_blocks, C_blocks_col, \
+        A_matrix, X_matrix, Y_matrix, metadata = \
         DF.data_definition(matrices_dict, block_size=block_size,
                            doLoadInp=doLoadInp, input_name=input_name, inp_dtype=inp_dtype, 
                            doLoadWgt=doLoadWgt, weight_name=weight_name, wgt_dtype=wgt_dtype, 
@@ -224,7 +225,8 @@ def main(vta_config_dict, operations_dict, base_address, dram_offset,
     for mat_vec in flat_store_list:
         flat, pair = MTB.vectorMatrixToBlock(matrix_vector=mat_vec, block_size=block_size, nb_blocks_col=C_blocks_col)
         idx_to_store = idx_to_store + pair
-
+    # Order the list [(a,b)] by a
+    idx_to_store = sorted(idx_to_store)
 
     # Apply matrix partitioning (check is overfit then applies selected trategy)
     strategy, flag_dict = \
@@ -270,17 +272,25 @@ def main(vta_config_dict, operations_dict, base_address, dram_offset,
 
     # MATRICES
     # ---
-    # Define the complete path of the files
-    A_blocks_file_path = filepath_definition(output_dir, 'input'+name+'.bin')
+    # Define the path of file to reserve space
+    # A_blocks_file_path = filepath_definition(output_dir, 'inpsize'+name+'.bin') # 'input'+name+'.bin'
     B_blocks_file_path = filepath_definition(output_dir, 'weight'+name+'.bin')
-    X_blocks_file_path = filepath_definition(output_dir, 'accumulator'+name+'.bin')
-    Y_blocks_file_path = filepath_definition(output_dir, 'add_accumulator'+name+'.bin')
+    # X_blocks_file_path = filepath_definition(output_dir, 'accsize'+name+'.bin') # 'accumulator'+name+'.bin'
+    # Y_blocks_file_path = filepath_definition(output_dir, 'add_accsize'+name+'.bin') # 'add_accumulator'+name+'.bin'
     C_blocks_file_path = filepath_definition(output_dir, 'output'+name+'.bin')
 
-    # Write A_blocks matrix
-    with open(A_blocks_file_path, 'wb') as f:
-        for block in A_blocks:
-            block.tofile(f)
+    # Raw matrix files
+    A_matrix_file_path = filepath_definition(output_dir, 'input'+name+'.bin')
+    X_matrix_file_path = filepath_definition(output_dir, 'accumulator'+name+'.bin')
+    Y_matrix_file_path = filepath_definition(output_dir, 'add_accumulator'+name+'.bin')
+
+
+    # Write A_matrix
+    with open(A_matrix_file_path, 'wb') as f:
+        A_matrix.tofile(f)
+    # with open(A_blocks_file_path, 'wb') as f:
+    #     for block in A_blocks:
+    #         block.tofile(f)
     
     # Write B_blocks matrix (TO TRANSPOSE!)
     with open(B_blocks_file_path, 'wb') as f:
@@ -288,15 +298,19 @@ def main(vta_config_dict, operations_dict, base_address, dram_offset,
             transposed = block.transpose()
             transposed.tofile(f)
 
-    # Write X_blocks matrix
-    with open(X_blocks_file_path, 'wb') as f:
-        for block in X_blocks:
-            block.tofile(f)
+    # Write X_matrix
+    with open(X_matrix_file_path, 'wb') as f:
+        X_matrix.tofile(f)
+    # with open(X_blocks_file_path, 'wb') as f:
+    #     for block in X_blocks:
+    #         block.tofile(f)
 
-    # Write Y_blocks matrix
-    with open(Y_blocks_file_path, 'wb') as f:
-        for block in Y_blocks:
-            block.tofile(f)
+    # Write Y_matrix
+    with open(Y_matrix_file_path, 'wb') as f:
+        Y_matrix.tofile(f)
+    # with open(Y_blocks_file_path, 'wb') as f:
+    #     for block in Y_blocks:
+    #         block.tofile(f)
     
     # Write C_blocks (expected result)
     with open(C_blocks_file_path, 'wb') as f:
@@ -323,6 +337,15 @@ def main(vta_config_dict, operations_dict, base_address, dram_offset,
         writer = csv.writer(csvfile)
         for obj_addr in base_addresses_list:
             writer.writerow([obj_addr['type'], obj_addr['physical_base_address'], obj_addr['logical_base_address']])
+
+
+    # META INFORMATION
+    # ---
+    metadata_file_path = filepath_definition(output_dir, 'metadata'+name+'.csv')
+    with open(metadata_file_path, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        for data in metadata:
+            writer.writerow([data['type'], data['rows'], data['columns']])
     
  
     # ---------------------------------------------

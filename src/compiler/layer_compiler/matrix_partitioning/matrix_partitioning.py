@@ -190,7 +190,7 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
     # CASE 4: ALU OPERATIONS
     else: # doAlu == True
         # Check if it fits
-        if (nb_X < acc_block_buffer_size):
+        if (nb_X <= acc_block_buffer_size):
             isOverfitting = False
             
             # Load all the blocks ([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])

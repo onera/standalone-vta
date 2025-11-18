@@ -105,6 +105,9 @@ build/virtual_memory.o: src/virtual_memory.cc include/virtual_memory.h build/vta
 build/reshape.o: src/reshape.cc include/simulator_header.h
 	$(CC) $(VTA_DEFS) $(DEBUGFLAG) $(CFLAGS) -c src/reshape.cc -o build/reshape.o
 
+build/cpu_functions.o: src/cpu_functions.cc include/cpu_functions.h
+	$(CC) $(VTA_DEFS) $(DEBUGFLAG) $(CFLAGS) -c src/cpu_functions.cc -o build/cpu_functions.o
+
 # Generic rules for all in one (require to execute $ make depend)
 #build/%.o: src/%.cc build/vta_config_def.txt
 #	$(CC) $(VTA_DEFS) $(CFLAGS) -o $@ -c $<

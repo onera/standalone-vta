@@ -1,0 +1,19 @@
+{
+  "NAME": "",
+  "MATRICES" : {
+    "X": [36, 16, "../compiler_output/accumulator_36x16.bin"],
+    "Y": [36, 16, "../compiler_output/accbis_36x16.bin"],
+    "C": [36, 16, "output"]
+  },
+  "LOAD": {
+    "ACC": ["X", "Y"]
+  },
+  "ALU" : {
+    "C": [
+      ["ADD_ACC", ["X", "Y"]]
+    ]
+  },
+  "STORE": {
+    "C": ["C"]
+  }
+}

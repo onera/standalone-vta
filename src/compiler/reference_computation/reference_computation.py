@@ -83,7 +83,6 @@ def reference_computation(vta_config_dict, operations_dict,
         # Create the matrix
         m_row = matrices_dict[key][0]
         n_col = matrices_dict[key][1]
-        print(f"\n\nDEBUG: key={key} \n\n")
 
         # Get the raw file
         if (matrices_dict[key][2].endswith(".bin")):
@@ -183,9 +182,15 @@ def reference_computation(vta_config_dict, operations_dict,
     # Truncated result
     out_matrix = truncate_to_int8(final_acc_matrix.copy())
 
-    # TODO:
-    # -> Pad and split the result
-    # (Maybe do it before final_acc_matrix)
+    # Arrange the data
+    # TODO
+    
+    # Setup the output folder (standalone-vta/compiler_output/)
+    output_dir = compiler_output_setup()
+    # Binarise the result
+    file_path = filepath_definition(output_dir, 'reference.bin')
+    with open(file_path, 'wb') as f:
+        out_matrix.tofile(f)
 
 
     # ---------------------------------------------
@@ -265,7 +270,7 @@ if __name__ == "__main__":
     
     # Need 3: script_name, config_file, vta_ir
     if len(sys.argv) != 3:
-        raise Exception("ERROR: The arguments must be <config_file> <json_file_1> [json_file_2] ... \n\n")
+        raise Exception("ERROR: The arguments must be <config_file> <json_file> ... \n\n")
 
     # Config file
     vta_config_file = sys.argv[1]

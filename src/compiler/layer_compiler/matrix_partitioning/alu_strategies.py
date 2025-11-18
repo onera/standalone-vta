@@ -36,14 +36,11 @@ def alu_strategy(sorted_alu_ops, acc_buffer_size):
     store_C = []
     ops = []
 
-    # Capacity
-    capacity = acc_buffer_size
+    if (acc_buffer_size < 2):
+        raise Exception(f"ERROR: The capacity of the buffer is {acc_buffer_size} but it must be at least 2 (to load a DST vector and a SRC vector)! \n\n")
 
     # Nb of ALU operations
     nb_alu = len(sorted_alu_ops)
-
-    if (capacity < 2):
-        raise Exception(f"ERROR: The capacity of the buffer is {capacity} but it must be at least 2 (to load a DST vector and a SRC vector)! \n\n")
     
     # Iterate over all the alu_operations, each ALU contains a single DST vector
     for alu_idx, alu_ops in enumerate(sorted_alu_ops):
@@ -60,25 +57,23 @@ def alu_strategy(sorted_alu_ops, acc_buffer_size):
             store_C.append(dst_vector)
             sram_status.append(dst_vector)
 
-        capacity = acc_buffer_size - len(sram_status)
-
         # Iterate over the SRC vectors
 
         for src_idx, src_vector in enumerate(src_vectors):
-            if (capacity < 1):
+            if (len(sram_status) >= acc_buffer_size):
                 # Filter the ops
                 filtered_ops = filter_op_for_step(alu_ops=ops, sram_status=sram_status)
                 # Append the strategy [([], [], [Xi], [SRAM], [DRAM], [Ci], [Ops])]
                 strategy.append( ([], [], load_X, sram_status, dram_status, [], filtered_ops) )
 
                 # Reset the lists (SRAM maintains DST vector)
-                load_X = []
+                # load_X = []
+                load_X = store_C.copy()
                 sram_status = store_C.copy()
 
-            # Update load and SRAM and the capacity
+            # Update load and SRAM
             load_X.append(src_vector)
             sram_status.append(src_vector)
-            capacity = acc_buffer_size - len(sram_status)
 
         # Check if it is the last ALU
         if (alu_idx < nb_alu - 1):
@@ -93,10 +88,10 @@ def alu_strategy(sorted_alu_ops, acc_buffer_size):
             # Vector-vector operation
             else: 
                 # Check the size of the next ALU_ops
-                if ( (next_dst in sram_status) and (len(next_src) < capacity) ):
+                if ( (next_dst in sram_status) and (len(next_src)+len(sram_status) < acc_buffer_size - 1) ):
                     # If the next ALU fit the buffer, continue the step
                     continue
-                elif (len(next_src) < capacity - 1):
+                elif (len(next_src)+len(sram_status) < acc_buffer_size - 1):
                     # If the next ALU fit the buffer, continue the step
                     continue
 
@@ -110,7 +105,6 @@ def alu_strategy(sorted_alu_ops, acc_buffer_size):
                     load_X = []
                     sram_status = store_C.copy()
                     ops = []
-                    capacity = acc_buffer_size - len(sram_status)
                     continue
 
 
@@ -123,11 +117,10 @@ def alu_strategy(sorted_alu_ops, acc_buffer_size):
         # Append the strategy [([], [], [Xi], [SRAM], [DRAM], [Ci], [Ops])]
         strategy.append( ([], [], load_X, sram_status, dram_status, store_C, filtered_ops) )
 
-        # Reset the lists and the capacity
+        # Reset the lists
         load_X = []
         sram_status = []
         store_C = []
-        capacity = acc_buffer_size - len(sram_status)
         ops = []
 
     # Return the strategy

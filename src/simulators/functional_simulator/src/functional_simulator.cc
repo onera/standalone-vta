@@ -14,40 +14,116 @@ int execute_simulator(bool debug) {
     // Define the current location of main_simulator.cc
     std::filesystem::path currentPath = std::filesystem::current_path();
 
-    
-    // READ THE BINARIES FILES
-    // -----------------------
-
     // Define the path for the input files
     auto construct_path = [&](const std::string& filename) {
         return (currentPath / ".." / ".." / ".." / "compiler_output" / filename).string();
     };
 
+    // READ THE METADATA FILE
+    // ----------------------
+    std::string fileMetadataPath = construct_path("metadata.csv");
+
+    // Get the metadata
+    // Block size
+    std::string block_size_str = getCsvElementByName(fileMetadataPath, "BS", 1);
+    int block_size = strToInt(block_size_str);
+
+    // A
+    std::string A_row_str = getCsvElementByName(fileMetadataPath, "A", 1);
+    int A_row = strToInt(A_row_str);
+    std::string A_col_str = getCsvElementByName(fileMetadataPath, "A", 2);
+    int A_col = strToInt(A_col_str);
+
+    // X
+    std::string X_row_str = getCsvElementByName(fileMetadataPath, "X", 1);
+    int X_row = strToInt(X_row_str);
+    std::string X_col_str = getCsvElementByName(fileMetadataPath, "X", 2);
+    int X_col = strToInt(X_col_str);
+
+    // Y
+    std::string Y_row_str = getCsvElementByName(fileMetadataPath, "Y", 1);
+    int Y_row = strToInt(Y_row_str);
+    std::string Y_col_str = getCsvElementByName(fileMetadataPath, "Y", 2);
+    int Y_col = strToInt(Y_col_str);
+
+    // C
+    std::string C_row_str = getCsvElementByName(fileMetadataPath, "C", 1);
+    int C_row = strToInt(C_row_str);
+    std::string C_col_str = getCsvElementByName(fileMetadataPath, "C", 2);
+    int C_col = strToInt(C_col_str);
+
+    
+    // READ THE BINARIES FILES
+    // -----------------------
     std::string fileInpPath = construct_path("input.bin");
     std::string fileWgtPath = construct_path("weight.bin");
     std::string fileAccPath = construct_path("accumulator.bin");
     std::string fileAddAccPath = construct_path("add_accumulator.bin");
+    std::string fileOutPath = construct_path("output.bin");
+    std::string fileRefPath = construct_path("reference.bin");
     std::string fileUopPath = construct_path("uop.bin");
     std::string fileInsnPath = construct_path("instructions.bin");
-    std::string fileExpectedOutPath = construct_path("expected_out.bin");
-    std::string fileExpectedOutSramPath = construct_path("expected_out_sram.bin");
 
     // Read input files into vectors
-    std::vector<int8_t> inpA = read_binary_file<int8_t>(fileInpPath);
+    // A
+    // std::vector<int8_t> inpA = read_binary_file<int8_t>(fileInpPath);
+    std::vector<int8_t> raw_inpA = read_binary_file<int8_t>(fileInpPath);
+    std::vector<int8_t> inpA;
+    if (A_row <= 0 || A_col <= 0 ) 
+    { 
+        inpA = raw_inpA;
+    }
+    else 
+    {
+        inpA = data_formatting(raw_inpA, A_row, A_col, block_size, true);
+    }
+    
+    // B
     std::vector<int8_t> wgtB = read_binary_file<int8_t>(fileWgtPath);
-    std::vector<int32_t> accX = read_binary_file<int32_t>(fileAccPath);
-    std::vector<int32_t> accY = read_binary_file<int32_t>(fileAddAccPath);
+
+    // X
+    // std::vector<int32_t> accX = read_binary_file<int32_t>(fileAccPath);
+    std::vector<int32_t> raw_accX = read_binary_file<int32_t>(fileAccPath);
+    std::vector<int32_t> accX;
+    if (X_row <= 0 || X_col <= 0 ) 
+    { 
+        accX = raw_accX;
+    }
+    else 
+    {
+        accX = data_formatting(raw_accX, X_row, X_col, block_size, true);
+    }
+
+    // Y
+    // std::vector<int32_t> accY = read_binary_file<int32_t>(fileAddAccPath);
+    std::vector<int32_t> raw_accY = read_binary_file<int32_t>(fileAddAccPath);
+    std::vector<int32_t> accY;
+    if (Y_row <= 0 || Y_col <= 0 ) 
+    { 
+        accY = raw_accY;
+    }
+    else 
+    {
+        accY = data_formatting(raw_accY, Y_row, Y_col, block_size, true);
+    }
+
+    // C
+    std::vector<int8_t> outC = read_binary_file<int8_t>(fileOutPath);
+    // REFERENCE C
+    std::vector<int8_t> raw_refC = read_binary_file<int8_t>(fileRefPath);
+    std::vector<int8_t> refC;
+    if (C_row <= 0 || C_col <= 0 ) 
+    { 
+        refC = raw_refC;
+    }
+    else 
+    {
+        refC = data_formatting(raw_refC, C_row, C_col, block_size, true); //TODO: manage the isSquare
+    }
+
+    // INSN + UOP
     std::vector<uop_t> uop_buffer = read_binary_file<uop_t>(fileUopPath);
     std::vector<instruction_t> insn_buffer = read_binary_file<instruction_t>(fileInsnPath);
-
-    // Read the reference
-    std::vector<int8_t> expected_out = read_binary_file<int8_t>(fileExpectedOutPath);
-    std::vector<int8_t> expected_out_sram = read_binary_file<int8_t>(fileExpectedOutSramPath);
-
-   // Handle the output file differently
-    std::vector<int8_t> outC;
-    size_t outC_size = expected_out_sram.size(); // Keep track of the actual size
-    outC.resize(outC_size);
 
 
     // ALLOCATE MEMORY SPACE
@@ -62,14 +138,14 @@ int execute_simulator(bool debug) {
             "\t OUT: %lu Bytes (= %lu vectors) \n",
             inpA.size() * sizeof(int8_t), inpA.size() * sizeof(int8_t) / 16,
             wgtB.size() * sizeof(int8_t), wgtB.size() * sizeof(int8_t) / 256,
-            outC_size * sizeof(int8_t), outC_size * sizeof(int8_t) / 16);
+            outC.size() * sizeof(int8_t), outC.size() * sizeof(int8_t) / 16);
     }
            
     void* mem_inpA = VTAMemAlloc(inpA.size() * sizeof(int8_t), 1);
     void* mem_wgtB = VTAMemAlloc(wgtB.size() * sizeof(int8_t), 1);
     void* mem_accX = VTAMemAlloc(accX.size() * sizeof(int32_t), 1);
     void* mem_accY = VTAMemAlloc(accY.size() * sizeof(int32_t), 1);
-    void* mem_outC = VTAMemAlloc(outC_size * sizeof(int8_t), 1);
+    void* mem_outC = VTAMemAlloc(outC.size() * sizeof(int8_t), 1);
     void* mem_uop = VTAMemAlloc(uop_buffer.size() * sizeof(uop_t), 1);
     void* mem_insn = VTAMemAlloc(insn_buffer.size() * sizeof(instruction_t), 1);
 
@@ -134,7 +210,7 @@ int execute_simulator(bool debug) {
     VTAMemCopyFromHost(mem_wgtB, wgtB.data(), wgtB.size() * sizeof(int8_t));
     VTAMemCopyFromHost(mem_accX, accX.data(), accX.size() * sizeof(int32_t));
     VTAMemCopyFromHost(mem_accY, accY.data(), accY.size() * sizeof(int32_t));
-    VTAMemCopyFromHost(mem_outC, outC.data(), outC_size * sizeof(int8_t)); 
+    VTAMemCopyFromHost(mem_outC, outC.data(), outC.size() * sizeof(int8_t)); 
     VTAMemCopyFromHost(mem_uop, uop_buffer.data(), uop_buffer.size() * sizeof(uop_t));
     VTAMemCopyFromHost(mem_insn, insn_buffer.data(), insn_buffer.size() * sizeof(instruction_t));
 
@@ -148,7 +224,7 @@ int execute_simulator(bool debug) {
     // Copy result back
     VTAMemCopyToHost(inpA.data(), mem_inpA, inpA.size() * sizeof(int8_t));
     VTAMemCopyToHost(wgtB.data(), mem_wgtB, wgtB.size() * sizeof(int8_t));
-    VTAMemCopyToHost(outC.data(), mem_outC, outC_size * sizeof(int8_t)); 
+    VTAMemCopyToHost(outC.data(), mem_outC, outC.size() * sizeof(int8_t)); 
 
 
     // FREE MEMORY
@@ -184,10 +260,6 @@ int execute_simulator(bool debug) {
 
     // GET THE RESULT
     // --------------
-    // Resize the output
-    outC_size = expected_out.size();
-    outC.resize(outC_size);
-
     // Print results
     if (debug == true)
     {
@@ -209,18 +281,18 @@ int execute_simulator(bool debug) {
         print_int32_vector(accY.data(), accY.size());
         printf("\n} \n\n");
 
-        printf("expected_out = {");
-        print_int8_vector(expected_out.data(), outC_size); // Use the actual size
-        printf("\n}");
+        printf("refC = {");
+        print_int8_vector(refC.data(), refC.size());
+        printf("\n} \n\n");
     }
 
     printf("\n\n Final result= {");
-    print_int8_vector(outC.data(), outC_size); // Use the actual size
+    print_int8_vector(outC.data(), outC.size()); // Use the actual size
     printf("\n} \n\n");
 
 
     bool isCorrect = true;
-    isCorrect = compare_vector(outC.data(), expected_out.data(), outC_size);
+    isCorrect = compare_vector(outC.data(), refC.data(), outC.size());
     if (isCorrect)
     {
         return EXIT_SUCCESS;

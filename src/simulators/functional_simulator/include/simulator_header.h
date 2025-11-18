@@ -14,6 +14,8 @@
   #include <iostream>
   #include <fstream>
   #include <vector>
+  #include <string>
+  #include <sstream>
 
   // Configuration
   #include "../config/config_header.h" // Instruction and UOP types
@@ -22,6 +24,7 @@
   #include "../include/driver.h"
   #include "../include/sim_tlpp.h"
   #include "../include/virtual_memory.h"
+  #include "../include/cpu_functions.h"
 
 
   /******************************
@@ -65,6 +68,25 @@
       return buffer;
   }
 
+  /***************
+    READ CSV FILES
+  ****************/
+  /**
+  * Finds a row by its first element (the 'name') and returns the
+  * element at the specified column index from that row.
+  *
+  * @param filename The path to the CSV file.
+  * @param rowName The "key" to search for in the first column.
+  * @param targetCol The 0-indexed column to retrieve from that row.
+  * @return The element as a std::string, or an error message.
+  */
+  std::string getCsvElementByName(const std::string& filename, 
+                                  const std::string& rowName, 
+                                  int targetCol);
+
+  // Convert string into int
+  int strToInt(const std::string value);
+
 
   /***************************
     Other functions' prototype
@@ -81,19 +103,19 @@
   // Initialise vector with random values or with "-1" values
   int8_t * init_vector_values(int8_t * vector, uint64_t size, bool random_value, unsigned int seed);
 
-  // Reshape function
-  std::vector<int8_t> reshape(
-    const std::vector<int8_t>& vector,
-    int block_col = 1,
-    int block_size = 16,
-    int out_matrix_height = 196,
-    int out_matrix_width = 6,
-    int batch_size = 1,
-    int out_tensor_channel = 6,
-    int out_tensor_height = 14,
-    int out_tensor_width = 14,
-    std::pair<int, int> kernel_size = {5, 5},
-    int stride = 1,
-    bool isSquare = true);
+  // // Reshape function
+  // std::vector<int8_t> reshape(
+  //   const std::vector<int8_t>& vector,
+  //   int block_col = 1,
+  //   int block_size = 16,
+  //   int out_matrix_height = 196,
+  //   int out_matrix_width = 6,
+  //   int batch_size = 1,
+  //   int out_tensor_channel = 6,
+  //   int out_tensor_height = 14,
+  //   int out_tensor_width = 14,
+  //   std::pair<int, int> kernel_size = {5, 5},
+  //   int stride = 1,
+  //   bool isSquare = true);
 
 #endif  // SIMULATOR_HEADER_H_

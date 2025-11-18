@@ -36,6 +36,9 @@ def data_definition(matrices_dict, block_size=16,
         - B_blocks (list of matrices), B_blocks_col(int): weight
         - X_blocks, Y_blocks (list of matrices): accumulator and accumulator bis
         - C_blocks (list of matrices), C_blocks_col (int): output with the DRAM size
+        - A_matrix, X_matrix, Y_matrix (matrix): raw matrices
+        - metadata (list of dict): dimension of matrices [{'type': str, 'rows': int, 'columns': int}]
+    ]
     """
     # INIT
     # ----
@@ -143,6 +146,16 @@ def data_definition(matrices_dict, block_size=16,
         raise Exception(f"ERROR: X_blocks_col must be equal to C_blocks_col! \n")
 
 
+    # META INFORMATION
+    # ----------------
+    metadata = [
+        {"type": "BS", "rows": block_size, "columns": block_size},
+        {"type": "A", "rows": A_row, "columns": A_col},
+        {"type": "X", "rows": X_row, "columns": X_col},
+        {"type": "Y", "rows": Y_row, "columns": Y_col},
+        {"type": "C", "rows": C_row, "columns": C_col}
+    ]
+
     # DEBUG
     # -----
     if (debug):
@@ -156,7 +169,8 @@ def data_definition(matrices_dict, block_size=16,
     # RETURN
     # ------
     return A_blocks, A_blocks_col, B_blocks, B_blocks_col, \
-           X_blocks, Y_blocks, C_blocks, C_blocks_col
+           X_blocks, Y_blocks, C_blocks, C_blocks_col, \
+           A_matrix, X_matrix, Y_matrix, metadata
 
 
 ###############################################
