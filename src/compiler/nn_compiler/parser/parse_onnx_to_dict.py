@@ -1,7 +1,9 @@
 import onnx
 import onnx.shape_inference
 from onnx import numpy_helper
+import numpy as np
 import json # Import json for pretty printing the result
+from typing import Dict, Union
 
 def parse_onnx_to_dict(model_path, debug=False):
     """
@@ -158,6 +160,56 @@ def parse_onnx_to_dict(model_path, debug=False):
 
     # Return the structured dictionary and the tensor map
     return graph_info, tensor_name_to_node_index
+
+
+###############################################
+
+
+def get_onnx_parameters(model_path: str, debug=False) -> Union[Dict[str, np.ndarray], None]:
+    """
+    Loads an ONNX model and extracts the values of all initializers (weights and biases).
+
+    Args:
+        model_path (str): The file path to the ONNX model.
+
+    Returns:
+        Dict[str, np.ndarray] or None: A dictionary where keys are the 
+        initializer names (the tensor names) and values are the actual NumPy 
+        arrays containing the weights/biases. Returns None on failure.
+    """
+    try:
+        # 1. Load the model
+        model = onnx.load(model_path)
+    except FileNotFoundError:
+        print(f"Error: Model file not found at '{model_path}'")
+        return None
+    except Exception as e:
+        print(f"Error loading model: {e}")
+        return None
+
+    parameters = {}
+    graph = model.graph
+
+    # 2. Iterate through all initializers in the graph
+    # Initializers store the constant data (weights/biases)
+    for initializer in graph.initializer:
+        # numpy_helper.to_array safely converts the ONNX TensorProto into a NumPy ndarray
+        try:
+            param_array = numpy_helper.to_array(initializer)
+            parameters[initializer.name] = param_array
+        except Exception as e:
+            print(f"Warning: Could not convert initializer '{initializer.name}' to NumPy array: {e}")
+            # Store a placeholder if conversion fails
+            parameters[initializer.name] = f"Error loading data: {e}"
+
+    if (debug):
+        print(f"\nSuccessfully extracted {len(parameters)} parameters from the model.")
+        for i, param in enumerate(parameters):
+            print(f"\t {i}: '{param}' ") 
+            # print(f"\t {parameters[param]}") 
+        print(f"\n") 
+
+    return parameters
 
 
 ###############################################

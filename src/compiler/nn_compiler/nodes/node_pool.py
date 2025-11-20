@@ -13,7 +13,7 @@ import utils.tensor_matrix_converter as TM
 
 # MAIN FUNCTION
 # -------------
-def node_pool(node, filename='', 
+def node_pool(node, filename='', param={}, 
               debug=False):
     # Reset the vta_ir
     vta_ir = {}
@@ -63,6 +63,13 @@ def node_pool(node, filename='',
 
     # Get the attributes
     # ---
+    fh = attributes_dict['kernel_shape'][0]
+    fw = attributes_dict['kernel_shape'][1]
+    kernel_size = fh*fw
+
+    sh = attributes_dict['strides'][0]
+    sw = attributes_dict['strides'][1]
+
     # attributes_dict['pads'] = [TOP, LEFT, BOTTOM, RIGHT]
     if ('pads' in attributes_dict):
         ph = (attributes_dict['pads'][0], attributes_dict['pads'][2])
@@ -88,13 +95,6 @@ def node_pool(node, filename='',
     # Nc and Mc must be the same
     if (nc != mc):
         raise Exception(f"ERROR: Discrepency on the number of channels (nc={nc}, mc={mc})! \n")
-
-    fh = attributes_dict['kernel_shape'][0]
-    fw = attributes_dict['kernel_shape'][1]
-    kernel_size = fh*fw
-
-    sh = attributes_dict['strides'][0]
-    sw = attributes_dict['strides'][1]
 
 
     # Define the matrix dimensions

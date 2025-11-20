@@ -13,7 +13,7 @@ import utils.tensor_matrix_converter as TM
 
 # MAIN FUNCTION
 # -------------
-def node_conv(node, filename='', 
+def node_conv(node, filename='', param={}, 
               debug=False):
     # Reset the vta_ir
     vta_ir = {}
@@ -191,7 +191,7 @@ def node_conv(node, filename='',
 
 # MUL CONSTANT
 # ------------
-def node_mulconstant(node, filename='', 
+def node_mulconstant(node, filename='', param={},
               debug=False):
     # Reset the vta_ir
     vta_ir = {}
@@ -238,7 +238,8 @@ def node_mulconstant(node, filename='',
 
         # Get scalar
         elif ( len(inp['shape']) == 1 ):
-            scalar = inp['shape'][0] # TODO: take the initialiser and not the shape...
+            scalar = round( param[inp['name']][0] )
+
         # Else problem # TODO: Check for bias
         else:
             raise Exception(f"ERROR: Input {inp} was not expected! \n")
