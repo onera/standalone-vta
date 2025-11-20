@@ -178,15 +178,16 @@ def generate_vta_ir_maxpool(filename="maxpool", debug=False):
     file_path = filepath_definition(output_dir, filename+'.json')
 
     # Generate random values for dimension
-    # Xh = random.randint(8, 2048) # 8192
-    # Xw = random.randint(1, 2048) # 8192
-    Xh = 1000
-    Xw = 20
-    nb_alu = 4
+    Xh = random.randint(8, 2048) # 8192
+    Xw = random.randint(1, 2048) # 8192
 
     # Define the number of ALU
-    # nb_alu = random.randint(1, Xh//4)
+    nb_alu = random.randint(1, Xh//4)
     kernel_size = Xh // nb_alu
+
+    # Xh = 1000
+    # Xw = 20
+    # nb_alu = 4
 
     # Create the ALU operations
     operations_alu = []
@@ -250,7 +251,7 @@ def generate_vta_ir_add_acc(filename="add_acc", debug=False):
 
     # Create a python dictionnary
     vta_ir = {
-        "NAME": "_T1",
+        "NAME": "",
         "MATRICES": {
             "X": [Xh, Xw, "../compiler_output/accumulator_"+str(Xh)+"x"+str(Xw)+".bin"],
             "Y": [Xh, Xw, "../compiler_output/accbis_"+str(Xh)+"x"+str(Xw)+".bin"],

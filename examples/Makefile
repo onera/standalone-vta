@@ -30,8 +30,8 @@ fsim:
 matmul_16x16: ## Mutliply two 16x16-matrices and apply a ReLU (MAX with 0)
 	make clean
 	@echo "Create the binaries"
-	python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 input
-	python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 weight
+	python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 input int8
+	python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 weight int8
 	@echo ""
 	@echo "Compiling the VTA IR"
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py \
@@ -89,7 +89,7 @@ test_matmul_relu:
 matrix_mul_constant: ## Mutliply a 16x16-matrices with a constant
 	make clean
 	@echo "Create the binaries"
-	python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 input
+	python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 input int8
 	@echo ""
 	@echo "Compiling the VTA IR"
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py \
@@ -128,7 +128,7 @@ test_mulconstant:
 matrix_maxpool: ## Apply a maxpool with a 3x3-kernel on a flatten 6x6-tensor
 	make clean
 	@echo "Create the binaries"
-	python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 36 16 accumulator
+	python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 36 16 accumulator int32
 	@echo ""
 	@echo "Compiling the VTA IR"
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py \
@@ -167,8 +167,8 @@ test_maxpool:
 matrix_add: ## Add two 36x16 matrices together
 	make clean
 	@echo "Create the binaries"
-	python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 36 16 accumulator
-	python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 36 16 accbis
+	python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 36 16 accumulator int32
+	python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 36 16 accbis int32
 	@echo ""
 	@echo "Compiling the VTA IR"
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py \

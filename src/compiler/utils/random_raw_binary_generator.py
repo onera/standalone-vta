@@ -4,20 +4,24 @@ import os
 import sys
 import numpy as np
 
-from find_project_root import *
+try:
+    from find_project_root import *
+except: 
+    from utils.find_project_root import *
 
 ###############################################
 
 # MAIN FUNCTION
 # -------------
 def random_raw_binary_generator(m_rows, n_columns, filename="input",
+                                dtype='int8',
                                 debug=False):
     # Generation parameters
     random_bound = 8
     low_bound = -random_bound
 
     # Define the dtype
-    if (filename == "input" or filename == "weight"):
+    if (dtype == 'int8'):
         dtype = np.int8
     else: 
         dtype = np.int32
@@ -57,22 +61,29 @@ if __name__ == "__main__":
             <m_rows> 
             <n_columns> 
             <filename>
+            <dtype>
     """
     filename ="input"
+    dtype = 'int8'
     if len(sys.argv) == 1:
         m_rows = 16
         n_columns = 16
     elif len(sys.argv) == 2:
         m_rows = int( sys.argv[1] )
         n_columns = m_rows   
-    elif len(sys.argv) == 2:
+    elif len(sys.argv) == 3:
         m_rows = int( sys.argv[1] )
         n_columns = int( sys.argv[2] )
+    elif len(sys.argv) == 4:
+        m_rows = int( sys.argv[1] )
+        n_columns = int( sys.argv[2] )
+        filename = sys.argv[3]
     else:
         m_rows = int( sys.argv[1] )
         n_columns = int( sys.argv[2] )
         filename = sys.argv[3]
+        dtype = sys.argv[4]
 
     
-    print(f"\nGeneration of {m_rows}x{n_columns} raw matrix ...")
-    random_raw_binary_generator(m_rows, n_columns, filename)
+    print(f"\nGeneration of {m_rows}x{n_columns} raw matrix (in {dtype})...")
+    random_raw_binary_generator(m_rows, n_columns, filename, dtype)
