@@ -25,7 +25,7 @@ def generate_vta_ir_matmul(filename="matmul", debug=False):
 
     # Create a python dictionnary
     vta_ir = {
-        "NAME": "",
+        "NAME": filename,
         "MATRICES": {
             "A": [Ah, Aw_Bh, "../compiler_output/input_"+str(Ah)+"x"+str(Aw_Bh)+".bin"],
             "B": [Aw_Bh, Bw, "../compiler_output/weight_"+str(Aw_Bh)+"x"+str(Bw)+".bin"],
@@ -48,9 +48,9 @@ def generate_vta_ir_matmul(filename="matmul", debug=False):
         json.dump(vta_ir, f, indent=2) # indent=2 for better readibility
 
     # Create binary files
-    RBG.random_raw_binary_generator(m_rows=Ah, n_columns=Aw_Bh, filename="input")
-    RBG.random_raw_binary_generator(m_rows=Aw_Bh, n_columns=Bw, filename="weight")
-    RBG.random_raw_binary_generator(m_rows=Ah, n_columns=Bw, filename="accumulator")
+    RBG.random_raw_binary_generator(m_rows=Ah, n_columns=Aw_Bh, filename="input", dtype='int8', debug=False)
+    RBG.random_raw_binary_generator(m_rows=Aw_Bh, n_columns=Bw, filename="weight", dtype='int8', debug=False)
+    RBG.random_raw_binary_generator(m_rows=Ah, n_columns=Bw, filename="accumulator", dtype='int32', debug=False)
 
     if (debug):
         print(f"File '{filename}' is successfully generated! \
@@ -76,7 +76,7 @@ def generate_vta_ir_matmul_relu(filename="matmul_relu", debug=False):
 
     # Create a python dictionnary
     vta_ir = {
-        "NAME": "",
+        "NAME": filename,
         "MATRICES": {
             "A": [Ah, Aw_Bh, "../compiler_output/input_"+str(Ah)+"x"+str(Aw_Bh)+".bin"],
             "B": [Aw_Bh, Bw, "../compiler_output/weight_"+str(Aw_Bh)+"x"+str(Bw)+".bin"],
@@ -104,9 +104,9 @@ def generate_vta_ir_matmul_relu(filename="matmul_relu", debug=False):
         json.dump(vta_ir, f, indent=2) # indent=2 for better readibility
 
     # Create binary files
-    RBG.random_raw_binary_generator(m_rows=Ah, n_columns=Aw_Bh, filename="input")
-    RBG.random_raw_binary_generator(m_rows=Aw_Bh, n_columns=Bw, filename="weight")
-    RBG.random_raw_binary_generator(m_rows=Ah, n_columns=Bw, filename="accumulator")
+    RBG.random_raw_binary_generator(m_rows=Ah, n_columns=Aw_Bh, filename="input", dtype='int8', debug=False)
+    RBG.random_raw_binary_generator(m_rows=Aw_Bh, n_columns=Bw, filename="weight", dtype='int8', debug=False)
+    RBG.random_raw_binary_generator(m_rows=Ah, n_columns=Bw, filename="accumulator", dtype='int32', debug=False)
 
     if (debug):
         print(f"File '{filename}' is successfully generated! \
@@ -132,7 +132,7 @@ def generate_vta_ir_mulconstant(filename="mulconstant", debug=False):
 
     # Create a python dictionnary
     vta_ir = {
-        "NAME": "",
+        "NAME": filename,
         "MATRICES": {
             "A": [Ah, Aw, "../compiler_output/input_"+str(Ah)+"x"+str(Aw)+".bin"],
             "X": [Ah, Aw, "../compiler_output/accumulator_"+str(Ah)+"x"+str(Aw)+".bin"],
@@ -158,8 +158,8 @@ def generate_vta_ir_mulconstant(filename="mulconstant", debug=False):
         json.dump(vta_ir, f, indent=2) # indent=2 for better readibility
 
     # Create binary files
-    RBG.random_raw_binary_generator(m_rows=Ah, n_columns=Aw, filename="input")
-    RBG.random_raw_binary_generator(m_rows=Ah, n_columns=Aw, filename="accumulator")
+    RBG.random_raw_binary_generator(m_rows=Ah, n_columns=Aw, filename="input", dtype='int8', debug=False)
+    RBG.random_raw_binary_generator(m_rows=Ah, n_columns=Aw, filename="accumulator", dtype='int32', debug=False)
 
     if (debug):
         print(f"File '{filename}' is successfully generated! \
@@ -185,10 +185,6 @@ def generate_vta_ir_maxpool(filename="maxpool", debug=False):
     nb_alu = random.randint(1, Xh//4)
     kernel_size = Xh // nb_alu
 
-    # Xh = 1000
-    # Xw = 20
-    # nb_alu = 4
-
     # Create the ALU operations
     operations_alu = []
     store_list = []
@@ -204,7 +200,7 @@ def generate_vta_ir_maxpool(filename="maxpool", debug=False):
 
     # Create a python dictionnary
     vta_ir = {
-        "NAME": "",
+        "NAME": filename,
         "MATRICES": {
             "X": [Xh, Xw, "../compiler_output/accumulator_"+str(Xh)+"x"+str(Xw)+".bin"],
             "C": [Xh, Xw, "output"]
@@ -225,7 +221,7 @@ def generate_vta_ir_maxpool(filename="maxpool", debug=False):
         json.dump(vta_ir, f, indent=2) # indent=2 for better readibility
 
     # Create binary files
-    RBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename="accumulator")
+    RBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename="accumulator", dtype='int32', debug=False)
 
     if (debug):
         print(f"File '{filename}' is successfully generated! \
@@ -251,7 +247,7 @@ def generate_vta_ir_add_acc(filename="add_acc", debug=False):
 
     # Create a python dictionnary
     vta_ir = {
-        "NAME": "",
+        "NAME": filename,
         "MATRICES": {
             "X": [Xh, Xw, "../compiler_output/accumulator_"+str(Xh)+"x"+str(Xw)+".bin"],
             "Y": [Xh, Xw, "../compiler_output/accbis_"+str(Xh)+"x"+str(Xw)+".bin"],
@@ -275,8 +271,8 @@ def generate_vta_ir_add_acc(filename="add_acc", debug=False):
         json.dump(vta_ir, f, indent=2) # indent=2 for better readibility
 
     # Create binary files
-    RBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename="accumulator")
-    RBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename="accbis")
+    RBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename="accumulator", dtype='int32', debug=False)
+    RBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename="accbis", dtype='int32', debug=False)
 
     if (debug):
         print(f"File '{filename}' is successfully generated! \

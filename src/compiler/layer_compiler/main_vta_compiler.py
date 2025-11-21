@@ -8,6 +8,7 @@ import csv
 
 import toolbox.alu_operations as ALU
 import toolbox.matrix_to_block_index as MTB
+import toolbox.sort_idx_to_store as SIS
 
 import data_definition.data_definition as DF
 import dram_allocation.dram_allocation as DA
@@ -222,11 +223,15 @@ def main(vta_config_dict, operations_dict, base_address, dram_offset,
 
     # Refine the idx_to_store (block vectors)
     idx_to_store = [] # if empty <=> doStoreFullMatrix == True
+    idx_to_store_to_sort = [] 
     for mat_vec in flat_store_list:
         flat, pair = MTB.vectorMatrixToBlock(matrix_vector=mat_vec, block_size=block_size, nb_blocks_col=C_blocks_col)
-        idx_to_store = idx_to_store + pair
-    # Order the list [(a,b)] by a
-    idx_to_store = sorted(idx_to_store)
+        idx_to_store_to_sort = idx_to_store_to_sort + pair
+    # Order the list
+    if (len(idx_to_store_to_sort) > 0):
+        idx_to_store = SIS.sort_idx_to_store(idx_to_store=idx_to_store_to_sort, nb_col=C_blocks_col, block_size=block_size)
+        print(f"\nDEBUG: idx_to_store={idx_to_store} \n\t idx_to_store_to_sort={idx_to_store_to_sort} \n\n")
+
 
     # Apply matrix partitioning (check is overfit then applies selected trategy)
     strategy, flag_dict = \
@@ -366,7 +371,7 @@ def main(vta_config_dict, operations_dict, base_address, dram_offset,
 
     # ---------------------------------------------
     # RETURN new base_address
-    return updated_base_address
+    return updated_base_address, name
 
 
 ###############################################
@@ -385,6 +390,8 @@ if __name__ == "__main__":
     base_address = 0x0
 
     dram_offset = 0x0
+
+    layer_addr_name = []
     
     # Need at least 3: script_name, config_file, 1_json_file
     if len(sys.argv) < 3:
@@ -399,8 +406,19 @@ if __name__ == "__main__":
         operations_dict = parse_json_to_dict(vta_ir)
 
         # Execute the main function
-        base_address = \
+        base_address, name = \
             main(vta_config_dict, operations_dict, base_address, dram_offset,
                  debug=debug)
+        
+        # Append layer_addr_name
+        layer_addr_name.append( (base_address, name) )
+    
+    # Generate a CSV
+    output_dir = compiler_output_setup()
+    file_path = filepath_definition(output_dir, 'layers_name.csv')
+    with open(file_path, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        for i, (add, n) in enumerate(layer_addr_name):
+            writer.writerow([i, n, hex(add)])
 
     # END!

@@ -1,5 +1,5 @@
 {
-  "NAME": "",
+  "NAME": "_T1",
   "MATRICES" : {
     "A": [16, 16, "../compiler_output/input_16x16.bin"],
     "B": [16, 16, "../compiler_output/weight_16x16.bin"],

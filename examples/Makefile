@@ -203,6 +203,30 @@ test_add:
 	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
 
 
+# GENERAL TESTS
+###############
+test:
+	@make clean
+	@echo ""
+	@echo "Generate tests..."
+	python $(COMPILER_DIR)/utils/testing.py matmul
+	python $(COMPILER_DIR)/utils/testing.py matmul_relu
+	python $(COMPILER_DIR)/utils/testing.py mulconstant
+	python $(COMPILER_DIR)/utils/testing.py maxpool
+	python $(COMPILER_DIR)/utils/testing.py add_acc
+	@echo ""
+	@echo "Compile tests..."
+	python $(VTA_COMPILER_DIR)/main_vta_compiler.py \
+	$(CONFIG)/vta_config.json \
+	$(COMPILER_OUTPUT_DIR)/matmul.json \
+	$(COMPILER_OUTPUT_DIR)/matmul_relu.json \
+	$(COMPILER_OUTPUT_DIR)/mulconstant.json \
+	$(COMPILER_OUTPUT_DIR)/maxpool.json \
+	$(COMPILER_OUTPUT_DIR)/add_acc.json > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
+	@echo ""
+	@echo "Provide references..."
+
+
 # LENET-5 TESTS
 ###############
 lenet5_layer1: 
@@ -254,34 +278,6 @@ yolonas_conv2:
 	make clean 
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/yolonas/yolonas_conv2.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
 	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
-
-
-
-# GENERAL TESTS
-###############
-test:
-	@make clean
-	@echo ""
-	@echo "test_matmul"
-	@make test_matmul
-	@echo ""
-	@echo "test_mul_constant"
-	@make test_mul_constant
-	@echo ""
-	@echo "test_maxpool"
-	@make test_maxpool
-	@echo ""
-	@echo "test_add"
-	@make test_add
-	@echo ""
-	@echo "SUCCESS!"
-
-
-T1:
-	make clean
-	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matmul_16x16.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
-	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
-
 
 
 # CREATE OUTPUTS DIRECTORIES

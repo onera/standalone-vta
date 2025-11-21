@@ -19,9 +19,15 @@ int execute_simulator(bool debug) {
         return (currentPath / ".." / ".." / ".." / "compiler_output" / filename).string();
     };
 
+    // GET THE FILENAME SUFFIX
+    // -----------------------
+    std::string fileLayerNamePath = construct_path("layers_name.csv");
+    std::string layer_suffix_str = getCsvElementByName(fileLayerNamePath, "0", 1);
+
+
     // READ THE METADATA FILE
     // ----------------------
-    std::string fileMetadataPath = construct_path("metadata.csv");
+    std::string fileMetadataPath = construct_path("metadata"+layer_suffix_str+".csv");
 
     // Get the metadata
     // Block size
@@ -55,14 +61,14 @@ int execute_simulator(bool debug) {
     
     // READ THE BINARIES FILES
     // -----------------------
-    std::string fileInpPath = construct_path("input.bin");
-    std::string fileWgtPath = construct_path("weight.bin");
-    std::string fileAccPath = construct_path("accumulator.bin");
-    std::string fileAddAccPath = construct_path("add_accumulator.bin");
-    std::string fileOutPath = construct_path("output.bin");
-    std::string fileRefPath = construct_path("reference.bin");
-    std::string fileUopPath = construct_path("uop.bin");
-    std::string fileInsnPath = construct_path("instructions.bin");
+    std::string fileInpPath = construct_path("input"+layer_suffix_str+".bin");
+    std::string fileWgtPath = construct_path("weight"+layer_suffix_str+".bin");
+    std::string fileAccPath = construct_path("accumulator"+layer_suffix_str+".bin");
+    std::string fileAddAccPath = construct_path("add_accumulator"+layer_suffix_str+".bin");
+    std::string fileOutPath = construct_path("output"+layer_suffix_str+".bin");
+    std::string fileRefPath = construct_path("reference"+layer_suffix_str+".bin");
+    std::string fileUopPath = construct_path("uop"+layer_suffix_str+".bin");
+    std::string fileInsnPath = construct_path("instructions"+layer_suffix_str+".bin");
 
     // Read input files into vectors
     // A
@@ -104,7 +110,7 @@ int execute_simulator(bool debug) {
     }
     else 
     {
-        accY = data_formatting(raw_accY, Y_row, Y_col, block_size, true);
+        accY = data_formatting(raw_accY, Y_row, Y_col, block_size, false);
     }
 
     // C
@@ -118,7 +124,7 @@ int execute_simulator(bool debug) {
     }
     else 
     {
-        refC = data_formatting(raw_refC, C_row, C_col, block_size, true); //TODO: manage the isSquare
+        refC = data_formatting(raw_refC, C_row, C_col, block_size, false); 
     }
 
     // INSN + UOP

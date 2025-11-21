@@ -29,24 +29,23 @@ def random_raw_binary_generator(m_rows, n_columns, filename="input",
     # Matrix generation
     matrix = np.random.randint(low_bound, random_bound - 1, size=(m_rows, n_columns), dtype=dtype)
 
-    # Print matrix
-    if (debug):
-        print(f"\nMatrix generated: \n{matrix} \n")
-
     # Rename the file
-    filename = filename+"_"+str(m_rows)+"x"+str(n_columns) # TODO: modify
+    filename = filename+"_"+str(m_rows)+"x"+str(n_columns) 
 
     # Write file
     output_dir = compiler_output_setup()
-    prompt_file_path = filepath_definition(output_dir, 'prompt_'+filename+'.txt')
     file_path = filepath_definition(output_dir, filename+'.bin')
-
-    with open(prompt_file_path, 'w') as f:
-        np.savetxt(f, matrix, fmt='%4d')
 
     # Write binary
     with open(file_path, 'wb') as f:
         matrix.tofile(f)
+
+    # Print and store the value (txt file)
+    if (debug):
+        print(f"\nMatrix generated: \n{matrix} \n")
+        prompt_file_path = filepath_definition(output_dir, 'prompt_'+filename+'.txt')
+        with open(prompt_file_path, 'w') as f:
+            np.savetxt(f, matrix, fmt='%4d')
 
 
 ###############################################

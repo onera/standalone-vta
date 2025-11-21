@@ -36,6 +36,9 @@ def reference_computation(vta_config_dict, operations_dict,
 
     # DECODE VTA IR (JSON file)
     # -------------------------
+    # Filename
+    name = operations_dict["NAME"]
+
     # Init some variables
     output_name = ''
 
@@ -188,7 +191,7 @@ def reference_computation(vta_config_dict, operations_dict,
     # Setup the output folder (standalone-vta/compiler_output/)
     output_dir = compiler_output_setup()
     # Binarise the result
-    file_path = filepath_definition(output_dir, 'reference.bin')
+    file_path = filepath_definition(output_dir, 'reference'+name+'.bin')
     with open(file_path, 'wb') as f:
         out_matrix.tofile(f)
 

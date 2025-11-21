@@ -1,5 +1,5 @@
 {
-  "NAME": "",
+  "NAME": "_T2",
   "MATRICES" : {
     "A": [16, 16, "../compiler_output/input_16x16.bin"],
     "C": [16, 16, "output"]
