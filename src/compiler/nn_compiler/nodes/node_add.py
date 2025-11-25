@@ -13,7 +13,7 @@ import utils.tensor_matrix_converter as TM
 
 # ADD
 # ---
-def node_add(node, filename='', param={},
+def node_add(node, param={}, node_mapping={}, filename='',
               debug=False):
     # Reset the vta_ir
     vta_ir = {}
@@ -58,37 +58,54 @@ def node_add(node, filename='', param={},
     if (len(inp_list) > 2):
         raise Exception(f"ERROR: Add should have 2 input tensors whereas it has {len(inp_list)}! \n")
 
+    # Count the nodes
+    idx_nodes = 0
+
     for j, inp in enumerate(inp_list):
-        # Get X
-        if (j == 0):
-            if (isFlat == True):
+        # Get the name
+        inp_name = inp['name']
+
+        # Get X and Y (be careful, it is in int32) -> X.shape = Y.shape
+        if (inp_name in node_mapping):
+            if (idx_nodes > 0):
+                # Check the consistency between both inputs
+                if (inp['shape'] != inp_tensor_shape):
+                    raise Exception(f"ERROR: Add must add 2 same shape tensors! \n")
+
+            elif (isFlat == True):
+                # Check there are 2 dimensions
+                if ( len(inp['shape']) != 2 ):
+                    raise Exception(f"ERROR: Wrong input shape ({len(inp['shape'])} dimensions when 2 are expected)! \n")
+                # Get the shape
                 inp_tensor_shape = (inp['shape'][0], inp['shape'][1], 1, 1)
-                if (len(inp['shape']) != 2): 
-                    raise Exception(f"ERROR: Shape must be 2 and is {len(inp['shape'])}! \n")
-                elif (inp_tensor_shape != out_tensor_shape):
+                # Check consistency between input and output
+                if (inp_tensor_shape != out_tensor_shape):
                     raise Exception(f"ERROR: Add should not modify the shape but inp_tensor_shape={inp_tensor_shape} and out_tensor_shape={out_tensor_shape}! \n")
 
             else:
+                # Check there are 4 dimensions
+                if ( len(inp['shape']) != 4 ):
+                    raise Exception(f"ERROR: Wrong input shape ({len(inp['shape'])} dimensions when 4 are expected)! \n")
+                # Get the shape
                 inp_tensor_shape = inp['shape'] # NCHW
-                if (len(inp['shape']) != 4): 
-                    raise Exception(f"ERROR: Shape must be 4 and is {len(inp['shape'])}! \n")
-                elif (inp_tensor_shape != out_tensor_shape):
+                # Check consistency between input and output
+                if (inp_tensor_shape != out_tensor_shape):
                     raise Exception(f"ERROR: Add should not modify the shape but inp_tensor_shape={inp_tensor_shape} and out_tensor_shape={out_tensor_shape}! \n")
 
-        # Get Y or Bias
-        elif (j == 1):
+            # Increment idx
+            idx_nodes = idx_nodes + 1
+
+        # Get bias
+        elif (inp_name in param):
+            isBias == True
+            # When (isFlat == True) -> bias.shape = 2, else 3
             if (isFlat == True): # If it is flat, it is bias!
                 isBias == True
-                if (len(inp['shape']) != 2):
-                    raise Exception(f"ERROR: Shape must be 2 and is {len(inp['shape'])}! \n")
 
-            else:
-                if (len(inp['shape']) == 4):
-                    isBias = False
-                    if (inp['shape'] != inp_tensor_shape):
-                        raise Exception(f"ERROR: Add must add 2 same shape tensors! \n")
-                else:
-                    isBias = True
+        # Else problem 
+        else:
+            raise Exception(f"ERROR: Unexpected input ({inp_name}) which does not come from another node nor parameters! \n")
+
 
 
     # Get the attributes

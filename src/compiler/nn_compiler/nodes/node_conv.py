@@ -13,7 +13,7 @@ import utils.tensor_matrix_converter as TM
 
 # MAIN FUNCTION
 # -------------
-def node_conv(node, filename='', param={}, 
+def node_conv(node, param={}, node_mapping={}, filename='',
               debug=False):
     # Reset the vta_ir
     vta_ir = {}
@@ -53,33 +53,62 @@ def node_conv(node, filename='', param={},
 
     # Get the input tensors
     # ---
+    # Count the nodes
+    idx_nodes = 0
+
     for j, inp in enumerate(inp_list):
+        # Get the name
+        inp_name = inp['name']
+
         # Get A
-        if (j == 0):
+        if (inp_name in node_mapping):
             if (op_type == 'MatMul'):
-                inp_tensor_shape = (inp['shape'][0], inp['shape'][1], 1, 1)
+                # Check there are 2 dimensions
+                if ( len(inp['shape']) != 2 ):
+                    raise Exception(f"ERROR: Wrong input shape ({len(inp['shape'])} dimensions when 2 are expected)! \n")
+                # Get the shape
+                if (idx_nodes == 0):
+                    inp_tensor_shape = (inp['shape'][0], inp['shape'][1], 1, 1)
+                elif (idx_nodes == 1):
+                    wgt_tensor_shape = (inp['shape'][0], inp['shape'][1], 1, 1)
+                else:
+                    raise Exception(f"ERROR: Unexpected input ({inp_name})! \n")
             else:
                 # Check there are 4 dimensions
                 if ( len(inp['shape']) != 4 ):
                     raise Exception(f"ERROR: Wrong input shape ({len(inp['shape'])} dimensions when 4 are expected)! \n")
-                inp_tensor_shape = inp['shape'] # NCHW
-        # Get B
-        elif (j == 1):
-            if (op_type == 'MatMul'):
-                wgt_tensor_shape = (inp['shape'][0], inp['shape'][1], 1, 1)
-            else:
-                # Check there are 4 dimensions
-                if ( len(inp['shape']) != 4 ):
-                    raise Exception(f"ERROR: Wrong input shape ({len(inp['shape'])} dimensions when 4 are expected)! \n")
-                wgt_tensor_shape = inp['shape'] # NCHW
-        # Get C
-        elif (j == 2):
-            # Check there is only 1 dimension
-            if ( len(inp['shape']) != 1 ):
-                raise Exception(f"ERROR: Wrong input shape ({len(inp['shape'])} dimensions when 1 is expected)! \n")
-            isBias = True
+                # Get the shape
+                if (idx_nodes == 0):
+                    inp_tensor_shape = inp['shape'] # NCHW
+                elif (idx_nodes == 1):
+                    wgt_tensor_shape = inp['shape'] # NCHW
+                else:
+                    raise Exception(f"ERROR: Unexpected input ({inp_name})! \n")
+
+            # Increment idx
+            idx_nodes = idx_nodes + 1
+        
+        # Get B or X
+        elif (inp_name in param):
+            # X (bias)
+            if (len(inp['shape']) == 1):
+                isBias = True
+
+            else: # B (weight)
+                if (op_type == 'MatMul'):
+                    # Check there are 2 dimensions
+                    if ( len(inp['shape']) != 2 ):
+                        raise Exception(f"ERROR: Wrong input shape ({len(inp['shape'])} dimensions when 2 are expected)! \n")
+                    wgt_tensor_shape = (inp['shape'][0], inp['shape'][1], 1, 1)
+                else:
+                    # Check there are 4 dimensions
+                    if ( len(inp['shape']) != 4 ):
+                        raise Exception(f"ERROR: Wrong input shape ({len(inp['shape'])} dimensions when 4 are expected)! \n")
+                    wgt_tensor_shape = inp['shape'] # NCHW
+        
+        # Else problem 
         else:
-            raise Exception(f"ERROR: More inputs than expected! \n")
+            raise Exception(f"ERROR: Unexpected input ({inp_name}) which does not come from another node nor parameters! \n")
 
 
     # Get the attributes
@@ -92,6 +121,7 @@ def node_conv(node, filename='', param={},
     mh = out_tensor_shape[2]
     mw = out_tensor_shape[3]
 
+    print(f"\nDEBUG: filename={filename}, wgt_tensor_shape={wgt_tensor_shape} \n\n")
     fh = wgt_tensor_shape[2]
     fw = wgt_tensor_shape[3]
     if (op_type != 'MatMul'):
@@ -191,8 +221,8 @@ def node_conv(node, filename='', param={},
 
 # MUL CONSTANT
 # ------------
-def node_mulconstant(node, filename='', param={},
-              debug=False):
+def node_mulconstant(node, param={}, node_mapping={}, filename='',
+                     debug=False):
     # Reset the vta_ir
     vta_ir = {}
 
@@ -229,20 +259,32 @@ def node_mulconstant(node, filename='', param={},
     if ( len(inp_list) > 2 ):
         raise Exception(f"ERROR: There are {len(inp_list)} when 2 are expected! \n")
     for j, inp in enumerate(inp_list):
+        # Get the name
+        inp_name = inp['name']
+
         # Get A
-        if ( len(inp['shape']) == 4 ):
+        if (inp_name in node_mapping):
+            # Check there are 4 dimensions
+            if ( len(inp['shape']) != 4 ):
+                raise Exception(f"ERROR: Wrong input shape ({len(inp['shape'])} dimensions when 4 are expected)! \n")
+            # Get the shape
             inp_tensor_shape = inp['shape'] # NCHW
             # Check consistency between input and output
             if (inp_tensor_shape != out_tensor_shape):
                 raise Exception(f"ERROR: MulConstant should not modify the shape, but inp_tensor_shape={inp_tensor_shape} and out_tensor_shape={out_tensor_shape}! \n")
 
         # Get scalar
-        elif ( len(inp['shape']) == 1 ):
+        elif (inp_name in param):
+            # Check there is 1 dimension
+            if ( len(inp['shape']) != 1 ):
+                raise Exception(f"ERROR: Wrong input shape ({len(inp['shape'])} dimensions when 1 is expected)! \n")
             scalar = round( param[inp['name']][0] )
 
-        # Else problem # TODO: Check for bias
+            # TODO: Check for bias
+
+        # Else problem 
         else:
-            raise Exception(f"ERROR: Input {inp} was not expected! \n")
+            raise Exception(f"ERROR: Unexpected input ({inp_name}) which does not come from another node nor parameters! \n")
 
 
     # Get the attributes

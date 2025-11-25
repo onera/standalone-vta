@@ -13,7 +13,7 @@ import utils.tensor_matrix_converter as TM
 
 # MAIN FUNCTION
 # -------------
-def node_pool(node, filename='', param={}, 
+def node_pool(node, param={}, node_mapping={}, filename='',
               debug=False):
     # Reset the vta_ir
     vta_ir = {}
@@ -50,15 +50,24 @@ def node_pool(node, filename='', param={},
 
     # Get the input tensors
     # ---
+    if ( len(inp_list) > 1 ):
+        raise Exception(f"ERROR: There are {len(inp_list)} when 1 is expected! \n")
+
     for j, inp in enumerate(inp_list):
-        # Get X
-        if (j == 0):
+        # Get the name
+        inp_name = inp['name']
+
+        # Get X (be careful, it is in int32)
+        if (inp_name in node_mapping):
             # Check there are 4 dimensions
             if ( len(inp['shape']) != 4 ):
                 raise Exception(f"ERROR: Wrong input shape ({len(inp['shape'])} dimensions when 4 are expected)! \n")
+            # Get the shape
             inp_tensor_shape = inp['shape'] # NCHW
+
+        # Else problem 
         else:
-            raise Exception(f"ERROR: More inputs than expected! \n")
+            raise Exception(f"ERROR: Unexpected input ({inp_name}) which does not come from another node nor parameters! \n")
 
 
     # Get the attributes

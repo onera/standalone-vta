@@ -79,6 +79,8 @@ def parse_onnx_to_dict(model_path, debug=False):
             'name': inp.name,
             'shape': tensor_dims.get(inp.name, 'Unknown')
         })
+        # Add the input to the mapping with index 0
+        tensor_name_to_node_index[inp.name] = 0
 
     # --- Graph Outputs ---
     graph_info['outputs'] = []

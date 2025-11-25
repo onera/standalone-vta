@@ -83,7 +83,7 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
         # Convolution or Fully-Connected
         if (op_type == "Conv" or op_type == "MatMul"): 
             # Get data from the node
-            vta_ir, (Ah, Aw_Bh, Bw), isBias = Nconv.node_conv(node=cpt_node, param=model_param, filename=filename, debug=False)
+            vta_ir, (Ah, Aw_Bh, Bw), isBias = Nconv.node_conv(node=cpt_node, param=model_param, node_mapping=dict_name_index, filename=filename, debug=False)
 
             # Generate the associated binaries
             if (doGenerateBin):
@@ -100,7 +100,7 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
         # Pooling
         elif (op_type == "MaxPool"): 
             # Get data from the node
-            vta_ir, (Xh, Xw) = Npool.node_pool(node=cpt_node, param=model_param, filename=filename, debug=False)
+            vta_ir, (Xh, Xw) = Npool.node_pool(node=cpt_node, param=model_param, node_mapping=dict_name_index, filename=filename, debug=False)
 
             # Generate the associated binaries
             if (doGenerateBin):
@@ -114,7 +114,7 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
         # MulConstant
         elif (op_type == "Mul"): 
             # Get data from the node
-            vta_ir, (Ah, Aw), isBias = Nconv.node_mulconstant(node=cpt_node, param=model_param, filename=filename, debug=False)
+            vta_ir, (Ah, Aw), isBias = Nconv.node_mulconstant(node=cpt_node, param=model_param, node_mapping=dict_name_index, filename=filename, debug=False)
 
             # Generate the associated binaries
             if (doGenerateBin):
@@ -130,7 +130,7 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
         # Activation
         elif (op_type == "Relu"): 
             # Get data from the node
-            vta_ir, (Xh, Xw) = Nactivation.node_relu(node=cpt_node, param=model_param, filename=filename, debug=False)
+            vta_ir, (Xh, Xw) = Nactivation.node_relu(node=cpt_node, param=model_param, node_mapping=dict_name_index, filename=filename, debug=False)
 
             # Generate the associated binaries
             if (doGenerateBin):
@@ -144,7 +144,7 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
         # ADD
         elif (op_type == "Add"): 
             # Get data from the node
-            vta_ir, (Xh, Xw), isBias = Nadd.node_add(node=cpt_node, param=model_param, filename=filename, debug=False)
+            vta_ir, (Xh, Xw), isBias = Nadd.node_add(node=cpt_node, param=model_param, node_mapping=dict_name_index, filename=filename, debug=False)
 
             # Generate the associated binaries
             if (doGenerateBin):
