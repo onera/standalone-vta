@@ -9,6 +9,7 @@ SIMULATOR_OUTPUT_DIR := $(PROJECT_DIR)/simulators_output
 SRC_DIR := $(PROJECT_DIR)/src
 COMPILER_DIR := $(SRC_DIR)/compiler
 VTA_COMPILER_DIR := $(COMPILER_DIR)/layer_compiler
+NN_COMPILER_DIR := $(COMPILER_DIR)/nn_compiler
 FSIM_DIR := $(SRC_DIR)/simulators/functional_simulator
 CONFIG := $(PROJECT_DIR)/config
 
@@ -17,17 +18,28 @@ CONFIG := $(PROJECT_DIR)/config
 DEBUG ?= True
 
 
-# EXECUTION
-###########
+############################################################
+############################################################
+
+# Default
 all: help
+
+# FSIM EXECUTION
+################
 
 fsim: 
 	@echo "Functional simulation"
 	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
 
 
+############################################################
+############################################################
+
+# COMPILATION TESTS
+###################
+
 # MATRIX MULTIPLICATION EXAMPLES
-matmul_16x16: ## Mutliply two 16x16-matrices and apply a ReLU (MAX with 0)
+matmul_16x16: ## Execute vta_ir/matmul_16x16.json
 	make clean
 	@echo "Create the binaries"
 	python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 input int8
@@ -47,7 +59,7 @@ matmul_16x16: ## Mutliply two 16x16-matrices and apply a ReLU (MAX with 0)
 	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
 
 # Test
-test_matmul:
+test_matmul: ## Test matrix multiplication with random size (1-2048)
 	make clean
 	@echo "Create the JSON matmul_relu"
 	python $(COMPILER_DIR)/utils/testing.py matmul
@@ -66,7 +78,7 @@ test_matmul:
 	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
 
 # Test
-test_matmul_relu:
+test_matmul_relu: ## Test matrix multiplication and ReLU with random size (1-2048)
 	make clean
 	@echo "Create the JSON matmul_relu"
 	python $(COMPILER_DIR)/utils/testing.py matmul_relu
@@ -86,7 +98,7 @@ test_matmul_relu:
 
 
 # MATRIX MULTIPLICATION WITH SCALAR EXAMPLES
-matrix_mul_constant: ## Mutliply a 16x16-matrices with a constant
+matrix_mul_constant: ## Execute vta_ir/matmulConst_16x16.json
 	make clean
 	@echo "Create the binaries"
 	python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 input int8
@@ -105,7 +117,7 @@ matrix_mul_constant: ## Mutliply a 16x16-matrices with a constant
 	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
 
 # Test
-test_mulconstant:
+test_mulconstant: ## Test the multiplication between random size matrix and scalar
 	make clean
 	@echo "Create the JSON mulconstant"
 	python $(COMPILER_DIR)/utils/testing.py mulconstant
@@ -125,7 +137,7 @@ test_mulconstant:
 
 
 # MATRIX POOLING EXAMPLE
-matrix_maxpool: ## Apply a maxpool with a 3x3-kernel on a flatten 6x6-tensor
+matrix_maxpool: ## Execute vta_ir/maxpool_36x16.json
 	make clean
 	@echo "Create the binaries"
 	python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 36 16 accumulator int32
@@ -144,7 +156,7 @@ matrix_maxpool: ## Apply a maxpool with a 3x3-kernel on a flatten 6x6-tensor
 	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
 
 # Test
-test_maxpool:
+test_maxpool: ## TestALU through MAXPOOL configuration with a random size matrix
 	make clean
 	@echo "Create the JSON maxpool"
 	python $(COMPILER_DIR)/utils/testing.py maxpool
@@ -164,7 +176,7 @@ test_maxpool:
 
 
 # ADDING 2 MATRICES EXAMPLES
-matrix_add: ## Add two 36x16 matrices together
+matrix_add: ## Execute vta_ir/add_36x16.json
 	make clean
 	@echo "Create the binaries"
 	python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 36 16 accumulator int32
@@ -184,7 +196,7 @@ matrix_add: ## Add two 36x16 matrices together
 	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
 
 # Test
-test_add:
+test_add: ## Test adding two same shape matrices together with random size
 	make clean
 	@echo "Create the JSON add_acc"
 	python $(COMPILER_DIR)/utils/testing.py add_acc
@@ -205,7 +217,7 @@ test_add:
 
 # GENERAL TESTS
 ###############
-test:
+test: ## Test campaign
 	@make test_matmul
 	@make test_matmul_relu
 	@make test_mulconstant
@@ -236,57 +248,34 @@ test_sequence:
 	@echo "Provide references..."
 
 
-# LENET-5 TESTS
-###############
-lenet5_layer1: 
-	make clean 
-	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/lenet5/lenet5_layer1.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
-	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
+############################################################
+############################################################
 
-lenet5_layer2: 
-	make clean 
-	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/lenet5/lenet5_layer2.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
-	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
-
-lenet5_layer3: 
-	make clean 
-	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/lenet5/lenet5_layer3.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
-	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
-
-lenet5_layer4: 
-	make clean 
-	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/lenet5/lenet5_layer4.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
-	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
-
-lenet5_layer5: 
-	make clean 
-	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/lenet5/lenet5_layer5.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
-	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
-
-lenet5_full: ## LeNet-5 simulation
-	make clean 
-	python $(MAKEFILE_DIR)matrix_operations/lenet5/lenet5_full/main_reference_lenet5.py > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
-	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/lenet5/lenet5_full/lenet5_layer1.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler_L1.txt
-	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/lenet5/lenet5_full/lenet5_layer2.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler_L2.txt
-	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/lenet5/lenet5_full/lenet5_layer3.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler_L3.txt
-	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/lenet5/lenet5_full/lenet5_layer4.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler_L4.txt
-	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/lenet5/lenet5_full/lenet5_layer5.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler_L5.txt
-	cd $(FSIM_DIR) && make -s lenet5 > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
+# ONNX PARSING
+##############
+# MNIST / LeNet
+parse_lenet: ## Parse a LeNet (mnsit-12) ONNX
+	make clean
 	@echo ""
-	@echo "SUCCESS!"
+	@echo "Parsing LENET ONNX..."
+	python $(NN_COMPILER_DIR)/vta_backend.py \
+	../../onnx_zoo/mnist-12.onnx \
+	True \
+	True > $(COMPILER_OUTPUT_DIR)/prompt_vta_backend.txt
+
+# YOLONAS
+parse_yolo: ## Parse a YoloNas ONNX
+	make clean
+	@echo ""
+	@echo "Parsing YOLO ONNX..."
+	python $(NN_COMPILER_DIR)/vta_backend.py \
+	../../onnx_zoo/yolonas.onnx \
+	True \
+	True > $(COMPILER_OUTPUT_DIR)/prompt_vta_backend.txt
 
 
-# YOLONAS TESTS
-###############
-yolonas_conv1:
-	make clean 
-	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/yolonas/yolonas_conv1.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
-	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
-
-yolonas_conv2:
-	make clean 
-	python $(VTA_COMPILER_DIR)/main_vta_compiler.py $(MAKEFILE_DIR)matrix_operations/yolonas/yolonas_conv2.json $(CONFIG)/vta_config.json $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
-	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
+############################################################
+############################################################
 
 
 # CREATE OUTPUTS DIRECTORIES
@@ -299,12 +288,12 @@ $(SIMULATOR_OUTPUT_DIR):
 
 # CLEAN
 #######
-.PHONY: clean debug help force_clean
+.PHONY: debug help clean force_clean
 clean: | $(COMPILER_OUTPUT_DIR) $(SIMULATOR_OUTPUT_DIR) ## Clean the project generated files (standalone/compiler_output/ and standalone/simulator_output/)
 	-rm $(COMPILER_OUTPUT_DIR)/*.*
 	-rm $(SIMULATOR_OUTPUT_DIR)/*.*
 
-force_clean:
+force_clean: ## Clean the FSIM directory
 	make clean
 	cd $(FSIM_DIR) && make clean
 

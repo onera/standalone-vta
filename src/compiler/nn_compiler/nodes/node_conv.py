@@ -143,7 +143,7 @@ def node_conv(node, filename='', param={},
     if (isBias == True):
         # Define the VTA IR
         vta_ir = {
-            "NAME": "",
+            "NAME": filename,
             "MATRICES": {
                 "A": [Ah, Aw_Bh, "../compiler_output/"+filename+"input_"+str(Ah)+"x"+str(Aw_Bh)+".bin"],
                 "B": [Aw_Bh, Bw, "../compiler_output/"+filename+"weight_"+str(Aw_Bh)+"x"+str(Bw)+".bin"],
@@ -163,7 +163,7 @@ def node_conv(node, filename='', param={},
     else:
         # Define the VTA IR
         vta_ir = {
-            "NAME": "",
+            "NAME": filename,
             "MATRICES": {
                 "A": [Ah, Aw_Bh, "../compiler_output/"+filename+"input_"+str(Ah)+"x"+str(Aw_Bh)+".bin"],
                 "B": [Aw_Bh, Bw, "../compiler_output/"+filename+"weight_"+str(Aw_Bh)+"x"+str(Bw)+".bin"],
@@ -292,7 +292,7 @@ def node_mulconstant(node, filename='', param={},
     if (isBias == True):
         # Define the VTA IR
         vta_ir = {
-            "NAME": "",
+            "NAME": filename,
             "MATRICES": {
                 "A": [Ah, Aw, "../compiler_output/"+filename+"input_"+str(Ah)+"x"+str(Aw)+".bin"],
                 "X": [Ah, Aw, "../compiler_output/"+filename+"accumulator_"+str(Ah)+"x"+str(Aw)+".bin"],
@@ -310,7 +310,7 @@ def node_mulconstant(node, filename='', param={},
     else:
         # Define the VTA IR
         vta_ir = {
-            "NAME": "",
+            "NAME": filename,
             "MATRICES": {
                 "A": [Ah, Aw, "../compiler_output/"+filename+"input_"+str(Ah)+"x"+str(Aw)+".bin"],
                 "C": [Ah, Aw, "output"]

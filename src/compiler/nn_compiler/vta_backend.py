@@ -220,7 +220,7 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
 if __name__ == "__main__": 
     """
     To execute: 
-        > python main_vta_compiler.py 
+        > python vta_backend.py 
             <onnx_model_path> 
             <doGenerateBin>
             <debug>

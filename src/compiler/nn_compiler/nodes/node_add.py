@@ -116,7 +116,7 @@ def node_add(node, filename='', param={},
     # Define the VTA IR
     # ---
     vta_ir = {
-        "NAME": "",
+        "NAME": filename,
         "MATRICES": {
             "X": [Xh, Xw, "../compiler_output/"+filename+"accumulator_"+str(Xh)+"x"+str(Xw)+".bin"],
             "Y": [Xh, Xw, "../compiler_output/"+filename+"accbis_"+str(Xh)+"x"+str(Xw)+".bin"],

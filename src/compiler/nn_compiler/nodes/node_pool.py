@@ -144,7 +144,7 @@ def node_pool(node, filename='', param={},
     # Define the VTA IR
     # ---
     vta_ir = {
-        "NAME": "",
+        "NAME": filename,
         "MATRICES": {
             "X": [Xh, Xw, "../compiler_output/"+filename+"accumulator_"+str(Xh)+"x"+str(Xw)+".bin"],
             "C": [Xh, Xw, "output"]
