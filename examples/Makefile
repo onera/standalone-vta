@@ -206,6 +206,15 @@ test_add:
 # GENERAL TESTS
 ###############
 test:
+	@make test_matmul
+	@make test_matmul_relu
+	@make test_mulconstant
+	@make test_maxpool
+	@make test_add
+	@echo ""
+	@echo "Everything has matched the reference!"
+
+test_sequence:
 	@make clean
 	@echo ""
 	@echo "Generate tests..."

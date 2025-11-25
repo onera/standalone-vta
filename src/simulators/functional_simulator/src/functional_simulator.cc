@@ -31,8 +31,18 @@ int execute_simulator(bool debug) {
 
     // Get the metadata
     // Block size
-    std::string block_size_str = getCsvElementByName(fileMetadataPath, "BS", 1);
+    std::string block_size_str = getCsvElementByName(fileMetadataPath, "BS", 2);
     int block_size = strToInt(block_size_str);
+
+    // out_square
+    std::string out_square_str = getCsvElementByName(fileMetadataPath, "BS", 1);
+    bool out_square;
+    if (out_square_str == "True"){
+        out_square = true;
+    }
+    else {
+        out_square = false;
+    }
 
     // A
     std::string A_row_str = getCsvElementByName(fileMetadataPath, "A", 1);
@@ -110,7 +120,7 @@ int execute_simulator(bool debug) {
     }
     else 
     {
-        accY = data_formatting(raw_accY, Y_row, Y_col, block_size, false);
+        accY = data_formatting(raw_accY, Y_row, Y_col, block_size, true);
     }
 
     // C
@@ -124,7 +134,7 @@ int execute_simulator(bool debug) {
     }
     else 
     {
-        refC = data_formatting(raw_refC, C_row, C_col, block_size, false); 
+        refC = data_formatting(raw_refC, C_row, C_col, block_size, out_square); 
     }
 
     // INSN + UOP

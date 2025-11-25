@@ -148,8 +148,9 @@ def data_definition(matrices_dict, block_size=16,
 
     # META INFORMATION
     # ----------------
+    outIsSquare = True if (doStoreFullMatrix == True) else False
     metadata = [
-        {"type": "BS", "rows": block_size, "columns": block_size},
+        {"type": "BS", "rows": outIsSquare, "columns": block_size},
         {"type": "A", "rows": A_row, "columns": A_col},
         {"type": "X", "rows": X_row, "columns": X_col},
         {"type": "Y", "rows": Y_row, "columns": Y_col},
