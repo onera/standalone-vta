@@ -263,22 +263,23 @@ if __name__ == "__main__":
     """
     To execute: 
         > python main_vta_compiler.py 
+            <debug>
             <config_file> 
             [<vta_ir>] 
     """
-    debug = True
     
-    # Need 3: script_name, config_file, vta_ir
+    # Need 3: script_name, debug, config_file, vta_ir
     if len(sys.argv) < 3:
         raise Exception("ERROR: The arguments must be <config_file> <json_file> ... \n\n")
 
+    # Set debug
+    debug = True if (sys.argv[1] == "True" or sys.argv[1] == "true") else False
     # Config file
-    vta_config_file = sys.argv[1]
+    vta_config_file = sys.argv[2]
     vta_config_dict = parse_json_to_dict(vta_config_file)
-    # print(f"\nDEBUG: vta_config_dict={vta_config_dict} \n")
 
     # VTA IR
-    for vta_ir in sys.argv[2:]:
+    for vta_ir in sys.argv[3:]:
         operations_dict = parse_json_to_dict(vta_ir)
 
         # Execute the main function

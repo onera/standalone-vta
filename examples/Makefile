@@ -44,6 +44,7 @@ reference:
 	@echo ""
 	@echo "PROVIDE references..."
 	python $(COMPILER_DIR)/reference_computation/reference_computation.py \
+	$(DEBUG) \
 	$(CONFIG)/vta_config.json \
 	$(JSON_FILES) > $(COMPILER_OUTPUT_DIR)/prompt_reference.txt
 
@@ -87,6 +88,7 @@ matmul_16x16: ## Execute vta_ir/matmul_16x16.json
 	@echo ""
 	@echo "Provide reference computation"
 	python $(COMPILER_DIR)/reference_computation/reference_computation.py \
+	$(DEBUG) \
 	$(CONFIG)/vta_config.json \
 	$(MAKEFILE_DIR)vta_ir/matmul_16x16.json  > $(COMPILER_OUTPUT_DIR)/prompt_reference.txt
 	@make fsim
@@ -124,6 +126,7 @@ matrix_mul_constant: ## Execute vta_ir/matmulConst_16x16.json
 	@echo ""
 	@echo "Provide reference computation"
 	python $(COMPILER_DIR)/reference_computation/reference_computation.py \
+	$(DEBUG) \
 	$(CONFIG)/vta_config.json \
 	$(MAKEFILE_DIR)vta_ir/matmulConst_16x16.json  > $(COMPILER_OUTPUT_DIR)/prompt_reference.txt
 	@make fsim
@@ -152,6 +155,7 @@ matrix_maxpool: ## Execute vta_ir/maxpool_36x16.json
 	@echo ""
 	@echo "Provide reference computation"
 	python $(COMPILER_DIR)/reference_computation/reference_computation.py \
+	$(DEBUG) \
 	$(CONFIG)/vta_config.json \
 	$(MAKEFILE_DIR)vta_ir/maxpool_36x16.json  > $(COMPILER_OUTPUT_DIR)/prompt_reference.txt
 	@echo ""
@@ -183,6 +187,7 @@ matrix_add: ## Execute vta_ir/add_36x16.json
 	@echo ""
 	@echo "Provide reference computation"
 	python $(COMPILER_DIR)/reference_computation/reference_computation.py \
+	$(DEBUG) \
 	$(CONFIG)/vta_config.json \
 	$(MAKEFILE_DIR)vta_ir/add_36x16.json  > $(COMPILER_OUTPUT_DIR)/prompt_reference.txt
 	@make fsim
