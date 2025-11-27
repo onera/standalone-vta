@@ -198,7 +198,7 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
             load_B = []
             load_X = [i for i in range(0, nb_X)]
             memory_status = load_X
-            dram_state = idx_to_store
+            dram_state = load_X
             store_C = dram_state
 
             # Create the strategy [([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])]

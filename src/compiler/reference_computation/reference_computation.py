@@ -184,9 +184,6 @@ def reference_computation(vta_config_dict, operations_dict,
 
     # Truncated result
     out_matrix = truncate_to_int8(final_acc_matrix.copy())
-
-    # Arrange the data
-    # TODO
     
     # Setup the output folder (standalone-vta/compiler_output/)
     output_dir = compiler_output_setup()
@@ -199,7 +196,7 @@ def reference_computation(vta_config_dict, operations_dict,
     # ---------------------------------------------
     # DEBUG
     if (debug):
-        print(f"\nREFERENCE COMPUTATION:")
+        print(f"\nREFERENCE COMPUTATION: {name} ")
 
         print(f"Initial matrices:")
         for key in init_matrices_dict.keys():
@@ -267,12 +264,12 @@ if __name__ == "__main__":
     To execute: 
         > python main_vta_compiler.py 
             <config_file> 
-            <vta_ir> 
+            [<vta_ir>] 
     """
     debug = True
     
     # Need 3: script_name, config_file, vta_ir
-    if len(sys.argv) != 3:
+    if len(sys.argv) < 3:
         raise Exception("ERROR: The arguments must be <config_file> <json_file> ... \n\n")
 
     # Config file
@@ -281,11 +278,11 @@ if __name__ == "__main__":
     # print(f"\nDEBUG: vta_config_dict={vta_config_dict} \n")
 
     # VTA IR
-    vta_ir = sys.argv[2]
-    operations_dict = parse_json_to_dict(vta_ir)
+    for vta_ir in sys.argv[2:]:
+        operations_dict = parse_json_to_dict(vta_ir)
 
-    # Execute the main function
-    reference_computation(vta_config_dict, operations_dict,
-                          debug=debug)
+        # Execute the main function
+        reference_computation(vta_config_dict, operations_dict,
+                              debug=debug)
 
     # END!

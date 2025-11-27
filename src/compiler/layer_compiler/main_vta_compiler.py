@@ -139,7 +139,9 @@ def main(vta_config_dict, operations_dict, base_address, dram_offset,
     store_list = operations_dict["STORE"][output_name]
     if ( type(store_list[0]) == str ):
         doStoreFullMatrix = True
-        # flat_store_list = list(range(0, matrices_dict[output_name][0]))
+        if (doAlu == True and \
+            doLoadInp == False and doLoadWgt == False and doLoadAcc == True):
+            flat_store_list = list(range(0, matrices_dict[output_name][0])) 
     else: # Compute the matrix row to store
         for store in store_list:
             dst_idx, dst_step = store[0]
@@ -197,7 +199,7 @@ def main(vta_config_dict, operations_dict, base_address, dram_offset,
     # MATRIX PARTITIONING # TODO: update
     # -------------------
     # Select a strategy in case of overfitting
-    strategy_selector = 1
+    strategy_selector = 4
 
     # Create a dict
     flag_dict = {
@@ -230,7 +232,6 @@ def main(vta_config_dict, operations_dict, base_address, dram_offset,
     # Order the list
     if (len(idx_to_store_to_sort) > 0):
         idx_to_store = SIS.sort_idx_to_store(idx_to_store=idx_to_store_to_sort, nb_col=C_blocks_col, block_size=block_size)
-        print(f"\nDEBUG: idx_to_store={idx_to_store} \n\t idx_to_store_to_sort={idx_to_store_to_sort} \n\n")
 
 
     # Apply matrix partitioning (check is overfit then applies selected trategy)
@@ -383,25 +384,26 @@ if __name__ == "__main__":
     """
     To execute: 
         > python main_vta_compiler.py 
+            <debug>
             <config_file> 
-            <json_file_1> [json_file_2] ...
+            [json_file_2] ...
     """
-    debug = True
     base_address = 0x0
-
     dram_offset = 0x0
 
     layer_addr_name = []
     
-    # Need at least 3: script_name, config_file, 1_json_file
-    if len(sys.argv) < 3:
-        raise Exception("ERROR: The arguments must be <config_file> <json_file_1> [json_file_2] ... \n\n")
+    # Need at least 4: script_name, debug, config_file, vta_ir
+    if len(sys.argv) < 4:
+        raise Exception(f"ERROR: There are {len(sys.argv)} arguments when 4 are expected! \n\n")
 
+    # Debug settings
+    debug = True if (sys.argv[1] == 'True' or sys.argv[1] == 'true') else False
     # Config file
-    vta_config_file = sys.argv[1]
+    vta_config_file = sys.argv[2]
     vta_config_dict = parse_json_to_dict(vta_config_file)
 
-    for vta_ir in sys.argv[2:]:
+    for vta_ir in sys.argv[3:]:
         # Parse the JSON files
         operations_dict = parse_json_to_dict(vta_ir)
 
@@ -418,6 +420,9 @@ if __name__ == "__main__":
     file_path = filepath_definition(output_dir, 'layers_name.csv')
     with open(file_path, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
+        # Write the number of JSON and the debug flag
+        writer.writerow(["nb_vta_ir", len(layer_addr_name), debug])
+        # Write the information
         for i, (add, n) in enumerate(layer_addr_name):
             writer.writerow([i, n, hex(add)])
 

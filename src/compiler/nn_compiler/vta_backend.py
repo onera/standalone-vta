@@ -228,23 +228,8 @@ if __name__ == "__main__":
     doGenerateBin = False
     debug = True
 
-    onnx_selector = 3
-
-    # Test ONNX
-    if (onnx_selector == 1): # Non-quantised LeNet-5
-        onnx_default = "/home/afauregi/Documents/onnx_zoo/mnist-12.onnx" 
-    elif (onnx_selector == 2): # Quantised LeNet-5
-        onnx_default = "/home/afauregi/Documents/onnx_zoo/mnist-12-int8.onnx" 
-    elif (onnx_selector == 3): # Non-quantised Yolo
-        onnx_default = "/home/afauregi/Documents/onnx_zoo/yolonas.onnx" 
-    elif (onnx_selector == 4): # Quantised Yolo
-        onnx_default = "/home/afauregi/Documents/onnx_zoo/yolonas_quantized_using_ONNX.onnx" 
-
-    
-    # Need at least 3: script_name, config_file, 1_json_file
     if (len(sys.argv) == 1):
-        onnx_model_path = onnx_default
-        # onnx_model_path = "/home/afauregi/Documents/onnx_zoo/yolonas_quantized_using_ONNX.onnx" 
+        onnx_model_path = "../../../../onnx_zoo/yolonas.onnx" 
     elif (len(sys.argv) == 2):
         onnx_model_path = sys.argv[1]
     elif (len(sys.argv) == 3):

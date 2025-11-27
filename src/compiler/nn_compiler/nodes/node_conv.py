@@ -121,7 +121,6 @@ def node_conv(node, param={}, node_mapping={}, filename='',
     mh = out_tensor_shape[2]
     mw = out_tensor_shape[3]
 
-    print(f"\nDEBUG: filename={filename}, wgt_tensor_shape={wgt_tensor_shape} \n\n")
     fh = wgt_tensor_shape[2]
     fw = wgt_tensor_shape[3]
     if (op_type != 'MatMul'):

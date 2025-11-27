@@ -15,7 +15,9 @@ CONFIG := $(PROJECT_DIR)/config
 
 # VARIABLES
 ###########
-DEBUG ?= True
+JSON_FILES := $(COMPILER_OUTPUT_DIR)/*.json
+
+DEBUG ?= False
 
 
 ############################################################
@@ -24,12 +26,44 @@ DEBUG ?= True
 # Default
 all: help
 
+
+# COMPILE EXISTING 
+##################
+compile:
+	@echo ""
+	@echo "COMPILE tests..."
+	python $(VTA_COMPILER_DIR)/main_vta_compiler.py \
+	$(DEBUG) \
+	$(CONFIG)/vta_config.json \
+	$(JSON_FILES) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
+
+
+# REFERENCE EXECUTION
+#####################
+reference:
+	@echo ""
+	@echo "PROVIDE references..."
+	python $(COMPILER_DIR)/reference_computation/reference_computation.py \
+	$(CONFIG)/vta_config.json \
+	$(JSON_FILES) > $(COMPILER_OUTPUT_DIR)/prompt_reference.txt
+
+
 # FSIM EXECUTION
 ################
-
 fsim: 
-	@echo "Functional simulation"
+	@echo ""
+	@echo "RUN functional simulation..."
 	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
+	@echo ""
+	@echo "SUCCESS!"
+
+
+# EXECUTION
+###########
+run:
+	@make compile
+	@make reference
+	@make fsim
 
 
 ############################################################
@@ -47,6 +81,7 @@ matmul_16x16: ## Execute vta_ir/matmul_16x16.json
 	@echo ""
 	@echo "Compiling the VTA IR"
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py \
+	$(DEBUG) \
 	$(CONFIG)/vta_config.json \
 	$(MAKEFILE_DIR)vta_ir/matmul_16x16.json > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
 	@echo ""
@@ -54,47 +89,25 @@ matmul_16x16: ## Execute vta_ir/matmul_16x16.json
 	python $(COMPILER_DIR)/reference_computation/reference_computation.py \
 	$(CONFIG)/vta_config.json \
 	$(MAKEFILE_DIR)vta_ir/matmul_16x16.json  > $(COMPILER_OUTPUT_DIR)/prompt_reference.txt
-	@echo ""
-	@echo "Functional simulation"
-	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
+	@make fsim
 
 # Test
 test_matmul: ## Test matrix multiplication with random size (1-2048)
 	make clean
-	@echo "Create the JSON matmul_relu"
+	@echo "CREATE the JSON matmul_relu"
 	python $(COMPILER_DIR)/utils/testing.py matmul
-	@echo ""
-	@echo "Compiling the VTA IR"
-	python $(VTA_COMPILER_DIR)/main_vta_compiler.py \
-	$(CONFIG)/vta_config.json \
-	$(COMPILER_OUTPUT_DIR)/matmul.json > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
-	@echo ""
-	@echo "Provide reference computation"
-	python $(COMPILER_DIR)/reference_computation/reference_computation.py \
-	$(CONFIG)/vta_config.json \
-	$(COMPILER_OUTPUT_DIR)/matmul.json > $(COMPILER_OUTPUT_DIR)/prompt_reference.txt
-	@echo ""
-	@echo "Functional simulation"
-	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
+	@make compile
+	@make reference
+	@make fsim
 
 # Test
 test_matmul_relu: ## Test matrix multiplication and ReLU with random size (1-2048)
 	make clean
-	@echo "Create the JSON matmul_relu"
+	@echo "CREATE the JSON matmul_relu"
 	python $(COMPILER_DIR)/utils/testing.py matmul_relu
-	@echo ""
-	@echo "Compiling the VTA IR"
-	python $(VTA_COMPILER_DIR)/main_vta_compiler.py \
-	$(CONFIG)/vta_config.json \
-	$(COMPILER_OUTPUT_DIR)/matmul_relu.json > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
-	@echo ""
-	@echo "Provide reference computation"
-	python $(COMPILER_DIR)/reference_computation/reference_computation.py \
-	$(CONFIG)/vta_config.json \
-	$(COMPILER_OUTPUT_DIR)/matmul_relu.json > $(COMPILER_OUTPUT_DIR)/prompt_reference.txt
-	@echo ""
-	@echo "Functional simulation"
-	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
+	@make compile
+	@make reference
+	@make fsim
 
 
 # MATRIX MULTIPLICATION WITH SCALAR EXAMPLES
@@ -105,6 +118,7 @@ matrix_mul_constant: ## Execute vta_ir/matmulConst_16x16.json
 	@echo ""
 	@echo "Compiling the VTA IR"
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py \
+	$(DEBUG) \
 	$(CONFIG)/vta_config.json \
 	$(MAKEFILE_DIR)vta_ir/matmulConst_16x16.json > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
 	@echo ""
@@ -112,28 +126,16 @@ matrix_mul_constant: ## Execute vta_ir/matmulConst_16x16.json
 	python $(COMPILER_DIR)/reference_computation/reference_computation.py \
 	$(CONFIG)/vta_config.json \
 	$(MAKEFILE_DIR)vta_ir/matmulConst_16x16.json  > $(COMPILER_OUTPUT_DIR)/prompt_reference.txt
-	@echo ""
-	@echo "Functional simulation"
-	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
+	@make fsim
 
 # Test
 test_mulconstant: ## Test the multiplication between random size matrix and scalar
 	make clean
-	@echo "Create the JSON mulconstant"
+	@echo "CREATE the JSON mulconstant"
 	python $(COMPILER_DIR)/utils/testing.py mulconstant
-	@echo ""
-	@echo "Compiling the VTA IR"
-	python $(VTA_COMPILER_DIR)/main_vta_compiler.py \
-	$(CONFIG)/vta_config.json \
-	$(COMPILER_OUTPUT_DIR)/mulconstant.json > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
-	@echo ""
-	@echo "Provide reference computation"
-	python $(COMPILER_DIR)/reference_computation/reference_computation.py \
-	$(CONFIG)/vta_config.json \
-	$(COMPILER_OUTPUT_DIR)/mulconstant.json > $(COMPILER_OUTPUT_DIR)/prompt_reference.txt
-	@echo ""
-	@echo "Functional simulation"
-	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
+	@make compile
+	@make reference
+	@make fsim
 
 
 # MATRIX POOLING EXAMPLE
@@ -144,6 +146,7 @@ matrix_maxpool: ## Execute vta_ir/maxpool_36x16.json
 	@echo ""
 	@echo "Compiling the VTA IR"
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py \
+	$(DEBUG) \
 	$(CONFIG)/vta_config.json \
 	$(MAKEFILE_DIR)vta_ir/maxpool_36x16.json > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
 	@echo ""
@@ -158,21 +161,11 @@ matrix_maxpool: ## Execute vta_ir/maxpool_36x16.json
 # Test
 test_maxpool: ## TestALU through MAXPOOL configuration with a random size matrix
 	make clean
-	@echo "Create the JSON maxpool"
+	@echo "CREATE the JSON maxpool"
 	python $(COMPILER_DIR)/utils/testing.py maxpool
-	@echo ""
-	@echo "Compiling the VTA IR"
-	python $(VTA_COMPILER_DIR)/main_vta_compiler.py \
-	$(CONFIG)/vta_config.json \
-	$(COMPILER_OUTPUT_DIR)/maxpool.json > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
-	@echo ""
-	@echo "Provide reference computation"
-	python $(COMPILER_DIR)/reference_computation/reference_computation.py \
-	$(CONFIG)/vta_config.json \
-	$(COMPILER_OUTPUT_DIR)/maxpool.json > $(COMPILER_OUTPUT_DIR)/prompt_reference.txt
-	@echo ""
-	@echo "Functional simulation"
-	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
+	@make compile
+	@make reference
+	@make fsim
 
 
 # ADDING 2 MATRICES EXAMPLES
@@ -184,6 +177,7 @@ matrix_add: ## Execute vta_ir/add_36x16.json
 	@echo ""
 	@echo "Compiling the VTA IR"
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py \
+	$(DEBUG) \
 	$(CONFIG)/vta_config.json \
 	$(MAKEFILE_DIR)vta_ir/add_36x16.json > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
 	@echo ""
@@ -191,28 +185,16 @@ matrix_add: ## Execute vta_ir/add_36x16.json
 	python $(COMPILER_DIR)/reference_computation/reference_computation.py \
 	$(CONFIG)/vta_config.json \
 	$(MAKEFILE_DIR)vta_ir/add_36x16.json  > $(COMPILER_OUTPUT_DIR)/prompt_reference.txt
-	@echo ""
-	@echo "Functional simulation"
-	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
+	@make fsim
 
 # Test
 test_add: ## Test adding two same shape matrices together with random size
 	make clean
-	@echo "Create the JSON add_acc"
+	@echo "CREATE the JSON add_acc"
 	python $(COMPILER_DIR)/utils/testing.py add_acc
-	@echo ""
-	@echo "Compiling the VTA IR"
-	python $(VTA_COMPILER_DIR)/main_vta_compiler.py \
-	$(CONFIG)/vta_config.json \
-	$(COMPILER_OUTPUT_DIR)/add_acc.json > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
-	@echo ""
-	@echo "Provide reference computation"
-	python $(COMPILER_DIR)/reference_computation/reference_computation.py \
-	$(CONFIG)/vta_config.json \
-	$(COMPILER_OUTPUT_DIR)/add_acc.json > $(COMPILER_OUTPUT_DIR)/prompt_reference.txt
-	@echo ""
-	@echo "Functional simulation"
-	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
+	@make compile
+	@make reference
+	@make fsim
 
 
 # GENERAL TESTS
@@ -229,23 +211,15 @@ test: ## Test campaign
 test_sequence:
 	@make clean
 	@echo ""
-	@echo "Generate tests..."
+	@echo "GENERATE tests..."
 	python $(COMPILER_DIR)/utils/testing.py matmul
 	python $(COMPILER_DIR)/utils/testing.py matmul_relu
 	python $(COMPILER_DIR)/utils/testing.py mulconstant
 	python $(COMPILER_DIR)/utils/testing.py maxpool
 	python $(COMPILER_DIR)/utils/testing.py add_acc
-	@echo ""
-	@echo "Compile tests..."
-	python $(VTA_COMPILER_DIR)/main_vta_compiler.py \
-	$(CONFIG)/vta_config.json \
-	$(COMPILER_OUTPUT_DIR)/matmul.json \
-	$(COMPILER_OUTPUT_DIR)/matmul_relu.json \
-	$(COMPILER_OUTPUT_DIR)/mulconstant.json \
-	$(COMPILER_OUTPUT_DIR)/maxpool.json \
-	$(COMPILER_OUTPUT_DIR)/add_acc.json > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
-	@echo ""
-	@echo "Provide references..."
+	@make compile
+	@make reference
+	@make fsim
 
 
 ############################################################
@@ -257,21 +231,30 @@ test_sequence:
 parse_lenet: ## Parse a LeNet (mnsit-12) ONNX
 	make clean
 	@echo ""
-	@echo "Parsing LENET ONNX..."
+	@echo "PARSE LENET ONNX..."
 	python $(NN_COMPILER_DIR)/vta_backend.py \
 	../../onnx_zoo/mnist-12.onnx \
 	True \
-	True > $(COMPILER_OUTPUT_DIR)/prompt_vta_backend.txt
+	$(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_backend.txt
 
 # YOLONAS
 parse_yolo: ## Parse a YoloNas ONNX
 	make clean
 	@echo ""
-	@echo "Parsing YOLO ONNX..."
+	@echo "PARSE YOLO ONNX..."
 	python $(NN_COMPILER_DIR)/vta_backend.py \
 	../../onnx_zoo/yolonas.onnx \
 	True \
-	True > $(COMPILER_OUTPUT_DIR)/prompt_vta_backend.txt
+	$(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_backend.txt
+
+parse_pattern_yolo: ## Parse a pattern of the YoloNas ONNX
+	make clean
+	@echo ""
+	@echo "PARSE a pattern of YOLO ONNX..."
+	python $(NN_COMPILER_DIR)/vta_backend.py \
+	../../onnx_zoo/subgraph_pattern.onnx \
+	True \
+	$(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_backend.txt
 
 
 ############################################################
@@ -296,6 +279,11 @@ clean: | $(COMPILER_OUTPUT_DIR) $(SIMULATOR_OUTPUT_DIR) ## Clean the project gen
 force_clean: ## Clean the FSIM directory
 	make clean
 	cd $(FSIM_DIR) && make clean
+
+clean_bin: | $(COMPILER_OUTPUT_DIR) 
+	-rm $(COMPILER_OUTPUT_DIR)/*.bin
+clean_csv: | $(COMPILER_OUTPUT_DIR) 
+	-rm $(COMPILER_OUTPUT_DIR)/*.csv
 
 
 # DEBUG

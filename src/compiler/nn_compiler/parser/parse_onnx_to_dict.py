@@ -226,19 +226,8 @@ if __name__ == "__main__":
     """
     debug = True
 
-    onnx_selector = 3
+    onnx_model_path = "../../../../onnx_zoo/yolonas.onnx" 
 
-    # Test ONNX
-    if (onnx_selector == 1): # Non-quantised LeNet-5
-        onnx_model_path = "/home/afauregi/Documents/onnx_zoo/mnist-12.onnx" 
-    elif (onnx_selector == 2): # Quantised LeNet-5
-        onnx_model_path = "/home/afauregi/Documents/onnx_zoo/mnist-12-int8.onnx" 
-    elif (onnx_selector == 3): # Non-quantised Yolo
-        onnx_model_path = "/home/afauregi/Documents/onnx_zoo/yolonas.onnx" 
-    elif (onnx_selector == 4): # Quantised Yolo
-        onnx_model_path = "/home/afauregi/Documents/onnx_zoo/yolonas_quantized_using_ONNX.onnx" 
-
-  
     # Execute the backend
     result = parse_onnx_to_dict(onnx_model_path, debug=debug)
 

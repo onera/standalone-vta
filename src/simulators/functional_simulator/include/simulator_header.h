@@ -31,7 +31,7 @@
     Execute simulator's prototype
   *******************************/
   // Execute simulator using binary files
-  int execute_simulator(bool debug=false);
+  int execute_simulator();
 
   /********************
     READ BINARY FILES
