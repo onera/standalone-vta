@@ -404,6 +404,7 @@ if __name__ == "__main__":
     vta_config_dict = parse_json_to_dict(vta_config_file)
 
     for vta_ir in sys.argv[3:]:
+        # print(f"\nDEBUG: vta_ir={vta_ir} \n\n")
         # Parse the JSON files
         operations_dict = parse_json_to_dict(vta_ir)
 

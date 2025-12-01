@@ -32,6 +32,7 @@
   *******************************/
   // Execute simulator using binary files
   int execute_simulator();
+  int fsim_nn();
 
   /********************
     READ BINARY FILES

@@ -253,5 +253,422 @@
       return flatten_blocks(blocks);
   }
 
+  // convert_vector_type
+  /**
+    * Converts a vector of one type to a vector of another type.
+    * (e.g., int8_t to int32_t).
+    *
+    * Args:
+    * input: The source vector of type T_IN.
+    *
+    * Returns:
+    * A new vector of type T_OUT containing the converted values.
+    */
+  template <typename T_OUT, typename T_IN>
+  std::vector<T_OUT> convert_vector_type(const std::vector<T_IN>& input) {
+      // The vector range constructor performs implicit type conversion automatically.
+      // It also handles memory allocation efficiently in one go.
+      return std::vector<T_OUT>(input.begin(), input.end());
+  }
+
+  // --------------------------------------------------------
+  // RESHAPE HELPER FUNCTIONS (Dependencies for main reshape)
+  // --------------------------------------------------------
+
+  // to_blocks
+  /**
+   * Transforms a 1D vector into a 2D matrix of block matrices.
+   * * Args:
+   * vector: Input 1D array
+   * block_col: Number of blocks per row
+   * block_size: Base size for square blocks (width for last row blocks)
+   * * Returns:
+   * Vector of vectors containing vectors representing blocks (4D structure)
+   */
+  template <typename T>
+  std::vector<std::vector<std::vector<std::vector<T>>>> to_blocks(
+      const std::vector<T>& vector, 
+      int block_col, 
+      int block_size) {
+      
+      std::vector<std::vector<std::vector<std::vector<T>>>> B;
+      
+      // 1. Calculate full row count
+      int elements_per_full_row = block_col * block_size * block_size;
+      int block_row = vector.size() / elements_per_full_row;
+      
+      // 2. Calculate last row parameters
+      int remaining = vector.size() % elements_per_full_row;
+      bool last_row_exists = remaining > 0;
+      
+      // 3. Process complete rows
+      for (int i = 0; i < block_row; i++) {
+          std::vector<std::vector<std::vector<T>>> row;
+          for (int j = 0; j < block_col; j++) {
+              int start = (i * block_col + j) * block_size * block_size;
+              // int end = start + block_size * block_size; // Unused variable removed
+              
+              std::vector<std::vector<T>> block(block_size, std::vector<T>(block_size, T{}));
+              for (int r = 0; r < block_size; r++) {
+                  for (int c = 0; c < block_size; c++) {
+                      block[r][c] = vector[start + r * block_size + c];
+                  }
+              }
+              row.push_back(block);
+          }
+          B.push_back(row);
+      }
+      
+      // 4. Handle last incomplete row if needed
+      if (last_row_exists) {
+          int elements_per_block = remaining / block_col;
+          int subheight = elements_per_block / block_size;
+          std::vector<std::vector<std::vector<T>>> last_row;
+          int base_index = block_row * elements_per_full_row;
+          
+          for (int j = 0; j < block_col; j++) {
+              int start = base_index + j * elements_per_block;
+              int end = start + elements_per_block;
+              
+              std::vector<T> block_flat;
+              for (int k = start; k < std::min(end, (int)vector.size()); k++) {
+                  block_flat.push_back(vector[k]);
+              }
+              
+              // Handle potential padding for reshape
+              while (block_flat.size() < (size_t)(subheight * block_size)) {
+                  block_flat.push_back(T{}); // Padding with default value
+              }
+              
+              std::vector<std::vector<T>> block(subheight, std::vector<T>(block_size, T{}));
+              for (int r = 0; r < subheight; r++) {
+                  for (int c = 0; c < block_size; c++) {
+                      block[r][c] = block_flat[r * block_size + c];
+                  }
+              }
+              last_row.push_back(block);
+          }
+          B.push_back(last_row);
+      }
+      
+      return B;
+  }
+
+  // unsplit
+  /**
+   * Reconstructs a matrix from blocks created by to_blocks(), removing padding.
+   */
+  template <typename T>
+  std::vector<std::vector<T>> unsplit(
+      const std::vector<std::vector<std::vector<std::vector<T>>>>& list_blocks,
+      int block_size,
+      int matrix_height,
+      int matrix_width) {
+      
+      // Initialize the final matrix
+      std::vector<std::vector<T>> reconstructed(
+          matrix_height, std::vector<T>(matrix_width, T{}));
+      
+      // Iterate over every element in the final matrix
+      for (int i = 0; i < matrix_height; i++) {
+          for (int j = 0; j < matrix_width; j++) {
+              // Calculate the indices of the block containing (i, j)
+              int delta_height = i / block_size;  // Row index of the block
+              int delta_width = j / block_size;   // Column index of the block
+              
+              // Calculate the position within the block
+              int r = i % block_size;  // Row inside the block
+              int t = j % block_size;  // Column inside the block
+              
+              // Access the corresponding block and copy the value
+              if (delta_height < (int)list_blocks.size() && delta_width < (int)list_blocks[delta_height].size()) {
+                  const auto& block = list_blocks[delta_height][delta_width];
+                  if (r < (int)block.size() && t < (int)block[r].size()) {  // Ensure no padding is copied
+                      reconstructed[i][j] = block[r][t];
+                  }
+              }
+          }
+      }
+      
+      return reconstructed;
+  }
+
+  // mat_to_tensor
+  /**
+   * Converts a result matrix (after matmul) into a 4D tensor by rearranging the channels.
+   * Mimics Python's res.T.reshape().
+   */
+  template <typename T>
+  std::vector<std::vector<std::vector<std::vector<T>>>> mat_to_tensor(
+      const std::vector<std::vector<T>>& res,
+      int batch_size,
+      int output_channels,
+      int output_height,
+      int output_width) {
+      
+      // Create output tensor of shape (batch_size, output_channels, output_height, output_width)
+      std::vector<std::vector<std::vector<std::vector<T>>>> tensor(
+          batch_size,
+          std::vector<std::vector<std::vector<T>>>(
+              output_channels,
+              std::vector<std::vector<T>>(
+                  output_height,
+                  std::vector<T>(output_width, T{})
+              )
+          )
+      );
+      
+      // Transpose and reshape the matrix into a tensor
+      int idx = 0;
+      for (int h = 0; h < (int)res[0].size(); h++) {
+          for (int w = 0; w < (int)res.size(); w++) {
+              int b = idx / (output_channels * output_height * output_width);
+              int remainder = idx % (output_channels * output_height * output_width);
+              int c = remainder / (output_height * output_width);
+              remainder = remainder % (output_height * output_width);
+              int y = remainder / output_width;
+              int x = remainder % output_width;
+              
+              if (b < batch_size && c < output_channels && y < output_height && x < output_width) {
+                  // UTILISEZ .at() POUR DÉTECTER LE CRASH ICI
+                  try {
+                      tensor.at(b).at(c).at(y).at(x) = res.at(w).at(h);
+                  } catch (const std::out_of_range& e) {
+                      std::cerr << "CRITICAL ERROR in mat_to_tensor!" << std::endl;
+                      std::cerr << "Accessing tensor["<<b<<"]["<<c<<"]["<<y<<"]["<<x<<"]" << std::endl;
+                      std::cerr << "Reading res["<<w<<"]["<<h<<"]" << std::endl;
+                      exit(1);
+                  }
+              }
+              idx++;
+          }
+      }
+      return tensor;
+  }
+
+  // pad_tensor
+  /**
+   * Adds spatial padding to a 4D tensor.
+   *
+   * Args:
+   * tensor: Input 4D tensor (batch, channel, height, width)
+   * padding: Vector of 4 integers [top, left, bottom, right]
+   * (Standard ONNX format: H_begin, W_begin, H_end, W_end)
+   *
+   * Returns:
+   * Padded 4D tensor
+   */
+  template <typename T>
+  std::vector<std::vector<std::vector<std::vector<T>>>> pad_tensor(
+      const std::vector<std::vector<std::vector<std::vector<T>>>>& tensor,
+      const std::vector<int>& padding) {
+      
+      // Safety check
+      if (padding.size() != 4) {
+           // Fallback or throw, here we assume clean input or treat as no padding
+           if (padding.empty()) return tensor;
+           throw std::invalid_argument("Padding vector must have size 4: [top, left, bottom, right]");
+      }
+
+      int pad_top = padding[0];
+      int pad_left = padding[1];
+      int pad_bottom = padding[2];
+      int pad_right = padding[3];
+
+      // Optimization: if no padding is needed, return original
+      if (pad_top == 0 && pad_left == 0 && pad_bottom == 0 && pad_right == 0) {
+          return tensor;
+      }
+
+      int batch_size = tensor.size();
+      int channels = tensor[0].size();
+      int height = tensor[0][0].size();
+      int width = tensor[0][0][0].size();
+
+      int new_height = height + pad_top + pad_bottom;
+      int new_width = width + pad_left + pad_right;
+
+      // Initialize new tensor with default values (T{} -> 0)
+      std::vector<std::vector<std::vector<std::vector<T>>>> padded_tensor(
+          batch_size,
+          std::vector<std::vector<std::vector<T>>>(
+              channels,
+              std::vector<std::vector<T>>(
+                  new_height,
+                  std::vector<T>(new_width, T{})
+              )
+          )
+      );
+
+      // Copy original data to the center
+      for (int b = 0; b < batch_size; ++b) {
+          for (int c = 0; c < channels; ++c) {
+              for (int h = 0; h < height; ++h) {
+                  for (int w = 0; w < width; ++w) {
+                      padded_tensor[b][c][h + pad_top][w + pad_left] = tensor[b][c][h][w];
+                  }
+              }
+          }
+      }
+
+      return padded_tensor;
+  }
+
+  // im2row
+  /**
+   * Converts an input tensor X into a matrix (im2row).
+   */
+  template <typename T>
+  std::vector<std::vector<T>> im2row(
+      const std::vector<std::vector<std::vector<std::vector<T>>>>& X,
+      std::pair<int, int> kernel_size,
+      int stride) {
+      
+      int batch_size = X.size();
+      int input_channels = X[0].size();
+      int input_height = X[0][0].size();
+      int input_width = X[0][0][0].size();
+      int kernel_height = kernel_size.first;
+      int kernel_width = kernel_size.second;
+      
+      // Calculate the output dimensions
+      int output_height = (input_height - kernel_height) / stride + 1;
+      int output_width = (input_width - kernel_width) / stride + 1;
+      
+      // Initial output matrix
+      int rows = batch_size * output_height * output_width;
+      int cols = input_channels * kernel_height * kernel_width;
+      // Initial output matrix
+      std::vector<std::vector<T>> result(rows, std::vector<T>(cols, T{}));
+      
+      // Fill the matrix with patches
+      int row_idx = 0;
+      for (int b = 0; b < batch_size; b++) {
+          for (int i = 0; i <= input_height - kernel_height; i += stride) {
+              for (int j = 0; j <= input_width - kernel_width; j += stride) {
+                  
+                  // SECURITE : Vérifier row_idx AVANT d'écrire
+                  if (row_idx >= rows) {
+                      std::cerr << "CRITICAL ERROR in im2row: Row overflow!" << std::endl;
+                      std::cerr << "Current row_idx: " << row_idx << " >= Allocated rows: " << rows << std::endl;
+                      exit(1);
+                  }
+
+                  int col_idx = 0;
+                  for (int c = 0; c < input_channels; c++) {
+                      for (int ki = 0; ki < kernel_height; ki++) {
+                          for (int kj = 0; kj < kernel_width; kj++) {
+                              
+                              // SECURITE : Vérifier col_idx
+                              if (col_idx >= cols) {
+                                   std::cerr << "CRITICAL ERROR in im2row: Col overflow!" << std::endl;
+                                   std::cerr << "Current col_idx: " << col_idx << " >= Allocated cols: " << cols << std::endl;
+                                   exit(1);
+                              }
+                              
+                              // Utilisation de .at() pour l'accès au tenseur source aussi
+                              try {
+                                result.at(row_idx).at(col_idx++) = X.at(b).at(c).at(i + ki).at(j + kj);
+                              } catch (...) {
+                                std::cerr << "CRITICAL ERROR in im2row: Source tensor access out of bounds" << std::endl;
+                                exit(1);
+                              }
+                          }
+                      }
+                  }
+                  row_idx++;
+              }
+          }
+      }
+      
+      return result;
+  }
+
+
+  // --------------------------------------------------------
+  // MAIN RESHAPE FUNCTION
+  // --------------------------------------------------------
+
+  // reshape
+  /**
+   * Main reshape function that combines all transformation steps.
+   * * Steps:
+   * 1. Vector -> Blocks (to_blocks)
+   * 2. Blocks -> Matrix (unsplit - unpad)
+   * 3. Matrix -> Tensor (mat_to_tensor) (+ pad)
+   * 4. Tensor -> New Matrix (im2row)
+   * 5. New Matrix -> Padded Matrix (matrix_padding)
+   * 6. Padded Matrix -> Blocks (matrix_splitting)
+   * 7. Blocks -> Vector (flatten_blocks)
+   */
+  template <typename T>
+  std::vector<T> reshape(
+      const std::vector<T>& vector,
+      int block_size,
+      int batch_size,
+      int tensor_channel,
+      int tensor_height,
+      int tensor_width,
+      std::pair<int, int> kernel_size,
+      int stride,
+      const std::vector<int>& padding = {0, 0, 0, 0},
+      bool isSquare = false) { 
+
+      if (vector.empty()) {
+          std::cerr << "ERROR: Input vector is empty!" << std::endl;
+          return {};
+      }
+
+      // 0 - CALCULATE VARIABLES
+      int prev_outC_matrix_height = tensor_height * tensor_width;
+      int prev_outC_matrix_width = tensor_channel;
+      int block_col = (prev_outC_matrix_width + block_size - 1) / block_size;
+      
+
+      // 1 - VECTOR -> BLOCKS
+      auto list_blocks = to_blocks(vector, block_col, block_size);
+
+      
+      // 2 - BLOCKS -> MATRIX (unpad)
+      auto previous_matrix = unsplit(list_blocks, block_size, prev_outC_matrix_height, prev_outC_matrix_width);
+
+      if (previous_matrix.empty()) {
+           std::cerr << "CRITICAL: unsplit returned empty matrix." << std::endl;
+           exit(1);
+      }
+
+
+      // 3 - MATRIX -> TENSOR
+      auto tensor = mat_to_tensor(previous_matrix, batch_size, tensor_channel, tensor_height, tensor_width);
+      
+
+      // Check tensor validity
+      if (tensor.empty() || tensor[0].empty() || tensor[0][0].empty()) {
+          std::cerr << "CRITICAL: Tensor dimensions invalid/empty after step 3." << std::endl;
+          exit(1);
+      }
+      
+      // 3.5 - APPLY PADDING
+      auto padded_tensor = pad_tensor(tensor, padding);
+
+
+      // 4 - TENSOR -> NEW MATRIX (unpad)
+      auto new_matrix = im2row(padded_tensor, kernel_size, stride);
+
+      
+      // 5 - NEW MATRIX -> PADDED MATRIX
+      auto padded_matrix = matrix_padding(new_matrix, block_size, isSquare);
+
+      
+      // 6 - PADDED MATRIX -> BLOCKS
+      auto [blocks, _] = matrix_splitting(padded_matrix, block_size, isSquare);
+
+      
+      // 7 - BLOCKS -> VECTOR (flatten blocks)
+      auto res = flatten_blocks(blocks);
+
+      
+      return res;
+  }
 
 #endif  // CPU_FUNCTIONS_H

@@ -4,12 +4,14 @@ import os
 import sys
 
 import json
+import csv
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.find_project_root import *
 import utils.random_raw_binary_generator as RRBG
 
 import nn_compiler.parser.parse_onnx_to_dict as PO
+import nn_compiler.parser.get_input_nodes as PG
 import nn_compiler.nodes.node_conv as Nconv
 import nn_compiler.nodes.node_pool as Npool
 import nn_compiler.nodes.node_add as Nadd
@@ -43,7 +45,7 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
     vta_ir_list = []
 
     # List the VTA compatible nodes and get the index of each
-    vta_compatible_node = [
+    vta_compatible_nodes = [
         # GeMM
         'Conv',
         'MatMul', # As conv
@@ -58,6 +60,14 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
     vta_node_idx_list = []
     cpu_node_list = []
 
+
+    # GET EXECUTION ORDER
+    # -------------------
+    execution_order = []
+
+
+    # GENERATE VTA IR
+    # ---------------
     for i, cpt_node in enumerate(compute_nodes):
         # Reset the vta_ir
         vta_ir = {}
@@ -68,25 +78,44 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
         op_type = cpt_node['op_type']
 
         # Get the index of the VTA executable nodes
-        if (op_type in vta_compatible_node):
+        if (op_type in vta_compatible_nodes):
             vta_node_idx_list.append(index)
         else: # Not compatible
             cpu_node_list.append( (index, op_type) )
             continue # No need to finish this loop
 
-
         # Define the name
         filename = op_type + str(index)
+
+        # Reset node_dependency
+        input_dependency = PG.get_input_nodes(compute_nodes=compute_nodes, input_nodes=cpt_node['inputs'], dict_name_index=dict_name_index) 
+
+        node_dependency = {
+            "node_name": filename,
+            "processor": "cpu",
+            "reshape": False,
+            "input_shape": [0,0,0,0],
+            "output_shape": [0,0,0,0],
+            "kernel": [0,0],
+            "stride": [0,0],
+            "padding": [0,0,0,0],
+            "input_nodes": input_dependency.copy()
+        }
 
         # Define operation for each task
         # ---
         # Convolution or Fully-Connected
         if (op_type == "Conv" or op_type == "MatMul"): 
             # Get data from the node
-            vta_ir, (Ah, Aw_Bh, Bw), isBias = Nconv.node_conv(node=cpt_node, param=model_param, node_mapping=dict_name_index, filename=filename, debug=False)
+            vta_ir, info, isBias = \
+                Nconv.node_conv(node=cpt_node, param=model_param, node_mapping=dict_name_index, filename=filename, debug=False)
 
             # Generate the associated binaries
             if (doGenerateBin):
+                Ah = info['matrix_shape'][0]
+                Aw_Bh = info['matrix_shape'][1]
+                Bw = info['matrix_shape'][2]
+
                 RRBG.random_raw_binary_generator(m_rows=Ah, n_columns=Aw_Bh, filename=filename+"input", dtype='int8', debug=False)
                 RRBG.random_raw_binary_generator(m_rows=Aw_Bh, n_columns=Bw, filename=filename+"weight", dtype='int8', debug=False)
                 if (isBias == True):
@@ -95,29 +124,61 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
             # Append the VTA IR list
             vta_ir_list.append( (filename, vta_ir.copy()) )
 
+            # Update dependency
+            node_dependency['processor'] = "vta"
+            if (node_dependency['input_nodes'][0] == "Image"):
+                node_dependency['reshape'] = False
+            else:
+                node_dependency['reshape'] = True
+            node_dependency['input_shape'] = info['tensor_shape'][0]
+            node_dependency['output_shape'] = info['tensor_shape'][1]
+            node_dependency['kernel'] = info['kernel']
+            node_dependency['stride'] = info['stride']
+            node_dependency['padding'] = info['padding']
+
         # ---
 
         # Pooling
         elif (op_type == "MaxPool"): 
             # Get data from the node
-            vta_ir, (Xh, Xw) = Npool.node_pool(node=cpt_node, param=model_param, node_mapping=dict_name_index, filename=filename, debug=False)
+            vta_ir, info = \
+                Npool.node_pool(node=cpt_node, param=model_param, node_mapping=dict_name_index, filename=filename, debug=False)
 
             # Generate the associated binaries
             if (doGenerateBin):
+                Xh = info['matrix_shape'][0]
+                Xw = info['matrix_shape'][1]
+
                 RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accumulator", dtype='int32', debug=False)
 
             # Append the VTA IR list
             vta_ir_list.append( (filename, vta_ir.copy()) )
+
+            # Update dependency
+            node_dependency['processor'] = "vta"
+            if (node_dependency['input_nodes'][0] == "Image"):
+                node_dependency['reshape'] = False
+            else:
+                node_dependency['reshape'] = "int32"
+            node_dependency['input_shape'] = info['tensor_shape'][0]
+            node_dependency['output_shape'] = info['tensor_shape'][1]
+            node_dependency['kernel'] = info['kernel']
+            node_dependency['stride'] = info['stride']
+            node_dependency['padding'] = info['padding']
 
         # ---
 
         # MulConstant
         elif (op_type == "Mul"): 
             # Get data from the node
-            vta_ir, (Ah, Aw), isBias = Nconv.node_mulconstant(node=cpt_node, param=model_param, node_mapping=dict_name_index, filename=filename, debug=False)
+            vta_ir, info, isBias = \
+                Nconv.node_mulconstant(node=cpt_node, param=model_param, node_mapping=dict_name_index, filename=filename, debug=False)
 
             # Generate the associated binaries
             if (doGenerateBin):
+                Ah = info['matrix_shape'][0]
+                Aw = info['matrix_shape'][1]
+
                 RRBG.random_raw_binary_generator(m_rows=Ah, n_columns=Aw, filename=filename+"input", dtype='int8', debug=False)
                 if (isBias == True):
                     RRBG.random_raw_binary_generator(m_rows=Ah, n_columns=Aw, filename=filename+"accumulator", dtype='int32', debug=False)
@@ -125,40 +186,93 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
             # Append the VTA IR list
             vta_ir_list.append( (filename, vta_ir.copy()) )
 
+            # Update dependency
+            node_dependency['processor'] = "vta"
+            if (node_dependency['input_nodes'][0] == "Image"):
+                node_dependency['reshape'] = False
+            else:
+                node_dependency['reshape'] = True
+            node_dependency['input_shape'] = info['tensor_shape'][0]
+            node_dependency['output_shape'] = info['tensor_shape'][1]
+            node_dependency['kernel'] = info['kernel']
+            node_dependency['stride'] = info['stride']
+            node_dependency['padding'] = info['padding']
+
         # ---
 
         # Activation
         elif (op_type == "Relu"): 
             # Get data from the node
-            vta_ir, (Xh, Xw) = Nactivation.node_relu(node=cpt_node, param=model_param, node_mapping=dict_name_index, filename=filename, debug=False)
+            vta_ir, info = \
+                Nactivation.node_relu(node=cpt_node, param=model_param, node_mapping=dict_name_index, filename=filename, debug=False)
 
             # Generate the associated binaries
             if (doGenerateBin):
+                Xh = info['matrix_shape'][0]
+                Xw = info['matrix_shape'][1]
+
                 RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accumulator", dtype='int32', debug=False)
 
             # Append the VTA IR list
             vta_ir_list.append( (filename, vta_ir.copy()) )
+
+            # Update dependency
+            node_dependency['processor'] = "vta"
+            if (node_dependency['input_nodes'][0] == "Image"):
+                node_dependency['reshape'] = False
+            else:
+                node_dependency['reshape'] = "int32"
+            node_dependency['input_shape'] = info['tensor_shape'][0]
+            node_dependency['output_shape'] = info['tensor_shape'][1]
+            node_dependency['kernel'] = info['kernel']
+            node_dependency['stride'] = info['stride']
+            node_dependency['padding'] = info['padding']
 
         # ---
 
         # ADD
         elif (op_type == "Add"): 
             # Get data from the node
-            vta_ir, (Xh, Xw), isBias = Nadd.node_add(node=cpt_node, param=model_param, node_mapping=dict_name_index, filename=filename, debug=False)
+            vta_ir, info, isBias = \
+                Nadd.node_add(node=cpt_node, param=model_param, node_mapping=dict_name_index, filename=filename, debug=False)
 
             # Generate the associated binaries
             if (doGenerateBin):
+                Xh = info['matrix_shape'][0]
+                Xw = info['matrix_shape'][1]
+                
                 RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accumulator", dtype='int32', debug=False)
                 RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accbis", dtype='int32', debug=False)
 
             # Append the VTA IR list
             vta_ir_list.append( (filename, vta_ir.copy()) )
 
+            # Update dependency
+            node_dependency['processor'] = "vta"
+            if (node_dependency['input_nodes'][0] == "Image"):
+                node_dependency['reshape'] = False
+            else:
+                node_dependency['reshape'] = "int32"
+            node_dependency['input_shape'] = info['tensor_shape'][0]
+            node_dependency['output_shape'] = info['tensor_shape'][1]
+            node_dependency['kernel'] = info['kernel']
+            node_dependency['stride'] = info['stride']
+            node_dependency['padding'] = info['padding']
+
         # ---
 
         # Others
         else:
             pass
+            # # Update dependency # TODO!
+            # node_dependency['reshape'] = "int32"
+            # node_dependency['input_shape'] = Tinp_shape
+            # node_dependency['output_shape'] = Tout_shape
+
+        # ---
+
+        # Append the execution order
+        execution_order.append( node_dependency.copy() )
 
     
     # WRITE VTA IR
@@ -171,6 +285,45 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
         # Write dict in a JSON
         with open(file_path, 'w') as f:
             json.dump(current_vta_ir, f, indent=2) # indent=2 for better readibility
+    
+    
+    # WRITE DEPENDENCY INFORMATION
+    # ----------------------------
+    dependency_file_path = filepath_definition(output_dir, 'dependency.csv')
+    with open(dependency_file_path, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(["nb_steps", len(execution_order)])
+        for i, dep in enumerate(execution_order):
+            # One line with execution order
+            writer.writerow([
+                i,                      # 0
+                dep['processor'],       # 1
+                dep['node_name']        # 2
+            ])
+
+            # One line with reshape and dependency information
+            dep_list = [
+                dep['node_name'],       # 0
+                dep['input_shape'][1],  # 1
+                dep['input_shape'][2],  # 2
+                dep['input_shape'][3],  # 3
+                dep['reshape'],         # 4
+                dep['kernel'][0],       # 5
+                dep['kernel'][1],       # 6
+                dep['stride'][0],       # 7
+                dep['stride'][1],       # 8
+                dep['padding'][0],      # 9
+                dep['padding'][1],      # 10
+                dep['padding'][2],      # 11
+                dep['padding'][3],      # 12
+                "INP",                  # 13
+                len(dep['input_nodes']),# 14
+            ]
+            # Add the dependency information # 15+
+            for inp_node in dep['input_nodes']:
+                dep_list.append( inp_node )
+            # Write the second line
+            writer.writerow(dep_list)
 
 
     # ---------------------------------------------
@@ -206,6 +359,11 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
 
         for ir in vta_ir_list:
             print(f"Name: {ir[0]} \n\t {ir[1]} \n")
+
+
+        print(f"\nExecution order: ")
+        for i, step in enumerate(execution_order):
+            print(f"Step {i}: \t {step} \n")
 
     # ---------------------------------------------
     # RETURN 

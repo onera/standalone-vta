@@ -17,7 +17,7 @@ CONFIG := $(PROJECT_DIR)/config
 ###########
 JSON_FILES := $(COMPILER_OUTPUT_DIR)/*.json
 
-DEBUG ?= False
+DEBUG ?= True
 
 
 ############################################################
@@ -32,10 +32,12 @@ all: help
 compile:
 	@echo ""
 	@echo "COMPILE tests..."
+	@date
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py \
 	$(DEBUG) \
 	$(CONFIG)/vta_config.json \
 	$(JSON_FILES) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
+	@date
 
 
 # REFERENCE EXECUTION
@@ -54,7 +56,9 @@ reference:
 fsim: 
 	@echo ""
 	@echo "RUN functional simulation..."
+	@date
 	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
+	@date
 	@echo ""
 	@echo "SUCCESS!"
 
@@ -65,6 +69,19 @@ run:
 	@make compile
 	@make reference
 	@make fsim
+
+temp_copy_pattern_yolo:
+	make clean
+	@echo ""
+	@echo "Copy Pattern Yolo binaries"
+	cp $(COMPILER_OUTPUT_DIR)/pattern_yolo/* $(COMPILER_OUTPUT_DIR)/
+
+temp_run_pattern_yolo:
+	@echo ""
+	@echo "RUN functional simulation..."
+	@date
+	cd $(FSIM_DIR) && make -s nn_execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
+	@date
 
 
 ############################################################

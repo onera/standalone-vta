@@ -28,9 +28,7 @@ def node_add(node, param={}, node_mapping={}, filename='',
     # Reset the node data
     # ---
     acc_tensor_shape = []
-    acc_matrix_shape = []
     out_tensor_shape = []
-    out_matrix_shape = []
     isBias = False
     isFlat = False
 
@@ -69,7 +67,7 @@ def node_add(node, param={}, node_mapping={}, filename='',
         if (inp_name in node_mapping):
             if (idx_nodes > 0):
                 # Check the consistency between both inputs
-                if (inp['shape'] != inp_tensor_shape):
+                if (inp['shape'] != acc_tensor_shape):
                     raise Exception(f"ERROR: Add must add 2 same shape tensors! \n")
 
             elif (isFlat == True):
@@ -77,20 +75,20 @@ def node_add(node, param={}, node_mapping={}, filename='',
                 if ( len(inp['shape']) != 2 ):
                     raise Exception(f"ERROR: Wrong input shape ({len(inp['shape'])} dimensions when 2 are expected)! \n")
                 # Get the shape
-                inp_tensor_shape = (inp['shape'][0], inp['shape'][1], 1, 1)
+                acc_tensor_shape = (inp['shape'][0], inp['shape'][1], 1, 1)
                 # Check consistency between input and output
-                if (inp_tensor_shape != out_tensor_shape):
-                    raise Exception(f"ERROR: Add should not modify the shape but inp_tensor_shape={inp_tensor_shape} and out_tensor_shape={out_tensor_shape}! \n")
+                if (acc_tensor_shape != out_tensor_shape):
+                    raise Exception(f"ERROR: Add should not modify the shape but acc_tensor_shape={acc_tensor_shape} and out_tensor_shape={out_tensor_shape}! \n")
 
             else:
                 # Check there are 4 dimensions
                 if ( len(inp['shape']) != 4 ):
                     raise Exception(f"ERROR: Wrong input shape ({len(inp['shape'])} dimensions when 4 are expected)! \n")
                 # Get the shape
-                inp_tensor_shape = inp['shape'] # NCHW
+                acc_tensor_shape = inp['shape'] # NCHW
                 # Check consistency between input and output
-                if (inp_tensor_shape != out_tensor_shape):
-                    raise Exception(f"ERROR: Add should not modify the shape but inp_tensor_shape={inp_tensor_shape} and out_tensor_shape={out_tensor_shape}! \n")
+                if (acc_tensor_shape != out_tensor_shape):
+                    raise Exception(f"ERROR: Add should not modify the shape but acc_tensor_shape={acc_tensor_shape} and out_tensor_shape={out_tensor_shape}! \n")
 
             # Increment idx
             idx_nodes = idx_nodes + 1
@@ -110,9 +108,9 @@ def node_add(node, param={}, node_mapping={}, filename='',
 
     # Get the attributes
     # ---
-    nc = inp_tensor_shape[1]
-    nh = inp_tensor_shape[2]
-    nw = inp_tensor_shape[3]
+    nc = acc_tensor_shape[1]
+    nh = acc_tensor_shape[2]
+    nw = acc_tensor_shape[3]
 
     mc = out_tensor_shape[1]
     mh = out_tensor_shape[2]
@@ -155,4 +153,12 @@ def node_add(node, param={}, node_mapping={}, filename='',
 
     # Return
     # ---
-    return vta_ir, (Xh, Xw), isBias
+    info = {
+        "matrix_shape": (Xh, Xw),
+        "tensor_shape": (acc_tensor_shape, out_tensor_shape),
+        "padding": (0, 0, 0, 0),
+        "stride": (1, 1),
+        "kernel": (1, 1)
+    }
+
+    return vta_ir, info, isBias

@@ -211,7 +211,15 @@ def node_conv(node, param={}, node_mapping={}, filename='',
 
     # Return
     # ---
-    return vta_ir, (Ah, Aw_Bh, Bw), isBias
+    info = {
+        "matrix_shape": (Ah, Aw_Bh, Bw),
+        "tensor_shape": (inp_tensor_shape, out_tensor_shape),
+        "padding": (ph[0], pw[0], ph[1], pw[1]),
+        "stride": (sh, sw),
+        "kernel": (fh, fw)
+    }
+
+    return vta_ir, info, isBias
 
 
 
@@ -368,5 +376,13 @@ def node_mulconstant(node, param={}, node_mapping={}, filename='',
 
     # Return
     # ---
-    return vta_ir, (Ah, Aw), isBias
+    info = {
+        "matrix_shape": (Ah, Aw),
+        "tensor_shape": (inp_tensor_shape, out_tensor_shape),
+        "padding": (ph[0], pw[0], ph[1], pw[1]),
+        "stride": (sh, sw),
+        "kernel": (fh, fw)
+    }
+
+    return vta_ir, info, isBias
 

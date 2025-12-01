@@ -23,6 +23,7 @@
 # Define the compilation option (compiler: gcc, flags: -Wall)
 CC := g++ 
 CFLAGS = -std=c++17 -lstdc++fs -Wall -g
+# CFLAGS = -std=c++17 -lstdc++fs -fsanitize=address -g
 DEBUGFLAG := -DDEBUG_SIM=false
 #-fsanitize=address 
 
@@ -48,6 +49,8 @@ CONFIG_FILES := $(wildcard ../config/*)
 # Build everything
 all: config build/functional_simulator
 
+nn_fsim: build/fsim_nn
+
 # Generate the configuration file log 
 config: build/vta_config_def.txt
 
@@ -61,13 +64,20 @@ compile_only: $(OBJS)
 
 # Link the standalone VTA simulator executable
 build/functional_simulator: build/vta_config_def.txt $(OBJS) lib_tvm
-	$(CC) build/functional_simulator.o build/simulator_functions.o \
+	$(CC) $(CFLAGS) build/functional_simulator.o build/simulator_functions.o \
 	build/virtual_memory.o build/sim_tlpp.o \
 	build/sim_driver.o \
 	$(OBJ_LIB_TVM) -o $@
 # 	@echo
 # 	@echo "Successful link!"
 # 	@echo "To run the executable: ./build/functional_simulator"
+
+
+build/fsim_nn: build/vta_config_def.txt $(OBJS) lib_tvm
+	$(CC) $(CFLAGS) build/fsim_nn.o build/simulator_functions.o \
+	build/virtual_memory.o build/sim_tlpp.o \
+	build/sim_driver.o \
+	$(OBJ_LIB_TVM) -o $@
 
 # TEMPO
 build/tempo: build/vta_config_def.txt $(OBJS) lib_tvm
@@ -87,6 +97,9 @@ tempo: build/tempo
 # Compile the main file:
 build/functional_simulator.o: src/functional_simulator.cc include/simulator_header.h
 	$(CC) $(VTA_DEFS) $(DEBUGFLAG) $(CFLAGS) -o build/functional_simulator.o -c src/functional_simulator.cc
+
+build/fsim_nn.o: src/fsim_nn.cc include/simulator_header.h
+	$(CC) $(VTA_DEFS) $(DEBUGFLAG) $(CFLAGS) -o build/fsim_nn.o -c src/fsim_nn.cc
 
 # Compile the function file (used by main):
 build/simulator_functions.o: src/simulator_functions.cc include/simulator_header.h
@@ -150,6 +163,10 @@ lib_tvm: $(OBJ_LIB_TVM)
 # --------------
 execute: build/functional_simulator
 	build/functional_simulator
+
+
+nn_execute: build/fsim_nn
+	build/fsim_nn
 
 # -------------
 # CONFIGURATION 

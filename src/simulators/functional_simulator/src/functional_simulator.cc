@@ -223,10 +223,10 @@ int execute_simulator() {
         // Compare
         bool layerCorrect = compare_vector(ctx.outC.data(), ctx.refC.data(), ctx.outC.size());
         if (!layerCorrect) {
-            printf("FAILURE: Layer %d Output mismatch!\n", ctx.id);
+            printf("\nFAILURE: Layer %d Output mismatch!\n\n", ctx.id);
             allCorrect = false;
         } else {
-            if (debug) printf("SUCCESS: Layer %d matches reference.\n", ctx.id);
+            if (debug) printf("\nSUCCESS: Layer %d matches reference.\n", ctx.id);
         }
         
         if (doPrint || !layerCorrect) {

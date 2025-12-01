@@ -28,9 +28,7 @@ def node_relu(node, param={}, node_mapping={}, filename='',
     # Reset the node data
     # ---
     acc_tensor_shape = []
-    acc_matrix_shape = []
     out_tensor_shape = []
-    out_matrix_shape = []
 
 
     # Get the output tensors
@@ -59,10 +57,10 @@ def node_relu(node, param={}, node_mapping={}, filename='',
             if ( len(inp['shape']) != 4 ):
                 raise Exception(f"ERROR: Wrong input shape ({len(inp['shape'])} dimensions when 4 are expected)! \n")
             # Get the shape
-            inp_tensor_shape = inp['shape'] # NCHW
+            acc_tensor_shape = inp['shape'] # NCHW
             # Check consistency
-            if ( inp_tensor_shape != out_tensor_shape):
-                raise Exception(f"ERROR: ReLU should not modify the shape but  inp_tensor_shape={inp_tensor_shape} and out_tensor_shape={out_tensor_shape}! \n")
+            if ( acc_tensor_shape != out_tensor_shape):
+                raise Exception(f"ERROR: ReLU should not modify the shape but  acc_tensor_shape={acc_tensor_shape} and out_tensor_shape={out_tensor_shape}! \n")
 
         # Else problem 
         else:
@@ -71,9 +69,9 @@ def node_relu(node, param={}, node_mapping={}, filename='',
 
     # Get the attributes
     # ---
-    nc = inp_tensor_shape[1]
-    nh = inp_tensor_shape[2]
-    nw = inp_tensor_shape[3]
+    nc = acc_tensor_shape[1]
+    nh = acc_tensor_shape[2]
+    nw = acc_tensor_shape[3]
 
     mc = out_tensor_shape[1]
     mh = out_tensor_shape[2]
@@ -123,4 +121,12 @@ def node_relu(node, param={}, node_mapping={}, filename='',
 
     # Return
     # ---
-    return vta_ir, (Xh, Xw)
+    info = {
+        "matrix_shape": (Xh, Xw),
+        "tensor_shape": (acc_tensor_shape, out_tensor_shape),
+        "padding": (0, 0, 0, 0),
+        "stride": (1, 1),
+        "kernel": (1, 1)
+    }
+
+    return vta_ir, info

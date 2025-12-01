@@ -31,10 +31,8 @@ def node_pool(node, param={}, node_mapping={}, filename='',
 
     # Reset the node data
     # ---
-    inp_tensor_shape = []
-    inp_matrix_shape = []
+    acc_tensor_shape = []
     out_tensor_shape = []
-    out_matrix_shape = []
 
 
     # Get the output tensors
@@ -63,7 +61,7 @@ def node_pool(node, param={}, node_mapping={}, filename='',
             if ( len(inp['shape']) != 4 ):
                 raise Exception(f"ERROR: Wrong input shape ({len(inp['shape'])} dimensions when 4 are expected)! \n")
             # Get the shape
-            inp_tensor_shape = inp['shape'] # NCHW
+            acc_tensor_shape = inp['shape'] # NCHW
 
         # Else problem 
         else:
@@ -93,9 +91,9 @@ def node_pool(node, param={}, node_mapping={}, filename='',
         ph = (0, 0)
         pw = (0, 0)
 
-    nc = inp_tensor_shape[1] 
-    nh = inp_tensor_shape[2] + ph[0] + ph[1]
-    nw = inp_tensor_shape[3] + pw[0] + pw[1]
+    nc = acc_tensor_shape[1] 
+    nh = acc_tensor_shape[2] + ph[0] + ph[1]
+    nw = acc_tensor_shape[3] + pw[0] + pw[1]
 
     mc = out_tensor_shape[1]
     mh = out_tensor_shape[2]
@@ -172,4 +170,12 @@ def node_pool(node, param={}, node_mapping={}, filename='',
 
     # Return
     # ---
-    return vta_ir, (Xh, Xw)
+    info = {
+        "matrix_shape": (Xh, Xw),
+        "tensor_shape": (acc_tensor_shape, out_tensor_shape),
+        "padding": (ph[0], pw[0], ph[1], pw[1]),
+        "stride": (sh, sw),
+        "kernel": (fh, fw)
+    }
+
+    return vta_ir, info
