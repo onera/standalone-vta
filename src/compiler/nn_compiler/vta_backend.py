@@ -47,12 +47,12 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
     # List the VTA compatible nodes and get the index of each
     vta_compatible_nodes = [
         # GeMM
-        'Conv',
+        'Conv', 'QLinearConv',
         'MatMul', # As conv
-        'Mul', # MulConstant
+        'Mul', 'QLinearMul', # MulConstant
         # ALU
         'Relu',
-        'Add', # Both ADD_ACC and ADD BIAS
+        'Add', 'QLinearAdd', # Both ADD_ACC and ADD BIAS
         'MaxPool',
         # Special (must be divided into CPU and VTA)
         'ConvTranspose'
@@ -105,7 +105,7 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
         # Define operation for each task
         # ---
         # Convolution or Fully-Connected
-        if (op_type == "Conv" or op_type == "MatMul"): 
+        if (op_type == "Conv" or op_type == 'QLinearConv' or op_type == "MatMul"): 
             # Get data from the node
             vta_ir, info, isBias = \
                 Nconv.node_conv(node=cpt_node, param=model_param, node_mapping=dict_name_index, filename=filename, debug=False)
@@ -169,7 +169,7 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
         # ---
 
         # MulConstant
-        elif (op_type == "Mul"): 
+        elif (op_type == "Mul" or op_type == "QLinearMul"): 
             # Get data from the node
             vta_ir, info, isBias = \
                 Nconv.node_mulconstant(node=cpt_node, param=model_param, node_mapping=dict_name_index, filename=filename, debug=False)
@@ -231,7 +231,7 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
         # ---
 
         # ADD
-        elif (op_type == "Add"): 
+        elif (op_type == "Add" or op_type == 'QLinearAdd'): 
             # Get data from the node
             vta_ir, info, isBias = \
                 Nadd.node_add(node=cpt_node, param=model_param, node_mapping=dict_name_index, filename=filename, debug=False)

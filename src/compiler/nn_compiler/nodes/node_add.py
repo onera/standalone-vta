@@ -53,9 +53,6 @@ def node_add(node, param={}, node_mapping={}, filename='',
 
     # Get the input tensors
     # ---
-    if (len(inp_list) > 2):
-        raise Exception(f"ERROR (in {filename}): Add should have 2 input tensors whereas it has {len(inp_list)}! \n")
-
     # Count the nodes
     idx_nodes = 0
 
@@ -95,10 +92,15 @@ def node_add(node, param={}, node_mapping={}, filename='',
 
         # Get bias
         elif (inp_name in param):
-            isBias == True
-            # When (isFlat == True) -> bias.shape = 2, else 3
-            if (isFlat == True): # If it is flat, it is bias!
+            # Empty field
+            if (len(inp['shape']) == 0):
+                pass
+            # It is bias
+            else:
                 isBias == True
+                # When (isFlat == True) -> bias.shape = 2, else 3
+                if (isFlat == True): # If it is flat, it is bias!
+                    pass
 
         # Else problem 
         else:

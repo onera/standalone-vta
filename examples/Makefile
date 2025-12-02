@@ -289,12 +289,12 @@ parse_yolo: ## Parse a YoloNas ONNX
 	True \
 	$(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_backend.txt
 
-parse_quantised_yolo: ## Parse a quantised YoloNas ONNX
+parse_qops_yolo:
 	make clean
 	@echo ""
-	@echo "PARSE QUANTISED YOLO ONNX..."
+	@echo "PARSE QOPS YOLO ONNX..."
 	python $(NN_COMPILER_DIR)/vta_backend.py \
-	../../onnx_zoo/yolonas_quantized_using_ONNX.onnx \
+	../../onnx_zoo/yolonas_Qops_fixed.onnx \
 	True \
 	$(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_backend.txt
 

@@ -37,8 +37,8 @@ def parse_onnx_to_dict(model_path, debug=False):
     # 2. Run Shape Inference!
     # This is the key step. It returns a new model object with all tensor shapes filled in.
     try:
-        # inferred_model = onnx.shape_inference.infer_shapes(model)
-        inferred_model = SymbolicShapeInference.infer_shapes(model, auto_merge=True)
+        inferred_model = onnx.shape_inference.infer_shapes(model)
+        # inferred_model = SymbolicShapeInference.infer_shapes(model, auto_merge=True)
     except Exception as e:
         print(f"Warning: Error during symbolic shape inference: {e}")
         print("Falling back to standard inference...")

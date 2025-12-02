@@ -90,8 +90,12 @@ def node_conv(node, param={}, node_mapping={}, filename='',
         
         # Get B or X
         elif (inp_name in param):
+            # Empty field
+            if (len(inp['shape']) == 0):
+                pass
+
             # X (bias)
-            if (len(inp['shape']) == 1):
+            elif (len(inp['shape']) == 1):
                 isBias = True
 
             else: # B (weight)
@@ -263,8 +267,6 @@ def node_mulconstant(node, param={}, node_mapping={}, filename='',
 
     # Get the input tensors
     # ---
-    if ( len(inp_list) > 2 ):
-        raise Exception(f"ERROR (in {filename}): There are {len(inp_list)} when 2 are expected! \n")
     for j, inp in enumerate(inp_list):
         # Get the name
         inp_name = inp['name']
@@ -282,11 +284,18 @@ def node_mulconstant(node, param={}, node_mapping={}, filename='',
 
         # Get scalar
         elif (inp_name in param):
-            # Check there is 1 dimension
-            if ( len(inp['shape']) != 1 ):
-                raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp['shape'])} dimensions when 1 is expected)! \n")
-            scalar = round( param[inp['name']][0] )
+            # Empty field
+            if (len(inp['shape']) == 0):
+                pass
+            
+            # Scalar
+            elif (len(inp['shape']) == 1):
+                scalar = round( param[inp['name']][0] )
 
+            # Error on the shape
+            else:
+                raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp['shape'])} dimensions when 1 is expected)! \n")
+                
             # TODO: Check for bias
 
         # Else problem 
