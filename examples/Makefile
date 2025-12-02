@@ -62,6 +62,15 @@ fsim:
 	@echo ""
 	@echo "SUCCESS!"
 
+nn_fsim: 
+	@echo ""
+	@echo "RUN functional simulation (for NN)..."
+	@date
+	cd $(FSIM_DIR) && make -s nn_execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
+	@date
+	@echo ""
+	@echo "SUCCESS!"
+
 
 # EXECUTION
 ###########
@@ -70,18 +79,16 @@ run:
 	@make reference
 	@make fsim
 
+nn_run:
+	@make compile
+	@make nn_fsim
+
+
 temp_copy_pattern_yolo:
 	make clean
 	@echo ""
 	@echo "Copy Pattern Yolo binaries"
 	cp $(COMPILER_OUTPUT_DIR)/pattern_yolo/* $(COMPILER_OUTPUT_DIR)/
-
-temp_run_pattern_yolo:
-	@echo ""
-	@echo "RUN functional simulation..."
-	@date
-	cd $(FSIM_DIR) && make -s nn_execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
-	@date
 
 
 ############################################################
@@ -221,7 +228,7 @@ test_add: ## Test adding two same shape matrices together with random size
 
 # GENERAL TESTS
 ###############
-test: ## Test campaign
+test: ## Test campaign
 	@make test_matmul
 	@make test_matmul_relu
 	@make test_mulconstant
@@ -277,6 +284,17 @@ parse_pattern_yolo: ## Parse a pattern of the YoloNas ONNX
 	../../onnx_zoo/subgraph_pattern.onnx \
 	True \
 	$(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_backend.txt
+
+
+# ONNX EXECUTION
+################
+execute_yolo_unittest: ## Parse, compile and simulate all YOLO-NAS's VTA IR nodes independently (without chaining
+	@make parse_yolo
+	@make run
+
+execute_yolo_pattern: ## Parse, compile, chain and simulate a representative pattern of YOLO-NAS
+	@make parse_pattern_yolo
+	@make nn_run
 
 
 ############################################################
