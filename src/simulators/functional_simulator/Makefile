@@ -161,11 +161,11 @@ lib_tvm: $(OBJ_LIB_TVM)
 # --------------
 # EXECUTION AREA
 # --------------
-execute: build/functional_simulator
+execute: 
 	build/functional_simulator
 
 
-nn_execute: build/fsim_nn
+nn_execute: 
 	build/fsim_nn
 
 # -------------

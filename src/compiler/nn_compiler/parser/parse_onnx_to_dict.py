@@ -1,6 +1,7 @@
 import onnx
 import onnx.shape_inference
 from onnx import numpy_helper
+from onnxruntime.tools.symbolic_shape_infer import SymbolicShapeInference
 import numpy as np
 import json # Import json for pretty printing the result
 from typing import Dict, Union
@@ -36,12 +37,16 @@ def parse_onnx_to_dict(model_path, debug=False):
     # 2. Run Shape Inference!
     # This is the key step. It returns a new model object with all tensor shapes filled in.
     try:
-        inferred_model = onnx.shape_inference.infer_shapes(model)
+        # inferred_model = onnx.shape_inference.infer_shapes(model)
+        inferred_model = SymbolicShapeInference.infer_shapes(model, auto_merge=True)
     except Exception as e:
-        print(f"Warning: Error during shape inference: {e}")
-        # Fallback to using the original model if inference fails
-        inferred_model = model
-
+        print(f"Warning: Error during symbolic shape inference: {e}")
+        print("Falling back to standard inference...")
+        try:
+             inferred_model = onnx.shape_inference.infer_shapes(model)
+        except:
+             inferred_model = model
+             
     graph = inferred_model.graph
 
     # --- Create a map of tensor names to their dimensions ---

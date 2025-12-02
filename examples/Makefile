@@ -40,6 +40,17 @@ compile:
 	@date
 
 
+# FSIM compilation
+compile_clean_fsim:
+	cd $(FSIM_DIR) && make clean
+
+compile_fsim:
+	cd $(FSIM_DIR) && make build/functional_simulator
+
+compile_nn_fsim:
+	cd $(FSIM_DIR) && make build/fsim_nn
+
+
 # REFERENCE EXECUTION
 #####################
 reference:
@@ -75,11 +86,13 @@ nn_fsim:
 # EXECUTION
 ###########
 run:
+	@make compile_fsim
 	@make compile
 	@make reference
 	@make fsim
 
 nn_run:
+	@make compile_nn_fsim
 	@make compile
 	@make nn_fsim
 
@@ -273,6 +286,15 @@ parse_yolo: ## Parse a YoloNas ONNX
 	@echo "PARSE YOLO ONNX..."
 	python $(NN_COMPILER_DIR)/vta_backend.py \
 	../../onnx_zoo/yolonas.onnx \
+	True \
+	$(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_backend.txt
+
+parse_quantised_yolo: ## Parse a quantised YoloNas ONNX
+	make clean
+	@echo ""
+	@echo "PARSE QUANTISED YOLO ONNX..."
+	python $(NN_COMPILER_DIR)/vta_backend.py \
+	../../onnx_zoo/yolonas_quantized_using_ONNX.onnx \
 	True \
 	$(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_backend.txt
 
