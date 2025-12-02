@@ -48,7 +48,7 @@ def node_conv(node, param={}, node_mapping={}, filename='',
                 out_tensor_shape = out['shape'] # NCHW
         else: # if multiple output, all must have the same shape
             if (out['shape'] != out_tensor_shape):
-                raise Exception(f"ERROR: No consistency between the output shape! \n")
+                raise Exception(f"ERROR (in {filename}): No consistency between the output shape! \n")
 
 
     # Get the input tensors
@@ -65,25 +65,25 @@ def node_conv(node, param={}, node_mapping={}, filename='',
             if (op_type == 'MatMul'):
                 # Check there are 2 dimensions
                 if ( len(inp['shape']) != 2 ):
-                    raise Exception(f"ERROR: Wrong input shape ({len(inp['shape'])} dimensions when 2 are expected)! \n")
+                    raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp['shape'])} dimensions when 2 are expected)! \n")
                 # Get the shape
                 if (idx_nodes == 0):
                     inp_tensor_shape = (inp['shape'][0], inp['shape'][1], 1, 1)
                 elif (idx_nodes == 1):
                     wgt_tensor_shape = (inp['shape'][0], inp['shape'][1], 1, 1)
                 else:
-                    raise Exception(f"ERROR: Unexpected input ({inp_name})! \n")
+                    raise Exception(f"ERROR (in {filename}): Unexpected input ({inp_name})! \n")
             else:
                 # Check there are 4 dimensions
                 if ( len(inp['shape']) != 4 ):
-                    raise Exception(f"ERROR: Wrong input shape ({len(inp['shape'])} dimensions when 4 are expected)! \n")
+                    raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp['shape'])} dimensions when 4 are expected)! \n")
                 # Get the shape
                 if (idx_nodes == 0):
                     inp_tensor_shape = inp['shape'] # NCHW
                 elif (idx_nodes == 1):
                     wgt_tensor_shape = inp['shape'] # NCHW
                 else:
-                    raise Exception(f"ERROR: Unexpected input ({inp_name})! \n")
+                    raise Exception(f"ERROR (in {filename}): Unexpected input ({inp_name})! \n")
 
             # Increment idx
             idx_nodes = idx_nodes + 1
@@ -98,17 +98,17 @@ def node_conv(node, param={}, node_mapping={}, filename='',
                 if (op_type == 'MatMul'):
                     # Check there are 2 dimensions
                     if ( len(inp['shape']) != 2 ):
-                        raise Exception(f"ERROR: Wrong input shape ({len(inp['shape'])} dimensions when 2 are expected)! \n")
+                        raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp['shape'])} dimensions when 2 are expected)! \n")
                     wgt_tensor_shape = (inp['shape'][0], inp['shape'][1], 1, 1)
                 else:
                     # Check there are 4 dimensions
                     if ( len(inp['shape']) != 4 ):
-                        raise Exception(f"ERROR: Wrong input shape ({len(inp['shape'])} dimensions when 4 are expected)! \n")
+                        raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp['shape'])} dimensions when 4 are expected)! \n")
                     wgt_tensor_shape = inp['shape'] # NCHW
         
         # Else problem 
         else:
-            raise Exception(f"ERROR: Unexpected input ({inp_name}) which does not come from another node nor parameters! \n")
+            raise Exception(f"ERROR (in {filename}): Unexpected input ({inp_name}) which does not come from another node nor parameters! \n")
 
 
     # Get the attributes
@@ -126,7 +126,7 @@ def node_conv(node, param={}, node_mapping={}, filename='',
     if (op_type != 'MatMul'):
         # Check consistency
         if (fh != attributes_dict['kernel_shape'][0] or fw != attributes_dict['kernel_shape'][1]):
-            raise Exception(f"ERROR: Kernel size not consistent! \n")
+            raise Exception(f"ERROR (in {filename}): Kernel size not consistent! \n")
 
     if (op_type != 'MatMul'):
         sh = attributes_dict['strides'][0]
@@ -258,13 +258,13 @@ def node_mulconstant(node, param={}, node_mapping={}, filename='',
             out_tensor_shape = out['shape'] # NCHW
         else: # if multiple output, all must have the same shape
             if (out['shape'] != out_tensor_shape):
-                raise Exception(f"ERROR: No consistency between the output shape! \n")
+                raise Exception(f"ERROR (in {filename}): No consistency between the output shape! \n")
 
 
     # Get the input tensors
     # ---
     if ( len(inp_list) > 2 ):
-        raise Exception(f"ERROR: There are {len(inp_list)} when 2 are expected! \n")
+        raise Exception(f"ERROR (in {filename}): There are {len(inp_list)} when 2 are expected! \n")
     for j, inp in enumerate(inp_list):
         # Get the name
         inp_name = inp['name']
@@ -273,25 +273,25 @@ def node_mulconstant(node, param={}, node_mapping={}, filename='',
         if (inp_name in node_mapping):
             # Check there are 4 dimensions
             if ( len(inp['shape']) != 4 ):
-                raise Exception(f"ERROR: Wrong input shape ({len(inp['shape'])} dimensions when 4 are expected)! \n")
+                raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp['shape'])} dimensions when 4 are expected)! \n")
             # Get the shape
             inp_tensor_shape = inp['shape'] # NCHW
             # Check consistency between input and output
             if (inp_tensor_shape != out_tensor_shape):
-                raise Exception(f"ERROR: MulConstant should not modify the shape, but inp_tensor_shape={inp_tensor_shape} and out_tensor_shape={out_tensor_shape}! \n")
+                raise Exception(f"ERROR (in {filename}): MulConstant should not modify the shape, but inp_tensor_shape={inp_tensor_shape} and out_tensor_shape={out_tensor_shape}! \n")
 
         # Get scalar
         elif (inp_name in param):
             # Check there is 1 dimension
             if ( len(inp['shape']) != 1 ):
-                raise Exception(f"ERROR: Wrong input shape ({len(inp['shape'])} dimensions when 1 is expected)! \n")
+                raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp['shape'])} dimensions when 1 is expected)! \n")
             scalar = round( param[inp['name']][0] )
 
             # TODO: Check for bias
 
         # Else problem 
         else:
-            raise Exception(f"ERROR: Unexpected input ({inp_name}) which does not come from another node nor parameters! \n")
+            raise Exception(f"ERROR (in {filename}): Unexpected input ({inp_name}) which does not come from another node nor parameters! \n")
 
 
     # Get the attributes

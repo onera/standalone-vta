@@ -27,7 +27,7 @@ def node_pool(node, param={}, node_mapping={}, filename='',
 
     # Protect against other pooling
     if (op_type != "MaxPool"):
-        raise Exception(f"ERROR: {op_type} not supported yet, only MaxPool! \n")
+        raise Exception(f"ERROR (in {filename}): {op_type} not supported yet, only MaxPool! \n")
 
     # Reset the node data
     # ---
@@ -43,13 +43,13 @@ def node_pool(node, param={}, node_mapping={}, filename='',
             out_tensor_shape = out['shape'] # NCHW
         else: # if multiple output, all must have the same shape
             if (out['shape'] != out_tensor_shape):
-                raise Exception(f"ERROR: No consistency between the output shape! \n")
+                raise Exception(f"ERROR (in {filename}): No consistency between the output shape! \n")
 
 
     # Get the input tensors
     # ---
     if ( len(inp_list) > 1 ):
-        raise Exception(f"ERROR: There are {len(inp_list)} when 1 is expected! \n")
+        raise Exception(f"ERROR (in {filename}): There are {len(inp_list)} when 1 is expected! \n")
 
     for j, inp in enumerate(inp_list):
         # Get the name
@@ -59,13 +59,13 @@ def node_pool(node, param={}, node_mapping={}, filename='',
         if (inp_name in node_mapping):
             # Check there are 4 dimensions
             if ( len(inp['shape']) != 4 ):
-                raise Exception(f"ERROR: Wrong input shape ({len(inp['shape'])} dimensions when 4 are expected)! \n")
+                raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp['shape'])} dimensions when 4 are expected)! \n")
             # Get the shape
             acc_tensor_shape = inp['shape'] # NCHW
 
         # Else problem 
         else:
-            raise Exception(f"ERROR: Unexpected input ({inp_name}) which does not come from another node nor parameters! \n")
+            raise Exception(f"ERROR (in {filename}): Unexpected input ({inp_name}) which does not come from another node nor parameters! \n")
 
 
     # Get the attributes
@@ -101,7 +101,7 @@ def node_pool(node, param={}, node_mapping={}, filename='',
 
     # Nc and Mc must be the same
     if (nc != mc):
-        raise Exception(f"ERROR: Discrepency on the number of channels (nc={nc}, mc={mc})! \n")
+        raise Exception(f"ERROR (in {filename}): Discrepency on the number of channels (nc={nc}, mc={mc})! \n")
 
 
     # Define the matrix dimensions

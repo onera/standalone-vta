@@ -39,13 +39,13 @@ def node_relu(node, param={}, node_mapping={}, filename='',
             out_tensor_shape = out['shape'] # NCHW
         else: # if multiple output, all must have the same shape
             if (out['shape'] != out_tensor_shape):
-                raise Exception(f"ERROR: No consistency between the output shape! \n")
+                raise Exception(f"ERROR (in {filename}): No consistency between the output shape! \n")
 
 
     # Get the input tensors
     # ---
     if ( len(inp_list) > 1 ):
-        raise Exception(f"ERROR: There are {len(inp_list)} when 1 is expected! \n")
+        raise Exception(f"ERROR (in {filename}): There are {len(inp_list)} when 1 is expected! \n")
         
     for j, inp in enumerate(inp_list):
         # Get the name
@@ -55,16 +55,16 @@ def node_relu(node, param={}, node_mapping={}, filename='',
         if (inp_name in node_mapping):
             # Check there are 4 dimensions
             if ( len(inp['shape']) != 4 ):
-                raise Exception(f"ERROR: Wrong input shape ({len(inp['shape'])} dimensions when 4 are expected)! \n")
+                raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp['shape'])} dimensions when 4 are expected)! \n")
             # Get the shape
             acc_tensor_shape = inp['shape'] # NCHW
             # Check consistency
             if ( acc_tensor_shape != out_tensor_shape):
-                raise Exception(f"ERROR: ReLU should not modify the shape but  acc_tensor_shape={acc_tensor_shape} and out_tensor_shape={out_tensor_shape}! \n")
+                raise Exception(f"ERROR (in {filename}): ReLU should not modify the shape but  acc_tensor_shape={acc_tensor_shape} and out_tensor_shape={out_tensor_shape}! \n")
 
         # Else problem 
         else:
-            raise Exception(f"ERROR: Unexpected input ({inp_name}) which does not come from another node nor parameters! \n")
+            raise Exception(f"ERROR (in {filename}): Unexpected input ({inp_name}) which does not come from another node nor parameters! \n")
 
 
     # Get the attributes
@@ -78,7 +78,7 @@ def node_relu(node, param={}, node_mapping={}, filename='',
     mw = out_tensor_shape[3]
 
     if (len(attributes_dict) > 0):
-        raise Exception(f"ERROR: ReLU should not have attributes but have attributes_dict={attributes_dict}! \n")
+        raise Exception(f"ERROR (in {filename}): ReLU should not have attributes but have attributes_dict={attributes_dict}! \n")
 
 
     # Define the matrix dimensions

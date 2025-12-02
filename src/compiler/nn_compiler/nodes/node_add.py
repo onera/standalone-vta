@@ -44,17 +44,17 @@ def node_add(node, param={}, node_mapping={}, filename='',
                 out_tensor_shape = (out['shape'][0], out['shape'][1], 1, 1) 
                 isFlat = True
             else:
-                raise Exception(f"ERROR: Add does not support this tensor shape yet ({out['shape']})! \n")
+                raise Exception(f"ERROR (in {filename}): Add does not support this tensor shape yet ({out['shape']})! \n")
 
         else: # if multiple output, all must have the same shape
             if (out['shape'] != out_list[0]['shape']):
-                raise Exception(f"ERROR: No consistency between the output shape! \n")
+                raise Exception(f"ERROR (in {filename}): No consistency between the output shape! \n")
 
 
     # Get the input tensors
     # ---
     if (len(inp_list) > 2):
-        raise Exception(f"ERROR: Add should have 2 input tensors whereas it has {len(inp_list)}! \n")
+        raise Exception(f"ERROR (in {filename}): Add should have 2 input tensors whereas it has {len(inp_list)}! \n")
 
     # Count the nodes
     idx_nodes = 0
@@ -68,27 +68,27 @@ def node_add(node, param={}, node_mapping={}, filename='',
             if (idx_nodes > 0):
                 # Check the consistency between both inputs
                 if (inp['shape'] != acc_tensor_shape):
-                    raise Exception(f"ERROR: Add must add 2 same shape tensors! \n")
+                    raise Exception(f"ERROR (in {filename}): Add must add 2 same shape tensors! \n")
 
             elif (isFlat == True):
                 # Check there are 2 dimensions
                 if ( len(inp['shape']) != 2 ):
-                    raise Exception(f"ERROR: Wrong input shape ({len(inp['shape'])} dimensions when 2 are expected)! \n")
+                    raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp['shape'])} dimensions when 2 are expected)! \n")
                 # Get the shape
                 acc_tensor_shape = (inp['shape'][0], inp['shape'][1], 1, 1)
                 # Check consistency between input and output
                 if (acc_tensor_shape != out_tensor_shape):
-                    raise Exception(f"ERROR: Add should not modify the shape but acc_tensor_shape={acc_tensor_shape} and out_tensor_shape={out_tensor_shape}! \n")
+                    raise Exception(f"ERROR (in {filename}): Add should not modify the shape but acc_tensor_shape={acc_tensor_shape} and out_tensor_shape={out_tensor_shape}! \n")
 
             else:
                 # Check there are 4 dimensions
                 if ( len(inp['shape']) != 4 ):
-                    raise Exception(f"ERROR: Wrong input shape ({len(inp['shape'])} dimensions when 4 are expected)! \n")
+                    raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp['shape'])} dimensions when 4 are expected)! \n")
                 # Get the shape
                 acc_tensor_shape = inp['shape'] # NCHW
                 # Check consistency between input and output
                 if (acc_tensor_shape != out_tensor_shape):
-                    raise Exception(f"ERROR: Add should not modify the shape but acc_tensor_shape={acc_tensor_shape} and out_tensor_shape={out_tensor_shape}! \n")
+                    raise Exception(f"ERROR (in {filename}): Add should not modify the shape but acc_tensor_shape={acc_tensor_shape} and out_tensor_shape={out_tensor_shape}! \n")
 
             # Increment idx
             idx_nodes = idx_nodes + 1
@@ -102,7 +102,7 @@ def node_add(node, param={}, node_mapping={}, filename='',
 
         # Else problem 
         else:
-            raise Exception(f"ERROR: Unexpected input ({inp_name}) which does not come from another node nor parameters! \n")
+            raise Exception(f"ERROR (in {filename}): Unexpected input ({inp_name}) which does not come from another node nor parameters! \n")
 
 
 
@@ -117,7 +117,7 @@ def node_add(node, param={}, node_mapping={}, filename='',
     mw = out_tensor_shape[3]
 
     if (len(attributes_dict) > 0):
-        raise Exception(f"ERROR: Add should not have attributes but have attributes_dict={attributes_dict}! \n")
+        raise Exception(f"ERROR (in {filename}): Add should not have attributes but have attributes_dict={attributes_dict}! \n")
 
 
     # Define the matrix dimensions
