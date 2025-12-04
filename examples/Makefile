@@ -8,7 +8,7 @@ COMPILER_OUTPUT_DIR := $(PROJECT_DIR)/compiler_output
 SIMULATOR_OUTPUT_DIR := $(PROJECT_DIR)/simulators_output
 SRC_DIR := $(PROJECT_DIR)/src
 COMPILER_DIR := $(SRC_DIR)/compiler
-VTA_COMPILER_DIR := $(COMPILER_DIR)/layer_compiler
+VTA_COMPILER_DIR := $(COMPILER_DIR)/vta_compiler
 NN_COMPILER_DIR := $(COMPILER_DIR)/nn_compiler
 FSIM_DIR := $(SRC_DIR)/simulators/functional_simulator
 CONFIG := $(PROJECT_DIR)/config
@@ -111,16 +111,17 @@ nn_fsim:
 
 # EXECUTION
 ###########
+# Do "make compile_fsim"
 run:
 	@make clean
-	@make compile_fsim
 	@make compile
 	@make reference
 	@make fsim
 
+
+# Do "make compile_nn_fsim"
 nn_run:
 	@make parse_onnx
-	@make compile_nn_fsim
 	@make compile
 	@make reference_onnx
 	@make nn_fsim
