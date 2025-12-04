@@ -244,7 +244,7 @@ int fsim_nn() {
             if (debug) printf("\t %s: ", doReshape.c_str());
 
             // Get number of input 
-            std::string nb_inp_str = getCsvElementByName(fileDependencyPath, ctx.suffix.c_str(), 14);
+            std::string nb_inp_str = getCsvElementByName(fileDependencyPath, ctx.suffix.c_str(), 15);
             int nb_inp = strToInt(nb_inp_str);
 
             if (debug) printf("%d inputs ", nb_inp);
@@ -252,8 +252,8 @@ int fsim_nn() {
             // Perform the reshaping
             if (nb_inp >= 2) {
                 // Get the names
-                std::string name_dep1 = getCsvElementByName(fileDependencyPath, ctx.suffix.c_str(), 15);
-                std::string name_dep2 = getCsvElementByName(fileDependencyPath, ctx.suffix.c_str(), 16);
+                std::string name_dep1 = getCsvElementByName(fileDependencyPath, ctx.suffix.c_str(), 16);
+                std::string name_dep2 = getCsvElementByName(fileDependencyPath, ctx.suffix.c_str(), 17);
                 // Clean
                 name_dep2.erase(std::remove(name_dep2.begin(), name_dep2.end(), '\n'), name_dep2.end());
                 name_dep2.erase(std::remove(name_dep2.begin(), name_dep2.end(), '\r'), name_dep2.end());
@@ -281,7 +281,7 @@ int fsim_nn() {
             }
             else if (nb_inp == 1){
                 // Get the names
-                std::string name_dep = getCsvElementByName(fileDependencyPath, ctx.suffix.c_str(), 15);
+                std::string name_dep = getCsvElementByName(fileDependencyPath, ctx.suffix.c_str(), 16);
                 // Clean
                 name_dep.erase(std::remove(name_dep.begin(), name_dep.end(), '\n'), name_dep.end());
                 name_dep.erase(std::remove(name_dep.begin(), name_dep.end(), '\r'), name_dep.end());
@@ -307,13 +307,13 @@ int fsim_nn() {
             if (debug) printf("\t %s: ", doReshape.c_str());
 
             // Get number of input 
-            std::string nb_inp_str = getCsvElementByName(fileDependencyPath, ctx.suffix.c_str(), 14);
+            std::string nb_inp_str = getCsvElementByName(fileDependencyPath, ctx.suffix.c_str(), 15);
             int nb_inp = strToInt(nb_inp_str);
 
             if (debug) printf("%d inputs ", nb_inp);
 
             // Get the names
-            std::string name_dep = getCsvElementByName(fileDependencyPath, ctx.suffix.c_str(), 15);
+            std::string name_dep = getCsvElementByName(fileDependencyPath, ctx.suffix.c_str(), 16);
             // Clean
             name_dep.erase(std::remove(name_dep.begin(), name_dep.end(), '\n'), name_dep.end());
             name_dep.erase(std::remove(name_dep.begin(), name_dep.end(), '\r'), name_dep.end());
@@ -335,24 +335,27 @@ int fsim_nn() {
             // Width
             std::string tensor_width_str = getCsvElementByName(fileDependencyPath, ctx.suffix.c_str(), 3);
             int tensor_width = strToInt(tensor_width_str);
+            // Offset
+            std::string offset_str = getCsvElementByName(fileDependencyPath, ctx.suffix.c_str(), 5);
+            int offset = strToInt(offset_str);
             // Kernel
-            std::string kh_str = getCsvElementByName(fileDependencyPath, ctx.suffix.c_str(), 5);
+            std::string kh_str = getCsvElementByName(fileDependencyPath, ctx.suffix.c_str(), 6);
             int kh = strToInt(kh_str);
-            std::string kw_str = getCsvElementByName(fileDependencyPath, ctx.suffix.c_str(), 6);
+            std::string kw_str = getCsvElementByName(fileDependencyPath, ctx.suffix.c_str(), 7);
             int kw = strToInt(kw_str);
             // Stride
-            std::string sh_str = getCsvElementByName(fileDependencyPath, ctx.suffix.c_str(), 7);
+            std::string sh_str = getCsvElementByName(fileDependencyPath, ctx.suffix.c_str(), 8);
             int sh = strToInt(sh_str);
-            // std::string sw_str = getCsvElementByName(fileDependencyPath, ctx.suffix.c_str(), 8);
+            // std::string sw_str = getCsvElementByName(fileDependencyPath, ctx.suffix.c_str(), 9);
             // int sw = strToInt(sw_str);
             // Padding
-            std::string p0_str = getCsvElementByName(fileDependencyPath, ctx.suffix.c_str(), 9);
+            std::string p0_str = getCsvElementByName(fileDependencyPath, ctx.suffix.c_str(), 10);
             int p0 = strToInt(p0_str);
-            std::string p1_str = getCsvElementByName(fileDependencyPath, ctx.suffix.c_str(), 10);
+            std::string p1_str = getCsvElementByName(fileDependencyPath, ctx.suffix.c_str(), 11);
             int p1 = strToInt(p1_str);
-            std::string p2_str = getCsvElementByName(fileDependencyPath, ctx.suffix.c_str(), 11);
+            std::string p2_str = getCsvElementByName(fileDependencyPath, ctx.suffix.c_str(), 12);
             int p2 = strToInt(p2_str);
-            std::string p3_str = getCsvElementByName(fileDependencyPath, ctx.suffix.c_str(), 12);
+            std::string p3_str = getCsvElementByName(fileDependencyPath, ctx.suffix.c_str(), 13);
             int p3 = strToInt(p3_str);
 
             // Reshape
@@ -366,7 +369,8 @@ int fsim_nn() {
                 {kh,kw}, // kernel_size (pair)
                 sh, // stride
                 {p0,p1,p2,p3}, // padding (vector)
-                true // isSquare
+                true, // isSquare
+                offset // offset
             );
                 
             // Give the reshaped result to the input
@@ -413,32 +417,54 @@ int fsim_nn() {
     VTADeviceFree(vta_device);
 
 
-    // 7. COMPARE / CHECK
-    // ------------------
-    bool isCorrect = true;
+    // 7. WRITE RESULT IN BINARY
+    // -------------------------
 
-    // Get the last name
-    std::string last_step = getCsvElementByName(fileDependencyPath, std::to_string(nb_steps - 1), 2);
-    // Clean
-    last_step.erase(std::remove(last_step.begin(), last_step.end(), '\n'), last_step.end());
-    last_step.erase(std::remove(last_step.begin(), last_step.end(), '\r'), last_step.end());
-    last_step.erase(std::remove(last_step.begin(), last_step.end(), ' '), last_step.end());
+    // Get the output name
+    std::string output_name = getCsvElementByName(fileDependencyPath, "output", 1);
 
     // Get the layer
-    LayerContext& ctx = layers_map[last_step];
+    LayerContext& ctx = layers_map[output_name];
 
-    // isCorrect = compare_vector(ctx.outC.data(), ctx.refC.data(), ctx.outC.size());
-
-    if (doPrint || !isCorrect) {
+    // Print if requested
+    if (doPrint) {
         printf("\n\nRESULT LAYER %d:\n", ctx.id);
         printf("Final result = {");
         print_int8_vector(ctx.outC.data(), ctx.outC.size());
         printf("\n} \n");
     }
 
-    // Return OK or KO
-    if (isCorrect) return EXIT_SUCCESS;
-    else return EXIT_FAILURE;
+    // Get the tensor shape
+    std::string tensor_channel_str = getCsvElementByName(fileDependencyPath, "output", 2);
+    std::string tensor_height_str = getCsvElementByName(fileDependencyPath, "output", 3);
+    std::string tensor_width_str = getCsvElementByName(fileDependencyPath, "output", 4);
+
+    // Clean last element
+    tensor_width_str.erase(std::remove(tensor_width_str.begin(), tensor_width_str.end(), '\n'), tensor_width_str.end());
+    tensor_width_str.erase(std::remove(tensor_width_str.begin(), tensor_width_str.end(), '\r'), tensor_width_str.end());
+    tensor_width_str.erase(std::remove(tensor_width_str.begin(), tensor_width_str.end(), ' '), tensor_width_str.end());
+
+    // Convert in int
+    int tensor_channel = strToInt(tensor_channel_str);
+    int tensor_height = strToInt(tensor_height_str);
+    int tensor_width = strToInt(tensor_width_str);
+
+    // Construct the filename
+    std::string fileFinalOutputPath = construct_path("final_output.bin");
+
+    // Write result
+    output_tensor(
+        ctx.outC, // output vector
+        block_size, // block_size
+        1, // batch_size
+        tensor_channel, // tensor_channel
+        tensor_height, // tensor_height
+        tensor_width, // tensor_width
+        fileFinalOutputPath // filepath
+    );
+
+    // Return OK
+    return EXIT_SUCCESS;
 }
 
 /****************

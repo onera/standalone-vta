@@ -54,92 +54,100 @@ def node_conv(node, param={}, node_mapping={}, filename='',
 
     # Get the output tensors
     # ---
-    for j, out in enumerate(out_list):
-        # Get the output tensor shape
-        if (j == 0):
-            if (op_type == 'MatMul'):
-                out_tensor_shape = (out['shape'][0], out['shape'][1], 1, 1) 
-            else:
-                out_tensor_shape = out['shape'] # NCHW
-        else: # if multiple output, all must have the same shape
-            if (out['shape'] != out_tensor_shape):
-                raise Exception(f"ERROR (in {filename}): No consistency between the output shape! \n")
+    # A single output is expected
+    if ( len(out_list) != 1 ):
+        raise Exception(f"ERROR (in {filename}): There are {len(out_list)} dimensions when only 1 is expected! \n")
+
+    out_shape = out_list[0]['shape']
+
+    # If MatMul, the shape must be expanded
+    if (op_type == 'MatMul'):
+        if ( len(out_shape) != 2 ):
+            raise Exception(f"ERROR (in {filename}): Wrong output shape ({len(out_shape)} dimensions when 2 are expected)! \n")
+        out_tensor_shape = (out_shape[0], out_shape[1], 1, 1) 
+
+    else: # 4 dimensions tensors
+        if ( len(out_shape) != 4 ):
+            raise Exception(f"ERROR (in {filename}): Wrong output shape ({len(out_shape)} dimensions when 4 are expected)! \n")
+        out_tensor_shape = out_shape # NCHW
 
 
     # Get the input tensors
     # ---
     # Count the nodes
-    idx_nodes = 0
+    isInpGet = False
+    isWgtGet = False
 
     for j, inp in enumerate(inp_list):
         # Get the name
         inp_name = inp['name']
+        inp_shape = inp['shape']
 
         # Get A
         if (inp_name in node_mapping):
             if (op_type == 'MatMul'):
                 # Check there are 2 dimensions
-                if ( len(inp['shape']) != 2 ):
-                    raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp['shape'])} dimensions when 2 are expected)! \n")
+                if ( len(inp_shape) != 2 ):
+                    raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp_shape)} dimensions when 2 are expected)! \n")
                 # Get the shape
-                if (idx_nodes == 0):
-                    inp_tensor_shape = (inp['shape'][0], inp['shape'][1], 1, 1)
-                elif (idx_nodes == 1):
-                    wgt_tensor_shape = (inp['shape'][0], inp['shape'][1], 1, 1)
+                if (isInpGet == False):
+                    isInpGet = True
+                    inp_tensor_shape = (inp_shape[0], inp_shape[1], 1, 1)
                 else:
                     raise Exception(f"ERROR (in {filename}): Unexpected input ({inp_name})! \n")
             else:
                 # Check there are 4 dimensions
-                if ( len(inp['shape']) != 4 ):
-                    raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp['shape'])} dimensions when 4 are expected)! \n")
+                if ( len(inp_shape) != 4 ):
+                    raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp_shape)} dimensions when 4 are expected)! \n")
                 # Get the shape
-                if (idx_nodes == 0):
-                    inp_tensor_shape = inp['shape'] # NCHW
-                elif (idx_nodes == 1):
-                    wgt_tensor_shape = inp['shape'] # NCHW
+                if (isInpGet == False):
+                    isInpGet = True
+                    inp_tensor_shape = inp_shape # NCHW
                 else:
                     raise Exception(f"ERROR (in {filename}): Unexpected input ({inp_name})! \n")
 
-            # Increment idx
-            idx_nodes = idx_nodes + 1
         
         # Get B or X
         elif (inp_name in param):
             # Empty field = metadata
-            if (len(inp['shape']) == 0):
+            if (len(inp_shape) == 0):
                 if (j == 1): # INP SCALE
-                    A_scale = param[inp['name']]
+                    A_scale = param[inp_name]
                 elif (j == 2): # INP ZERO POINT
-                    A_zp = param[inp['name']]
+                    A_zp = param[inp_name]
                 
                 elif (j == 4): # WGT SCALE
-                    B_scale = param[inp['name']]
+                    B_scale = param[inp_name]
                 elif (j == 5): # WGT ZERO POINT
-                    B_zp = param[inp['name']]
+                    B_zp = param[inp_name]
                 
                 elif (j == 6): # OUT SCALE
-                    C_scale = param[inp['name']]
+                    C_scale = param[inp_name]
                 elif (j == 7): # OUT ZERO POINT
-                    C_zp = param[inp['name']]
+                    C_zp = param[inp_name]
 
             # X (bias)
-            elif (len(inp['shape']) == 1):
+            elif ( (len(inp_shape) == 1) and (isBias == False) ):
                 isBias = True
-                acc_tensor = param[inp['name']]
+                acc_tensor = param[inp_name]
 
             else: # B (weight)
-                if (op_type == 'MatMul'):
+                if (isWgtGet == True):
+                    raise Exception(f"ERROR (in {filename}): Multiple weight tensors in the node! \n")
+
+                elif (op_type == 'MatMul'):
                     # Check there are 2 dimensions
-                    if ( len(inp['shape']) != 2 ):
-                        raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp['shape'])} dimensions when 2 are expected)! \n")
-                    wgt_tensor_shape = (inp['shape'][0], inp['shape'][1], 1, 1)
-                    wgt_tensor = param[inp['name']]
+                    if ( len(inp_shape) != 2 ):
+                        raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp_shape)} dimensions when 2 are expected)! \n")
+                    wgt_tensor_shape = (inp_shape[0], inp_shape[1], 1, 1)
+                    wgt_tensor = param[inp_name]
                 else:
                     # Check there are 4 dimensions
-                    if ( len(inp['shape']) != 4 ):
-                        raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp['shape'])} dimensions when 4 are expected)! \n")
-                    wgt_tensor_shape = inp['shape'] # NCHW
-                    wgt_tensor = param[inp['name']]
+                    if ( len(inp_shape) != 4 ):
+                        raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp_shape)} dimensions when 4 are expected)! \n")
+                    wgt_tensor_shape = inp_shape # NCHW
+                    wgt_tensor = param[inp_name]
+                isWgtGet = True
         
         # Else problem 
         else:
@@ -215,6 +223,7 @@ def node_conv(node, param={}, node_mapping={}, filename='',
     wgt_matrix = SD.ker2col(wgt_tensor)
 
     # BIAS
+    acc_matrix = []
     if (isBias == True):
         acc_matrix = SD.expand_bias(acc_tensor, Ah)
     else:
@@ -230,7 +239,6 @@ def node_conv(node, param={}, node_mapping={}, filename='',
         M = (A_scale * B_scale) / C_scale
         n = 16
         P = round( M * (2**n) )
-        print(f"\nDEBUG: P={P}, {M * (2**n)} \n\n")
         rescaling_bias = int( (2**(n-1)) )
 
         # Define ALU
@@ -318,13 +326,14 @@ def node_conv(node, param={}, node_mapping={}, filename='',
     # ------
     info = {
         "matrix_shape": (Ah, Aw_Bh, Bw),
+        "offset": A_zp,
         "tensor_shape": (inp_tensor_shape, out_tensor_shape),
         "padding": (ph[0], pw[0], ph[1], pw[1]),
         "stride": (sh, sw),
         "kernel": (fh, fw)
     }
 
-    return vta_ir, info, isBias
+    return vta_ir, info
 
 
 
@@ -494,5 +503,5 @@ def node_mulconstant(node, param={}, node_mapping={}, filename='',
         "kernel": (fh, fw)
     }
 
-    return vta_ir, info, isBias
+    return vta_ir, info
 

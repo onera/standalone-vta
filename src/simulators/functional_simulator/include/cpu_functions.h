@@ -586,7 +586,7 @@
 
 
   // --------------------------------------------------------
-  // MAIN RESHAPE FUNCTION
+  // MAIN RESHAPE FUNCTIONS
   // --------------------------------------------------------
 
   // reshape
@@ -612,7 +612,9 @@
       std::pair<int, int> kernel_size,
       int stride,
       const std::vector<int>& padding = {0, 0, 0, 0},
-      bool isSquare = false) { 
+      bool isSquare = false,
+      int offset = 0
+    ) { 
 
       if (vector.empty()) {
           std::cerr << "ERROR: Input vector is empty!" << std::endl;
@@ -635,6 +637,15 @@
       if (previous_matrix.empty()) {
            std::cerr << "CRITICAL: unsplit returned empty matrix." << std::endl;
            exit(1);
+      }
+
+      // 2b - APPLY OFFSET
+      if (offset != 0) {
+          for (auto& row : previous_matrix) {
+              for (auto& val : row) {
+                  val -= offset;
+              }
+          }
       }
 
 
@@ -669,6 +680,84 @@
 
       
       return res;
+  }
+
+  
+  // output_tensor
+  /**
+   * Performs the first 3 steps of reshape to get a tensor, 
+   * then writes it to a binary file.
+   * * Steps:
+   * 1. Vector -> Blocks (to_blocks)
+   * 2. Blocks -> Matrix (unsplit)
+   * 3. Matrix -> Tensor (mat_to_tensor)
+   * 4. Tensor -> Binary File
+   */
+  template <typename T>
+  void output_tensor(
+      const std::vector<T>& vector,
+      int block_size,
+      int batch_size,
+      int tensor_channel,
+      int tensor_height,
+      int tensor_width,
+      const std::string& filepath
+  ) {
+      if (vector.empty()) {
+          std::cerr << "ERROR: Input vector is empty!" << std::endl;
+          return;
+      }
+
+      // 0 - CALCULATE VARIABLES
+      int prev_outC_matrix_height = tensor_height * tensor_width;
+      int prev_outC_matrix_width = tensor_channel;
+      int block_col = (prev_outC_matrix_width + block_size - 1) / block_size;
+      
+      // 1 - VECTOR -> BLOCKS
+      auto list_blocks = to_blocks(vector, block_col, block_size);
+      
+      // 2 - BLOCKS -> MATRIX (unpad)
+      auto previous_matrix = unsplit(list_blocks, block_size, prev_outC_matrix_height, prev_outC_matrix_width);
+
+      if (previous_matrix.empty()) {
+           std::cerr << "CRITICAL: unsplit returned empty matrix." << std::endl;
+           exit(1);
+      }
+
+      // 3 - MATRIX -> TENSOR
+      auto tensor = mat_to_tensor(previous_matrix, batch_size, tensor_channel, tensor_height, tensor_width);
+
+      // Check tensor validity
+      if (tensor.empty() || tensor[0].empty() || tensor[0][0].empty()) {
+          std::cerr << "CRITICAL: Tensor dimensions invalid/empty after step 3." << std::endl;
+          exit(1);
+      }
+
+      // 4 - WRITE TENSOR TO BINARY FILE
+      std::ofstream out(filepath, std::ios::binary);
+      if (!out.is_open()) {
+          std::cerr << "ERROR: Could not open file " << filepath << " for writing." << std::endl;
+          return;
+      }
+
+      // Iterate and write raw bytes
+      // Dimensions: [batch_size][channels][height][width]
+      for (const auto& batch : tensor) {
+          for (const auto& channel : batch) {
+              for (const auto& row : channel) {
+                  for (const auto& val : row) {
+                      out.write(reinterpret_cast<const char*>(&val), sizeof(T));
+                  }
+              }
+          }
+      }
+
+      out.close();
+      if (!out) {
+          std::cerr << "ERROR: Write failure occurred for " << filepath << std::endl;
+      } else {
+          std::cout << "Tensor successfully written to " << filepath << std::endl;
+      }
   }
 
 #endif  // CPU_FUNCTIONS_H

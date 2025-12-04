@@ -87,6 +87,11 @@ reference_onnx:
 	$(DEBUG) \
 	$(ONNX_FILE) > $(COMPILER_OUTPUT_DIR)/prompt_reference.txt
 
+check:
+	@diff $(COMPILER_OUTPUT_DIR)/reference.bin $(COMPILER_OUTPUT_DIR)/final_output.bin
+	@echo ""
+	@echo "SUCCESS!"
+
 
 # FSIM EXECUTION
 ################
@@ -106,7 +111,7 @@ nn_fsim:
 	cd $(FSIM_DIR) && make -s nn_execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
 	@date
 	@echo ""
-	@echo "SUCCESS!"
+	@echo "FINAL_OUTPUT.BIN generated!"
 
 
 # EXECUTION
@@ -125,6 +130,7 @@ nn_run:
 	@make compile
 	@make reference_onnx
 	@make nn_fsim
+	@make check
 
 
 ############################################################

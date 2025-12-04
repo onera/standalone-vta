@@ -94,6 +94,7 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
             "node_name": filename,
             "processor": "cpu",
             "reshape": False,
+            "offset": 0,
             "input_shape": [0,0,0,0],
             "output_shape": [0,0,0,0],
             "kernel": [0,0],
@@ -105,9 +106,9 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
         # Define operation for each task
         # ---
         # Convolution or Fully-Connected
-        if (op_type == "Conv" or op_type == 'QLinearConv' or op_type == "MatMul"): 
+        if (op_type == "Conv" or op_type == "QLinearConv" or op_type == "MatMul"): 
             # Get data from the node
-            vta_ir, info, isBias = \
+            vta_ir, info = \
                 Nconv.node_conv(node=cpt_node, param=model_param, node_mapping=dict_name_index, filename=filename, debug=False)
 
             # Generate the associated binaries
@@ -127,6 +128,7 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
                 node_dependency['reshape'] = False
             else:
                 node_dependency['reshape'] = True
+            node_dependency['offset'] = info['offset']
             node_dependency['input_shape'] = info['tensor_shape'][0]
             node_dependency['output_shape'] = info['tensor_shape'][1]
             node_dependency['kernel'] = info['kernel']
@@ -157,6 +159,7 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
                 node_dependency['reshape'] = False
             else:
                 node_dependency['reshape'] = "int32"
+            node_dependency['offset'] = info['offset']
             node_dependency['input_shape'] = info['tensor_shape'][0]
             node_dependency['output_shape'] = info['tensor_shape'][1]
             node_dependency['kernel'] = info['kernel']
@@ -168,7 +171,7 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
         # MulConstant
         elif (op_type == "Mul" or op_type == "QLinearMul"): 
             # Get data from the node
-            vta_ir, info, isBias = \
+            vta_ir, info = \
                 Nconv.node_mulconstant(node=cpt_node, param=model_param, node_mapping=dict_name_index, filename=filename, debug=False)
 
             # Generate the associated binaries
@@ -177,8 +180,6 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
                 Aw = info['matrix_shape'][1]
 
                 RRBG.random_raw_binary_generator(m_rows=Ah, n_columns=Aw, filename=filename+"input", dtype='int8', debug=False)
-                if (isBias == True):
-                    RRBG.random_raw_binary_generator(m_rows=Ah, n_columns=Aw, filename=filename+"accumulator", dtype='int32', debug=False)
 
             # Append the VTA IR list
             vta_ir_list.append( (filename, vta_ir.copy()) )
@@ -189,6 +190,7 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
                 node_dependency['reshape'] = False
             else:
                 node_dependency['reshape'] = True
+            node_dependency['offset'] = info['offset']
             node_dependency['input_shape'] = info['tensor_shape'][0]
             node_dependency['output_shape'] = info['tensor_shape'][1]
             node_dependency['kernel'] = info['kernel']
@@ -219,6 +221,7 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
                 node_dependency['reshape'] = False
             else:
                 node_dependency['reshape'] = "int32"
+            node_dependency['offset'] = info['offset']
             node_dependency['input_shape'] = info['tensor_shape'][0]
             node_dependency['output_shape'] = info['tensor_shape'][1]
             node_dependency['kernel'] = info['kernel']
@@ -230,7 +233,7 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
         # ADD
         elif (op_type == "Add" or op_type == 'QLinearAdd'): 
             # Get data from the node
-            vta_ir, info, isBias = \
+            vta_ir, info = \
                 Nadd.node_add(node=cpt_node, param=model_param, node_mapping=dict_name_index, filename=filename, debug=False)
 
             # Generate the associated binaries
@@ -250,6 +253,7 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
                 node_dependency['reshape'] = False
             else:
                 node_dependency['reshape'] = "int32"
+            node_dependency['offset'] = info['offset']
             node_dependency['input_shape'] = info['tensor_shape'][0]
             node_dependency['output_shape'] = info['tensor_shape'][1]
             node_dependency['kernel'] = info['kernel']
@@ -305,22 +309,31 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
                 dep['input_shape'][2],  # 2
                 dep['input_shape'][3],  # 3
                 dep['reshape'],         # 4
-                dep['kernel'][0],       # 5
-                dep['kernel'][1],       # 6
-                dep['stride'][0],       # 7
-                dep['stride'][1],       # 8
-                dep['padding'][0],      # 9
-                dep['padding'][1],      # 10
-                dep['padding'][2],      # 11
-                dep['padding'][3],      # 12
-                "INP",                  # 13
-                len(dep['input_nodes']),# 14
+                dep['offset'],          # 5
+                dep['kernel'][0],       # 6
+                dep['kernel'][1],       # 7
+                dep['stride'][0],       # 8
+                dep['stride'][1],       # 9
+                dep['padding'][0],      # 10
+                dep['padding'][1],      # 11
+                dep['padding'][2],      # 12
+                dep['padding'][3],      # 13
+                "INP",                  # 14
+                len(dep['input_nodes']),# 15
             ]
-            # Add the dependency information # 15+
+            # Add the dependency information # 16+
             for inp_node in dep['input_nodes']:
                 dep_list.append( inp_node )
             # Write the second line
             writer.writerow(dep_list)
+        # write output
+        writer.writerow([
+            "output",                               # 0
+            execution_order[-1]['node_name'],       # 1
+            execution_order[-1]['output_shape'][1], # 2
+            execution_order[-1]['output_shape'][2], # 3
+            execution_order[-1]['output_shape'][3]  # 4
+        ])
 
 
     # ---------------------------------------------
@@ -380,21 +393,14 @@ if __name__ == "__main__":
             <doGenerateBin>
             <debug>
     """
-    doGenerateBin = False
-    debug = True
+    # Must have 4 arguments
+    if (len(sys.argv) != 4):
+        raise Exception(f"ERROR: There are {len(sys.argv)} arguments when 4 are expected! \n\n")
 
-    if (len(sys.argv) == 1):
-        onnx_model_path = "../../../../onnx_zoo/yolonas.onnx" 
-    elif (len(sys.argv) == 2):
-        onnx_model_path = sys.argv[1]
-    elif (len(sys.argv) == 3):
-        onnx_model_path = sys.argv[1]
-        doGenerateBin = True if (sys.argv[2] == 'true' or sys.argv[2] == 'True') else False
-    elif (len(sys.argv) == 4):
-        onnx_model_path = sys.argv[1]
-        doGenerateBin = True if (sys.argv[2] == 'true' or sys.argv[2] == 'True') else False
-        debug = True if (sys.argv[3] == 'true' or sys.argv[3] == 'True') else False
-
+    # Read the arguments
+    onnx_model_path = sys.argv[1]
+    doGenerateBin = True if (sys.argv[2] == 'true' or sys.argv[2] == 'True') else False
+    debug = True if (sys.argv[3] == 'true' or sys.argv[3] == 'True') else False
 
     # Execute the backend
     result = vta_backend(onnx_model_path, doGenerateBin=doGenerateBin, debug=debug)
