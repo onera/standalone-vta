@@ -114,7 +114,6 @@ int fsim_nn() {
         std::string fileAccPath = construct_path("accumulator" + ctx.suffix + ".bin");
         std::string fileAddAccPath = construct_path("add_accumulator" + ctx.suffix + ".bin");
         std::string fileOutPath = construct_path("output" + ctx.suffix + ".bin");
-        std::string fileRefPath = construct_path("reference" + ctx.suffix + ".bin");
         std::string fileUopPath = construct_path("uop" + ctx.suffix + ".bin");
         std::string fileInsnPath = construct_path("instructions" + ctx.suffix + ".bin");
 
@@ -139,11 +138,6 @@ int fsim_nn() {
         // Output C (buffer space)
         ctx.outC = read_binary_file<int8_t>(fileOutPath);
 
-        // Reference C
-        std::vector<int8_t> raw_refC = read_binary_file<int8_t>(fileRefPath);
-        if (ctx.C_row <= 0 || ctx.C_col <= 0) ctx.refC = raw_refC;
-        else ctx.refC = data_formatting(raw_refC, ctx.C_row, ctx.C_col, block_size, out_square);
-
         // Instructions & UOPs
         ctx.uop_buffer = read_binary_file<uop_t>(fileUopPath);
         ctx.insn_buffer = read_binary_file<instruction_t>(fileInsnPath);
@@ -159,9 +153,6 @@ int fsim_nn() {
 
         // GET PHYSICAL ADDRESSES
         ctx.phy_add_insn = VTAMemGetPhyAddr(ctx.mem_insn);
-        // Note: You can get others here if you need to debug print them, 
-        // but typically only the instruction PHY address is passed to DeviceRun directly
-        // assuming the instructions themselves contain the phy offsets for other buffers.
         
         // COPY TO DEVICE
         VTAMemCopyFromHost(ctx.mem_inpA, ctx.inpA.data(), ctx.inpA.size() * sizeof(int8_t));

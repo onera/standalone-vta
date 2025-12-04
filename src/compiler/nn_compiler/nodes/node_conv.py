@@ -4,7 +4,10 @@ import os
 import sys
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils.find_project_root import *
 import utils.tensor_matrix_converter as TM
+
+import nn_compiler.shape_data.shape_data as SD
 
 
 
@@ -17,6 +20,10 @@ def node_conv(node, param={}, node_mapping={}, filename='',
               debug=False):
     # Reset the vta_ir
     vta_ir = {}
+
+    # ---
+    # PARSE METADATA
+    # --------------
 
     # Get the metadata
     # ---
@@ -35,6 +42,14 @@ def node_conv(node, param={}, node_mapping={}, filename='',
     isBias = False
     out_tensor_shape = []
     out_matrix_shape = []
+
+    # For Quantisation
+    A_scale = 1.
+    A_zp = 0
+    B_scale = 1.
+    B_zp = 0
+    C_scale = 1.
+    C_zp = 0
 
 
     # Get the output tensors
@@ -90,13 +105,27 @@ def node_conv(node, param={}, node_mapping={}, filename='',
         
         # Get B or X
         elif (inp_name in param):
-            # Empty field
+            # Empty field = metadata
             if (len(inp['shape']) == 0):
-                pass
+                if (j == 1): # INP SCALE
+                    A_scale = param[inp['name']]
+                elif (j == 2): # INP ZERO POINT
+                    A_zp = param[inp['name']]
+                
+                elif (j == 4): # WGT SCALE
+                    B_scale = param[inp['name']]
+                elif (j == 5): # WGT ZERO POINT
+                    B_zp = param[inp['name']]
+                
+                elif (j == 6): # OUT SCALE
+                    C_scale = param[inp['name']]
+                elif (j == 7): # OUT ZERO POINT
+                    C_zp = param[inp['name']]
 
             # X (bias)
             elif (len(inp['shape']) == 1):
                 isBias = True
+                acc_tensor = param[inp['name']]
 
             else: # B (weight)
                 if (op_type == 'MatMul'):
@@ -104,11 +133,13 @@ def node_conv(node, param={}, node_mapping={}, filename='',
                     if ( len(inp['shape']) != 2 ):
                         raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp['shape'])} dimensions when 2 are expected)! \n")
                     wgt_tensor_shape = (inp['shape'][0], inp['shape'][1], 1, 1)
+                    wgt_tensor = param[inp['name']]
                 else:
                     # Check there are 4 dimensions
                     if ( len(inp['shape']) != 4 ):
                         raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp['shape'])} dimensions when 4 are expected)! \n")
                     wgt_tensor_shape = inp['shape'] # NCHW
+                    wgt_tensor = param[inp['name']]
         
         # Else problem 
         else:
@@ -156,6 +187,10 @@ def node_conv(node, param={}, node_mapping={}, filename='',
         ph = (0, 0)
         pw = (0, 0)
 
+    
+    # ---
+    # DEFINE MATRICES
+    # ---------------
 
     # Define the matrix dimensions
     # ---
@@ -172,8 +207,75 @@ def node_conv(node, param={}, node_mapping={}, filename='',
     Bw = wgt_matrix_shape[1] #mc
 
 
-    # Check if there is a biais
+    # Transform tensor in matrix
+    # ---
+    # WGT
+    if (B_zp != 0):
+        wgt_tensor = wgt_tensor - B_zp
+    wgt_matrix = SD.ker2col(wgt_tensor)
+
+    # BIAS
     if (isBias == True):
+        acc_matrix = SD.expand_bias(acc_tensor, Ah)
+    else:
+        acc_matrix = np.zeros((n, m), dtype=np.int32)
+
+
+    # ---
+    # WRITE VTA IR
+    # ------------
+    # Check if there is a biais
+    if (op_type == 'QLinearConv'):
+        # Compute rescale factor
+        M = (A_scale * B_scale) / C_scale
+        n = 16
+        P = round( M * (2**n) )
+        print(f"\nDEBUG: P={P}, {M * (2**n)} \n\n")
+        rescaling_bias = int( (2**(n-1)) )
+
+        # Define ALU
+        if (C_zp != 0):
+            alu_operations = [
+                ["MUL_IMM", [[0,1], P, Ah]],
+                ["ADD_IMM", [[0,1], rescaling_bias, Ah]],
+                ["SHR_IMM", [[0,1], n, Ah]],
+                ["ADD_IMM", [[0,1], int( C_zp + 1 ), Ah]],
+                ["MAX_IMM", [[0,1], -128, Ah]],
+                ["MIN_IMM", [[0,1], 127, Ah]]
+            ]
+        else:
+            alu_operations = [
+                ["MUL_IMM", [[0,1], P, Ah]],
+                ["ADD_IMM", [[0,1], rescaling_bias, Ah]],
+                ["SHR_IMM", [[0,1], n, Ah]],
+                ["MAX_IMM", [[0,1], -128, Ah]],
+                ["MIN_IMM", [[0,1], 127, Ah]]
+            ]
+
+        # Define the VTA IR
+        vta_ir = {
+            "NAME": filename,
+            "MATRICES": {
+                "A": [Ah, Aw_Bh, "../compiler_output/"+filename+"input_"+str(Ah)+"x"+str(Aw_Bh)+".bin"],
+                "B": [Aw_Bh, Bw, "../compiler_output/"+filename+"weight_"+str(Aw_Bh)+"x"+str(Bw)+".bin"],
+                "X": [Ah, Bw, "../compiler_output/"+filename+"accumulator_"+str(Ah)+"x"+str(Bw)+".bin"],
+                "C": [Ah, Bw, "output"]
+            },
+            "LOAD": {
+                "INP": ["A"],
+                "WGT": ["B"],
+                "ACC": ["X"]
+            },
+            "GEMM": ["C", "A", "B"],
+            "ALU" : {
+                "C": alu_operations
+            },
+            "STORE": {
+                "C": ["C"]
+            }
+        }
+
+    else:
         # Define the VTA IR
         vta_ir = {
             "NAME": filename,
@@ -193,28 +295,27 @@ def node_conv(node, param={}, node_mapping={}, filename='',
                 "C": ["C"]
             }
         }
-    else:
-        # Define the VTA IR
-        vta_ir = {
-            "NAME": filename,
-            "MATRICES": {
-                "A": [Ah, Aw_Bh, "../compiler_output/"+filename+"input_"+str(Ah)+"x"+str(Aw_Bh)+".bin"],
-                "B": [Aw_Bh, Bw, "../compiler_output/"+filename+"weight_"+str(Aw_Bh)+"x"+str(Bw)+".bin"],
-                "C": [Ah, Bw, "output"]
-            },
-            "LOAD": {
-                "INP": ["A"],
-                "WGT": ["B"]
-            },
-            "GEMM": ["C", "A", "B"],
-            "STORE": {
-                "C": ["C"]
-            }
-        }
 
 
-    # Return
     # ---
+    # WRITE BINARIES
+    # --------------
+    output_dir = compiler_output_setup()
+    # WGT
+    file_wgt_path = filepath_definition(output_dir, filename+"weight_"+str(Aw_Bh)+"x"+str(Bw)+".bin")
+    # ACC
+    file_acc_path = filepath_definition(output_dir, filename+"accumulator_"+str(Ah)+"x"+str(Bw)+".bin")
+
+    # WRITE
+    with open(file_wgt_path, 'wb') as f:
+        wgt_matrix.tofile(f)
+    with open(file_acc_path, 'wb') as f:
+        acc_matrix.tofile(f)
+
+
+    # ---
+    # RETURN
+    # ------
     info = {
         "matrix_shape": (Ah, Aw_Bh, Bw),
         "tensor_shape": (inp_tensor_shape, out_tensor_shape),

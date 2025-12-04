@@ -117,9 +117,6 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
                 Bw = info['matrix_shape'][2]
 
                 RRBG.random_raw_binary_generator(m_rows=Ah, n_columns=Aw_Bh, filename=filename+"input", dtype='int8', debug=False)
-                RRBG.random_raw_binary_generator(m_rows=Aw_Bh, n_columns=Bw, filename=filename+"weight", dtype='int8', debug=False)
-                if (isBias == True):
-                    RRBG.random_raw_binary_generator(m_rows=Ah, n_columns=Bw, filename=filename+"accumulator", dtype='int32', debug=False)
 
             # Append the VTA IR list
             vta_ir_list.append( (filename, vta_ir.copy()) )

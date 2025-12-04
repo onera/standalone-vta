@@ -19,12 +19,31 @@ JSON_FILES := $(COMPILER_OUTPUT_DIR)/*.json
 
 DEBUG ?= True
 
+ONNX_FILE ?= ../../onnx_zoo/qlinearconv3x3.onnx
+# ../../onnx_zoo/mnist-12.onnx
+# ../../onnx_zoo/yolonas.onnx
+# ../../onnx_zoo/yolonas_Qops_fixed.onnx
+# ../../onnx_zoo/subgraph_pattern.onnx
+# ../../onnx_zoo/subgraph_Qops_pattern.onnx
+
 
 ############################################################
 ############################################################
 
 # Default
 all: help
+
+
+# ONNX PARSING
+##############
+parse_onnx: ## Parse the specified ONNX
+	make clean
+	@echo ""
+	@echo "PARSE ONNX..."
+	python $(NN_COMPILER_DIR)/vta_backend.py \
+	$(ONNX_FILE) \
+	True \
+	$(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_backend.txt
 
 
 # COMPILE EXISTING 
@@ -61,6 +80,13 @@ reference:
 	$(CONFIG)/vta_config.json \
 	$(JSON_FILES) > $(COMPILER_OUTPUT_DIR)/prompt_reference.txt
 
+reference_onnx:
+	@echo ""
+	@echo "PROVIDE ONNX reference..."
+	python $(COMPILER_DIR)/reference_computation/reference_onnx.py \
+	$(DEBUG) \
+	$(ONNX_FILE) > $(COMPILER_OUTPUT_DIR)/prompt_reference.txt
+
 
 # FSIM EXECUTION
 ################
@@ -86,22 +112,18 @@ nn_fsim:
 # EXECUTION
 ###########
 run:
+	@make clean
 	@make compile_fsim
 	@make compile
 	@make reference
 	@make fsim
 
 nn_run:
+	@make parse_onnx
 	@make compile_nn_fsim
 	@make compile
+	@make reference_onnx
 	@make nn_fsim
-
-
-temp_copy_pattern_yolo:
-	make clean
-	@echo ""
-	@echo "Copy Pattern Yolo binaries"
-	cp $(COMPILER_OUTPUT_DIR)/pattern_yolo/* $(COMPILER_OUTPUT_DIR)/
 
 
 ############################################################
@@ -262,61 +284,6 @@ test_sequence:
 	@make compile
 	@make reference
 	@make fsim
-
-
-############################################################
-############################################################
-
-# ONNX PARSING
-##############
-# MNIST / LeNet
-parse_lenet: ## Parse a LeNet (mnsit-12) ONNX
-	make clean
-	@echo ""
-	@echo "PARSE LENET ONNX..."
-	python $(NN_COMPILER_DIR)/vta_backend.py \
-	../../onnx_zoo/mnist-12.onnx \
-	True \
-	$(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_backend.txt
-
-# YOLONAS
-parse_yolo: ## Parse a YoloNas ONNX
-	make clean
-	@echo ""
-	@echo "PARSE YOLO ONNX..."
-	python $(NN_COMPILER_DIR)/vta_backend.py \
-	../../onnx_zoo/yolonas.onnx \
-	True \
-	$(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_backend.txt
-
-parse_qops_yolo:
-	make clean
-	@echo ""
-	@echo "PARSE QOPS YOLO ONNX..."
-	python $(NN_COMPILER_DIR)/vta_backend.py \
-	../../onnx_zoo/yolonas_Qops_fixed.onnx \
-	True \
-	$(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_backend.txt
-
-parse_pattern_yolo: ## Parse a pattern of the YoloNas ONNX
-	make clean
-	@echo ""
-	@echo "PARSE a pattern of YOLO ONNX..."
-	python $(NN_COMPILER_DIR)/vta_backend.py \
-	../../onnx_zoo/subgraph_pattern.onnx \
-	True \
-	$(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_backend.txt
-
-
-# ONNX EXECUTION
-################
-execute_yolo_unittest: ## Parse, compile and simulate all YOLO-NAS's VTA IR nodes independently (without chaining
-	@make parse_yolo
-	@make run
-
-execute_yolo_pattern: ## Parse, compile, chain and simulate a representative pattern of YOLO-NAS
-	@make parse_pattern_yolo
-	@make nn_run
 
 
 ############################################################
