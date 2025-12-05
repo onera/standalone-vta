@@ -10,6 +10,7 @@ import numpy as np
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.find_project_root import *
+from utils.read_csv import *
 
 
 ###############################################
@@ -18,7 +19,25 @@ from utils.find_project_root import *
 # MAIN FUNCTION
 # -------------
 def reference_onnx(model_path, debug=False):
-    
+    # Read dependency.csv to have high level information
+    output_dir = compiler_output_setup()
+    file_dep_path = filepath_definition(output_dir, 'dependency.csv')
+
+    # Get information
+    dep_dict = load_csv_to_dict(file_dep_path)
+    # The first layer
+    first_layer_name = dep_dict['0'][2]
+
+    # Get attributes
+    attributes = dep_dict[first_layer_name]
+    shape = [1, int( attributes[1] ), int( attributes[2] ), int( attributes[3] ) ]
+    offset = int( attributes[5] )
+    kernel = ( int(attributes[6]), int(attributes[7]) )
+    stride = ( int(attributes[8]), int(attributes[9]) )
+    padding = ( int(attributes[10]), int(attributes[11]), int(attributes[12]), int(attributes[13]) )
+
+
+    # ---
     # Create Inference Session
     session = ort.InferenceSession(model_path)
     
@@ -27,6 +46,10 @@ def reference_onnx(model_path, debug=False):
     input_shape = session.get_inputs()[0].shape
     input_type = session.get_inputs()[0].type
 
+    # Check the shape
+    if (input_shape != shape):
+        raise Exception(f"\nERROR: We get shape={shape} when the expected is {input_shape}! \n\n")
+
     # Generate Random Integer Input 
     low_bound = -128
     high_bound = 0 # Exclusive
@@ -34,30 +57,36 @@ def reference_onnx(model_path, debug=False):
     # Create random tensor matching the input shape
     input_data = np.random.randint(low_bound, high_bound, size=input_shape).astype(np.int8)
 
+
+    # ---
     # Run Inference
     outputs = session.run(None, {input_name: input_data})
     
     # Get the first output
     output_data = outputs[0]
 
+
     # ---
-    # Binarise
-    output_dir = compiler_output_setup()
-    file_inp_path = filepath_definition(output_dir, 'inputQLinearConv1.bin')
+    # Refactor the data for the FSIM
+    input_with_offset = input_data - offset
+
+    matrix = im2row(
+        X=input_with_offset, 
+        kernel_size=kernel, 
+        stride=stride, 
+        padding=padding
+    )
+
+    # ---
+    # Binarise
+    file_inp_path = filepath_definition(output_dir, 'input'+first_layer_name+'.bin')
     file_ref_path = filepath_definition(output_dir, 'reference.bin')
-
-    # Perform modification on the input
-    input_with_offset = input_data + 128 # - (-128) -> On le fait pour ne pas le faire 
-    matrix = im2row(input_with_offset)
-
-    # Modify the output
-    ref = flatten_conv_output(output_data)
 
     # Write the result
     with open(file_inp_path, 'wb') as f:
         matrix.tofile(f)
     with open(file_ref_path, 'wb') as f:
-        ref.tofile(f)
+        output_data.tofile(f)
 
 
     # ---
@@ -66,6 +95,9 @@ def reference_onnx(model_path, debug=False):
         print(f"Input Name: {input_name}")
         print(f"Input Shape: {input_shape}")
         print(f"Input Type: {input_type}")
+
+        print(f"\nFirst layer: {first_layer_name}")
+        print(f"\t offset={offset}, kernel={kernel}, stride={stride}, padding={padding} \n")
 
         print("\nInput Data:")
         print(input_data)
@@ -76,31 +108,45 @@ def reference_onnx(model_path, debug=False):
         
         print("\nOutput Data:")
         print(output_data)
-        print("\nOutput FLATTEN:")
-        print(ref)
+
 
 ###############################################
 
 # IM2ROW
 # ------
-def im2row(X, kernel_size=(2,2), stride=1):
+def im2row(X, kernel_size=(1,1), stride=(1,1), padding=(0,0,0,0)):
     """
     Converts an input tensor X into a matrix (im2row).
     
     Arguments:
     X -- Input tensor of shape (batch_size, input_channels, input_height, input_width)
     kernel_size -- Filter size (height, width)
-    stride -- Convolution stride
+    stride -- Convolution stride (height, width)
+    padding -- Padding (top, left, bottom, right)
     
     Returns:
     A matrix of shape (batch_size, output_height * output_width * input_channels, kernel_height * kernel_width)
     """
-    batch_size, input_channels, input_height, input_width = X.shape
+    # Get the attributes
     kernel_height, kernel_width = kernel_size
+    stride_height, stride_width = stride
+    pad_top, pad_left, pad_bottom, pad_right = padding
+
+    # Apply a zero-padding
+    X_padded = np.pad(X, (
+        (0, 0),                     # Batch
+        (0, 0),                     # Channels
+        (pad_top, pad_bottom),      # Hauteur
+        (pad_left, pad_right)       # Largeur
+    ), mode='constant', constant_values=0)
+
+    # Get the padded tensor dimension
+    batch_size, input_channels, input_height, input_width = X_padded.shape
+
     
     # Calculate the output dimensions
-    output_height = (input_height - kernel_height) // stride + 1
-    output_width = (input_width - kernel_width) // stride + 1
+    output_height = (input_height - kernel_height) // stride_height + 1
+    output_width = (input_width - kernel_width) // stride_width + 1
     
     # Initial output matrix
     rows = batch_size * output_height * output_width
@@ -110,10 +156,10 @@ def im2row(X, kernel_size=(2,2), stride=1):
     # Fill the matrix with patches
     row_idx = 0
     for b in range(batch_size):
-        for i in range(0, input_height - kernel_height + 1, stride):
-            for j in range(0, input_width - kernel_width + 1, stride):
+        for i in range(0, input_height - kernel_height + 1, stride_height):
+            for j in range(0, input_width - kernel_width + 1, stride_width):
                 # Extract the patch
-                patch = X[b, :, i:i+kernel_height, j:j+kernel_width]
+                patch = X_padded[b, :, i:i+kernel_height, j:j+kernel_width]
                 result[row_idx] = patch.flatten()
                 row_idx += 1
                 

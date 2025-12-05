@@ -27,7 +27,6 @@
   // vec1DtoMat2D
   /**
     * Transforms a 1D vector into a 2D matrix (vector of vectors).
-    * (Comments in British English as requested)
     *
     * If the input vector is smaller than the target matrix size,
     * the matrix is padded with default-initialised values (e.g., 0).

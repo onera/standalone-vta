@@ -15,16 +15,20 @@ CONFIG := $(PROJECT_DIR)/config
 
 # VARIABLES
 ###########
+PYTHON_CMD := python 
+# PYTHON_CMD := python -m cProfile -o $(COMPILER_OUTPUT_DIR)/vta_compiler.prof
+# # python -m cProfile -o $(COMPILER_OUTPUT_DIR)/vta_compiler.prof
+
 JSON_FILES := $(COMPILER_OUTPUT_DIR)/*.json
 
 DEBUG ?= True
 
-ONNX_FILE ?= ../../onnx_zoo/qlinearconv3x3.onnx
-# ../../onnx_zoo/mnist-12.onnx
-# ../../onnx_zoo/yolonas.onnx
-# ../../onnx_zoo/yolonas_Qops_fixed.onnx
-# ../../onnx_zoo/subgraph_pattern.onnx
+ONNX_FILE ?= ../../onnx_zoo/qlinearconv_yolo.onnx
+# ../../onnx_zoo/qlinearconv3x3.onnx
+# ../../onnx_zoo/qlinearconv_debug.onnx
+# ../../onnx_zoo/qlinearconv_yolo.onnx
 # ../../onnx_zoo/subgraph_Qops_pattern.onnx
+# ../../onnx_zoo/yolonas_Qops_fixed.onnx
 
 
 ############################################################
@@ -33,6 +37,8 @@ ONNX_FILE ?= ../../onnx_zoo/qlinearconv3x3.onnx
 # Default
 all: help
 
+view_profiler:
+	@snakeviz $(COMPILER_OUTPUT_DIR)/vta_compiler.prof
 
 # ONNX PARSING
 ##############
@@ -52,7 +58,8 @@ compile:
 	@echo ""
 	@echo "COMPILE tests..."
 	@date
-	python $(VTA_COMPILER_DIR)/main_vta_compiler.py \
+	$(PYTHON_CMD) \
+	$(VTA_COMPILER_DIR)/main_vta_compiler.py \
 	$(DEBUG) \
 	$(CONFIG)/vta_config.json \
 	$(JSON_FILES) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
@@ -88,7 +95,8 @@ reference_onnx:
 	$(ONNX_FILE) > $(COMPILER_OUTPUT_DIR)/prompt_reference.txt
 
 check:
-	@diff $(COMPILER_OUTPUT_DIR)/reference.bin $(COMPILER_OUTPUT_DIR)/final_output.bin
+	python $(COMPILER_DIR)/reference_computation/check_bin.py \
+	$(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_checker.txt
 	@echo ""
 	@echo "SUCCESS!"
 
