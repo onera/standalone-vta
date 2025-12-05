@@ -233,7 +233,7 @@ def node_conv(node, param={}, node_mapping={}, filename='',
     # ---
     # WRITE VTA IR
     # ------------
-    # Check if there is a biais
+    # Check if QLinearConv
     if (op_type == 'QLinearConv'):
         # Compute rescale factor
         M = (A_scale * B_scale) / C_scale
@@ -347,6 +347,10 @@ def node_mulconstant(node, param={}, node_mapping={}, filename='',
     # Reset the vta_ir
     vta_ir = {}
 
+    # ---
+    # PARSE METADATA
+    # --------------
+
     # Get the metadata
     # ---
     op_type = node['op_type']
@@ -361,52 +365,85 @@ def node_mulconstant(node, param={}, node_mapping={}, filename='',
     out_tensor_shape = []
     out_matrix_shape = []
     scalar = 0
-    isBias = False
+
+    # For Quantisation
+    A_scale = 1.
+    A_zp = 0
+    B_scale = 1.
+    B_zp = 0
+    C_scale = 1.
+    C_zp = 0
 
 
     # Get the output tensors
     # ---
-    for j, out in enumerate(out_list):
-        # Get the output tensor shape
-        if (j == 0):
-            out_tensor_shape = out['shape'] # NCHW
-        else: # if multiple output, all must have the same shape
-            if (out['shape'] != out_tensor_shape):
-                raise Exception(f"ERROR (in {filename}): No consistency between the output shape! \n")
+    # A single output is expected
+    if ( len(out_list) != 1 ):
+        raise Exception(f"ERROR (in {filename}): There are {len(out_list)} dimensions when only 1 is expected! \n")
+
+    out_tensor_shape = out_list[0]['shape']
+
+    # The output must have 4 dimensions
+    if ( len(out_tensor_shape) != 4 ):
+        raise Exception(f"ERROR (in {filename}): Wrong output shape ({len(out_tensor_shape)} dimensions when 4 are expected)! \n")
 
 
     # Get the input tensors
     # ---
+    # Count the nodes
+    isInpGet = False
+    isScalarGet = False
+
     for j, inp in enumerate(inp_list):
         # Get the name
         inp_name = inp['name']
+        inp_shape = inp['shape']
 
         # Get A
         if (inp_name in node_mapping):
             # Check there are 4 dimensions
-            if ( len(inp['shape']) != 4 ):
-                raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp['shape'])} dimensions when 4 are expected)! \n")
+            if ( len(inp_shape) != 4 ):
+                raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp_shape)} dimensions when 4 are expected)! \n")
             # Get the shape
-            inp_tensor_shape = inp['shape'] # NCHW
+            if (isInpGet == False):
+                isInpGet = True
+                inp_tensor_shape = inp_shape # NCHW
+            else:
+                raise Exception(f"ERROR (in {filename}): Unexpected input ({inp_name})! \n")
+            
             # Check consistency between input and output
             if (inp_tensor_shape != out_tensor_shape):
                 raise Exception(f"ERROR (in {filename}): MulConstant should not modify the shape, but inp_tensor_shape={inp_tensor_shape} and out_tensor_shape={out_tensor_shape}! \n")
 
+
         # Get scalar
         elif (inp_name in param):
-            # Empty field
-            if (len(inp['shape']) == 0):
-                pass
+            # Empty field = metadata
+            if (len(inp_shape) == 0):
+                if (j == 1): # WGT SCALE
+                    B_scale = param[inp_name]
+                elif (j == 2): # WGT ZERO POINT
+                    B_zp = param[inp_name]
+                
+                elif (j == 4): # INP SCALE
+                    A_scale = param[inp_name]
+                elif (j == 5): # INP ZERO POINT
+                    A_zp = param[inp_name]
+                
+                elif (j == 6): # OUT SCALE
+                    C_scale = param[inp_name]
+                elif (j == 7): # OUT ZERO POINT
+                    C_zp = param[inp_name]
             
             # Scalar
-            elif (len(inp['shape']) == 1):
-                scalar = round( param[inp['name']][0] )
+            elif (len(inp['shape']) == 1 and isScalarGet == False):
+                isScalarGet = True
+                scalar = param[inp['name']][0]
 
             # Error on the shape
             else:
                 raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp['shape'])} dimensions when 1 is expected)! \n")
-                
-            # TODO: Check for bias
+
 
         # Else problem 
         else:
@@ -441,6 +478,10 @@ def node_mulconstant(node, param={}, node_mapping={}, filename='',
         ph = (0, 0)
         pw = (0, 0)
 
+    
+    # ---
+    # DEFINE MATRICES
+    # ---------------
 
     # Define the matrix dimensions
     # ---
@@ -456,25 +497,62 @@ def node_mulconstant(node, param={}, node_mapping={}, filename='',
     Aw = inp_matrix_shape[1] #nc*fh*fw
 
 
-    # Check if there is a biais
-    if (isBias == True):
+    # Transform tensor in matrix
+    # ---
+    # WGT
+    if (B_zp != 0):
+        scalar = scalar - B_zp
+
+
+    # ---
+    # WRITE VTA IR
+    # ------------
+    # Check if it is QLinearMul
+    if (op_type == "QLinearMul"):
+        # Compute rescale factor
+        M = (A_scale * B_scale) / C_scale
+        n = 16
+        P = round( M * (2**n) )
+        rescaling_bias = int( (2**(n-1)) )
+
+        # Define ALU
+        if (C_zp != 0):
+            alu_operations = [
+                ["MUL_IMM", [[0,1], P, Ah]],
+                ["ADD_IMM", [[0,1], rescaling_bias, Ah]],
+                ["SHR_IMM", [[0,1], n, Ah]],
+                ["ADD_IMM", [[0,1], int( C_zp ), Ah]],
+                ["MAX_IMM", [[0,1], -128, Ah]],
+                ["MIN_IMM", [[0,1], 127, Ah]]
+            ]
+        else:
+            alu_operations = [
+                ["MUL_IMM", [[0,1], P, Ah]],
+                ["ADD_IMM", [[0,1], rescaling_bias, Ah]],
+                ["SHR_IMM", [[0,1], n, Ah]],
+                ["MAX_IMM", [[0,1], -128, Ah]],
+                ["MIN_IMM", [[0,1], 127, Ah]]
+            ]
+
         # Define the VTA IR
         vta_ir = {
             "NAME": filename,
             "MATRICES": {
                 "A": [Ah, Aw, "../compiler_output/"+filename+"input_"+str(Ah)+"x"+str(Aw)+".bin"],
-                "X": [Ah, Aw, "../compiler_output/"+filename+"accumulator_"+str(Ah)+"x"+str(Aw)+".bin"],
                 "C": [Ah, Aw, "output"]
             },
             "LOAD": {
-                "INP": ["A"],
-                "ACC": ["X"]
+                "INP": ["A"]
             },
-            "GEMM": ["C", "A", scalar],
+            "GEMM": ["C", "A", int( scalar )],
+            "ALU" : {
+                "C": alu_operations
+            },
             "STORE": {
                 "C": ["C"]
             }
         }
+
     else:
         # Define the VTA IR
         vta_ir = {
@@ -486,17 +564,19 @@ def node_mulconstant(node, param={}, node_mapping={}, filename='',
             "LOAD": {
                 "INP": ["A"]
             },
-            "GEMM": ["C", "A", scalar],
+            "GEMM": ["C", "A", int( scalar )],
             "STORE": {
                 "C": ["C"]
             }
         }
 
 
-    # Return
-    # ---
+    # ---
+    # RETURN
+    # ------
     info = {
         "matrix_shape": (Ah, Aw),
+        "offset": A_zp,
         "tensor_shape": (inp_tensor_shape, out_tensor_shape),
         "padding": (ph[0], pw[0], ph[1], pw[1]),
         "stride": (sh, sw),

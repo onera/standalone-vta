@@ -18,6 +18,10 @@ def node_add(node, param={}, node_mapping={}, filename='',
     # Reset the vta_ir
     vta_ir = {}
 
+    # ---
+    # PARSE METADATA
+    # --------------
+
     # Get the metadata
     # ---
     op_type = node['op_type']
@@ -32,75 +36,84 @@ def node_add(node, param={}, node_mapping={}, filename='',
     isBias = False
     isFlat = False
 
+    # For Quantisation
+    A_scale = 1.
+    A_zp = 0
+    B_scale = 1.
+    B_zp = 0
+    C_scale = 1.
+    C_zp = 0
+
 
     # Get the output tensors
     # ---
-    for j, out in enumerate(out_list):
-        # Get the output tensor shape
-        if (j == 0):
-            if (len(out['shape']) == 4):
-                out_tensor_shape = out['shape'] # NCHW
-            elif (len(out['shape']) == 2):
-                out_tensor_shape = (out['shape'][0], out['shape'][1], 1, 1) 
-                isFlat = True
-            else:
-                raise Exception(f"ERROR (in {filename}): Add does not support this tensor shape yet ({out['shape']})! \n")
+    # A single output is expected
+    if ( len(out_list) != 1 ):
+        raise Exception(f"ERROR (in {filename}): There are {len(out_list)} dimensions when only 1 is expected! \n")
 
-        else: # if multiple output, all must have the same shape
-            if (out['shape'] != out_list[0]['shape']):
-                raise Exception(f"ERROR (in {filename}): No consistency between the output shape! \n")
+    out_tensor_shape = out_list[0]['shape']
+
+    # The output must have 4 dimensions
+    if ( len(out_tensor_shape) != 4 ):
+        raise Exception(f"ERROR (in {filename}): Wrong output shape ({len(out_tensor_shape)} dimensions when 4 are expected)! \n")
 
 
     # Get the input tensors
     # ---
     # Count the nodes
-    idx_nodes = 0
+    isAcc1Get = False
+    isAcc2Get = False
 
     for j, inp in enumerate(inp_list):
         # Get the name
         inp_name = inp['name']
+        inp_shape = inp['shape']
 
         # Get X and Y (be careful, it is in int32) -> X.shape = Y.shape
         if (inp_name in node_mapping):
-            if (idx_nodes > 0):
+            # Check there are 4 dimensions
+            if ( len(inp_shape) != 4 ):
+                raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp_shape)} dimensions when 4 are expected)! \n")
+
+            # Get the shape
+            elif (isAcc1Get == False):
+                isAcc1Get = True
+                acc_tensor_shape = inp_shape # NCHW
+            
+            elif (isAcc2Get == False):
+                isAcc2Get = True
                 # Check the consistency between both inputs
                 if (inp['shape'] != acc_tensor_shape):
                     raise Exception(f"ERROR (in {filename}): Add must add 2 same shape tensors! \n")
-
-            elif (isFlat == True):
-                # Check there are 2 dimensions
-                if ( len(inp['shape']) != 2 ):
-                    raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp['shape'])} dimensions when 2 are expected)! \n")
-                # Get the shape
-                acc_tensor_shape = (inp['shape'][0], inp['shape'][1], 1, 1)
-                # Check consistency between input and output
-                if (acc_tensor_shape != out_tensor_shape):
-                    raise Exception(f"ERROR (in {filename}): Add should not modify the shape but acc_tensor_shape={acc_tensor_shape} and out_tensor_shape={out_tensor_shape}! \n")
-
+            
+            # Else problem
             else:
-                # Check there are 4 dimensions
-                if ( len(inp['shape']) != 4 ):
-                    raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp['shape'])} dimensions when 4 are expected)! \n")
-                # Get the shape
-                acc_tensor_shape = inp['shape'] # NCHW
-                # Check consistency between input and output
-                if (acc_tensor_shape != out_tensor_shape):
-                    raise Exception(f"ERROR (in {filename}): Add should not modify the shape but acc_tensor_shape={acc_tensor_shape} and out_tensor_shape={out_tensor_shape}! \n")
+                raise Exception(f"ERROR (in {filename}): Unexpected input ({inp_name})! \n")
 
-            # Increment idx
-            idx_nodes = idx_nodes + 1
 
         # Get bias
         elif (inp_name in param):
-            # Empty field
-            if (len(inp['shape']) == 0):
-                pass
+            # Empty field = metadata
+            if (len(inp_shape) == 0):
+                if (j == 1): # INP SCALE
+                    A_scale = param[inp_name]
+                elif (j == 2): # INP ZERO POINT
+                    A_zp = param[inp_name]
+                
+                elif (j == 4): # WGT SCALE
+                    B_scale = param[inp_name]
+                elif (j == 5): # WGT ZERO POINT
+                    B_zp = param[inp_name]
+                
+                elif (j == 6): # OUT SCALE
+                    C_scale = param[inp_name]
+                elif (j == 7): # OUT ZERO POINT
+                    C_zp = param[inp_name]
+
             # It is bias
             else:
-                isBias == True
-                # When (isFlat == True) -> bias.shape = 2, else 3
-                if (isFlat == True): # If it is flat, it is bias!
-                    pass
+                raise Exception(f"ERROR (in {filename}): Unexpected parameter ({inp_name})! \n")
+
 
         # Else problem 
         else:
@@ -122,6 +135,10 @@ def node_add(node, param={}, node_mapping={}, filename='',
         raise Exception(f"ERROR (in {filename}): Add should not have attributes but have attributes_dict={attributes_dict}! \n")
 
 
+    # ---
+    # DEFINE MATRICES
+    # ---------------
+
     # Define the matrix dimensions
     # ---
     Xh = nh*nw
@@ -130,37 +147,112 @@ def node_add(node, param={}, node_mapping={}, filename='',
     Ch = mh*mw
     Cw = mc
 
-    # Define the VTA IR
-    # ---
-    vta_ir = {
-        "NAME": filename,
-        "MATRICES": {
-            "X": [Xh, Xw, "../compiler_output/"+filename+"accumulator_"+str(Xh)+"x"+str(Xw)+".bin"],
-            "Y": [Xh, Xw, "../compiler_output/"+filename+"accbis_"+str(Xh)+"x"+str(Xw)+".bin"],
-            "C": [Xh, Xw, "output"]
-        },
-        "LOAD": {
-            "ACC": ["X", "Y"]
-        },
-        "ALU" : {
-            "C": [
-                ["ADD_ACC", ["X", "Y"]]
-            ]
-        },
-        "STORE": {
-            "C": ["C"]
-        }
-    }
 
-
-    # Return
     # ---
+    # WRITE VTA IR
+    # ------------
+
+    # Check if it is QLinearAdd
+    if (op_type == "QLinearAdd"):
+        # Compute rescale factor
+        M = (A_scale * B_scale) / C_scale
+        n = 16
+        P = round( M * (2**n) )
+        rescaling_bias = int( (2**(n-1)) )
+
+        # Define ALU
+        alu_operations = []
+
+        # Pre-rescaling
+        if (A_zp != 0):
+            alu_operations.append(
+                ["ADD_IMM", [[0,1], int( -A_zp ), Xh]]
+            )
+        if (B_zp != 0):
+            alu_operations.append(
+                ["ADD_IMM", [[Xh,1], int( -B_zp ), Xh]]
+            )
+        
+        # ADD OPERATIONS
+        alu_operations.append(
+            ["ADD", [[0,1], [Xh,1], Xh]]
+        )
+
+        # Post-rescaling operations
+        alu_operations.append(
+            ["MUL_IMM", [[0,1], P, Xh]]
+        )
+        alu_operations.append(
+            ["ADD_IMM", [[0,1], rescaling_bias, Xh]]
+        )
+        alu_operations.append(
+            ["SHR_IMM", [[0,1], n, Xh]]
+        )
+        # Offset
+        if (C_zp != 0):
+            alu_operations.append(
+                ["ADD_IMM", [[0,1], int( C_zp ), Xh]]
+            )
+        # Clamping
+        alu_operations.append(
+            ["MAX_IMM", [[0,1], -128, Xh]]
+        )
+        alu_operations.append(
+            ["MIN_IMM", [[0,1], 127, Xh]]
+        )
+
+        # Define the VTA IR
+        vta_ir = {
+            "NAME": filename,
+            "MATRICES": {
+                "X": [Xh, Xw, "../compiler_output/"+filename+"accumulator_"+str(Xh)+"x"+str(Xw)+".bin"],
+                "Y": [Xh, Xw, "../compiler_output/"+filename+"accbis_"+str(Xh)+"x"+str(Xw)+".bin"],
+                "C": [Xh, Xw, "output"]
+            },
+            "LOAD": {
+                "ACC": ["X", "Y"]
+            },
+            "ALU" : {
+                "C": alu_operations
+            },
+            "STORE": {
+                "C": ["C"]
+            }
+        }
+
+    else: 
+        # Define the VTA IR
+        vta_ir = {
+            "NAME": filename,
+            "MATRICES": {
+                "X": [Xh, Xw, "../compiler_output/"+filename+"accumulator_"+str(Xh)+"x"+str(Xw)+".bin"],
+                "Y": [Xh, Xw, "../compiler_output/"+filename+"accbis_"+str(Xh)+"x"+str(Xw)+".bin"],
+                "C": [Xh, Xw, "output"]
+            },
+            "LOAD": {
+                "ACC": ["X", "Y"]
+            },
+            "ALU" : {
+                "C": [
+                    ["ADD_ACC", ["X", "Y"]]
+                ]
+            },
+            "STORE": {
+                "C": ["C"]
+            }
+        }
+
+
+    # ---
+    # RETURN
+    # ------
     info = {
         "matrix_shape": (Xh, Xw),
+        "offset": 0,
         "tensor_shape": (acc_tensor_shape, out_tensor_shape),
         "padding": (0, 0, 0, 0),
         "stride": (1, 1),
         "kernel": (1, 1)
     }
 
-    return vta_ir, info, isBias
+    return vta_ir, info

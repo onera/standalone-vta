@@ -23,10 +23,11 @@ JSON_FILES := $(COMPILER_OUTPUT_DIR)/*.json
 
 DEBUG ?= True
 
-ONNX_FILE ?= ../../onnx_zoo/qlinearconv_yolo.onnx
+ONNX_FILE ?= ../../onnx_zoo/subgraph_Qops_pattern.onnx
 # ../../onnx_zoo/qlinearconv3x3.onnx
 # ../../onnx_zoo/qlinearconv_debug.onnx
 # ../../onnx_zoo/qlinearconv_yolo.onnx
+# ../../onnx_zoo/twoQLinearConv.onnx
 # ../../onnx_zoo/subgraph_Qops_pattern.onnx
 # ../../onnx_zoo/yolonas_Qops_fixed.onnx
 
