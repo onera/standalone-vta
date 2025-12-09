@@ -7,11 +7,12 @@ PROJECT_DIR  := $(abspath $(MAKEFILE_DIR)/..)
 COMPILER_OUTPUT_DIR := $(PROJECT_DIR)/compiler_output
 SIMULATOR_OUTPUT_DIR := $(PROJECT_DIR)/simulators_output
 SRC_DIR := $(PROJECT_DIR)/src
-COMPILER_DIR := $(SRC_DIR)/compiler
+COMPILER_DIR := $(SRC_DIR)/modified_compiler
 VTA_COMPILER_DIR := $(COMPILER_DIR)/vta_compiler
 NN_COMPILER_DIR := $(COMPILER_DIR)/nn_compiler
-FSIM_DIR := $(SRC_DIR)/simulators/functional_simulator
+FSIM_DIR := $(SRC_DIR)/simulators/modified_functional_simulator
 CONFIG := $(PROJECT_DIR)/config
+
 
 # VARIABLES
 ###########
@@ -20,10 +21,11 @@ PYTHON_CMD := python
 # # python -m cProfile -o $(COMPILER_OUTPUT_DIR)/vta_compiler.prof
 
 JSON_FILES := $(COMPILER_OUTPUT_DIR)/*.json
+# JSON_FILES := $(COMPILER_OUTPUT_DIR)/QLinearAdd5.json
 
 DEBUG ?= True
 
-ONNX_FILE ?= ../../onnx_zoo/subgraph_Qops_pattern.onnx
+ONNX_FILE ?= ../../onnx_zoo/qlinearconv_yolo.onnx
 # ../../onnx_zoo/qlinearconv3x3.onnx
 # ../../onnx_zoo/qlinearconv_debug.onnx
 # ../../onnx_zoo/qlinearconv_yolo.onnx
