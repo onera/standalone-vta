@@ -19,16 +19,16 @@ from utils.read_csv import *
 # MAIN FUNCTION
 # -------------
 def reference_onnx(model_path, debug=False):
-    # Read dependency.csv to have high level information
+    # READ DEPENDENCY FILE (metadata)
+    # ---
     output_dir = compiler_output_setup()
     file_dep_path = filepath_definition(output_dir, 'dependency.csv')
-
-    # Get information
     dep_dict = load_csv_to_dict(file_dep_path)
+
     # The first layer
     first_layer_name = dep_dict['0'][2]
 
-    # Get attributes
+    # The input tensor attributes
     attributes = dep_dict[first_layer_name]
     shape = [1, int( attributes[4] ), int( attributes[5] ), int( attributes[6] ) ]
     offset = int( attributes[2] )
@@ -37,6 +37,7 @@ def reference_onnx(model_path, debug=False):
     padding = ( int(attributes[11]), int(attributes[12]), int(attributes[13]), int(attributes[14]) )
 
 
+    # INFER THE ONNX
     # ---
     # Create Inference Session
     session = ort.InferenceSession(model_path)
@@ -45,30 +46,33 @@ def reference_onnx(model_path, debug=False):
     input_name = session.get_inputs()[0].name
     input_shape = session.get_inputs()[0].shape
     input_type = session.get_inputs()[0].type
+    output_nodes = session.get_outputs()
 
     # Check the shape
     if (input_shape != shape):
         raise Exception(f"\nERROR: We get shape={shape} when the expected is {input_shape}! \n\n")
 
-    # Generate Random Integer Input 
+    # Generate Random Integer Input ([-128,0[)
     low_bound = -128
     high_bound = 0 # Exclusive
     
     # Create random tensor matching the input shape
     input_data = np.random.randint(low_bound, high_bound, size=input_shape).astype(np.int8)
+    # input_data = input_data.astype(np.float32)
 
-
-    # ---
-    # Run Inference
+    # INFERENCE
     outputs = session.run(None, {input_name: input_data})
     
     # Get the first output
     output_data = outputs[0]
 
 
+    # MANAGE DATA (simulation input and reference)
     # ---
     # Refactor the data for the FSIM
-    input_with_offset = input_data - offset
+    input_with_offset = input_data.astype(np.int8) - offset 
+    print(f"\nDEBUG: input_with_offset.dtype = {input_with_offset.dtype} \n\n")
+
 
     matrix = im2row(
         X=input_with_offset, 
@@ -77,24 +81,45 @@ def reference_onnx(model_path, debug=False):
         padding=padding
     )
 
+    # The matrix output
     flat_out = flatten_conv_output(output_data)
 
+
+    # WRITE BINARIES
     # ---
-    # Binarise
+    # Set the path
     file_inp_path = filepath_definition(output_dir, 'input'+first_layer_name+'.bin')
     # file_inp_path = filepath_definition(output_dir, 'input_nn.bin')
     file_ref_path = filepath_definition(output_dir, 'reference.bin')
+
+   
 
     # Write the result
     with open(file_inp_path, 'wb') as f:
         matrix.tofile(f)
     with open(file_ref_path, 'wb') as f:
-        output_data.tofile(f)
+        # output_data.tofile(f) # TODO
+        outputs[0].tofile(f)
+
+    # # TODO: remove
+    # file_temp_path = filepath_definition(output_dir, 'mid_ref.bin')
+    # with open(file_temp_path, 'wb') as f:
+    #     outputs[0].tofile(f)
+    # file_SecondInput_path = filepath_definition(output_dir, 'inputQLinearConv2.bin')
+    # second_input = im2row(X=outputs[0]-128, kernel_size=(3,3), stride=(1,1), padding=(1, 1, 1, 1))
+    # # with open(file_SecondInput_path, 'wb') as f:
+    # #     second_input.tofile(f)
 
 
+    # DEBUG
     # ---
-    #Debug
     if (debug):
+        # Configure numpy to print EVERYTHING (no truncation)
+        np.set_printoptions(threshold=sys.maxsize, linewidth=200)
+        
+        # print(f"\nDEBUG: intermediate matrix (shape:{second_input.shape}) =\n{second_input} \n\n")
+
+
         print(f"Input Name: {input_name}")
         print(f"Input Shape: {input_shape}")
         print(f"Input Type: {input_type}")
@@ -102,17 +127,32 @@ def reference_onnx(model_path, debug=False):
         print(f"\nFirst layer: {first_layer_name}")
         print(f"\t offset={offset}, kernel={kernel}, stride={stride}, padding={padding} \n")
 
+        print(f"\n{len(output_nodes)} outputs found:")
+        for i, output_node in enumerate(output_nodes):
+            print(f"\nOutput #{i} :")
+            print(f"\t Name  : {output_node.name}")
+            print(f"\t Shape : {output_node.shape}")
+            print(f"\t Type  : {output_node.type}")
+            print(f"\t Data  : \n{outputs[i]}")
+
+        print("\n\n" + "-"*50)
         print("\nInput Data:")
         print(input_data)
-        print("\nInput Data with offset:")
+        print("\n\t | \n\t | \n\t V \n ONNX inference \n\t | \n\t | \n\t V")
+        print("\nOutput Data:")
+        print(output_data)
+
+        print("\n\n" + "-"*50)
+        print("\n\nMATRICES: \n Input with offset:")
         print(input_with_offset)
         print("\nInput IM2ROW:")
         print(matrix)
-        
+        print("\n\t | \n\t | \n\t V")
         print("\nOutput Matrix:")
         print(flat_out)
-        print("\nOutput Data:")
-        print(output_data)
+
+        # Reset print options
+        np.set_printoptions(threshold=1000)
 
 
 ###############################################

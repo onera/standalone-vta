@@ -258,7 +258,7 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
                 dep['output_shape'][1], # 15
                 dep['output_shape'][2], # 16
                 dep['output_shape'][3], # 17
-                dep['rescaling'],       # 18
+                f"{dep['rescaling']:.9g}",# 18 # To keep the precision (.17g to print float 64)
                 dep['offsetC'],         # 19
                 "INP",                  # 20
                 len(dep['input_nodes']),# 21

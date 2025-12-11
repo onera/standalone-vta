@@ -18,17 +18,17 @@ CONFIG := $(PROJECT_DIR)/config
 ###########
 PYTHON_CMD := python 
 # PYTHON_CMD := python -m cProfile -o $(COMPILER_OUTPUT_DIR)/vta_compiler.prof
-# # python -m cProfile -o $(COMPILER_OUTPUT_DIR)/vta_compiler.prof
 
 JSON_FILES := $(COMPILER_OUTPUT_DIR)/*.json
 # JSON_FILES := $(COMPILER_OUTPUT_DIR)/QLinearAdd5.json
 
 DEBUG ?= True
 
-ONNX_FILE ?= ../../onnx_zoo/qlinearconv_yolo.onnx
+ONNX_FILE ?= ../../onnx_zoo/qlinearconv_debug.onnx
 # ../../onnx_zoo/qlinearconv3x3.onnx
 # ../../onnx_zoo/qlinearconv_debug.onnx
-# ../../onnx_zoo/qlinearconv_yolo.onnx
+# ../../onnx_zoo/twoQLinearConv_debug.onnx
+# ../../onnx_zoo/qlinearconv_yolo.onnx 
 # ../../onnx_zoo/twoQLinearConv.onnx
 # ../../onnx_zoo/subgraph_Qops_pattern.onnx
 # ../../onnx_zoo/yolonas_Qops_fixed.onnx
@@ -49,10 +49,12 @@ parse_onnx: ## Parse the specified ONNX
 	make clean
 	@echo ""
 	@echo "PARSE ONNX..."
+	@date
 	python $(NN_COMPILER_DIR)/vta_backend.py \
 	$(ONNX_FILE) \
 	True \
 	$(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_backend.txt
+	@date
 
 
 # COMPILE EXISTING 
@@ -143,6 +145,10 @@ nn_run:
 	@make nn_fsim
 	@make check
 
+nn_execute:
+	@make reference_onnx
+	@make nn_fsim
+	@make check
 
 ############################################################
 ############################################################

@@ -315,11 +315,11 @@ int fsim_nn() {
         // Inputs
         // ---
         std::string name_dep = get_csv_value(dependency_map, ctx.suffix.c_str(), 22);
-        if (debug) printf("%s", name_dep);
+        if (debug) printf("%s", name_dep.c_str());
         std::string name_dep2;
         if (nb_inp == 2){
             name_dep2 = get_csv_value(dependency_map, ctx.suffix.c_str(), 23);
-            if (debug) printf(", %s", name_dep2);
+            if (debug) printf(", %s", name_dep2.c_str());
         } 
         if (debug) printf("\n");
 
@@ -420,6 +420,14 @@ int fsim_nn() {
             VTAMemCopyFromHost(ctx.mem_inpA, ctx.inpA.data(), ctx.inpA.size() * sizeof(int8_t));
         }
 
+        // TODO: remove / debug
+        if (layer_name == "QLinearConv2"){
+            printf("\n\nDEBUG: %s:\n", layer_name.c_str());
+            printf("inpA = {");
+            print_int8_vector(ctx.inpA.data(), ctx.inpA.size());
+            printf("\n} \n");
+        }
+
 
         // D. EXECUTE THE VTA
         // ---
@@ -451,6 +459,24 @@ int fsim_nn() {
             offsetC // offset
         );
 
+
+        // TODO: remove / debug
+        if (layer_name == "QLinearConv1"){
+            // TODO : remove
+            printf("\n\nDEBUG: %s:\n", layer_name.c_str());
+            printf("res = {");
+            print_int8_vector(ctx.res.data(), ctx.res.size());
+            printf("\n} \n");
+            output_tensor(
+                ctx.res, // output vector
+                block_size, // block_size
+                1, // batch_size
+                tensor_channel, // tensor_channel
+                tensor_height, // tensor_height
+                tensor_width, // tensor_width
+                construct_path("intermediate.bin") // filepath
+            );
+        }
     }
 
 

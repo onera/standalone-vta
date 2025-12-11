@@ -3,6 +3,8 @@
 import os
 import sys
 
+import numpy as np
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.find_project_root import *
 import utils.tensor_matrix_converter as TM

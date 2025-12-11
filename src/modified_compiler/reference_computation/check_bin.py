@@ -35,17 +35,19 @@ def check_bin(dtype=np.int8,
     # Read the binaries
     file_ref_path = filepath_definition(output_dir, 'reference.bin')
     file_out_path = filepath_definition(output_dir, 'final_output.bin')
+    # file_ref_path = filepath_definition(output_dir, 'mid_ref.bin')
+    # file_out_path = filepath_definition(output_dir, 'intermediate.bin')
 
     try:
         ref_raw = np.fromfile(file_ref_path, dtype=dtype)
     except FileNotFoundError:
-        print(f"ERROR: Could not find {file_ref_path}")
+        raise Exception(f"ERROR: Could not find {file_ref_path}")
         return
 
     try:
         final_output_raw = np.fromfile(file_out_path, dtype=dtype)
     except FileNotFoundError:
-        print(f"ERROR: Could not find {file_out_path}")
+        raise Exception(f"ERROR: Could not find {file_out_path}")
         return
 
 
