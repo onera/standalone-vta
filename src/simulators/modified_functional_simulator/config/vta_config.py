@@ -183,9 +183,11 @@ def main():
     # Path to vta config
     curr_path = os.path.dirname(
         os.path.abspath(os.path.expanduser(__file__)))
+    
+    project_root = os.path.abspath(os.path.join(curr_path, "../../../../"))
 
     path_list = [
-        "vta_config.json", os.path.join(curr_path, "vta_config.json")
+        "vta_config.json", os.path.join(project_root, "config", "vta_config.json")
     ]
 
     if args.use_cfg:
