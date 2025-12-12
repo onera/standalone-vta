@@ -8,7 +8,7 @@
 # ----------------------
 def find_logical_block_addr_by_idx(block_idx, addr_dict):
     block_addr_list = addr_dict[0]['blocks_addresses']
-    tuple_addr = next(t for t in block_addr_list if t[0] == block_idx)
+    tuple_addr = block_addr_list[block_idx]
     return int( tuple_addr[2], 16)
 
 # ---------------------------------------------

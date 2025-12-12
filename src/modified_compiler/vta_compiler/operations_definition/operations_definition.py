@@ -32,32 +32,32 @@ def operations_definition(strategy=[], dram_addresses=[],
         "CMP->LD": 0
     }
 
-    # # Dump instructions
-    # new_insn, new_buffer, semaphore = dump_instructions(nb_insn=10000, semaphore=semaphore) 
-    # insn_buffer = insn_buffer + new_insn
-    # uop_buffer = uop_buffer + new_buffer
+    # # # Dump instructions
+    # # new_insn, new_buffer, semaphore = dump_instructions(nb_insn=10000, semaphore=semaphore) 
+    # # insn_buffer.extend(new_insn)
+    # # uop_buffer.extend(new_buffer)
 
     # 0 - Reset 
     new_insn, new_buffer, semaphore, uop_counter = reset_sequence(strategy, semaphore, dram_addresses, uop_counter, block_size)
-    insn_buffer = insn_buffer + new_insn
-    uop_buffer = uop_buffer + new_buffer
+    # Extend the buffers
+    insn_buffer.extend(new_insn)
+    uop_buffer.extend(new_buffer)
 
     # 1 - strategy step 
     for i, step in enumerate(strategy):
+        # Get the status of the SRAM memory
         memory_status = step[3]
-
-        # new_insn, new_buffer, semaphore, uop_counter = strategy_step(step, semaphore, dram_addresses, memory_status, uop_counter, block_size, uop_buffer_size)
-
+        # Create the instructions for each step
         new_insn, new_buffer, semaphore, uop_counter = step_instructions(step, semaphore, dram_addresses, uop_counter, block_size, uop_buffer_size)
-        insn_buffer = insn_buffer + new_insn
-        uop_buffer = uop_buffer + new_buffer
+        # Extend the buffers
+        insn_buffer.extend(new_insn)
+        uop_buffer.extend(new_buffer)
 
 
     # 2 - Termination sequence 
     new_insn, semaphore = termination_sequence(semaphore) 
-    insn_buffer = insn_buffer + new_insn
+    insn_buffer.extend(new_insn)
 
- 
 
     # Debug
     if (debug):

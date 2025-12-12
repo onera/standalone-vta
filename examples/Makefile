@@ -16,15 +16,16 @@ CONFIG := $(PROJECT_DIR)/config
 
 # VARIABLES
 ###########
-PYTHON_CMD := python 
-# PYTHON_CMD := python -m cProfile -o $(COMPILER_OUTPUT_DIR)/vta_compiler.prof
+# PYTHON_CMD := python 
+PYTHON_CMD := python -m cProfile -o $(COMPILER_OUTPUT_DIR)/vta_compiler.prof
+# PYTHON_CMD := kernprof -l -v $(COMPILER_OUTPUT_DIR)/vta_compiler.prof
 
 JSON_FILES := $(COMPILER_OUTPUT_DIR)/*.json
 # JSON_FILES := $(COMPILER_OUTPUT_DIR)/QLinearAdd5.json
 
-DEBUG ?= True
+DEBUG ?= False
 
-ONNX_FILE ?= ../../onnx_zoo/qlinearconv_debug.onnx
+ONNX_FILE ?= ../../onnx_zoo/yolonas_Qops_fixed.onnx
 # ../../onnx_zoo/qlinearconv3x3.onnx
 # ../../onnx_zoo/qlinearconv_debug.onnx
 # ../../onnx_zoo/twoQLinearConv_debug.onnx
