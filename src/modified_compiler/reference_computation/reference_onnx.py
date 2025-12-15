@@ -54,7 +54,7 @@ def reference_onnx(model_path, debug=False):
 
     # Generate Random Integer Input ([-128,0[)
     low_bound = -128
-    high_bound = 0 # Exclusive
+    high_bound = 127 # Exclusive
     
     # Create random tensor matching the input shape
     input_data = np.random.randint(low_bound, high_bound, size=input_shape).astype(np.int8)
@@ -69,13 +69,15 @@ def reference_onnx(model_path, debug=False):
 
     # MANAGE DATA (simulation input and reference)
     # ---
+    inp_dtype = np.int32
+
     # Refactor the data for the FSIM
-    input_with_offset = input_data.astype(np.int8) - offset 
-    print(f"\nDEBUG: input_with_offset.dtype = {input_with_offset.dtype} \n\n")
+    input_with_offset = input_data.astype(inp_dtype) - offset 
 
 
     matrix = im2row(
         X=input_with_offset, 
+        dtype=inp_dtype,
         kernel_size=kernel, 
         stride=stride, 
         padding=padding
@@ -98,17 +100,7 @@ def reference_onnx(model_path, debug=False):
     with open(file_inp_path, 'wb') as f:
         matrix.tofile(f)
     with open(file_ref_path, 'wb') as f:
-        # output_data.tofile(f) # TODO
-        outputs[0].tofile(f)
-
-    # # TODO: remove
-    # file_temp_path = filepath_definition(output_dir, 'mid_ref.bin')
-    # with open(file_temp_path, 'wb') as f:
-    #     outputs[0].tofile(f)
-    # file_SecondInput_path = filepath_definition(output_dir, 'inputQLinearConv2.bin')
-    # second_input = im2row(X=outputs[0]-128, kernel_size=(3,3), stride=(1,1), padding=(1, 1, 1, 1))
-    # # with open(file_SecondInput_path, 'wb') as f:
-    # #     second_input.tofile(f)
+        output_data.tofile(f) 
 
 
     # DEBUG
@@ -116,9 +108,6 @@ def reference_onnx(model_path, debug=False):
     if (debug):
         # Configure numpy to print EVERYTHING (no truncation)
         np.set_printoptions(threshold=sys.maxsize, linewidth=200)
-        
-        # print(f"\nDEBUG: intermediate matrix (shape:{second_input.shape}) =\n{second_input} \n\n")
-
 
         print(f"Input Name: {input_name}")
         print(f"Input Shape: {input_shape}")
@@ -159,7 +148,7 @@ def reference_onnx(model_path, debug=False):
 
 # IM2ROW
 # ------
-def im2row(X, kernel_size=(1,1), stride=(1,1), padding=(0,0,0,0)):
+def im2row(X, dtype=np.int8, kernel_size=(1,1), stride=(1,1), padding=(0,0,0,0)):
     """
     Converts an input tensor X into a matrix (im2row).
     
@@ -196,7 +185,7 @@ def im2row(X, kernel_size=(1,1), stride=(1,1), padding=(0,0,0,0)):
     # Initial output matrix
     rows = batch_size * output_height * output_width
     cols = input_channels * kernel_height * kernel_width
-    result = np.zeros((rows, cols), dtype=np.int8)
+    result = np.zeros((rows, cols), dtype=dtype)
     
     # Fill the matrix with patches
     row_idx = 0

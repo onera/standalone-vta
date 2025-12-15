@@ -121,4 +121,22 @@
       }
   }
 
+
+  template <typename T>
+  bool compare_vector(T* vector_A, T* vector_B, uint64_t size){
+      bool is_same = true;
+      for (uint64_t elem = 0; elem < size; elem++){
+          if (vector_A[elem] != vector_B[elem]){
+              is_same = false;
+              int block_id = elem/256;
+              int block_row = (elem/16)%16;
+              int block_col = (elem%256)%16;
+              printf("\nDiscrepancy at element: %lu (block_id: %d, block_row: %d, block_col: %d)" 
+                    "\n\t C_elem=%d -> ref=%d \n", 
+                  elem, block_id, block_row, block_col, vector_A[elem], vector_B[elem]);
+          }
+      }
+      return is_same;
+  }
+
 #endif  // SIMULATOR_HEADER_H_

@@ -451,7 +451,7 @@ int fsim_nn() {
         // E. GET THE RESULT BACK
         // ---
         // Copy Result Back
-        VTAMemCopyToHost(ctx.outC.data(), ctx.mem_outC, ctx.outC.size() * sizeof(acc_dtype));
+        VTAMemCopyToHost(ctx.outC.data(), ctx.mem_outC, ctx.outC.size() * sizeof(inp_dtype));
 
 
         // F. RESCALE THE RESULT

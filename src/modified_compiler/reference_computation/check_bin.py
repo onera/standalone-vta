@@ -35,8 +35,6 @@ def check_bin(dtype=np.int8,
     # Read the binaries
     file_ref_path = filepath_definition(output_dir, 'reference.bin')
     file_out_path = filepath_definition(output_dir, 'final_output.bin')
-    # file_ref_path = filepath_definition(output_dir, 'mid_ref.bin')
-    # file_out_path = filepath_definition(output_dir, 'intermediate.bin')
 
     try:
         ref_raw = np.fromfile(file_ref_path, dtype=dtype)
@@ -60,7 +58,7 @@ def check_bin(dtype=np.int8,
         raise Exception(f"ERROR: Reference size {ref_raw.size} does not match shape {shape} (Total: {total_elements})")
         return
 
-    # --- UPDATED: Reshape to actual Tensor shape (NCHW) ---
+    # Define shape
     tensor_ref = ref_raw.reshape(batch_size, channels, height, width)
     tensor_output = final_output_raw.reshape(batch_size, channels, height, width)
 
