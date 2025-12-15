@@ -16,21 +16,24 @@ CONFIG := $(PROJECT_DIR)/config
 
 # VARIABLES
 ###########
-# PYTHON_CMD := python 
-PYTHON_CMD := python -m cProfile -o $(COMPILER_OUTPUT_DIR)/vta_compiler.prof
-# PYTHON_CMD := kernprof -l -v $(COMPILER_OUTPUT_DIR)/vta_compiler.prof
+PYTHON_CMD := python 
+# PYTHON_CMD := python -m cProfile -o $(COMPILER_OUTPUT_DIR)/vta_compiler.prof
 
 JSON_FILES := $(COMPILER_OUTPUT_DIR)/*.json
 # JSON_FILES := $(COMPILER_OUTPUT_DIR)/QLinearAdd5.json
 
-DEBUG ?= False
+DEBUG ?= True
 
-ONNX_FILE ?= ../../onnx_zoo/yolonas_Qops_fixed.onnx
+ONNX_FILE ?= ../../onnx_zoo/qlinear_add_debug.onnx
 # ../../onnx_zoo/qlinearconv3x3.onnx
 # ../../onnx_zoo/qlinearconv_debug.onnx
-# ../../onnx_zoo/twoQLinearConv_debug.onnx
 # ../../onnx_zoo/qlinearconv_yolo.onnx 
+# ../../onnx_zoo/twoQLinearConv_debug.onnx
 # ../../onnx_zoo/twoQLinearConv.onnx
+# ../../onnx_zoo/qconv_branch_subpattern.onnx
+# ../../onnx_zoo/qmul_branch_subpattern.onnx
+# ../../onnx_zoo/qlinear_add_debug.onnx
+
 # ../../onnx_zoo/subgraph_Qops_pattern.onnx
 # ../../onnx_zoo/yolonas_Qops_fixed.onnx
 
@@ -52,9 +55,10 @@ parse_onnx: ## Parse the specified ONNX
 	@echo "PARSE ONNX..."
 	@date
 	python $(NN_COMPILER_DIR)/vta_backend.py \
-	$(ONNX_FILE) \
+	$(DEBUG) \
 	True \
-	$(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_vta_backend.txt
+	$(CONFIG)/vta_config.json \
+	$(ONNX_FILE) > $(COMPILER_OUTPUT_DIR)/prompt_vta_backend.txt
 	@date
 
 

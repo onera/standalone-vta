@@ -4,34 +4,6 @@
 #include "../include/simulator_header.h"
 
 
-/***************
-    PRINT_VECTOR
-****************/
-void print_int8_vector(int8_t * vector, uint64_t size){
-    for (uint64_t elem = 0; elem < size; elem++){
-        if (elem%16 == 0){
-            printf("\n");
-            if (elem%256 == 0){
-                printf("\n \t(block_id: %ld) \n", elem/256);
-            }
-        }
-        printf("\t %d", vector[elem]);
-    }
-}
-
-void print_int32_vector(int32_t * vector, uint64_t size){
-    for (uint64_t elem = 0; elem < size; elem++){
-        if (elem%16 == 0){
-            printf("\n");
-            if (elem%256 == 0){
-                printf("\n \t(block_id: %ld) \n", elem/256);
-            }
-        }
-        printf("\t %d", vector[elem]);
-    }
-}
-
-
 /*****************
     COMPARE_VECTOR
 ******************/

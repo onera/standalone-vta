@@ -587,6 +587,26 @@
   // --------------------------------------------------------
   // MAIN RESHAPE FUNCTIONS
   // --------------------------------------------------------
+  
+  // subtract_offset
+  /**
+    * Remove the offset on a vector.
+    */
+  template <typename T>
+  std::vector<T> subtract_offset(
+    const std::vector<T>& input_vector,
+    int offset) {
+
+      // Initialise directly with size (faster than reserve + push_back)
+      std::vector<T> result(input_vector.size());
+
+      for (size_t i = 0; i < input_vector.size(); ++i) {
+          result[i] = input_vector[i] - offset;
+      }
+
+      return result;
+  }
+
 
   // reshape
   /**
@@ -729,26 +749,6 @@
 
       return result;
   } 
-  
-  // subtract_offset
-  /**
-    * Remove the offset on a vector.
-    */
-  template <typename T>
-  std::vector<T> subtract_offset(
-    const std::vector<T>& input_vector,
-    int offset) {
-
-      // Initialise directly with size (faster than reserve + push_back)
-      std::vector<T> result(input_vector.size());
-
-      for (size_t i = 0; i < input_vector.size(); ++i) {
-          result[i] = input_vector[i] - offset;
-      }
-
-      return result;
-  }
-
   
   // output_tensor
   /**

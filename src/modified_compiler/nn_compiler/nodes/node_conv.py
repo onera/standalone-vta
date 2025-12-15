@@ -18,7 +18,8 @@ import nn_compiler.shape_data.shape_data as SD
 
 # MAIN FUNCTION
 # -------------
-def node_conv(node, param={}, node_mapping={}, node_info={}, filename='',
+def node_conv(node, param={}, node_mapping={}, node_info={}, filename='', 
+              inp_dtype=np.int8, wgt_dtype=np.int8, acc_dtype=np.int32,
               debug=False):
     # Reset the vta_ir
     vta_ir = {}
@@ -131,7 +132,7 @@ def node_conv(node, param={}, node_mapping={}, node_info={}, filename='',
             # X (bias)
             elif ( (len(inp_shape) == 1) and (isBias == False) ):
                 isBias = True
-                acc_tensor = param[inp_name]
+                acc_tensor = param[inp_name].astype(acc_dtype)
 
             else: # B (weight)
                 if (isWgtGet == True):
@@ -142,13 +143,13 @@ def node_conv(node, param={}, node_mapping={}, node_info={}, filename='',
                     if ( len(inp_shape) != 2 ):
                         raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp_shape)} dimensions when 2 are expected)! \n")
                     wgt_tensor_shape = (inp_shape[0], inp_shape[1], 1, 1)
-                    wgt_tensor = param[inp_name]
+                    wgt_tensor = param[inp_name].astype(wgt_dtype)
                 else:
                     # Check there are 4 dimensions
                     if ( len(inp_shape) != 4 ):
                         raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp_shape)} dimensions when 4 are expected)! \n")
                     wgt_tensor_shape = inp_shape # NCHW
-                    wgt_tensor = param[inp_name]
+                    wgt_tensor = param[inp_name].astype(wgt_dtype)
                 isWgtGet = True
         
         # Else problem 
@@ -222,14 +223,14 @@ def node_conv(node, param={}, node_mapping={}, node_info={}, filename='',
     # WGT
     if (B_zp != 0):
         wgt_tensor = wgt_tensor - B_zp
-    wgt_matrix = SD.ker2col(wgt_tensor)
+    wgt_matrix = SD.ker2col(wgt_tensor, dtype=wgt_dtype)
 
     # BIAS
     acc_matrix = []
     if (isBias == True):
         acc_matrix = SD.expand_bias(acc_tensor, Ah)
     else:
-        acc_matrix = np.zeros((Ah, Bw), dtype=np.int32)
+        acc_matrix = np.zeros((Ah, Bw), dtype=acc_dtype)
 
 
     # ---
@@ -299,7 +300,8 @@ def node_conv(node, param={}, node_mapping={}, node_info={}, filename='',
 
 # MUL CONSTANT
 # ------------
-def node_mulconstant(node, param={}, node_mapping={}, node_info={}, filename='',
+def node_mulconstant(node, param={}, node_mapping={}, node_info={}, filename='', 
+                     inp_dtype=np.int8, wgt_dtype=np.int8, acc_dtype=np.int32,
                      debug=False):
     # Reset the vta_ir
     vta_ir = {}

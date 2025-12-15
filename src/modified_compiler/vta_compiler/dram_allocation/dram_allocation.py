@@ -31,11 +31,11 @@ def dram_allocation(object_list, base_addr=0x0000, block_size=16,
             forced_size = rest[1]
         
         # Check the object type to define the logical divisor for logical address
-        if (obj_type == "INP"):
+        if (obj_type == "INP" or obj_type == "OUT"):
             logical_divisor = np.dtype(inp_dtype).itemsize * block_size
         elif (obj_type == "WGT"):
             logical_divisor = np.dtype(wgt_dtype).itemsize * block_size * block_size
-        elif (obj_type == "ACC" or obj_type == "ACC_BIS" or obj_type == "OUT"):
+        elif (obj_type == "ACC" or obj_type == "ACC_BIS"):
             logical_divisor = np.dtype(acc_dtype).itemsize * block_size
         elif (obj_type == "UOP"):
             logical_divisor = 4

@@ -3,11 +3,15 @@
 import os
 import sys
 
+import numpy as np
+
 import json
 import csv
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.find_project_root import *
+from utils.json_parser import *
+import utils.configuration as conf
 import utils.random_raw_binary_generator as RRBG
 
 import nn_compiler.parser.parse_onnx_to_dict as PO
@@ -23,8 +27,16 @@ import nn_compiler.nodes.node_activation as Nactivation
 
 # MAIN FUNCTION
 # -------------
-def vta_backend(onnx_model_path, doGenerateBin=False,
+def vta_backend(vta_config_dict, onnx_model_path, 
+                doGenerateBin=False,
                 debug=True):
+
+    # GET CONFIGURATION
+    # -----------------
+    # Data type
+    inp_dtype = conf.data_type(vta_config_dict["LOG_INP_WIDTH"])
+    wgt_dtype = conf.data_type(vta_config_dict["LOG_WGT_WIDTH"])
+    acc_dtype = conf.data_type(vta_config_dict["LOG_ACC_WIDTH"])
 
     # PARSING the ONNX model
     # ----------------------
@@ -110,7 +122,7 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
         if (op_type == "QLinearConv"): 
             # Get data from the node
             vta_ir, node_info = \
-                Nconv.node_conv(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, debug=False)
+                Nconv.node_conv(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, debug=False)
 
             # Generate the associated binaries
             if (doGenerateBin):
@@ -118,7 +130,9 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
                 Aw_Bh = node_info['matrix_shape'][1]
                 Bw = node_info['matrix_shape'][2]
 
-                RRBG.random_raw_binary_generator(m_rows=Ah, n_columns=Aw_Bh, filename=filename+"input", dtype='int8', debug=False)
+                str_type = 'int8' if (inp_dtype == np.int8) else 'int32'
+
+                RRBG.random_raw_binary_generator(m_rows=Ah, n_columns=Aw_Bh, filename=filename+"input", dtype=str_type, debug=False)
 
             # Append the VTA IR list
             vta_ir_list.append( (filename, vta_ir.copy()) )
@@ -129,14 +143,16 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
         elif (op_type == "QLinearMul"): 
             # Get data from the node
             vta_ir, node_info = \
-                Nconv.node_mulconstant(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, debug=False)
+                Nconv.node_mulconstant(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, debug=False)
 
             # Generate the associated binaries
             if (doGenerateBin):
                 Ah = node_info['matrix_shape'][0]
                 Aw = node_info['matrix_shape'][1]
 
-                RRBG.random_raw_binary_generator(m_rows=Ah, n_columns=Aw, filename=filename+"input", dtype='int8', debug=False)
+                str_type = 'int8' if (inp_dtype == np.int8) else 'int32'
+
+                RRBG.random_raw_binary_generator(m_rows=Ah, n_columns=Aw, filename=filename+"input", dtype=str_type, debug=False)
 
             # Append the VTA IR list
             vta_ir_list.append( (filename, vta_ir.copy()) )
@@ -147,15 +163,17 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
         elif (op_type == 'QLinearAdd'): 
             # Get data from the node
             vta_ir, node_info = \
-                Nadd.node_add(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, debug=False)
+                Nadd.node_add(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, debug=False)
 
             # Generate the associated binaries
             if (doGenerateBin):
                 Xh = node_info['matrix_shape'][0]
                 Xw = node_info['matrix_shape'][1]
+
+                str_type = 'int8' if (acc_dtype == np.int8) else 'int32'
                 
-                RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accumulator", dtype='int32', debug=False)
-                RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accbis", dtype='int32', debug=False)
+                RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accumulator", dtype=str_type, debug=False)
+                RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accbis", dtype=str_type, debug=False)
 
             # Append the VTA IR list
             vta_ir_list.append( (filename, vta_ir.copy()) )
@@ -166,14 +184,16 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
         elif (op_type == "MaxPool"): 
             # Get data from the node
             vta_ir, node_info = \
-                Npool.node_pool(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, debug=False)
+                Npool.node_pool(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, debug=False)
 
             # Generate the associated binaries
             if (doGenerateBin):
                 Xh = node_info['matrix_shape'][0]
                 Xw = node_info['matrix_shape'][1]
 
-                RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accumulator", dtype='int32', debug=False)
+                str_type = 'int8' if (acc_dtype == np.int8) else 'int32'
+
+                RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accumulator", dtype=str_type, debug=False)
 
             # Append the VTA IR list
             vta_ir_list.append( (filename, vta_ir.copy()) )
@@ -184,14 +204,16 @@ def vta_backend(onnx_model_path, doGenerateBin=False,
         elif (op_type == "Relu"): 
             # Get data from the node
             vta_ir, node_info = \
-                Nactivation.node_relu(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, debug=False)
+                Nactivation.node_relu(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, debug=False)
 
             # Generate the associated binaries
             if (doGenerateBin):
                 Xh = node_info['matrix_shape'][0]
                 Xw = node_info['matrix_shape'][1]
 
-                RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accumulator", dtype='int32', debug=False)
+                str_type = 'int8' if (acc_dtype == np.int8) else 'int32'
+
+                RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accumulator", dtype=str_type, debug=False)
 
             # Append the VTA IR list
             vta_ir_list.append( (filename, vta_ir.copy()) )
@@ -343,20 +365,26 @@ if __name__ == "__main__":
     """
     To execute: 
         > python vta_backend.py 
-            <onnx_model_path> 
-            <doGenerateBin>
             <debug>
+            <doGenerateBin>
+            <config_file> 
+            <onnx_model_path> 
     """
     # Must have 4 arguments
-    if (len(sys.argv) != 4):
+    if (len(sys.argv) != 5):
         raise Exception(f"ERROR: There are {len(sys.argv)} arguments when 4 are expected! \n\n")
 
     # Read the arguments
-    onnx_model_path = sys.argv[1]
+    # Debug settings
+    debug = True if (sys.argv[1] == 'true' or sys.argv[1] == 'True') else False
     doGenerateBin = True if (sys.argv[2] == 'true' or sys.argv[2] == 'True') else False
-    debug = True if (sys.argv[3] == 'true' or sys.argv[3] == 'True') else False
+    # Config file
+    vta_config_file = sys.argv[3]
+    vta_config_dict = parse_json_to_dict(vta_config_file)
+    # ONNX model
+    onnx_model_path = sys.argv[4]
 
     # Execute the backend
-    result = vta_backend(onnx_model_path, doGenerateBin=doGenerateBin, debug=debug)
+    result = vta_backend(vta_config_dict, onnx_model_path, doGenerateBin=doGenerateBin, debug=debug)
 
     # END!

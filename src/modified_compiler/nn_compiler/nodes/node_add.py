@@ -3,6 +3,8 @@
 import os
 import sys
 
+import numpy as np
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import utils.tensor_matrix_converter as TM
 
@@ -13,8 +15,9 @@ import utils.tensor_matrix_converter as TM
 
 # ADD
 # ---
-def node_add(node, param={}, node_mapping={}, node_info={}, filename='',
-              debug=False):
+def node_add(node, param={}, node_mapping={}, node_info={}, filename='', 
+             inp_dtype=np.int8, wgt_dtype=np.int8, acc_dtype=np.int32,
+             debug=False):
     # Reset the vta_ir
     vta_ir = {}
 
@@ -91,7 +94,7 @@ def node_add(node, param={}, node_mapping={}, node_info={}, filename='',
                 raise Exception(f"ERROR (in {filename}): Unexpected input ({inp_name})! \n")
 
 
-        # Get bias
+        # Get param
         elif (inp_name in param):
             # Empty field = metadata
             if (len(inp_shape) == 0):

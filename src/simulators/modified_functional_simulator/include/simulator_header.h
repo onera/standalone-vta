@@ -98,9 +98,27 @@
   /***************************
     Other functions' prototype
   ****************************/
-  void print_int8_vector(int8_t * vector, uint64_t size);
-  void print_int32_vector(int32_t * vector, uint64_t size);
   bool compare_vector(int8_t * vector_A, int8_t * vector_B, uint64_t size);
   int8_t * init_vector_values(int8_t * vector, uint64_t size, bool random_value, unsigned int seed);
+
+
+  /***************************
+    Templates' prototype
+  ****************************/
+  template <typename T>
+  void print_vector(T* vector, uint64_t size){
+      // Loop over the vector elements
+      for (uint64_t elem = 0; elem < size; elem++){
+          // New line each 16 elements
+          if (elem%16 == 0){
+              printf("\n");
+              if (elem%256 == 0){
+                  printf("\n \t(block_id: %ld) \n", elem/256);
+              }
+          }
+          // Print the element
+          printf("\t %d", vector[elem]);
+      }
+  }
 
 #endif  // SIMULATOR_HEADER_H_

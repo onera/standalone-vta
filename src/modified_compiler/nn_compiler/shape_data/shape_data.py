@@ -21,7 +21,7 @@ def expand_bias(vector, target_rows):
 
 # KER2COL 
 # -------
-def ker2col(K):
+def ker2col(K, dtype=np.int8):
     """
     Converts convolution weights (kernels) into a matrix (ker2col).
     
@@ -36,7 +36,7 @@ def ker2col(K):
     rows = input_channels * kernel_height * kernel_width  # C * H * W
     cols = output_channels  # N
     
-    kernel_matrix = np.zeros((rows, cols), dtype=np.int8)
+    kernel_matrix = np.zeros((rows, cols), dtype=dtype)
     
     # Fulfill the kernel
     col_idx = 0

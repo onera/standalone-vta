@@ -3,6 +3,8 @@
 import os
 import sys
 
+import numpy as np
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import utils.tensor_matrix_converter as TM
 
@@ -13,7 +15,8 @@ import utils.tensor_matrix_converter as TM
 
 # MAIN FUNCTION
 # -------------
-def node_pool(node, param={}, node_mapping={}, node_info={}, filename='',
+def node_pool(node, param={}, node_mapping={}, node_info={}, filename='', 
+              inp_dtype=np.int8, wgt_dtype=np.int8, acc_dtype=np.int32,
               debug=False):
     # Reset the vta_ir
     vta_ir = {}

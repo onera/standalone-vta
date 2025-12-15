@@ -115,7 +115,7 @@ def data_definition(matrices_dict, block_size=16,
     else: # Not full matrix
         C_row = len( flat_store_list )
     # Create the matrix
-    C_matrix = matrix_creation(m_row=C_row, n_col=C_col, file=None, dtype=acc_dtype)
+    C_matrix = matrix_creation(m_row=C_row, n_col=C_col, file=None, dtype=inp_dtype)
 
 
     # -------

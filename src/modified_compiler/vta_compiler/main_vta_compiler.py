@@ -386,7 +386,7 @@ if __name__ == "__main__":
         > python main_vta_compiler.py 
             <debug>
             <config_file> 
-            [json_file_2] ...
+            [json_file] ...
     """
     base_address = 0x0
     dram_offset = 0x0

@@ -9,14 +9,21 @@
 #include <iostream>
 #include <unordered_map>
 
+// Define the data type
+using inp_dtype = int32_t;
+using wgt_dtype = int32_t;
+using acc_dtype = int32_t;
+
 // structure to hold all data specific to one layer
 struct LayerContext {
     int id;
     std::string suffix;
     
     // Buffers (Host side)
-    std::vector<int8_t> inpA, wgtB, res;
-    std::vector<int32_t> outC, accX, accY;
+    std::vector<int8_t> res; // Result
+    std::vector<inp_dtype> inpA, outC;
+    std::vector<wgt_dtype> wgtB;
+    std::vector<acc_dtype> accX, accY;
     std::vector<uop_t> uop_buffer;
     std::vector<instruction_t> insn_buffer;
 
@@ -133,25 +140,25 @@ int fsim_nn() {
         // D. READ AND SHAPE THE DATA
         // ---
         // Input A
-        std::vector<int8_t> raw_inpA = read_binary_file<int8_t>(fileInpPath);
+        std::vector<inp_dtype> raw_inpA = read_binary_file<inp_dtype>(fileInpPath);
         if (A_row <= 0 || A_col <= 0) ctx.inpA = raw_inpA;
         else ctx.inpA = data_formatting(raw_inpA, A_row, A_col, block_size, true);
 
         // Weight B
-        ctx.wgtB = read_binary_file<int8_t>(fileWgtPath);
+        ctx.wgtB = read_binary_file<wgt_dtype>(fileWgtPath);
 
         // Acc X
-        std::vector<int32_t> raw_accX = read_binary_file<int32_t>(fileAccPath);
+        std::vector<acc_dtype> raw_accX = read_binary_file<acc_dtype>(fileAccPath);
         if (X_row <= 0 || X_col <= 0) ctx.accX = raw_accX;
         else ctx.accX = data_formatting(raw_accX, X_row, X_col, block_size, true);
 
         // Acc Y
-        std::vector<int32_t> raw_accY = read_binary_file<int32_t>(fileAddAccPath);
+        std::vector<acc_dtype> raw_accY = read_binary_file<acc_dtype>(fileAddAccPath);
         if (Y_row <= 0 || Y_col <= 0) ctx.accY = raw_accY;
         else ctx.accY = data_formatting(raw_accY, Y_row, Y_col, block_size, true);
 
         // Output C (buffer space)
-        ctx.outC = read_binary_file<int32_t>(fileOutPath);
+        ctx.outC = read_binary_file<inp_dtype>(fileOutPath);
 
         // Instructions & UOPs
         ctx.uop_buffer = read_binary_file<uop_t>(fileUopPath);
@@ -160,11 +167,11 @@ int fsim_nn() {
 
         // E. ALLOCATE VTA MEMORY (virtual DRAM)
         // ---
-        ctx.mem_inpA = VTAMemAlloc(ctx.inpA.size() * sizeof(int8_t), 1);
-        ctx.mem_wgtB = VTAMemAlloc(ctx.wgtB.size() * sizeof(int8_t), 1);
-        ctx.mem_accX = VTAMemAlloc(ctx.accX.size() * sizeof(int32_t), 1);
-        ctx.mem_accY = VTAMemAlloc(ctx.accY.size() * sizeof(int32_t), 1);
-        ctx.mem_outC = VTAMemAlloc(ctx.outC.size() * sizeof(int32_t), 1);
+        ctx.mem_inpA = VTAMemAlloc(ctx.inpA.size() * sizeof(inp_dtype), 1);
+        ctx.mem_wgtB = VTAMemAlloc(ctx.wgtB.size() * sizeof(wgt_dtype), 1);
+        ctx.mem_accX = VTAMemAlloc(ctx.accX.size() * sizeof(acc_dtype), 1);
+        ctx.mem_accY = VTAMemAlloc(ctx.accY.size() * sizeof(acc_dtype), 1);
+        ctx.mem_outC = VTAMemAlloc(ctx.outC.size() * sizeof(inp_dtype), 1);
         ctx.mem_uop  = VTAMemAlloc(ctx.uop_buffer.size() * sizeof(uop_t), 1);
         ctx.mem_insn = VTAMemAlloc(ctx.insn_buffer.size() * sizeof(instruction_t), 1);
 
@@ -174,11 +181,11 @@ int fsim_nn() {
 
         // F. WRITE THE DATA IN VIRTUAL DRAM
         // ---
-        VTAMemCopyFromHost(ctx.mem_inpA, ctx.inpA.data(), ctx.inpA.size() * sizeof(int8_t));
-        VTAMemCopyFromHost(ctx.mem_wgtB, ctx.wgtB.data(), ctx.wgtB.size() * sizeof(int8_t));
-        VTAMemCopyFromHost(ctx.mem_accX, ctx.accX.data(), ctx.accX.size() * sizeof(int32_t));
-        VTAMemCopyFromHost(ctx.mem_accY, ctx.accY.data(), ctx.accY.size() * sizeof(int32_t));
-        VTAMemCopyFromHost(ctx.mem_outC, ctx.outC.data(), ctx.outC.size() * sizeof(int32_t));
+        VTAMemCopyFromHost(ctx.mem_inpA, ctx.inpA.data(), ctx.inpA.size() * sizeof(inp_dtype));
+        VTAMemCopyFromHost(ctx.mem_wgtB, ctx.wgtB.data(), ctx.wgtB.size() * sizeof(wgt_dtype));
+        VTAMemCopyFromHost(ctx.mem_accX, ctx.accX.data(), ctx.accX.size() * sizeof(acc_dtype));
+        VTAMemCopyFromHost(ctx.mem_accY, ctx.accY.data(), ctx.accY.size() * sizeof(acc_dtype));
+        VTAMemCopyFromHost(ctx.mem_outC, ctx.outC.data(), ctx.outC.size() * sizeof(inp_dtype));
         VTAMemCopyFromHost(ctx.mem_uop,  ctx.uop_buffer.data(), ctx.uop_buffer.size() * sizeof(uop_t));
         VTAMemCopyFromHost(ctx.mem_insn, ctx.insn_buffer.data(), ctx.insn_buffer.size() * sizeof(instruction_t));
 
@@ -353,17 +360,19 @@ int fsim_nn() {
                 LayerContext& dep_ctx = layers_map[name_dep];
                 std::vector<int8_t> dep_out = dep_ctx.res;
 
-                // Offset + Reshape 
+                // Rescale
+                std::vector<acc_dtype> reshaped_dep = convert_vector_type<acc_dtype>(dep_out);
+
+                // Offset 
                 if (offsetA != 0){
-                    dep_out = subtract_offset(dep_out, offsetA);
+                    reshaped_dep = subtract_offset(reshaped_dep, offsetA);
                 }
-                std::vector<int32_t> reshaped_dep = convert_vector_type<int32_t>(dep_out);
 
                 // Chain
                 ctx.accX = reshaped_dep;
 
                 // Write the vector in memory
-                VTAMemCopyFromHost(ctx.mem_accX, ctx.accX.data(), ctx.accX.size() * sizeof(int32_t));
+                VTAMemCopyFromHost(ctx.mem_accX, ctx.accX.data(), ctx.accX.size() * sizeof(acc_dtype));
             }
 
             // There are two inputs
@@ -375,24 +384,26 @@ int fsim_nn() {
                 LayerContext& dep2_ctx = layers_map[name_dep2];
                 std::vector<int8_t> dep2_out = dep2_ctx.res;
 
-                // Offset + reshape 
+                // Convert in int 32
+                std::vector<acc_dtype> reshaped_dep1 = convert_vector_type<acc_dtype>(dep_out);
+                std::vector<acc_dtype> reshaped_dep2 = convert_vector_type<acc_dtype>(dep2_out);
+
+                // Offset 
                 if (offsetA != 0){
-                    dep_out = subtract_offset(dep_out, offsetA);
+                    reshaped_dep1 = subtract_offset(reshaped_dep1, offsetA);
                 }
-                std::vector<int32_t> reshaped_dep1 = convert_vector_type<int32_t>(dep_out);
 
                 if (offsetB != 0){
-                    dep2_out = subtract_offset(dep2_out, offsetB);
+                    reshaped_dep2 = subtract_offset(reshaped_dep2, offsetB);
                 }
-                std::vector<int32_t> reshaped_dep2 = convert_vector_type<int32_t>(dep2_out);
 
                 // Chain
                 ctx.accX = reshaped_dep1;
                 ctx.accY = reshaped_dep2;
 
                 // Write the vector in memory
-                VTAMemCopyFromHost(ctx.mem_accX, ctx.accX.data(), ctx.accX.size() * sizeof(int32_t));
-                VTAMemCopyFromHost(ctx.mem_accY, ctx.accY.data(), ctx.accY.size() * sizeof(int32_t));
+                VTAMemCopyFromHost(ctx.mem_accX, ctx.accX.data(), ctx.accX.size() * sizeof(acc_dtype));
+                VTAMemCopyFromHost(ctx.mem_accY, ctx.accY.data(), ctx.accY.size() * sizeof(acc_dtype));
             }
         }
 
@@ -401,9 +412,12 @@ int fsim_nn() {
             LayerContext& dep_ctx = layers_map[name_dep];
             std::vector<int8_t> dep_out = dep_ctx.res;
 
+            // Rescale
+            std::vector<inp_dtype> rescaled_dep = convert_vector_type<inp_dtype>(dep_out);
+
             // Reshape
             ctx.inpA  = reshape(
-                dep_out, // prev_vector (int32_t)
+                rescaled_dep, // prev_vector 
                 block_size, // block_size
                 1, // batch_size
                 tensor_channel, // tensor_channel
@@ -417,15 +431,7 @@ int fsim_nn() {
             );
                 
             // Copy the data
-            VTAMemCopyFromHost(ctx.mem_inpA, ctx.inpA.data(), ctx.inpA.size() * sizeof(int8_t));
-        }
-
-        // TODO: remove / debug
-        if (layer_name == "QLinearConv2"){
-            printf("\n\nDEBUG: %s:\n", layer_name.c_str());
-            printf("inpA = {");
-            print_int8_vector(ctx.inpA.data(), ctx.inpA.size());
-            printf("\n} \n");
+            VTAMemCopyFromHost(ctx.mem_inpA, ctx.inpA.data(), ctx.inpA.size() * sizeof(inp_dtype));
         }
 
 
@@ -445,7 +451,7 @@ int fsim_nn() {
         // E. GET THE RESULT BACK
         // ---
         // Copy Result Back
-        VTAMemCopyToHost(ctx.outC.data(), ctx.mem_outC, ctx.outC.size() * sizeof(int32_t));
+        VTAMemCopyToHost(ctx.outC.data(), ctx.mem_outC, ctx.outC.size() * sizeof(acc_dtype));
 
 
         // F. RESCALE THE RESULT
@@ -465,7 +471,7 @@ int fsim_nn() {
             // TODO : remove
             printf("\n\nDEBUG: %s:\n", layer_name.c_str());
             printf("res = {");
-            print_int8_vector(ctx.res.data(), ctx.res.size());
+            print_vector(ctx.res.data(), ctx.res.size());
             printf("\n} \n");
             output_tensor(
                 ctx.res, // output vector
@@ -521,7 +527,7 @@ int fsim_nn() {
     if (doPrint) {
         printf("\n\nRESULT LAYER %d:\n", ctx.id);
         printf("Final result = {");
-        print_int8_vector(ctx.res.data(), ctx.res.size());
+        print_vector(ctx.res.data(), ctx.res.size());
         printf("\n} \n");
     }
 

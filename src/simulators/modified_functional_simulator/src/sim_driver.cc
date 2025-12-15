@@ -392,7 +392,7 @@ class Device {
       prof_->out_store_nbytes += (
           op->x_size * op->y_size * VTA_BATCH * VTA_BLOCK_OUT * VTA_ACC_WIDTH / 8);
       if (!prof_->SkipExec()) {
-        acc_.TruncStore<VTA_ACC_WIDTH>(op, dram_);
+        acc_.TruncStore<VTA_OUT_WIDTH>(op, dram_);
       }
     } else {
       LOG(FATAL) << "Store do not support memory_type="
