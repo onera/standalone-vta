@@ -9,7 +9,7 @@ from utils.find_project_root import *
 from utils.json_parser import *
 import utils.configuration as conf
 
-import layer_compiler.data_definition.data_definition as DD
+import vta_compiler.data_definition.data_definition as DD
 
 
 ###############################################
@@ -183,7 +183,10 @@ def reference_computation(vta_config_dict, operations_dict,
         final_acc_matrix = matrices_dict[output_name][flat_store_list]
 
     # Truncated result
-    out_matrix = truncate_to_int8(final_acc_matrix.copy())
+    if (dtype == np.int8):
+        out_matrix = truncate_to_int8(final_acc_matrix.copy())
+    else:
+        out_matrix = final_acc_matrix.copy()
     
     # Setup the output folder (standalone-vta/compiler_output/)
     output_dir = compiler_output_setup()

@@ -173,7 +173,8 @@ def vta_backend(vta_config_dict, onnx_model_path,
                 str_type = 'int8' if (acc_dtype == np.int8) else 'int32'
                 
                 RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accumulator", dtype=str_type, debug=False)
-                RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accbis", dtype=str_type, debug=False)
+                if (node_info['initAccBis'] == False):
+                    RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accbis", dtype=str_type, debug=False)
 
             # Append the VTA IR list
             vta_ir_list.append( (filename, vta_ir.copy()) )
@@ -280,7 +281,7 @@ def vta_backend(vta_config_dict, onnx_model_path,
                 dep['output_shape'][1], # 15
                 dep['output_shape'][2], # 16
                 dep['output_shape'][3], # 17
-                f"{dep['rescaling']:.9g}",# 18 # To keep the precision (.17g to print float 64)
+                f"{dep['rescaling']:.17g}",# 18 # To keep the precision (.17g to print float 64)
                 dep['offsetC'],         # 19
                 "INP",                  # 20
                 len(dep['input_nodes']),# 21

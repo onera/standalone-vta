@@ -164,10 +164,10 @@ int strToInt(const std::string value){
 }
 
 // Convert str in float
-float strToFloat(const std::string value){
-    float floatValue = 0.0f;
+double strToFloat(const std::string value){
+    double floatValue = 0.0f;
     try {
-        floatValue = std::stof(value);
+        floatValue = std::stod(value); //stof for float (32-bit) and stod for double (64-bit)
     } catch (...) {
     }
     return floatValue;

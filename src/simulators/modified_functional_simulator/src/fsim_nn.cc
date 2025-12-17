@@ -45,7 +45,7 @@ struct LayerContext {
 *********************/
 int fsim_nn() {
     // Variable to print results
-    bool doPrint = false;
+    bool doPrint = true;
 
     // Define the current location
     std::filesystem::path currentPath = std::filesystem::current_path();
@@ -307,7 +307,7 @@ int fsim_nn() {
         int p3 = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 14));
 
         // Rescaling factor
-        float scale = strToFloat(get_csv_value(dependency_map, ctx.suffix.c_str(), 18));
+        double scale = strToFloat(get_csv_value(dependency_map, ctx.suffix.c_str(), 18));
 
         // Nb of inputs
         int nb_inp = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 21));
@@ -435,28 +435,30 @@ int fsim_nn() {
         }
 
 
-        // D. EXECUTE THE VTA
+        // D. EXECUTE THE VTA OR THE CPU
         // ---
-        // Execute the layer
-        int flag = VTADeviceRun(vta_device, ctx.phy_add_insn, ctx.insn_buffer.size(), 0);
+        if (true){
+            // Execute the layer
+            int flag = VTADeviceRun(vta_device, ctx.phy_add_insn, ctx.insn_buffer.size(), 0);
+            
+            // Check the execution was successful
+            if (flag != 0) {
+                std::cerr << "ERROR: Execution failed at layer " << ctx.suffix << std::endl;
+                VTADeviceFree(vta_device);
+                return EXIT_FAILURE;
+            }
         
-        // Check the execution was successful
-        if (flag != 0) {
-            std::cerr << "ERROR: Execution failed at layer " << ctx.suffix << std::endl;
-            VTADeviceFree(vta_device);
-            return EXIT_FAILURE;
+            // Copy Result Back
+            VTAMemCopyToHost(ctx.outC.data(), ctx.mem_outC, ctx.outC.size() * sizeof(inp_dtype));
         }
-        
+        else {
+            NULL;
+        }
 
-        // E. GET THE RESULT BACK
+
+        // E. RESCALE THE RESULT
         // ---
-        // Copy Result Back
-        VTAMemCopyToHost(ctx.outC.data(), ctx.mem_outC, ctx.outC.size() * sizeof(inp_dtype));
-
-
-        // F. RESCALE THE RESULT
-        // ---
-        if (debug) printf("\nRescaling: \n\t rescaling factor=%f and offset=%d \n", scale, offsetC);
+        if (debug) printf("\nRescaling: \n\t rescaling factor=%.18lf and offset=%d \n", scale, offsetC);
 
         // Perform the rescaling
         ctx.res = rescaling(
@@ -467,21 +469,22 @@ int fsim_nn() {
 
 
         // TODO: remove / debug
-        if (layer_name == "QLinearConv1"){
+        if (false){
             // TODO : remove
             printf("\n\nDEBUG: %s:\n", layer_name.c_str());
-            printf("res = {");
-            print_vector(ctx.res.data(), ctx.res.size());
+            printf("X = {");
+            print_vector(ctx.accX.data(), ctx.accX.size());
             printf("\n} \n");
-            output_tensor(
-                ctx.res, // output vector
-                block_size, // block_size
-                1, // batch_size
-                tensor_channel, // tensor_channel
-                tensor_height, // tensor_height
-                tensor_width, // tensor_width
-                construct_path("intermediate.bin") // filepath
-            );
+
+            // output_tensor(
+            //     ctx.res, // output vector
+            //     block_size, // block_size
+            //     1, // batch_size
+            //     tensor_channel, // tensor_channel
+            //     tensor_height, // tensor_height
+            //     tensor_width, // tensor_width
+            //     construct_path("intermediate.bin") // filepath
+            // );
         }
     }
 

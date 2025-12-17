@@ -50,3 +50,31 @@ def ker2col(K, dtype=np.int8):
 
     return kernel_matrix
 
+
+###############################################
+
+# FLATTEN
+# -------
+def flatten_conv_output(Y):
+    """
+    Flattens the output of a standard convolution to match the result of 
+    an im2row GEMM operation.
+    
+    Arguments:
+    Y -- Output tensor of shape (batch_size, output_channels, output_height, output_width)
+    
+    Returns:
+    A matrix of shape (batch_size * output_height * output_width, output_channels)
+    """
+    # 1. Permute dimensions to (batch_size, output_height, output_width, output_channels)
+    # We move the channel dimension (axis 1) to the last position.
+    Y_permuted = Y.transpose(0, 2, 3, 1)
+    
+    # 2. Reshape to combine batch and spatial dimensions into rows
+    # The -1 infers the row dimension size automatically based on the input size
+    output_channels = Y.shape[1]
+    result = Y_permuted.reshape(-1, output_channels)
+    
+    return result
+
+

@@ -92,7 +92,7 @@
   // Convert string into int
   int strToInt(const std::string value);
   // Convert string into float
-  float strToFloat(const std::string value);
+  double strToFloat(const std::string value);
 
 
   /***************************
