@@ -6,7 +6,9 @@ import sys
 import numpy as np
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils.find_project_root import *
 import utils.tensor_matrix_converter as TM
+import nn_compiler.shape_data.shape_data as SD
 
 
 
@@ -66,6 +68,7 @@ def node_add(node, param={}, node_mapping={}, node_info={}, filename='',
     # Count the nodes
     isAcc1Get = False
     isAcc2Get = False
+    initAccBis = False
 
     for j, inp in enumerate(inp_list):
         # Get the name
@@ -86,7 +89,7 @@ def node_add(node, param={}, node_mapping={}, node_info={}, filename='',
             elif (isAcc2Get == False):
                 isAcc2Get = True
                 # Check the consistency between both inputs
-                if (inp['shape'] != acc_tensor_shape):
+                if (inp_shape != acc_tensor_shape):
                     raise Exception(f"ERROR (in {filename}): Add must add 2 same shape tensors! \n")
             
             # Else problem
@@ -114,6 +117,15 @@ def node_add(node, param={}, node_mapping={}, node_info={}, filename='',
                     C_zp = param[inp_name]
 
             # It is bias
+            elif (len(inp_shape) == 4):
+                if (inp_shape != acc_tensor_shape):
+                    raise Exception(f"ERROR (in {filename}): Add must add 2 same shape tensors! \n")
+                if (j != 0 and j != 3):
+                    raise Exception(f"ERROR (in {filename}): Bias is not in the expected position (j={j})! \n")
+                initAccBis = j
+                init_tensor = param[inp_name].astype(acc_dtype)
+
+            # There is a problem
             else:
                 raise Exception(f"ERROR (in {filename}): Unexpected parameter ({inp_name})! \n")
 
@@ -150,7 +162,54 @@ def node_add(node, param={}, node_mapping={}, node_info={}, filename='',
     Ch = mh*mw
     Cw = mc
 
+    # # Manage the bias
+    # if (initAccBis != False):
+    #     if (B_zp != 0):
+    #         init_tensor = init_tensor - B_zp 
+    #     init_matrix = SD.flatten_conv_output(init_tensor)
 
+    #     # Write the binary
+    #     output_dir = compiler_output_setup()
+    #     # WGT
+    #     file_bias_path = filepath_definition(output_dir, filename+"accbis_"+str(Xh)+"x"+str(Xw)+".bin")
+
+    #     # WRITE
+    #     with open(file_bias_path, 'wb') as f:
+    #         init_matrix.tofile(f)
+
+
+    # ---
+    # DEFINE ALU OPERATIONS
+    # ---------------------
+    # C = Sa/Sc * (A - Za) + Sb/Sc * (B - Zb)
+    # -> Ma = Sa/Sc, Mb = Sb/Sc
+    # -> Pa = round(Ma) * 2^n, Pb = round(Mb) * 2^n
+    n = 20 # The point precision
+    # Compute Pa
+    Ma = A_scale / C_scale
+    Pa = round(Ma * (2**n))
+
+    # Compute Pb
+    Mb = B_scale / C_scale
+    Pb = round(Mb * (2**n))
+
+    # Rescaling bias
+    bias = 2**(n - 1)
+
+    # Size
+    block_size = 16
+    size = Xh + (block_size - Xh%block_size) - 1
+
+    # ALU OPERATION
+    alu_operations = [
+        ["MUL_IMM", [[0,1], Pa, Xh]], # Factor to X
+        ["MUL_IMM", [[size,1], Pb, Xh]], # Factor to Y
+        ["ADD", [[0,1], [size,1], Xh]], # X + Y
+        ["ADD_IMM", [[0,1], bias, Xh]], # bias
+        ["SHR_IMM", [[0,1], n, Xh]] # Remove factors
+    ]
+
+        
     # ---
     # WRITE VTA IR
     # ------------
@@ -166,9 +225,11 @@ def node_add(node, param={}, node_mapping={}, node_info={}, filename='',
             "ACC": ["X", "Y"]
         },
         "ALU" : {
-            "C": [
-                ["ADD_ACC", ["X", "Y"]]
-            ]
+            "C": alu_operations
+            # [
+            #     ["ADD_ACC", ["X", "Y"]]
+            # ]
+
         },
         "STORE": {
             "C": ["C"]
@@ -181,17 +242,21 @@ def node_add(node, param={}, node_mapping={}, node_info={}, filename='',
     # ------
     node_info.update({
         "matrix_shape": (Xh, Xw),
-        "processor": "vta",
+        "processor": "qadd",
         "reshape": "int32",
         "offsetA": A_zp,
+        "scaleA": A_scale,
         "offsetB": B_zp,
+        "scaleB": B_scale,
         "input_shape": acc_tensor_shape,
         "kernel": (1, 1),
         "stride": (1, 1),
         "padding": (0, 0, 0, 0),
         "output_shape": out_tensor_shape,
-        "rescaling": (A_scale * B_scale)/C_scale,
-        "offsetC": C_zp
+        "offsetC": C_zp,
+        "scaleC": C_scale,
+        "rescaling": 1.,
+        "initAccBis": initAccBis
     })
 
     return vta_ir, node_info

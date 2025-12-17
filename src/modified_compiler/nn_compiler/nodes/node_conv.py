@@ -281,14 +281,17 @@ def node_conv(node, param={}, node_mapping={}, node_info={}, filename='',
         "processor": "vta",
         "reshape": "im2row",
         "offsetA": A_zp,
+        "scaleA": A_scale,
         "offsetB": B_zp,
+        "scaleB": B_scale,
         "input_shape": inp_tensor_shape,
         "kernel": (fh, fw),
         "stride": (sh, sw),
         "padding": (ph[0], pw[0], ph[1], pw[1]),
         "output_shape": out_tensor_shape,
-        "rescaling": (A_scale * B_scale)/C_scale,
-        "offsetC": C_zp
+        "offsetC": C_zp,
+        "scaleC": C_scale,
+        "rescaling": (A_scale * B_scale)/C_scale
     })
 
     return vta_ir, node_info
@@ -491,14 +494,17 @@ def node_mulconstant(node, param={}, node_mapping={}, node_info={}, filename='',
         "processor": "vta",
         "reshape": "im2row",
         "offsetA": A_zp,
+        "scaleA": A_scale,
         "offsetB": B_zp,
+        "scaleB": B_scale,
         "input_shape": inp_tensor_shape,
         "kernel": (fh, fw),
         "stride": (sh, sw),
         "padding": (ph[0], pw[0], ph[1], pw[1]),
         "output_shape": out_tensor_shape,
-        "rescaling": (A_scale * B_scale)/C_scale,
-        "offsetC": C_zp
+        "offsetC": C_zp,
+        "scaleC": C_scale,
+        "rescaling": (A_scale * B_scale)/C_scale
     })
 
     return vta_ir, node_info

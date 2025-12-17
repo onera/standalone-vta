@@ -74,6 +74,9 @@ int fsim_nn() {
 
     // 1. GET NUMBER OF LAYERS AND THE DEBUG FLAG
     // ------------------------------------------
+    // Get the number of steps / nodes
+    int nb_steps = strToInt(get_csv_value(dependency_map, "nb_steps", 1));
+
     // Get the number of VTA IRs
     int nb_vta_ir = strToInt(get_csv_value(layers_name_map, "nb_vta_ir", 1));
 
@@ -81,14 +84,15 @@ int fsim_nn() {
     std::string debug_str = get_csv_value(layers_name_map, "nb_vta_ir", 2);
     bool debug = (debug_str == "True");
 
-    if (debug) printf("Found %d layers to execute.\n", nb_vta_ir);
+    if (debug) printf("\n\nThere are %d steps, %d are executed by the VTA! \n", nb_steps, nb_vta_ir);
 
     // Map to store layers by name
     std::unordered_map<std::string, LayerContext> layers_map;
-    layers_map.reserve(nb_vta_ir); // Optionnal
+    layers_map.reserve(nb_steps); // Each node has a map
+
     // List to keep the default load order
     std::vector<std::string> loaded_layer_names;
-    loaded_layer_names.reserve(nb_vta_ir); // Optionnal
+    loaded_layer_names.reserve(nb_vta_ir); // Only VTA nodes
 
 
     // 2. LOAD AND ALLOCATE ALL LAYERS
@@ -228,10 +232,6 @@ int fsim_nn() {
     
     // 4. DEFINE THE EXECUTION ORDER AND LAYER INFO
     // --------------------------------------------
-    // Get the number of steps
-    int nb_steps = strToInt(get_csv_value(dependency_map, "nb_steps", 1));
-
-    if (debug) printf("\n\nThere are %d steps: \n", nb_steps);
 
     // Define the execution order
     std::vector<std::string> execution_order;
@@ -239,10 +239,25 @@ int fsim_nn() {
 
     for (int i = 0; i < nb_steps; ++i) {
         // Get the name
-       std::string layer_to_execute = get_csv_value(dependency_map, std::to_string(i), 2);
+        std::string layer_to_execute = get_csv_value(dependency_map, std::to_string(i), 2);
+       
+        // CHECK: Does this layer exist in the map?
+        if (layers_map.find(layer_to_execute) == layers_map.end()) {
+            // Create a new node
+            LayerContext ctx;
+            
+            // Set basic info
+            ctx.id = i; 
+            ctx.suffix = layer_to_execute;
 
-       // Add to the execution order
-       execution_order.push_back(layer_to_execute);
+            // Insert into the map
+            layers_map[layer_to_execute] = ctx;
+
+            if (debug) printf("   -> Auto-created context for CPU layer: %s\n", layer_to_execute.c_str());
+        }
+
+        // Add to the execution order
+        execution_order.push_back(layer_to_execute);
     }
 
 
@@ -271,46 +286,51 @@ int fsim_nn() {
 
         // B. GET THE LAYER INFORMATION
         // ---
+        // Processor
+        std::string processor = get_csv_value(dependency_map, ctx.suffix.c_str(), 1);
         // Reshape
-        std::string reshape_info = get_csv_value(dependency_map, ctx.suffix.c_str(), 1);
+        std::string reshape_info = get_csv_value(dependency_map, ctx.suffix.c_str(), 2);
 
-        if (debug) printf("\t Reshape to perform: %s \n", reshape_info.c_str());
+        if (debug) printf("\t On %s with reshape %s \n", processor.c_str(), reshape_info.c_str());
 
         // Offsets (A, B, C)
-        int offsetA = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 2));
-        int offsetB = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 3));
-        // Out
-        int offsetC = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 19));
+        int offsetA = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 3));
+        int offsetB = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 5));
+        int offsetC = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 21));
+
+        // Scale (A, B, C)
+        double scaleA = strToFloat(get_csv_value(dependency_map, ctx.suffix.c_str(), 4));
+        double scaleB = strToFloat(get_csv_value(dependency_map, ctx.suffix.c_str(), 6));
+        double scaleC = strToFloat(get_csv_value(dependency_map, ctx.suffix.c_str(), 22));
+        // Rescaling factor (Sa*Sb/Sc)
+        double scale = strToFloat(get_csv_value(dependency_map, ctx.suffix.c_str(), 23));
 
         // INPUT tensor shape
-        int tensor_channel = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 4));
-        int tensor_height = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 5));
-        int tensor_width = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 6));
+        int tensor_channel = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 7));
+        int tensor_height = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 8));
+        int tensor_width = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 9));
 
         // // OUTPUT tensor shape
-        // int out_tensor_channel = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 15));
-        // int out_tensor_height = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 16));
-        // int out_tensor_width = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 17));
+        // int out_tensor_channel = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 18));
+        // int out_tensor_height = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 19));
+        // int out_tensor_width = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 20));
 
         // Kernel
-        int kh = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 7));
-        int kw = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 8));
+        int kh = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 10));
+        int kw = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 11));
 
         // Stride
-        int sh = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 9));
-        // int sw = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 10));
+        int sh = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 12));
+        // int sw = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 13));
 
         // Padding
-        int p0 = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 11));
-        int p1 = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 12));
-        int p2 = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 13));
-        int p3 = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 14));
-
-        // Rescaling factor
-        double scale = strToFloat(get_csv_value(dependency_map, ctx.suffix.c_str(), 18));
+        int p0 = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 14));
+        int p1 = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 15));
+        int p2 = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 16));
+        int p3 = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 17));
 
         // Nb of inputs
-        int nb_inp = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 21));
+        int nb_inp = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 25));
 
         if (debug) printf("\t %d inputs: ", nb_inp);
 
@@ -321,11 +341,11 @@ int fsim_nn() {
 
         // Inputs
         // ---
-        std::string name_dep = get_csv_value(dependency_map, ctx.suffix.c_str(), 22);
+        std::string name_dep = get_csv_value(dependency_map, ctx.suffix.c_str(), 26);
         if (debug) printf("%s", name_dep.c_str());
         std::string name_dep2;
         if (nb_inp == 2){
-            name_dep2 = get_csv_value(dependency_map, ctx.suffix.c_str(), 23);
+            name_dep2 = get_csv_value(dependency_map, ctx.suffix.c_str(), 27);
             if (debug) printf(", %s", name_dep2.c_str());
         } 
         if (debug) printf("\n");
@@ -372,7 +392,7 @@ int fsim_nn() {
                 ctx.accX = reshaped_dep;
 
                 // Write the vector in memory
-                VTAMemCopyFromHost(ctx.mem_accX, ctx.accX.data(), ctx.accX.size() * sizeof(acc_dtype));
+                if (ctx.mem_accX != nullptr) VTAMemCopyFromHost(ctx.mem_accX, ctx.accX.data(), ctx.accX.size() * sizeof(acc_dtype));
             }
 
             // There are two inputs
@@ -402,8 +422,8 @@ int fsim_nn() {
                 ctx.accY = reshaped_dep2;
 
                 // Write the vector in memory
-                VTAMemCopyFromHost(ctx.mem_accX, ctx.accX.data(), ctx.accX.size() * sizeof(acc_dtype));
-                VTAMemCopyFromHost(ctx.mem_accY, ctx.accY.data(), ctx.accY.size() * sizeof(acc_dtype));
+                if (ctx.mem_accX != nullptr) VTAMemCopyFromHost(ctx.mem_accX, ctx.accX.data(), ctx.accX.size() * sizeof(acc_dtype));
+                if (ctx.mem_accY != nullptr) VTAMemCopyFromHost(ctx.mem_accY, ctx.accY.data(), ctx.accY.size() * sizeof(acc_dtype));
             }
         }
 
@@ -437,7 +457,7 @@ int fsim_nn() {
 
         // D. EXECUTE THE VTA OR THE CPU
         // ---
-        if (true){
+        if (processor == "vta"){
             // Execute the layer
             int flag = VTADeviceRun(vta_device, ctx.phy_add_insn, ctx.insn_buffer.size(), 0);
             
@@ -451,7 +471,39 @@ int fsim_nn() {
             // Copy Result Back
             VTAMemCopyToHost(ctx.outC.data(), ctx.mem_outC, ctx.outC.size() * sizeof(inp_dtype));
         }
-        else {
+        // ELSE CPU OPERATIONS
+        else if (processor == "qadd") {
+            if (debug) printf("\t -> Processing QAdd (CPU)\n");
+
+            // Sanity checks
+            if (ctx.accX.size() != ctx.accY.size()) {
+                std::cerr << "ERROR: QAdd input mismatch size (accX: " 
+                          << ctx.accX.size() << ", accY: " << ctx.accY.size() << ")" << std::endl;
+                return EXIT_FAILURE;
+            }
+            else if (scaleC == 0.0f) { 
+                std::cerr << "ERROR: ScaleC is zero for QAdd layer" << std::endl;
+                return EXIT_FAILURE;
+            }
+
+            // Set the output size
+            ctx.outC.resize(ctx.accX.size());
+
+            // Perform the addition
+            for (size_t k = 0; k < ctx.accX.size(); ++k) {
+                // out = (Sa/Sc)*X + (Sb/Sc)*Y
+                // -> Computation decomposed to have semantic equivalence in floatting point
+                float valX = (float)ctx.accX[k] * scaleA;
+                float valY = (float)ctx.accY[k] * scaleB;
+                float val = (valX + valY) / scaleC;
+                // Round
+                ctx.outC[k] = (inp_dtype)std::round(val);
+            }
+
+            // Fix scale to 1.0
+            scale = 1.0;
+        }
+        else { 
             NULL;
         }
 
@@ -466,26 +518,6 @@ int fsim_nn() {
             scale, // rescale_factor (float)
             offsetC // offset
         );
-
-
-        // TODO: remove / debug
-        if (false){
-            // TODO : remove
-            printf("\n\nDEBUG: %s:\n", layer_name.c_str());
-            printf("X = {");
-            print_vector(ctx.accX.data(), ctx.accX.size());
-            printf("\n} \n");
-
-            // output_tensor(
-            //     ctx.res, // output vector
-            //     block_size, // block_size
-            //     1, // batch_size
-            //     tensor_channel, // tensor_channel
-            //     tensor_height, // tensor_height
-            //     tensor_width, // tensor_width
-            //     construct_path("intermediate.bin") // filepath
-            // );
-        }
     }
 
 
@@ -496,8 +528,8 @@ int fsim_nn() {
         std::cout << "\n--- Profiler Status ---" << std::endl << profile_json << std::endl;
     }
 
-    for (auto& pair : layers_map) {
-        LayerContext& ctx = pair.second; // Use reference to modify if needed, though vectors are inside
+    for (const std::string& layer_name : loaded_layer_names) {
+        LayerContext& ctx = layers_map[layer_name]; 
 
         // Free Memory
         VTAMemFree(ctx.mem_inpA);

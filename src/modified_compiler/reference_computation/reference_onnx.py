@@ -30,11 +30,11 @@ def reference_onnx(model_path, debug=False):
 
     # The input tensor attributes
     attributes = dep_dict[first_layer_name]
-    shape = [1, int( attributes[4] ), int( attributes[5] ), int( attributes[6] ) ]
-    offset = int( attributes[2] )
-    kernel = ( int(attributes[7]), int(attributes[8]) )
-    stride = ( int(attributes[9]), int(attributes[10]) )
-    padding = ( int(attributes[11]), int(attributes[12]), int(attributes[13]), int(attributes[14]) )
+    shape = [1, int( attributes[7] ), int( attributes[8] ), int( attributes[9] ) ]
+    offset = int( attributes[3] )
+    kernel = ( int(attributes[10]), int(attributes[11]) )
+    stride = ( int(attributes[12]), int(attributes[13]) )
+    padding = ( int(attributes[14]), int(attributes[15]), int(attributes[16]), int(attributes[17]) )
 
 
     # INFER THE ONNX
@@ -74,7 +74,6 @@ def reference_onnx(model_path, debug=False):
     # Refactor the data for the FSIM
     input_with_offset = input_data.astype(inp_dtype) - offset 
 
-
     matrix = im2row(
         X=input_with_offset, 
         dtype=inp_dtype,
@@ -94,7 +93,6 @@ def reference_onnx(model_path, debug=False):
     # file_inp_path = filepath_definition(output_dir, 'input_nn.bin')
     file_ref_path = filepath_definition(output_dir, 'reference.bin')
 
-   
 
     # Write the result
     with open(file_inp_path, 'wb') as f:

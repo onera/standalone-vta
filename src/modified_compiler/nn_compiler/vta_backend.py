@@ -104,14 +104,17 @@ def vta_backend(vta_config_dict, onnx_model_path,
             "processor": "cpu",
             "reshape": False,
             "offsetA": 0,
+            "scaleA": 1.,
             "offsetB": 0,
+            "scaleB": 1.,
             "input_shape": [0,0,0,0],
             "kernel": [0,0],
             "stride": [0,0],
             "padding": [0,0,0,0],
             "output_shape": [0,0,0,0],
-            "rescaling": 1.,
             "offsetC": 0,
+            "scaleC": 1.,
+            "rescaling": 1.,
             "input_nodes": input_dependency.copy(),
             "matrix_shape": (0, 0)
         }
@@ -176,8 +179,8 @@ def vta_backend(vta_config_dict, onnx_model_path,
                 if (node_info['initAccBis'] == False):
                     RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accbis", dtype=str_type, debug=False)
 
-            # Append the VTA IR list
-            vta_ir_list.append( (filename, vta_ir.copy()) )
+            # # Append the VTA IR list
+            # vta_ir_list.append( (filename, vta_ir.copy()) )
 
         # ---
 
@@ -262,31 +265,35 @@ def vta_backend(vta_config_dict, onnx_model_path,
             ])
 
             # One line with reshape and dependency information
-            dep_list = [
-                dep['node_name'],       # 0
-                dep['reshape'],         # 1
-                dep['offsetA'],         # 2
-                dep['offsetB'],         # 3
-                dep['input_shape'][1],  # 4
-                dep['input_shape'][2],  # 5
-                dep['input_shape'][3],  # 6
-                dep['kernel'][0],       # 7
-                dep['kernel'][1],       # 8
-                dep['stride'][0],       # 9
-                dep['stride'][1],       # 10
-                dep['padding'][0],      # 11
-                dep['padding'][1],      # 12
-                dep['padding'][2],      # 13
-                dep['padding'][3],      # 14
-                dep['output_shape'][1], # 15
-                dep['output_shape'][2], # 16
-                dep['output_shape'][3], # 17
-                f"{dep['rescaling']:.17g}",# 18 # To keep the precision (.17g to print float 64)
-                dep['offsetC'],         # 19
-                "INP",                  # 20
-                len(dep['input_nodes']),# 21
+            dep_list = [    
+                dep['node_name'],           # 0
+                dep['processor'],           # 1
+                dep['reshape'],             # 2
+                dep['offsetA'],             # 3
+                f"{dep['scaleA']:.17g}",    # 4
+                dep['offsetB'],             # 5
+                f"{dep['scaleB']:.17g}",    # 6
+                dep['input_shape'][1],      # 7
+                dep['input_shape'][2],      # 8
+                dep['input_shape'][3],      # 9
+                dep['kernel'][0],           # 10
+                dep['kernel'][1],           # 11
+                dep['stride'][0],           # 12
+                dep['stride'][1],           # 13
+                dep['padding'][0],          # 14
+                dep['padding'][1],          # 15
+                dep['padding'][2],          # 16
+                dep['padding'][3],          # 17
+                dep['output_shape'][1],     # 18
+                dep['output_shape'][2],     # 19
+                dep['output_shape'][3],     # 20
+                dep['offsetC'],             # 21
+                f"{dep['scaleC']:.17g}",    # 22
+                f"{dep['rescaling']:.17g}", # 23 # To keep the precision (.17g to print float 64)
+                "INP",                      # 24
+                len(dep['input_nodes']),    # 25
             ]
-            # Add the dependency information # 22+
+            # Add the dependency information # 26+
             for inp_node in dep['input_nodes']:
                 dep_list.append( inp_node )
             # Write the second line
