@@ -117,7 +117,7 @@ def check_bin(dtype=np.int8,
 
         # Print the mismatches
         if not isCorrect:
-            print(f"\nFound {num_mismatches} mismatches out of {total_elements} elements ({percentage:.2f}%)!")
+            print(f"\nFound {num_mismatches} mismatches out of {total_elements} elements ({percentage:.3f}%)!")
             print(f"Statistics: max={max_diff}, min={min_diff}, abs_error={max_abs_diff}")
             print(f"-"*30)
             print(f"First 10 Mismatches:")
@@ -140,11 +140,11 @@ def check_bin(dtype=np.int8,
 
     # If there is a difference print an error message
     if (not isCorrect):
-        if (max_abs_diff < 2):
-            raise Exception(f"\n\nWarning: There are approximation errors (up to {max_abs_diff} over {percentage:.2f}% of the data)! \n")
+        if (max_abs_diff < 5 and percentage < 5.):
+            raise Exception(f"\n\nWarning: There are approximation errors (up to {max_abs_diff} over {percentage:.3f}% of the data)! \n")
 
         else:
-            raise Exception(f"\n\nERROR: The final result does not match the reference! \n")
+            raise Exception(f"\n\nERROR: The final result does not match the reference!\n\t (up to {max_abs_diff} over {percentage:.3f}% of the data) \n")
 
 
 ###############################################

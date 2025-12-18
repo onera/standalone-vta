@@ -20,6 +20,7 @@ import nn_compiler.nodes.node_conv as Nconv
 import nn_compiler.nodes.node_pool as Npool
 import nn_compiler.nodes.node_add as Nadd
 import nn_compiler.nodes.node_activation as Nactivation
+import nn_compiler.nodes.node_cpu as Ncpu
 
 
 ###############################################
@@ -62,8 +63,8 @@ def vta_backend(vta_config_dict, onnx_model_path,
         # GeMM
         'QLinearConv', # Conv
         'QLinearMul', # MulConstant
-        # ALU
-        'QLinearAdd', # Both ADD_ACC and ADD BIAS
+        # # ALU
+        # 'QLinearAdd', # Both ADD_ACC and ADD BIAS
         'MaxPool',
         'Relu'
     ]
@@ -91,7 +92,7 @@ def vta_backend(vta_config_dict, onnx_model_path,
             vta_node_idx_list.append(index)
         else: # Not compatible
             cpu_node_list.append( (index, op_type) )
-            continue # No need to finish this loop
+            # continue # No need to finish this loop
 
         # Define the name
         filename = op_type + str(index)
@@ -137,9 +138,6 @@ def vta_backend(vta_config_dict, onnx_model_path,
 
                 RRBG.random_raw_binary_generator(m_rows=Ah, n_columns=Aw_Bh, filename=filename+"input", dtype=str_type, debug=False)
 
-            # Append the VTA IR list
-            vta_ir_list.append( (filename, vta_ir.copy()) )
-
         # ---
 
         # MulConstant
@@ -156,31 +154,6 @@ def vta_backend(vta_config_dict, onnx_model_path,
                 str_type = 'int8' if (inp_dtype == np.int8) else 'int32'
 
                 RRBG.random_raw_binary_generator(m_rows=Ah, n_columns=Aw, filename=filename+"input", dtype=str_type, debug=False)
-
-            # Append the VTA IR list
-            vta_ir_list.append( (filename, vta_ir.copy()) )
-
-        # ---
-
-        # ADD
-        elif (op_type == 'QLinearAdd'): 
-            # Get data from the node
-            vta_ir, node_info = \
-                Nadd.node_add(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, debug=False)
-
-            # Generate the associated binaries
-            if (doGenerateBin):
-                Xh = node_info['matrix_shape'][0]
-                Xw = node_info['matrix_shape'][1]
-
-                str_type = 'int8' if (acc_dtype == np.int8) else 'int32'
-                
-                RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accumulator", dtype=str_type, debug=False)
-                if (node_info['initAccBis'] == False):
-                    RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accbis", dtype=str_type, debug=False)
-
-            # # Append the VTA IR list
-            # vta_ir_list.append( (filename, vta_ir.copy()) )
 
         # ---
 
@@ -199,9 +172,6 @@ def vta_backend(vta_config_dict, onnx_model_path,
 
                 RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accumulator", dtype=str_type, debug=False)
 
-            # Append the VTA IR list
-            vta_ir_list.append( (filename, vta_ir.copy()) )
-
         # ---
 
         # Activation
@@ -218,21 +188,49 @@ def vta_backend(vta_config_dict, onnx_model_path,
                 str_type = 'int8' if (acc_dtype == np.int8) else 'int32'
 
                 RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accumulator", dtype=str_type, debug=False)
-
-            # Append the VTA IR list
-            vta_ir_list.append( (filename, vta_ir.copy()) )
+        
 
         # ---
+        # ---
+
+        # CPU OPERATIONS
+
+        # ADD (Not executed on VTA)
+        elif (op_type == 'QLinearAdd'): 
+            # Get data from the node
+            _, node_info = \
+                Nadd.node_add(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, debug=False)
+
+            # Generate the associated binaries
+            if (doGenerateBin):
+                Xh = node_info['matrix_shape'][0]
+                Xw = node_info['matrix_shape'][1]
+
+                str_type = 'int8' if (acc_dtype == np.int8) else 'int32'
+                
+                RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accumulator", dtype=str_type, debug=False)
+                if (node_info['initAccBis'] == False):
+                    RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accbis", dtype=str_type, debug=False)
+
+        # Quantise
+        elif (op_type == 'QuantizeLinear'): 
+            # Get data from the node
+            node_info = \
+                Ncpu.quantizelinear(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, debug=False)
+
 
         # Others
         else:
             pass
             # # Update dependency # TODO!
 
+
         # ---
-        # update node_info
-        if (node_info['input_nodes'][0] == 'image'):
-            node_info['reshape'] = False
+        # ---
+
+        # Append the VTA IR list
+        if (len(vta_ir) != 0):
+            vta_ir_list.append( (filename, vta_ir.copy()) )
 
         # Append the execution order
         execution_order.append( node_info.copy() )
@@ -298,17 +296,22 @@ def vta_backend(vta_config_dict, onnx_model_path,
                 dep_list.append( inp_node )
             # Write the second line
             writer.writerow(dep_list)
+        # # write image
+        # image_shape = execution_order[0]['matrix_shape']
+        # image_info = ["image"]
+        # if (len(image_shape) == 2):
+        #     image_info.append(image_shape[0])
+        #     image_info.append(image_shape[1])
+        # elif (len(image_shape) == 3):
+        #     image_info.append(image_shape[0])
+        #     image_info.append(image_shape[2])
+        # else:
+        #     raise Exception(f"\nERROR: image shape not as expected! \n\n")
         # write image
-        image_shape = execution_order[0]['matrix_shape']
+        image_shape = execution_order[0]['input_shape']
         image_info = ["image"]
-        if (len(image_shape) == 2):
-            image_info.append(image_shape[0])
-            image_info.append(image_shape[1])
-        elif (len(image_shape) == 3):
-            image_info.append(image_shape[0])
-            image_info.append(image_shape[2])
-        else:
-            raise Exception(f"\nERROR: image shape not as expected! \n\n")
+        image_info.append( image_shape[2]*image_shape[3] ) # Row
+        image_info.append( image_shape[1] ) # Column
         writer.writerow(image_info)
         # write output
         writer.writerow([
@@ -336,7 +339,8 @@ def vta_backend(vta_config_dict, onnx_model_path,
         if (nb_total != nb_vta + nb_cpu):
             raise Exception(f"ERROR: nb_total={nb_total} but nb_vta+nb_cpu={nb_vta + nb_cpu}! \n")
 
-        print(f"\nStatistics: \n\t % nodes on VTA: {nb_vta/nb_total} \n\t % VTA IR on possible: {nb_ir/nb_vta} \n")
+        if (nb_total != 0 and nb_vta != 0):
+            print(f"\nStatistics: \n\t % nodes on VTA: {nb_vta/nb_total} \n\t % VTA IR on possible: {nb_ir/nb_vta} \n")
 
         if (nb_ir != nb_vta):
             todo_list = []

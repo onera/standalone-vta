@@ -22,20 +22,23 @@ PYTHON_CMD := python
 JSON_FILES := $(COMPILER_OUTPUT_DIR)/*.json
 # JSON_FILES := $(COMPILER_OUTPUT_DIR)/QLinearAdd5.json
 
-DEBUG ?= True
+DEBUG ?= False
+DEBUG_PARSE ?= True
 
-ONNX_FILE ?= ../../onnx_zoo/qlinear_add_debug.onnx
-# ../../onnx_zoo/qlinearconv3x3.onnx
-# ../../onnx_zoo/qlinearconv_debug.onnx
+ONNX_FILE ?= ../../onnx_zoo/debug.onnx 
+# onnx/qlinearconv_debug.onnx
+# onnx/two_qlinearconv_debug.onnx
+# onnx/qlinearmul_debug.onnx
+# onnx/pattern_debug.onnx
+
 # ../../onnx_zoo/qlinearconv_yolo.onnx 
-# ../../onnx_zoo/twoQLinearConv_debug.onnx
-# ../../onnx_zoo/twoQLinearConv.onnx
-# ../../onnx_zoo/qconv_branch_subpattern.onnx
-# ../../onnx_zoo/qmul_branch_subpattern.onnx
-# ../../onnx_zoo/qlinear_add_debug.onnx
+# ../../onnx_zoo/two_qlinearconv_yolo.onnx
+# ../../onnx_zoo/subpattern_qconv_branch.onnx
+# ../../onnx_zoo/subpattern_qmul_branch.onnx
+# ../../onnx_zoo/pattern_qyolo.onnx
 
-# ../../onnx_zoo/subgraph_Qops_pattern.onnx
-# ../../onnx_zoo/yolonas_Qops_fixed.onnx
+# ../../onnx_zoo/two_patterns_qyolo.onnx
+# ../../onnx_zoo/qyolo.onnx
 
 
 ############################################################
@@ -55,7 +58,7 @@ parse_onnx: ## Parse the specified ONNX
 	@echo "PARSE ONNX..."
 	@date
 	python $(NN_COMPILER_DIR)/vta_backend.py \
-	$(DEBUG) \
+	$(DEBUG_PARSE) \
 	True \
 	$(CONFIG)/vta_config.json \
 	$(ONNX_FILE) > $(COMPILER_OUTPUT_DIR)/prompt_vta_backend.txt
@@ -160,13 +163,14 @@ nn_execute:
 
 # COMPILATION TESTS
 ###################
+DTYPE = int32
 
 # MATRIX MULTIPLICATION EXAMPLES
 matmul_16x16: ## Execute vta_ir/matmul_16x16.json
 	make clean
 	@echo "Create the binaries"
-	python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 input int8
-	python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 weight int8
+	python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 input $(DTYPE)
+	python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 weight $(DTYPE)
 	@echo ""
 	@echo "Compiling the VTA IR"
 	python $(VTA_COMPILER_DIR)/main_vta_compiler.py \

@@ -20,12 +20,15 @@ struct LayerContext {
     std::string suffix;
     
     // Buffers (Host side)
-    std::vector<int8_t> res; // Result
     std::vector<inp_dtype> inpA, outC;
     std::vector<wgt_dtype> wgtB;
     std::vector<acc_dtype> accX, accY;
     std::vector<uop_t> uop_buffer;
     std::vector<instruction_t> insn_buffer;
+
+    // Other buffer for execution
+    std::vector<int8_t> res; // Result
+    std::vector<float> value; // Float values
 
     // Memory Pointers (VTA side)
     void* mem_inpA = nullptr;
@@ -45,7 +48,7 @@ struct LayerContext {
 *********************/
 int fsim_nn() {
     // Variable to print results
-    bool doPrint = true;
+    bool doPrint = false;
 
     // Define the current location
     std::filesystem::path currentPath = std::filesystem::current_path();
@@ -204,15 +207,14 @@ int fsim_nn() {
 
     // H. READ THE INPUT
     // ---
-    // std::vector<int8_t> input_nn = read_binary_file<int8_t>(fileInputNNPath);
+    std::vector<int8_t> input_nn = read_binary_file<int8_t>(fileInputNNPath);
 
-    // // Get the information about the input
-    // int input_nn_height = strToInt(get_csv_value(dependency_map, "image", 1));
-    // int input_nn_width = strToInt(get_csv_value(dependency_map, "image", 2));
+    // Get the information about the input
+    int input_nn_height = strToInt(get_csv_value(dependency_map, "image", 1));
+    int input_nn_width = strToInt(get_csv_value(dependency_map, "image", 2));
 
-    // // TODO: TO FIX -> Warning: Input vector was larger than target matrix (65536x32). Input data has been truncated. \n terminate called after throwing an instance of 'tvm::runtime::InternalError'
-    // // // Format the input
-    // // input_nn = data_formatting(input_nn, input_nn_height, input_nn_width, block_size, true);
+    // Format the input
+    input_nn = data_formatting(input_nn, input_nn_height, input_nn_width, block_size, true);
 
 
     // 3. PROFILER SETUP
@@ -350,25 +352,6 @@ int fsim_nn() {
         } 
         if (debug) printf("\n");
 
-        // // Get previous layer
-        // // TODO: THROUGH CORE DUMP (bug to fix)
-        // // if (name_dep == "image"){
-        // //     dep_out = input_nn;
-        // //     if (nb_inp != 1) {
-        // //         std::cerr << "ERROR: Expect only a single input " << std::endl;
-        // //         return EXIT_FAILURE;
-        // //     }
-        // // }
-        // // else {
-        // //     // We get the address of the previous layer
-        // //     dep_ctx = &layers_map[name_dep];
-        // //     dep_out = dep_ctx->res; 
-        // //     if (nb_inp == 2) {
-        // //         dep2_ctx = &layers_map[name_dep2];
-        // //         dep2_out = dep2_ctx->res;
-        // //     }
-        // // }
-
 
         // C. RE-ORGANISE THE DATA
         // ---
@@ -429,8 +412,14 @@ int fsim_nn() {
 
         else if (reshape_info == "im2row"){
             // Get the previous layers
-            LayerContext& dep_ctx = layers_map[name_dep];
-            std::vector<int8_t> dep_out = dep_ctx.res;
+            std::vector<int8_t> dep_out;
+            if (name_dep == "image"){
+                dep_out = input_nn;
+            }
+            else{
+                LayerContext& dep_ctx = layers_map[name_dep];
+                dep_out = dep_ctx.res;
+            }
 
             // Rescale
             std::vector<inp_dtype> rescaled_dep = convert_vector_type<inp_dtype>(dep_out);

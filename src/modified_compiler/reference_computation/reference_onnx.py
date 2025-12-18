@@ -52,13 +52,15 @@ def reference_onnx(model_path, debug=False):
     if (input_shape != shape):
         raise Exception(f"\nERROR: We get shape={shape} when the expected is {input_shape}! \n\n")
 
+    # Data type
+    dtype = np.int8
+
     # Generate Random Integer Input ([-128,0[)
     low_bound = -128
     high_bound = 127 # Exclusive
     
     # Create random tensor matching the input shape
-    input_data = np.random.randint(low_bound, high_bound, size=input_shape).astype(np.int8)
-    # input_data = input_data.astype(np.float32)
+    input_data = np.random.randint(low_bound, high_bound, size=input_shape).astype(dtype)
 
     # INFERENCE
     outputs = session.run(None, {input_name: input_data})
@@ -69,28 +71,18 @@ def reference_onnx(model_path, debug=False):
 
     # MANAGE DATA (simulation input and reference)
     # ---
-    inp_dtype = np.int32
+    # Flatten the input
+    matrix = flatten_conv_output(input_data.astype(dtype))
+    matrix = matrix.astype(dtype)
 
-    # Refactor the data for the FSIM
-    input_with_offset = input_data.astype(inp_dtype) - offset 
-
-    matrix = im2row(
-        X=input_with_offset, 
-        dtype=inp_dtype,
-        kernel_size=kernel, 
-        stride=stride, 
-        padding=padding
-    )
-
-    # The matrix output
+    # Flatten the output
     flat_out = flatten_conv_output(output_data)
 
 
     # WRITE BINARIES
     # ---
-    # Set the path
-    file_inp_path = filepath_definition(output_dir, 'input'+first_layer_name+'.bin')
-    # file_inp_path = filepath_definition(output_dir, 'input_nn.bin')
+    # Set the paths
+    file_inp_path = filepath_definition(output_dir, 'input_nn.bin')
     file_ref_path = filepath_definition(output_dir, 'reference.bin')
 
 
@@ -123,19 +115,18 @@ def reference_onnx(model_path, debug=False):
             print(f"\t Data  : \n{outputs[i]}")
 
         print("\n\n" + "-"*50)
-        print("\nInput Data:")
+        print("\nInput:")
         print(input_data)
         print("\n\t | \n\t | \n\t V \n ONNX inference \n\t | \n\t | \n\t V")
-        print("\nOutput Data:")
+        print("\nOutput:")
         print(output_data)
 
         print("\n\n" + "-"*50)
-        print("\n\nMATRICES: \n Input with offset:")
-        print(input_with_offset)
-        print("\nInput IM2ROW:")
+        print("\n\nMATRICES:")
+        print("\nInput:")
         print(matrix)
         print("\n\t | \n\t | \n\t V")
-        print("\nOutput Matrix:")
+        print("\nOutput:")
         print(flat_out)
 
         # Reset print options
