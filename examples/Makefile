@@ -24,6 +24,8 @@ JSON_FILES := $(COMPILER_OUTPUT_DIR)/*.json
 
 DEBUG ?= False
 DEBUG_PARSE ?= True
+# ort, numpy, compare
+REF_MODE ?= numpy
 
 ONNX_FILE ?= ../../onnx_zoo/debug.onnx 
 # onnx/qlinearconv_debug.onnx
@@ -105,6 +107,7 @@ reference_onnx:
 	@echo "PROVIDE ONNX reference..."
 	python $(COMPILER_DIR)/reference_computation/reference_onnx.py \
 	$(DEBUG) \
+	$(REF_MODE) \
 	$(ONNX_FILE) > $(COMPILER_OUTPUT_DIR)/prompt_reference.txt
 
 check:

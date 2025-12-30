@@ -734,7 +734,7 @@
       for (const auto& val : input_vector) {
           // 1. Multiply by factor (cast input to double for precision)
           // 2. Round to nearest integer
-          double scaled_val = std::round(static_cast<double>(val) * rescale_factor);
+          double scaled_val = std::nearbyint(static_cast<double>(val) * rescale_factor);
 
           // 3. Add offset (cast back to int32 for arithmetic)
           int32_t offsetted_val = static_cast<int32_t>(scaled_val) + offset;

@@ -12,15 +12,18 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.find_project_root import *
 from utils.read_csv import *
 
+# Import the custom numpy implementation
+from utils.numpy_implementation import *
+
 
 ###############################################
 
 
 # MAIN FUNCTION
 # -------------
-def reference_onnx(model_path, debug=False):
+def reference_onnx(model_path, mode="ort", debug=False):
     # READ DEPENDENCY FILE (metadata)
-    # ---
+    # ---
     output_dir = compiler_output_setup()
     file_dep_path = filepath_definition(output_dir, 'dependency.csv')
     dep_dict = load_csv_to_dict(file_dep_path)
@@ -36,22 +39,8 @@ def reference_onnx(model_path, debug=False):
     stride = ( int(attributes[12]), int(attributes[13]) )
     padding = ( int(attributes[14]), int(attributes[15]), int(attributes[16]), int(attributes[17]) )
 
-
-    # INFER THE ONNX
-    # ---
-    # Create Inference Session
-    session = ort.InferenceSession(model_path)
-    
-    # Get Input Metadata generically
-    input_name = session.get_inputs()[0].name
-    input_shape = session.get_inputs()[0].shape
-    input_type = session.get_inputs()[0].type
-    output_nodes = session.get_outputs()
-
-    # Check the shape
-    if (input_shape != shape):
-        raise Exception(f"\nERROR: We get shape={shape} when the expected is {input_shape}! \n\n")
-
+    # GENERATE INPUT DATA
+    # ---
     # Data type
     dtype = np.int8
 
@@ -59,65 +48,113 @@ def reference_onnx(model_path, debug=False):
     low_bound = -128
     high_bound = 127 # Exclusive
     
-    # Create random tensor matching the input shape
-    input_data = np.random.randint(low_bound, high_bound, size=input_shape).astype(dtype)
-
-    # INFERENCE
-    outputs = session.run(None, {input_name: input_data})
+    # Create random tensor matching the input shape from CSV
+    input_data = np.random.randint(low_bound, high_bound, size=shape).astype(dtype)
     
-    # Get the first output
-    output_data = outputs[0]
+    # Initialize output container
+    output_data = None
 
 
-    # MANAGE DATA (simulation input and reference)
+    # INFERENCE EXECUTION BASED ON MODE
     # ---
-    # Flatten the input
+    print(f"Running inference in mode: {mode}")
+
+    if mode == "numpy":
+        # 1. NUMPY IMPLEMENTATION
+        # -----------------------
+        numpy_engine = NumPyReferenceEngine(model_path)
+        
+        # Get the input name from the graph structure
+        # (Assuming single input for this specific implementation)
+        real_input_name = numpy_engine.graph.input[0].name
+        
+        # Run inference
+        output_data = numpy_engine.run(real_input_name, input_data)
+
+    elif mode == "ort" or mode == "compare":
+        # 2. ONNX RUNTIME (ORT)
+        # ---------------------
+        # Create Inference Session
+        session = ort.InferenceSession(model_path)
+        
+        # Get Input Metadata generically
+        input_name = session.get_inputs()[0].name
+        input_shape = session.get_inputs()[0].shape
+        input_type = session.get_inputs()[0].type
+        output_nodes = session.get_outputs()
+
+        # Check the shape consistency between CSV and ONNX
+        if (input_shape != shape):
+            raise Exception(f"\nERROR: We get shape={shape} when the expected is {input_shape}! \n\n")
+
+        # INFERENCE
+        outputs = session.run(None, {input_name: input_data})
+        
+        # Get the first output
+        output_data = outputs[0]
+
+        # 3. COMPARE MODE
+        # ---------------
+        if mode == "compare":
+            # Compare ORT result (output_data) with NumPy implementation
+            # This function prints the differences to the console
+            compare_numpy_vs_ort(model_path, input_data, output_data)
+
+    else:
+        raise ValueError(f"Unknown mode: {mode}. Expected 'ort', 'numpy', or 'compare'.")
+
+
+    # MANAGE DATA (simulation input and reference)
+    # ---
+    # Flatten the input
     matrix = flatten_conv_output(input_data.astype(dtype))
     matrix = matrix.astype(dtype)
 
-    # Flatten the output
+    # Flatten the output
     flat_out = flatten_conv_output(output_data)
 
 
-    # WRITE BINARIES
+    # WRITE BINARIES
     # ---
-    # Set the paths
+    # Set the paths
     file_inp_path = filepath_definition(output_dir, 'input_nn.bin')
     file_ref_path = filepath_definition(output_dir, 'reference.bin')
 
 
-    # Write the result
+    # Write the result
     with open(file_inp_path, 'wb') as f:
         matrix.tofile(f)
     with open(file_ref_path, 'wb') as f:
         output_data.tofile(f) 
 
 
-    # DEBUG
+    # DEBUG
     # ---
     if (debug):
         # Configure numpy to print EVERYTHING (no truncation)
         np.set_printoptions(threshold=sys.maxsize, linewidth=200)
-
-        print(f"Input Name: {input_name}")
-        print(f"Input Shape: {input_shape}")
-        print(f"Input Type: {input_type}")
+        
+        if mode != "numpy":
+             print(f"Input Name: {input_name}")
+             print(f"Input Shape: {input_shape}")
+             print(f"Input Type: {input_type}")
 
         print(f"\nFirst layer: {first_layer_name}")
         print(f"\t offset={offset}, kernel={kernel}, stride={stride}, padding={padding} \n")
-
-        print(f"\n{len(output_nodes)} outputs found:")
-        for i, output_node in enumerate(output_nodes):
-            print(f"\nOutput #{i} :")
-            print(f"\t Name  : {output_node.name}")
-            print(f"\t Shape : {output_node.shape}")
-            print(f"\t Type  : {output_node.type}")
-            print(f"\t Data  : \n{outputs[i]}")
+        
+        if mode != "numpy":
+            print(f"\n{len(output_nodes)} outputs found:")
+            for i, output_node in enumerate(output_nodes):
+                print(f"\nOutput #{i} :")
+                print(f"\t Name  : {output_node.name}")
+                print(f"\t Shape : {output_node.shape}")
+                print(f"\t Type  : {output_node.type}")
+                print(f"\t Data  : \n{outputs[i]}")
 
         print("\n\n" + "-"*50)
         print("\nInput:")
         print(input_data)
-        print("\n\t | \n\t | \n\t V \n ONNX inference \n\t | \n\t | \n\t V")
+        print(f"\n\t | \n\t | \n\t V \n {mode.upper()} inference \n\t | \n\t | \n\t V")
         print("\nOutput:")
         print(output_data)
 
@@ -150,12 +187,12 @@ def im2row(X, dtype=np.int8, kernel_size=(1,1), stride=(1,1), padding=(0,0,0,0))
     Returns:
     A matrix of shape (batch_size, output_height * output_width * input_channels, kernel_height * kernel_width)
     """
-    # Get the attributes
+    # Get the attributes
     kernel_height, kernel_width = kernel_size
     stride_height, stride_width = stride
     pad_top, pad_left, pad_bottom, pad_right = padding
 
-    # Apply a zero-padding
+    # Apply a zero-padding
     X_padded = np.pad(X, (
         (0, 0),                     # Batch
         (0, 0),                     # Channels
@@ -163,7 +200,7 @@ def im2row(X, dtype=np.int8, kernel_size=(1,1), stride=(1,1), padding=(0,0,0,0))
         (pad_left, pad_right)       # Largeur
     ), mode='constant', constant_values=0)
 
-    # Get the padded tensor dimension
+    # Get the padded tensor dimension
     batch_size, input_channels, input_height, input_width = X_padded.shape
 
     
@@ -220,16 +257,20 @@ if __name__ == "__main__":
     To execute: 
         > python reference_onnx.py 
             <debug>
+            <mode>
             <onnx_model_path>
+            
+    Modes available: "ort", "numpy", "compare"
     """
-    # Check there are 3 inputs
-    if (len(sys.argv) != 3):
-        raise Exception(f"\nERROR: Require 3 inputs and there are {len(sys.argv)}! \n")
+    # Check there are 4 inputs
+    if (len(sys.argv) != 4):
+        raise Exception(f"\nERROR: Require 4 inputs and there are {len(sys.argv)}! \n")
 
     
     # Define path and debug
     debug = True if (sys.argv[1] == 'true' or sys.argv[1] == 'True') else False
-    onnx_model_path = sys.argv[2]
+    mode = sys.argv[2]
+    onnx_model_path = sys.argv[3]
     
     # Run the generic inference code
-    reference_onnx(onnx_model_path, onnx_model_path)
+    reference_onnx(onnx_model_path, mode, debug)
