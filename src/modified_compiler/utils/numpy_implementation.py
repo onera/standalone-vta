@@ -55,22 +55,40 @@ class NumPyReferenceEngine:
             inputs = [self._get_val(i) if i != '' else None for i in node.input]
             output_name = node.output[0]
             
+            # --- OPERATORS ---
             if op_type == "QLinearConv":
                 res = self._qlinear_conv(node, inputs)
                 self.tensors[output_name] = res
-                
             elif op_type == "QLinearAdd":
                 res = self._qlinear_add(inputs)
                 self.tensors[output_name] = res
-                
             elif op_type == "QLinearMul":
                 res = self._qlinear_mul(inputs)
+                self.tensors[output_name] = res
+            elif op_type == "QuantizeLinear":
+                res = self._quantize_linear(inputs)
+                self.tensors[output_name] = res
+            
+            elif op_type == "DequantizeLinear":
+                res = self._dequantize_linear(inputs)
+                self.tensors[output_name] = res
+                
+            elif op_type == "QLinearConcat":
+                res = self._qlinear_concat(node, inputs)
+                self.tensors[output_name] = res
+                
+            elif op_type == "MaxPool":
+                res = self._max_pool(node, inputs)
+                self.tensors[output_name] = res
+                
+            elif op_type == "ConvTranspose":
+                res = self._conv_transpose(node, inputs)
                 self.tensors[output_name] = res
                 
             else:
                 print(f"Warning: Operator {op_type} not implemented in pure NumPy. Ignored.")
                 
-        # Returns the output of the last calculated (or specified) node
+        # Return last node output
         last_output_name = self.graph.node[-1].output[0]
         return self.tensors[last_output_name]
 
@@ -174,6 +192,235 @@ class NumPyReferenceEngine:
         res_float = a_deq * b_deq
         
         return self._requantize(res_float, 1.0/c_scale, c_zp)
+
+    def _quantize_linear(self, inputs):
+        # Standard Inputs: x, y_scale, y_zero_point (optional)
+        x = inputs[0]
+        y_scale = inputs[1]
+        
+        # Handle optional Zero Point (Default to uint8 / 0)
+        if len(inputs) > 2 and inputs[2] is not None:
+            y_zp = inputs[2]
+            dtype = y_zp.dtype
+        else:
+            y_zp = 0
+            dtype = np.uint8
+            
+        # 1. Scale (Float -> Int domain)
+        # QuantizeLinear definition: y = saturate(round(x / y_scale) + y_zero_point)
+        # Note: We must ensure x is float for division
+        scaled = x.astype(np.float32) / y_scale
+        
+        # 2. Round (Round to nearest, ties to even)
+        rounded = np.rint(scaled)
+        
+        # 3. Add Zero Point
+        shifted = rounded + y_zp
+        
+        # 4. Saturate (Clamp) based on the target dtype
+        # We look at the dtype of the Zero Point to know if we target int8 or uint8
+        if dtype == np.uint8:
+            q_min, q_max = 0, 255
+        elif dtype == np.int8:
+            q_min, q_max = -128, 127
+        elif dtype == np.int32: # Sometimes used for intermediate ops
+            q_min, q_max = -2147483648, 2147483647
+        else:
+            # Fallback for unexpected types (e.g. int16)
+            try:
+                iinfo = np.iinfo(dtype)
+                q_min, q_max = iinfo.min, iinfo.max
+            except ValueError:
+                # Default safety net
+                q_min, q_max = -128, 127
+
+        clipped = np.clip(shifted, q_min, q_max)
+            
+        return clipped.astype(dtype)
+
+    def _dequantize_linear(self, inputs):
+        # Inputs: x, x_scale, x_zero_point
+        x = inputs[0]
+        x_scale = inputs[1]
+        x_zp = inputs[2]
+        
+        # Formula: y = (x - x_zero_point) * x_scale
+        # x and x_zp must be cast to float to allow subtraction without overflow/underflow
+        res = (x.astype(np.float32) - x_zp.astype(np.float32)) * x_scale
+        return res
+
+    def _qlinear_concat(self, node, inputs):
+        """
+        Input Format for com.microsoft.QLinearConcat:
+        [Y_scale, Y_zp, X1, X1_scale, X1_zp, X2, X2_scale, X2_zp, ...]
+        """
+        # 1. Extract Attributes
+        axis = get_node_attribute(node, 'axis', default=1)
+        
+        # 2. Extract Output Parameters (Always the FIRST two inputs)
+        y_scale = inputs[0]
+        y_zp = inputs[1]
+
+        # Determine output range based on Zero Point type (uint8 vs int8)
+        if y_zp.dtype == np.uint8:
+            min_val, max_val = 0, 255
+        else:
+            min_val, max_val = -128, 127
+
+        # 3. Process Input Triplets (starting from index 2)
+        # Sequence: [X1, Scale1, ZP1, X2, Scale2, ZP2, ...]
+        content_inputs = inputs[2:]
+        num_inputs = len(content_inputs) // 3
+        
+        dequantized_tensors = []
+        
+        for i in range(num_inputs):
+            base_idx = i * 3
+            val = content_inputs[base_idx]
+            scale = content_inputs[base_idx + 1]
+            zp = content_inputs[base_idx + 2]
+            
+            # Dequantize to Float32
+            # Formula: (val - zp) * scale
+            deq = (val.astype(np.float32) - zp) * scale
+            dequantized_tensors.append(deq)
+            
+        # 4. Concatenate in Float32
+        # This preserves accuracy even if inputs have different scales
+        concatenated = np.concatenate(dequantized_tensors, axis=axis)
+        
+        # 5. Re-quantize to Output specifications
+        # Pass the correct min/max limits found above
+        return self._requantize(concatenated, 1.0/y_scale, y_zp, min_val=min_val, max_val=max_val)
+
+    def _max_pool(self, node, inputs):
+        x = inputs[0]
+        
+        # Attributes
+        kernel_shape = get_node_attribute(node, 'kernel_shape')
+        pads = get_node_attribute(node, 'pads', default=[0]*4) # [y_begin, x_begin, y_end, x_end]
+        strides = get_node_attribute(node, 'strides', default=(1, 1))
+        
+        # Handling padding with -inf (or min value) so it doesn't affect Max
+        # For int8, we should use the type's min; for float, -inf.
+        if np.issubdtype(x.dtype, np.integer):
+            pad_val = np.iinfo(x.dtype).min
+        else:
+            pad_val = -np.inf
+            
+        # Apply Padding
+        if sum(pads) > 0:
+            pad_width = ((0,0), (0,0), (pads[0], pads[2]), (pads[1], pads[3]))
+            x_padded = np.pad(x, pad_width, mode='constant', constant_values=pad_val)
+        else:
+            x_padded = x
+
+        batch, channels, h_in, w_in = x_padded.shape
+        k_h, k_w = kernel_shape
+        s_h, s_w = strides
+        
+        # Output dims
+        # Note: 'ceil_mode' attribute affects this, assumed 0 (floor) here for simplicity
+        h_out = (h_in - k_h) // s_h + 1
+        w_out = (w_in - k_w) // s_w + 1
+        
+        output = np.zeros((batch, channels, h_out, w_out), dtype=x.dtype)
+        
+        # Naive sliding window
+        for i in range(h_out):
+            for j in range(w_out):
+                h_start = i * s_h
+                w_start = j * s_w
+                h_end = h_start + k_h
+                w_end = w_start + k_w
+                
+                window = x_padded[:, :, h_start:h_end, w_start:w_end]
+                output[:, :, i, j] = np.max(window, axis=(2, 3))
+                
+        return output
+
+    def _conv_transpose(self, node, inputs):
+        # Inputs: X, W, B (optional)
+        # Standard ConvTranspose (Deconvolution) logic
+        X = inputs[0]
+        W = inputs[1]
+        B = inputs[2] if len(inputs) > 2 else None
+        
+        # Attributes
+        pads = get_node_attribute(node, 'pads', default=(0,0,0,0))
+        strides = get_node_attribute(node, 'strides', default=(1,1))
+        output_padding = get_node_attribute(node, 'output_padding', default=(0,0))
+        group = get_node_attribute(node, 'group', default=1)
+        
+        # Shapes
+        # X: (N, C_in, H_in, W_in)
+        # W: (C_in, C_out/group, kH, kW) - NOTE: This axis order is specific to ONNX ConvTranspose
+        batch, in_chan, in_h, in_w = X.shape
+        ic_w, oc_per_group, k_h, k_w = W.shape
+        out_chan = oc_per_group * group # Total output channels
+        
+        s_h, s_w = strides
+        
+        # Calculate Output Height/Width
+        # H_out = (H_in - 1) * strides + kernel - 2*pads + output_padding
+        # (Simplified calculation logic)
+        out_h_pre = (in_h - 1) * s_h + k_h - (pads[0] + pads[2]) + output_padding[0]
+        out_w_pre = (in_w - 1) * s_w + k_w - (pads[1] + pads[3]) + output_padding[1]
+        
+        # Initialize output buffer (larger to handle "valid" area easily, then crop)
+        # We simulate this by scattering input onto a canvas.
+        # Canvas size roughly:
+        canvas_h = (in_h - 1) * s_h + k_h + output_padding[0]
+        canvas_w = (in_w - 1) * s_w + k_w + output_padding[1]
+        
+        output_canvas = np.zeros((batch, out_chan, canvas_h, canvas_w), dtype=np.float32)
+
+        # Naive implementation: "Scatter" or "Distribute"
+        # For every pixel in Input, add Input * Weight to the Output area
+        for b in range(batch):
+            for g in range(group):
+                # Calculate channel ranges for groups
+                ic_start = g * (in_chan // group)
+                ic_end = ic_start + (in_chan // group)
+                oc_start = g * oc_per_group
+                oc_end = oc_start + oc_per_group
+                
+                for ic_off in range(ic_end - ic_start):
+                    ic = ic_start + ic_off
+                    for oc_off in range(oc_per_group):
+                        oc = oc_start + oc_off
+                        
+                        # Weight for this pair: W[ic, oc_off, :, :]
+                        # Note: W is indexed by input channel first in ConvTranspose
+                        curr_w = W[ic, oc_off, :, :]
+                        
+                        for i in range(in_h):
+                            for j in range(in_w):
+                                val = X[b, ic, i, j]
+                                if val == 0: continue # optimization
+                                
+                                # Where does this land on the canvas?
+                                h_start = i * s_h
+                                w_start = j * s_w
+                                
+                                # Accumulate
+                                output_canvas[b, oc, h_start:h_start+k_h, w_start:w_start+k_w] += val * curr_w
+
+        # Handle Padding (Crop the canvas)
+        # pads: [y_begin, x_begin, y_end, x_end]
+        y_start = pads[0]
+        x_start = pads[1]
+        y_end = canvas_h - pads[2]
+        x_end = canvas_w - pads[3]
+        
+        final_output = output_canvas[:, :, y_start:y_end, x_start:x_end]
+        
+        # Add Bias if present
+        if B is not None:
+            # Reshape B to (1, C, 1, 1) for broadcasting
+            final_output += B.reshape(1, -1, 1, 1)
+            
+        return final_output
 
 # INTEGRATION FUNCTION
 # ----------------------

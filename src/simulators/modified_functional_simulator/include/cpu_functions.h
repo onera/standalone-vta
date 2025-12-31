@@ -447,58 +447,52 @@
 
   // pad_tensor
   /**
-   * Adds spatial padding to a 4D tensor.
-   *
-   * Args:
-   * tensor: Input 4D tensor (batch, channel, height, width)
-   * padding: Vector of 4 integers [top, left, bottom, right]
-   * (Standard ONNX format: H_begin, W_begin, H_end, W_end)
-   *
-   * Returns:
-   * Padded 4D tensor
-   */
+  * Adds spatial padding to a 4D tensor with a custom fill value.
+  *
+  * Args:
+  * tensor: Input 4D tensor (batch, channel, height, width)
+  * padding: Vector of 4 integers [top, left, bottom, right]
+  * fill_value: The value used to fill the padded areas (e.g., 0, -inf, etc.)
+  *
+  * Returns:
+  * Padded 4D tensor
+  */
   template <typename T>
   std::vector<std::vector<std::vector<std::vector<T>>>> pad_tensor(
       const std::vector<std::vector<std::vector<std::vector<T>>>>& tensor,
-      const std::vector<int>& padding) {
+      const std::vector<int>& padding,
+      T fill_value) { 
       
       // Safety check
       if (padding.size() != 4) {
-           // Fallback or throw, here we assume clean input or treat as no padding
-           if (padding.empty()) return tensor;
-           throw std::invalid_argument("Padding vector must have size 4: [top, left, bottom, right]");
+          if (padding.empty()) return tensor;
+          throw std::invalid_argument("Padding vector must have size 4: [top, left, bottom, right]");
       }
-
       int pad_top = padding[0];
       int pad_left = padding[1];
       int pad_bottom = padding[2];
       int pad_right = padding[3];
-
       // Optimization: if no padding is needed, return original
       if (pad_top == 0 && pad_left == 0 && pad_bottom == 0 && pad_right == 0) {
           return tensor;
       }
-
       int batch_size = tensor.size();
       int channels = tensor[0].size();
       int height = tensor[0][0].size();
       int width = tensor[0][0][0].size();
-
       int new_height = height + pad_top + pad_bottom;
       int new_width = width + pad_left + pad_right;
-
-      // Initialize new tensor with default values (T{} -> 0)
+      // Initialize new tensor with 'fill_value'
       std::vector<std::vector<std::vector<std::vector<T>>>> padded_tensor(
           batch_size,
           std::vector<std::vector<std::vector<T>>>(
               channels,
               std::vector<std::vector<T>>(
                   new_height,
-                  std::vector<T>(new_width, T{})
+                  std::vector<T>(new_width, fill_value) 
               )
           )
       );
-
       // Copy original data to the center
       for (int b = 0; b < batch_size; ++b) {
           for (int c = 0; c < channels; ++c) {
@@ -509,7 +503,6 @@
               }
           }
       }
-
       return padded_tensor;
   }
 
@@ -679,7 +672,7 @@
       }
       
       // 3.5 - APPLY PADDING
-      auto padded_tensor = pad_tensor(tensor, padding);
+      auto padded_tensor = pad_tensor(tensor, padding, 0);
 
 
       // 4 - TENSOR -> NEW MATRIX (unpad)
@@ -825,6 +818,190 @@
       } else {
           std::cout << "Tensor successfully written to " << filepath << std::endl;
       }
+  }
+
+
+  // --------------------------------------------------------
+  // CONCATENATION HELPER FUNCTIONS
+  // --------------------------------------------------------
+
+  // tensor_to_flat_matrix_rows
+  /**
+   * Flattens a 4D tensor into a 1D vector representing a matrix 
+   * where rows are spatial pixels (B*H*W) and columns are channels (C).
+   * This prepares the data for data_formatting().
+   */
+  template <typename T>
+  std::vector<T> tensor_to_flat_matrix_rows(
+      const std::vector<std::vector<std::vector<std::vector<T>>>>& tensor) {
+      
+      if (tensor.empty()) return {};
+
+      int batch = tensor.size();
+      int channel = tensor[0].size();
+      int height = tensor[0][0].size();
+      int width = tensor[0][0][0].size();
+
+      std::vector<T> flat_vector;
+      flat_vector.reserve(batch * height * width * channel);
+
+      // We want to format as Matrix[Rows][Cols]
+      // Rows = (b * h * w)
+      // Cols = c
+      // data_formatting's vec1DtoMat2D fills row by row.
+      
+      for (int b = 0; b < batch; ++b) {
+          for (int h = 0; h < height; ++h) {
+              for (int w = 0; w < width; ++w) {
+                  for (int c = 0; c < channel; ++c) {
+                      flat_vector.push_back(tensor[b][c][h][w]);
+                  }
+              }
+          }
+      }
+      return flat_vector;
+  }
+
+  // --------------------------------------------------------
+  // QLINEAR CONCAT OPERATOR
+  // --------------------------------------------------------
+
+  // qlinear_concat
+  /**
+   * Performs a Quantized Linear Concatenation on multiple input vectors.
+   * * Steps:
+   * 1. Reconstruct 4D tensors from blocked input vectors.
+   * 2. Dequantize inputs, concatenate, and requantize to output scale/offset.
+   * 3. Format the result back into the CPU block structure.
+   * * Args:
+   * inputs: Vector of input 1D vectors (blocked data).
+   * shapes: Vector of shapes {N, C, H, W} for each input.
+   * input_scales: Vector of float scales for each input.
+   * input_zps: Vector of zero points for each input.
+   * output_scale: Scale for the result.
+   * output_zp: Zero point for the result.
+   * axis: The axis to concatenate along (0=Batch, 1=Channel, etc.).
+   * block_size: Architecture block size (default 16).
+   */
+  template <typename T>
+  std::vector<T> qlinear_concat(
+      const std::vector<std::vector<T>>& inputs,
+      const std::vector<std::vector<int>>& shapes,
+      const std::vector<float>& input_scales,
+      const std::vector<int32_t>& input_zps,
+      float output_scale,
+      int32_t output_zp,
+      int axis,
+      int block_size = 16
+  ) {
+      // Basic validation
+      if (inputs.size() != shapes.size() || inputs.size() != input_scales.size()) {
+          throw std::invalid_argument("Size mismatch between inputs, shapes, or scales.");
+      }
+      if (inputs.empty()) return {};
+
+      // 1. DETERMINE OUTPUT SHAPE
+      std::vector<int> out_shape = shapes[0];
+      for (size_t i = 1; i < shapes.size(); ++i) {
+          out_shape[axis] += shapes[i][axis];
+          // Check other dimensions match
+          for (int d = 0; d < 4; ++d) {
+              if (d != axis && shapes[i][d] != shapes[0][d]) {
+                  throw std::invalid_argument("Input dimensions must match except for concat axis.");
+              }
+          }
+      }
+
+      int out_N = out_shape[0];
+      int out_C = out_shape[1];
+      int out_H = out_shape[2];
+      int out_W = out_shape[3];
+
+      // Initialize Output Tensor
+      std::vector<std::vector<std::vector<std::vector<T>>>> output_tensor(
+          out_N, std::vector<std::vector<std::vector<T>>>(
+              out_C, std::vector<std::vector<T>>(
+                  out_H, std::vector<T>(out_W, T{}))));
+
+      // 2. PROCESS EACH INPUT
+      int current_axis_offset = 0;
+
+      for (size_t i = 0; i < inputs.size(); ++i) {
+          const auto& vec = inputs[i];
+          const auto& shape = shapes[i];
+          float scale_in = input_scales[i];
+          int32_t zp_in = input_zps[i];
+
+          int N = shape[0];
+          int C = shape[1];
+          int H = shape[2];
+          int W = shape[3];
+
+          // A. RECONSTRUCT TENSOR (Logic from reshape)
+          // -------------------------------------------------
+          int matrix_h = H * W * N; // Flattening spatial + batch
+          int matrix_w = C;
+          
+          int block_col = (matrix_w + block_size - 1) / block_size;
+
+          // 1. Vector -> Blocks
+          auto list_blocks = to_blocks(vec, block_col, block_size);
+          
+          // 2. Blocks -> Matrix
+          auto matrix = unsplit(list_blocks, block_size, matrix_h, matrix_w);
+          
+          // 3. Matrix -> Tensor
+          auto input_tensor = mat_to_tensor(matrix, N, C, H, W);
+          // -------------------------------------------------
+
+          // B. COPY & REQUANTIZE TO OUTPUT TENSOR
+          // -------------------------------------------------
+          for (int b = 0; b < N; ++b) {
+              for (int c = 0; c < C; ++c) {
+                  for (int h = 0; h < H; ++h) {
+                      for (int w = 0; w < W; ++w) {
+                          
+                          // Determine position in output
+                          int out_b = b + (axis == 0 ? current_axis_offset : 0);
+                          int out_c = c + (axis == 1 ? current_axis_offset : 0);
+                          int out_h = h + (axis == 2 ? current_axis_offset : 0); // usually not concatenated
+                          int out_w = w + (axis == 3 ? current_axis_offset : 0); // usually not concatenated
+
+                          // Get Value
+                          T val_q = input_tensor[b][c][h][w];
+
+                          // Dequantize: (x - zp_in) * s_in
+                          float val_f = (static_cast<float>(val_q) - zp_in) * scale_in;
+
+                          // Requantize: (x / s_out) + zp_out
+                          // Using nearbyint for rounding
+                          int32_t val_rec = static_cast<int32_t>(std::nearbyint(val_f / output_scale)) + output_zp;
+                          
+                          // Clamp (assuming int8 output range)
+                          val_rec = std::clamp(val_rec, -128, 127);
+
+                          output_tensor[out_b][out_c][out_h][out_w] = val_rec;
+                      }
+                  }
+              }
+          }
+          
+          // Update offset for next input
+          current_axis_offset += shape[axis];
+      }
+
+      // 3. FLATTEN OUTPUT TENSOR (Tensor -> 1D Vector)
+      // This creates a vector representing a (N*H*W) x C matrix row-by-row
+      auto flat_vector = tensor_to_flat_matrix_rows(output_tensor);
+
+      // 4. APPLY DATA FORMATTING (Pad -> Split -> Flatten Blocks)
+      // Target Rows = N * H * W
+      // Target Cols = C
+      int m_rows = out_N * out_H * out_W;
+      int n_cols = out_C;
+      bool isSquare = true; 
+
+      return data_formatting(flat_vector, m_rows, n_cols, block_size, isSquare);
   }
 
 #endif  // CPU_FUNCTIONS_H

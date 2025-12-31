@@ -178,14 +178,17 @@ def node_pool(node, param={}, node_mapping={}, node_info={}, filename='',
         "processor": "vta",
         "reshape": "int32",
         "offsetA": 0,
+        "scaleA": 1.,
         "offsetB": 0,
+        "scaleB": 1.,
         "input_shape": acc_tensor_shape,
         "kernel": (fh, fw),
         "stride": (sh, sw),
         "padding": (ph[0], pw[0], ph[1], pw[1]),
         "output_shape": out_tensor_shape,
-        "rescaling": 1.,
-        "offsetC": 0
+        "offsetC": 0,
+        "scaleC": 1.,
+        "rescaling": 1.
     })
 
     return vta_ir, node_info

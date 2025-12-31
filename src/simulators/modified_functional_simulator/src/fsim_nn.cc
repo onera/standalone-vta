@@ -48,7 +48,7 @@ struct LayerContext {
 *********************/
 int fsim_nn() {
     // Variable to print results
-    bool doPrint = false;
+    bool doPrint = true;
 
     // Define the current location
     std::filesystem::path currentPath = std::filesystem::current_path();
@@ -301,11 +301,11 @@ int fsim_nn() {
         int offsetC = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 21));
 
         // Scale (A, B, C)
-        double scaleA = strToFloat(get_csv_value(dependency_map, ctx.suffix.c_str(), 4));
-        double scaleB = strToFloat(get_csv_value(dependency_map, ctx.suffix.c_str(), 6));
-        double scaleC = strToFloat(get_csv_value(dependency_map, ctx.suffix.c_str(), 22));
+        float scaleA = strToFloat(get_csv_value(dependency_map, ctx.suffix.c_str(), 4));
+        float scaleB = strToFloat(get_csv_value(dependency_map, ctx.suffix.c_str(), 6));
+        float scaleC = strToFloat(get_csv_value(dependency_map, ctx.suffix.c_str(), 22));
         // Rescaling factor (Sa*Sb/Sc)
-        double scale = strToFloat(get_csv_value(dependency_map, ctx.suffix.c_str(), 23));
+        float scale = strToFloat(get_csv_value(dependency_map, ctx.suffix.c_str(), 23));
 
         // INPUT tensor shape
         int tensor_channel = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 7));
@@ -360,8 +360,14 @@ int fsim_nn() {
             // If there is a single input
             if (nb_inp == 1){
                 // Get the previous layer
-                LayerContext& dep_ctx = layers_map[name_dep];
-                std::vector<int8_t> dep_out = dep_ctx.res;
+                std::vector<int8_t> dep_out;
+                if (name_dep == "image"){
+                    dep_out = input_nn;
+                }
+                else{
+                    LayerContext& dep_ctx = layers_map[name_dep];
+                    dep_out = dep_ctx.res;
+                }
 
                 // Rescale
                 std::vector<acc_dtype> reshaped_dep = convert_vector_type<acc_dtype>(dep_out);
@@ -369,6 +375,48 @@ int fsim_nn() {
                 // Offset 
                 if (offsetA != 0){
                     reshaped_dep = subtract_offset(reshaped_dep, offsetA);
+                }
+                // Check if any padding is required (p0=Top, p1=Left, p2=Bottom, p3=Right)
+                if (p0 > 0 || p1 > 0 || p2 > 0 || p3 > 0) {
+                    if (debug) printf("\t -> Applying int32 padding: T=%d, L=%d, B=%d, R=%d\n", p0, p1, p2, p3);
+
+                    // 1. Define dimensions of the Input Tensor (before padding)
+                    // Note: The VTA memory is blocked as Matrix[Batch*H*W][C]
+                    int prev_h = tensor_height * tensor_width; // Total pixels
+                    int prev_w = tensor_channel;               // Channels
+                    int block_col = (prev_w + block_size - 1) / block_size;
+                    int batch_size = 1; // Assuming batch 1 for this simulator context
+
+                    // 2. Reconstruct Tensor (Vector -> Blocks -> Matrix -> Tensor)
+                    // A. Vector -> Blocks
+                    auto list_blocks = to_blocks(reshaped_dep, block_col, block_size);
+                    
+                    // B. Blocks -> Matrix (Remove block padding)
+                    auto matrix = unsplit(list_blocks, block_size, prev_h, prev_w);
+                    
+                    // C. Matrix -> Tensor (Batch, Ch, H, W)
+                    auto tensor = mat_to_tensor(matrix, batch_size, tensor_channel, tensor_height, tensor_width);
+
+                    // 3. Apply Padding
+                    // pad_tensor expects {top, left, bottom, right}
+                    // Since reshaped_dep is already offset-subtracted, padding with 0 is mathematically correct.
+                    std::vector<int> padding_vec = {p0, p1, p2, p3};
+                    auto padded_tensor = pad_tensor(tensor, padding_vec, -128);
+
+                    // 4. Flatten Tensor to Matrix Rows
+                    // Converts [B][C][H][W] -> Flat Vector organized as [Pixel 0..N][Channels]
+                    auto flat_vector = tensor_to_flat_matrix_rows(padded_tensor);
+
+                    // 5. Re-format to VTA Block Structure
+                    // Calculate new spatial dimensions
+                    int new_height = tensor_height + p0 + p2;
+                    int new_width = tensor_width + p1 + p3;
+                    
+                    int m_rows = batch_size * new_height * new_width;
+                    int n_cols = tensor_channel;
+
+                    // Overwrite reshaped_dep with the padded, formatted data
+                    reshaped_dep = data_formatting(flat_vector, m_rows, n_cols, block_size, true);
                 }
 
                 // Chain
@@ -491,6 +539,34 @@ int fsim_nn() {
 
             // Fix scale to 1.0
             scale = 1.0;
+        }
+        // CONCATENATION
+        else if (processor == "concat") {
+            // Get the previous layers
+            LayerContext& dep_ctx = layers_map[name_dep];
+            std::vector<acc_dtype> dep_out = convert_vector_type<acc_dtype>(dep_ctx.res);
+
+            LayerContext& dep2_ctx = layers_map[name_dep2];
+            std::vector<acc_dtype> dep2_out = convert_vector_type<acc_dtype>(dep2_ctx.res);
+
+            // Define the shape
+            std::vector<int> shape = {1, tensor_channel, tensor_height, tensor_width};
+
+            // Perform the concatenation
+            ctx.outC = qlinear_concat<acc_dtype>(
+                {dep_out, dep2_out}, // Inputs
+                {shape, shape}, // Shapes
+                {scaleA, scaleB}, // input_scales
+                {offsetA, offsetB}, // input_zps
+                scaleC, // output_scale
+                offsetC, // output_zp
+                1, // axis
+                block_size// block_size
+            );
+
+            // Fix scale to 1.0
+            scale = 1.0;
+            offsetC = 0;
         }
         else { 
             NULL;

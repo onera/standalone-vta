@@ -218,6 +218,12 @@ def vta_backend(vta_config_dict, onnx_model_path,
             node_info = \
                 Ncpu.quantizelinear(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, debug=False)
 
+        # Concat
+        elif (op_type == 'QLinearConcat'): 
+            # Get data from the node
+            node_info = \
+                Ncpu.qlinearconcat(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, debug=False)
+
 
         # Others
         else:
