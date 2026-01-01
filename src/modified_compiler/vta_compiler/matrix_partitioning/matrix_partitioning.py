@@ -211,6 +211,9 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
             # Sort the alu_operations
             sorted_alu_operations = sort_alu_by_dst(alu_operations)
 
+            # # TODO: TEMPO
+            acc_buffer_size = 11
+
             # Define the strategy
             strategy = AS.alu_strategy(sorted_alu_ops=sorted_alu_operations, acc_buffer_size=acc_buffer_size, idx_to_store=idx_to_store)
 

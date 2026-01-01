@@ -53,10 +53,11 @@ def alu_strategy(sorted_alu_ops, acc_buffer_size, idx_to_store):
 
         # Check if the DST_vector is in SRAM
         if (not dst_vector in sram_status):
-            # Load the DST vector (init store)
+            # Load the DST vector 
             load_X.append(dst_vector)
-            store_C.append(dst_vector)
             sram_status.append(dst_vector)
+        if (not dst_vector in store_C):
+            store_C.append(dst_vector)
 
         # Iterate over the SRC vectors
 
@@ -68,8 +69,8 @@ def alu_strategy(sorted_alu_ops, acc_buffer_size, idx_to_store):
                 strategy.append( ([], [], load_X, sram_status, dram_status, [], filtered_ops) )
 
                 # Reset the lists (SRAM maintains DST vector)
-                # load_X = []
-                load_X = store_C.copy()
+                load_X = []
+                # load_X = store_C.copy()
                 sram_status = store_C.copy()
 
             # Update load and SRAM
