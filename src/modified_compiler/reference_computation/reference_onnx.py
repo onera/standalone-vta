@@ -33,11 +33,11 @@ def reference_onnx(model_path, mode="ort", debug=False):
 
     # The input tensor attributes
     attributes = dep_dict[first_layer_name]
-    shape = [1, int( attributes[7] ), int( attributes[8] ), int( attributes[9] ) ]
+    shape = [1, int( attributes[11] ), int( attributes[12] ), int( attributes[13] ) ]
     offset = int( attributes[3] )
-    kernel = ( int(attributes[10]), int(attributes[11]) )
-    stride = ( int(attributes[12]), int(attributes[13]) )
-    padding = ( int(attributes[14]), int(attributes[15]), int(attributes[16]), int(attributes[17]) )
+    kernel = ( int(attributes[14]), int(attributes[15]) )
+    stride = ( int(attributes[16]), int(attributes[17]) )
+    padding = ( int(attributes[18]), int(attributes[19]), int(attributes[20]), int(attributes[21]) )
 
     # GENERATE INPUT DATA
     # ---

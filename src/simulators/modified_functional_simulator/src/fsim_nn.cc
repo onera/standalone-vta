@@ -48,7 +48,7 @@ struct LayerContext {
 *********************/
 int fsim_nn() {
     // Variable to print results
-    bool doPrint = true;
+    bool doPrint = false;
 
     // Define the current location
     std::filesystem::path currentPath = std::filesystem::current_path();
@@ -298,57 +298,76 @@ int fsim_nn() {
         // Offsets (A, B, C)
         int offsetA = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 3));
         int offsetB = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 5));
-        int offsetC = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 21));
+        int offsetU = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 7));
+        int offsetV = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 9));
+        int offsetC = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 25));
 
         // Scale (A, B, C)
         float scaleA = strToFloat(get_csv_value(dependency_map, ctx.suffix.c_str(), 4));
         float scaleB = strToFloat(get_csv_value(dependency_map, ctx.suffix.c_str(), 6));
-        float scaleC = strToFloat(get_csv_value(dependency_map, ctx.suffix.c_str(), 22));
+        float scaleU = strToFloat(get_csv_value(dependency_map, ctx.suffix.c_str(), 8));
+        float scaleV = strToFloat(get_csv_value(dependency_map, ctx.suffix.c_str(), 10));
+        float scaleC = strToFloat(get_csv_value(dependency_map, ctx.suffix.c_str(), 26));
         // Rescaling factor (Sa*Sb/Sc)
-        float scale = strToFloat(get_csv_value(dependency_map, ctx.suffix.c_str(), 23));
+        float scale = strToFloat(get_csv_value(dependency_map, ctx.suffix.c_str(), 27));
 
         // INPUT tensor shape
-        int tensor_channel = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 7));
-        int tensor_height = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 8));
-        int tensor_width = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 9));
+        int tensor_channel = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 11));
+        int tensor_height = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 12));
+        int tensor_width = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 13));
 
         // // OUTPUT tensor shape
-        // int out_tensor_channel = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 18));
-        // int out_tensor_height = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 19));
-        // int out_tensor_width = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 20));
+        // int out_tensor_channel = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 22));
+        // int out_tensor_height = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 23));
+        // int out_tensor_width = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 24));
 
         // Kernel
-        int kh = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 10));
-        int kw = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 11));
+        int kh = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 14));
+        int kw = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 15));
 
         // Stride
-        int sh = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 12));
-        // int sw = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 13));
+        int sh = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 16));
+        // int sw = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 17));
 
         // Padding
-        int p0 = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 14));
-        int p1 = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 15));
-        int p2 = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 16));
-        int p3 = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 17));
+        int p0 = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 18));
+        int p1 = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 19));
+        int p2 = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 20));
+        int p3 = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 21));
 
         // Nb of inputs
-        int nb_inp = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 25));
+        int nb_inp = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 29));
 
         if (debug) printf("\t %d inputs: ", nb_inp);
 
-        if (nb_inp < 1 || nb_inp > 2) {
-            std::cerr << "ERROR: To many inputs for layer " << ctx.suffix << std::endl;
+        if (nb_inp < 1 || nb_inp > 4) {
+            std::cerr << "ERROR: Too many inputs for layer " << ctx.suffix << std::endl;
             return EXIT_FAILURE;
         }
 
         // Inputs
         // ---
-        std::string name_dep = get_csv_value(dependency_map, ctx.suffix.c_str(), 26);
+        std::string name_dep, name_dep2, name_dep3, name_dep4;
+        
+        name_dep = get_csv_value(dependency_map, ctx.suffix.c_str(), 30);
         if (debug) printf("%s", name_dep.c_str());
-        std::string name_dep2;
         if (nb_inp == 2){
-            name_dep2 = get_csv_value(dependency_map, ctx.suffix.c_str(), 27);
+            name_dep2 = get_csv_value(dependency_map, ctx.suffix.c_str(), 31);
             if (debug) printf(", %s", name_dep2.c_str());
+        } 
+        else if (nb_inp == 3){
+            name_dep2 = get_csv_value(dependency_map, ctx.suffix.c_str(), 31);
+            if (debug) printf(", %s", name_dep2.c_str());
+            name_dep3 = get_csv_value(dependency_map, ctx.suffix.c_str(), 32);
+            if (debug) printf(", %s", name_dep3.c_str());
+        } 
+        else if (nb_inp == 4){
+            name_dep2 = get_csv_value(dependency_map, ctx.suffix.c_str(), 31);
+            if (debug) printf(", %s", name_dep2.c_str());
+            name_dep3 = get_csv_value(dependency_map, ctx.suffix.c_str(), 32);
+            if (debug) printf(", %s", name_dep3.c_str());
+            name_dep4 = get_csv_value(dependency_map, ctx.suffix.c_str(), 33);
+            if (debug) printf(", %s", name_dep4.c_str());
         } 
         if (debug) printf("\n");
 
@@ -380,43 +399,15 @@ int fsim_nn() {
                 if (p0 > 0 || p1 > 0 || p2 > 0 || p3 > 0) {
                     if (debug) printf("\t -> Applying int32 padding: T=%d, L=%d, B=%d, R=%d\n", p0, p1, p2, p3);
 
-                    // 1. Define dimensions of the Input Tensor (before padding)
-                    // Note: The VTA memory is blocked as Matrix[Batch*H*W][C]
-                    int prev_h = tensor_height * tensor_width; // Total pixels
-                    int prev_w = tensor_channel;               // Channels
-                    int block_col = (prev_w + block_size - 1) / block_size;
-                    int batch_size = 1; // Assuming batch 1 for this simulator context
-
-                    // 2. Reconstruct Tensor (Vector -> Blocks -> Matrix -> Tensor)
-                    // A. Vector -> Blocks
-                    auto list_blocks = to_blocks(reshaped_dep, block_col, block_size);
-                    
-                    // B. Blocks -> Matrix (Remove block padding)
-                    auto matrix = unsplit(list_blocks, block_size, prev_h, prev_w);
-                    
-                    // C. Matrix -> Tensor (Batch, Ch, H, W)
-                    auto tensor = mat_to_tensor(matrix, batch_size, tensor_channel, tensor_height, tensor_width);
-
-                    // 3. Apply Padding
-                    // pad_tensor expects {top, left, bottom, right}
-                    // Since reshaped_dep is already offset-subtracted, padding with 0 is mathematically correct.
-                    std::vector<int> padding_vec = {p0, p1, p2, p3};
-                    auto padded_tensor = pad_tensor(tensor, padding_vec, -128);
-
-                    // 4. Flatten Tensor to Matrix Rows
-                    // Converts [B][C][H][W] -> Flat Vector organized as [Pixel 0..N][Channels]
-                    auto flat_vector = tensor_to_flat_matrix_rows(padded_tensor);
-
-                    // 5. Re-format to VTA Block Structure
-                    // Calculate new spatial dimensions
-                    int new_height = tensor_height + p0 + p2;
-                    int new_width = tensor_width + p1 + p3;
-                    
-                    int m_rows = batch_size * new_height * new_width;
-                    int n_cols = tensor_channel;
-
-                    // Overwrite reshaped_dep with the padded, formatted data
-                    reshaped_dep = data_formatting(flat_vector, m_rows, n_cols, block_size, true);
+                    reshaped_dep = pad_matrix(
+                        reshaped_dep, // input_data
+                        tensor_channel, // tensor_channel
+                        tensor_height, // tensor_height
+                        tensor_width, // tensor_width
+                        block_size, // block_size
+                        {p0, p1, p2, p3},// padding_vec
+                        -128 // pad_value
+                    );
                 }
 
                 // Chain
@@ -446,6 +437,32 @@ int fsim_nn() {
 
                 if (offsetB != 0){
                     reshaped_dep2 = subtract_offset(reshaped_dep2, offsetB);
+                }
+
+
+                // PAD
+                if (p0 > 0 || p1 > 0 || p2 > 0 || p3 > 0) {
+                    if (debug) printf("\t -> Applying int32 padding: T=%d, L=%d, B=%d, R=%d\n", p0, p1, p2, p3);
+
+                    reshaped_dep1 = pad_matrix(
+                        reshaped_dep1, // input_data
+                        tensor_channel, // tensor_channel
+                        tensor_height, // tensor_height
+                        tensor_width, // tensor_width
+                        block_size, // block_size
+                        {p0, p1, p2, p3},// padding_vec
+                        -128 // pad_value
+                    );
+
+                    reshaped_dep2 = pad_matrix(
+                        reshaped_dep2, // input_data
+                        tensor_channel, // tensor_channel
+                        tensor_height, // tensor_height
+                        tensor_width, // tensor_width
+                        block_size, // block_size
+                        {p0, p1, p2, p3},// padding_vec
+                        -128 // pad_value
+                    );
                 }
 
                 // Chain
@@ -542,22 +559,58 @@ int fsim_nn() {
         }
         // CONCATENATION
         else if (processor == "concat") {
-            // Get the previous layers
+            // Define the layers
             LayerContext& dep_ctx = layers_map[name_dep];
-            std::vector<acc_dtype> dep_out = convert_vector_type<acc_dtype>(dep_ctx.res);
-
             LayerContext& dep2_ctx = layers_map[name_dep2];
-            std::vector<acc_dtype> dep2_out = convert_vector_type<acc_dtype>(dep2_ctx.res);
+            LayerContext& dep3_ctx = layers_map[name_dep3];
+            LayerContext& dep4_ctx = layers_map[name_dep4];
+
+            // Get the previous layers
+            std::vector<acc_dtype> dep_out, dep2_out, dep3_out, dep4_out;
+
+            // The variables
+            std::vector<std::vector<acc_dtype>> concat_inp;
+            std::vector<std::vector<int>> concat_shapes;
+            std::vector<float> concat_scales;
+            std::vector<int32_t> concat_zps;
 
             // Define the shape
             std::vector<int> shape = {1, tensor_channel, tensor_height, tensor_width};
 
+
+            // Get the previous layers
+            dep_out = convert_vector_type<acc_dtype>(dep_ctx.res);
+            dep2_out = convert_vector_type<acc_dtype>(dep2_ctx.res);
+            if (nb_inp == 2){
+                concat_inp = {dep_out, dep2_out};
+                concat_shapes = {shape, shape};
+                concat_scales = {scaleA, scaleB};
+                concat_zps = {offsetA, offsetB};
+            }
+            else if (nb_inp == 3){
+                dep3_out = convert_vector_type<acc_dtype>(dep3_ctx.res);
+
+                concat_inp = {dep_out, dep2_out, dep3_out};
+                concat_shapes = {shape, shape, shape};
+                concat_scales = {scaleA, scaleB, scaleU};
+                concat_zps = {offsetA, offsetB, offsetU};
+            }
+            else if (nb_inp == 4){
+                dep3_out = convert_vector_type<acc_dtype>(dep3_ctx.res);
+                dep4_out = convert_vector_type<acc_dtype>(dep4_ctx.res);
+
+                concat_inp = {dep_out, dep2_out, dep3_out, dep4_out};
+                concat_shapes = {shape, shape, shape, shape};
+                concat_scales = {scaleA, scaleB, scaleU, scaleV};
+                concat_zps = {offsetA, offsetB, offsetU, offsetV};
+            }
+
             // Perform the concatenation
             ctx.outC = qlinear_concat<acc_dtype>(
-                {dep_out, dep2_out}, // Inputs
-                {shape, shape}, // Shapes
-                {scaleA, scaleB}, // input_scales
-                {offsetA, offsetB}, // input_zps
+                concat_inp, // Inputs
+                concat_shapes, // Shapes
+                concat_scales, // input_scales
+                concat_zps, // input_zps
                 scaleC, // output_scale
                 offsetC, // output_zp
                 1, // axis

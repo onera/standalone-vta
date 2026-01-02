@@ -188,6 +188,10 @@ def qlinearconcat(node, param={}, node_mapping={}, node_info={}, filename='',
     A_zp = 0
     B_scale = 1.
     B_zp = 0
+    U_scale = 1.
+    U_zp = 0
+    V_scale = 1.
+    V_zp = 0
     C_scale = 1.
     C_zp = 0
 
@@ -210,6 +214,8 @@ def qlinearconcat(node, param={}, node_mapping={}, node_info={}, filename='',
     # Count the nodes
     isAGet = False
     isBGet = False
+    isUGet = False
+    isVGet = False
 
     for j, inp in enumerate(inp_list):
         # Get the name
@@ -227,8 +233,14 @@ def qlinearconcat(node, param={}, node_mapping={}, node_info={}, filename='',
                 isAGet = True
                 inpA_tensor_shape = inp_shape # NCHW
 
-            elif (isBGet == False):
-                isBGet = True
+            elif (isBGet == False or isUGet == False or isVGet == False):
+                if (isBGet == False):
+                    isBGet = True
+                elif (isUGet == False):
+                    isUGet = True
+                elif (isVGet == False):
+                    isVGet = True
+
                 inpB_tensor_shape = inp_shape # NCHW
 
                 if (inpB_tensor_shape != inpA_tensor_shape):
@@ -257,6 +269,16 @@ def qlinearconcat(node, param={}, node_mapping={}, node_info={}, filename='',
                     B_scale = param[inp_name]
                 elif (j == 7): # B ZERO POINT
                     B_zp = param[inp_name]
+
+                elif (j == 9): # U SCALE
+                    U_scale = param[inp_name]
+                elif (j == 10): # U ZERO POINT
+                    U_zp = param[inp_name]
+
+                elif (j == 12): # V SCALE
+                    V_scale = param[inp_name]
+                elif (j == 13): # V ZERO POINT
+                    V_zp = param[inp_name]
 
             # There is a problem
             else:
@@ -309,6 +331,10 @@ def qlinearconcat(node, param={}, node_mapping={}, node_info={}, filename='',
         "scaleA": A_scale,
         "offsetB": B_zp,
         "scaleB": B_scale,
+        "offsetU": U_zp,
+        "scaleU": U_scale,
+        "offsetV": V_zp,
+        "scaleV": V_scale,
         "input_shape": inpA_tensor_shape,
         "kernel": (1, 1),
         "stride": (1, 1),

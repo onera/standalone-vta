@@ -576,6 +576,43 @@
       return result;
   }
 
+  // tensor_to_flat_matrix_rows
+  /**
+   * Flattens a 4D tensor into a 1D vector representing a matrix 
+   * where rows are spatial pixels (B*H*W) and columns are channels (C).
+   * This prepares the data for data_formatting().
+   */
+  template <typename T>
+  std::vector<T> tensor_to_flat_matrix_rows(
+      const std::vector<std::vector<std::vector<std::vector<T>>>>& tensor) {
+      
+      if (tensor.empty()) return {};
+
+      int batch = tensor.size();
+      int channel = tensor[0].size();
+      int height = tensor[0][0].size();
+      int width = tensor[0][0][0].size();
+
+      std::vector<T> flat_vector;
+      flat_vector.reserve(batch * height * width * channel);
+
+      // We want to format as Matrix[Rows][Cols]
+      // Rows = (b * h * w)
+      // Cols = c
+      // data_formatting's vec1DtoMat2D fills row by row.
+      
+      for (int b = 0; b < batch; ++b) {
+          for (int h = 0; h < height; ++h) {
+              for (int w = 0; w < width; ++w) {
+                  for (int c = 0; c < channel; ++c) {
+                      flat_vector.push_back(tensor[b][c][h][w]);
+                  }
+              }
+          }
+      }
+      return flat_vector;
+  }
+
 
   // --------------------------------------------------------
   // MAIN RESHAPE FUNCTIONS
@@ -742,6 +779,53 @@
 
       return result;
   } 
+
+  // pad_matrix
+  template <typename T>
+    std::vector<T> pad_matrix(
+        const std::vector<T>& input_data,
+        int tensor_channel,
+        int tensor_height,
+        int tensor_width,
+        int block_size,
+        const std::vector<int>& padding_vec, // {top, left, bottom, right}
+        int pad_value = -128 
+    ) {
+        
+        // 1. Define dimensions (Batch=1 assumed based on context)
+        int batch_size = 1; 
+        int prev_h = tensor_height * tensor_width;
+        int prev_w = tensor_channel;
+        int block_col = (prev_w + block_size - 1) / block_size;
+
+        // 2. Reconstruct Tensor (Vector -> Blocks -> Matrix -> Tensor)
+        auto list_blocks = to_blocks(input_data, block_col, block_size);
+        auto matrix = unsplit(list_blocks, block_size, prev_h, prev_w);
+        auto tensor = mat_to_tensor(matrix, batch_size, tensor_channel, tensor_height, tensor_width);
+
+        // 3. Apply Padding
+        // Relies on your existing 'pad_tensor' function
+        auto padded_tensor = pad_tensor(tensor, padding_vec, pad_value);
+
+        // 4. Flatten Tensor to Matrix Rows
+        auto flat_vector = tensor_to_flat_matrix_rows(padded_tensor);
+
+        // 5. Re-format to VTA Block Structure
+        // Calculate new spatial dimensions based on padding
+        int p0 = padding_vec[0]; // Top
+        int p1 = padding_vec[1]; // Left
+        int p2 = padding_vec[2]; // Bottom
+        int p3 = padding_vec[3]; // Right
+
+        int new_height = tensor_height + p0 + p2;
+        int new_width = tensor_width + p1 + p3;
+        
+        int m_rows = batch_size * new_height * new_width;
+        int n_cols = tensor_channel;
+
+        // Return the formatted, padded data
+        return data_formatting(flat_vector, m_rows, n_cols, block_size, true);
+    }
   
   // output_tensor
   /**
@@ -820,47 +904,6 @@
       }
   }
 
-
-  // --------------------------------------------------------
-  // CONCATENATION HELPER FUNCTIONS
-  // --------------------------------------------------------
-
-  // tensor_to_flat_matrix_rows
-  /**
-   * Flattens a 4D tensor into a 1D vector representing a matrix 
-   * where rows are spatial pixels (B*H*W) and columns are channels (C).
-   * This prepares the data for data_formatting().
-   */
-  template <typename T>
-  std::vector<T> tensor_to_flat_matrix_rows(
-      const std::vector<std::vector<std::vector<std::vector<T>>>>& tensor) {
-      
-      if (tensor.empty()) return {};
-
-      int batch = tensor.size();
-      int channel = tensor[0].size();
-      int height = tensor[0][0].size();
-      int width = tensor[0][0][0].size();
-
-      std::vector<T> flat_vector;
-      flat_vector.reserve(batch * height * width * channel);
-
-      // We want to format as Matrix[Rows][Cols]
-      // Rows = (b * h * w)
-      // Cols = c
-      // data_formatting's vec1DtoMat2D fills row by row.
-      
-      for (int b = 0; b < batch; ++b) {
-          for (int h = 0; h < height; ++h) {
-              for (int w = 0; w < width; ++w) {
-                  for (int c = 0; c < channel; ++c) {
-                      flat_vector.push_back(tensor[b][c][h][w]);
-                  }
-              }
-          }
-      }
-      return flat_vector;
-  }
 
   // --------------------------------------------------------
   // QLINEAR CONCAT OPERATOR

@@ -108,6 +108,10 @@ def vta_backend(vta_config_dict, onnx_model_path,
             "scaleA": 1.,
             "offsetB": 0,
             "scaleB": 1.,
+            "offsetU": 0,
+            "scaleU": 1.,
+            "offsetV": 0,
+            "scaleV": 1.,
             "input_shape": [0,0,0,0],
             "kernel": [0,0],
             "stride": [0,0],
@@ -277,27 +281,31 @@ def vta_backend(vta_config_dict, onnx_model_path,
                 f"{dep['scaleA']:.17g}",    # 4
                 dep['offsetB'],             # 5
                 f"{dep['scaleB']:.17g}",    # 6
-                dep['input_shape'][1],      # 7
-                dep['input_shape'][2],      # 8
-                dep['input_shape'][3],      # 9
-                dep['kernel'][0],           # 10
-                dep['kernel'][1],           # 11
-                dep['stride'][0],           # 12
-                dep['stride'][1],           # 13
-                dep['padding'][0],          # 14
-                dep['padding'][1],          # 15
-                dep['padding'][2],          # 16
-                dep['padding'][3],          # 17
-                dep['output_shape'][1],     # 18
-                dep['output_shape'][2],     # 19
-                dep['output_shape'][3],     # 20
-                dep['offsetC'],             # 21
-                f"{dep['scaleC']:.17g}",    # 22
-                f"{dep['rescaling']:.17g}", # 23 # To keep the precision (.17g to print float 64)
-                "INP",                      # 24
-                len(dep['input_nodes']),    # 25
+                dep['offsetU'],             # 7
+                f"{dep['scaleU']:.17g}",    # 8
+                dep['offsetV'],             # 9
+                f"{dep['scaleV']:.17g}",    # 10
+                dep['input_shape'][1],      # 11
+                dep['input_shape'][2],      # 12
+                dep['input_shape'][3],      # 13
+                dep['kernel'][0],           # 14
+                dep['kernel'][1],           # 15
+                dep['stride'][0],           # 16
+                dep['stride'][1],           # 17
+                dep['padding'][0],          # 18
+                dep['padding'][1],          # 19
+                dep['padding'][2],          # 20
+                dep['padding'][3],          # 21
+                dep['output_shape'][1],     # 22
+                dep['output_shape'][2],     # 23
+                dep['output_shape'][3],     # 24
+                dep['offsetC'],             # 25
+                f"{dep['scaleC']:.17g}",    # 26
+                f"{dep['rescaling']:.17g}", # 27 # To keep the precision (.17g to print float 64)
+                "INP",                      # 28
+                len(dep['input_nodes']),    # 29
             ]
-            # Add the dependency information # 26+
+            # Add the dependency information # 30+
             for inp_node in dep['input_nodes']:
                 dep_list.append( inp_node )
             # Write the second line
