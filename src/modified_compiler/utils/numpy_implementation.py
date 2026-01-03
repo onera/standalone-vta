@@ -70,7 +70,7 @@ class NumPyReferenceEngine:
                 self.tensors[output_name] = res
             
             elif op_type == "DequantizeLinear":
-                res = self._dequantize_linear(inputs)
+                res = self._dequantize_linear(node, inputs)
                 self.tensors[output_name] = res
                 
             elif op_type == "QLinearConcat":
@@ -238,15 +238,43 @@ class NumPyReferenceEngine:
             
         return clipped.astype(dtype)
 
-    def _dequantize_linear(self, inputs):
-        # Inputs: x, x_scale, x_zero_point
+    def _dequantize_linear(self, node, inputs):
         x = inputs[0]
         x_scale = inputs[1]
-        x_zp = inputs[2]
         
-        # Formula: y = (x - x_zero_point) * x_scale
-        # x and x_zp must be cast to float to allow subtraction without overflow/underflow
+        # 1. Handle Optional Zero Point
+        if len(inputs) > 2 and inputs[2] is not None:
+            x_zp = inputs[2]
+        else:
+            # Default is 0 (same type as x)
+            x_zp = np.array(0, dtype=x.dtype)
+
+        # 2. Handle Per-Channel Broadcasting
+        # NumPy broadcasts from the last dimension (right-to-left).
+        # ONNX DequantizeLinear usually broadcasts along a specific 'axis' (default 1).
+        if x_scale.ndim == 1 and x_scale.size > 1 and x.ndim > 1:
+            axis = get_node_attribute(node, 'axis', default=1)
+            
+            # Handle negative axis (e.g. -1)
+            if axis < 0: 
+                axis += x.ndim
+
+            # Create the broadcast shape: e.g. for (N, C, H, W) and axis 1 -> (1, C, 1, 1)
+            new_shape = [1] * x.ndim
+            new_shape[axis] = x_scale.size
+            
+            # Reshape Scale
+            x_scale = x_scale.reshape(new_shape)
+            
+            # Reshape Zero Point (if it's not a scalar)
+            if x_zp.ndim == 1:
+                x_zp = x_zp.reshape(new_shape)
+
+        # 3. Calculation
+        # (x - zp) * scale
+        # Cast to float32 is strictly necessary to avoid int overflow during subtraction
         res = (x.astype(np.float32) - x_zp.astype(np.float32)) * x_scale
+        
         return res
 
     def _qlinear_concat(self, node, inputs):
@@ -341,83 +369,86 @@ class NumPyReferenceEngine:
 
     def _conv_transpose(self, node, inputs):
         # Inputs: X, W, B (optional)
-        # Standard ConvTranspose (Deconvolution) logic
         X = inputs[0]
         W = inputs[1]
         B = inputs[2] if len(inputs) > 2 else None
         
-        # Attributes
+        # 1. Attributes
         pads = get_node_attribute(node, 'pads', default=(0,0,0,0))
         strides = get_node_attribute(node, 'strides', default=(1,1))
+        dilations = get_node_attribute(node, 'dilations', default=(1,1)) # <--- NEW
         output_padding = get_node_attribute(node, 'output_padding', default=(0,0))
         group = get_node_attribute(node, 'group', default=1)
         
-        # Shapes
-        # X: (N, C_in, H_in, W_in)
-        # W: (C_in, C_out/group, kH, kW) - NOTE: This axis order is specific to ONNX ConvTranspose
+        # 2. Dimensions
         batch, in_chan, in_h, in_w = X.shape
+        # ONNX ConvTranspose Weights: (In_C, Out_C/Group, kH, kW)
         ic_w, oc_per_group, k_h, k_w = W.shape
-        out_chan = oc_per_group * group # Total output channels
+        out_chan = oc_per_group * group
         
         s_h, s_w = strides
+        d_h, d_w = dilations # <--- NEW
         
-        # Calculate Output Height/Width
-        # H_out = (H_in - 1) * strides + kernel - 2*pads + output_padding
-        # (Simplified calculation logic)
-        out_h_pre = (in_h - 1) * s_h + k_h - (pads[0] + pads[2]) + output_padding[0]
-        out_w_pre = (in_w - 1) * s_w + k_w - (pads[1] + pads[3]) + output_padding[1]
+        # 3. Calculate Effective Kernel Size (with dilation)
+        k_h_eff = (k_h - 1) * d_h + 1
+        k_w_eff = (k_w - 1) * d_w + 1
         
-        # Initialize output buffer (larger to handle "valid" area easily, then crop)
-        # We simulate this by scattering input onto a canvas.
-        # Canvas size roughly:
-        canvas_h = (in_h - 1) * s_h + k_h + output_padding[0]
-        canvas_w = (in_w - 1) * s_w + k_w + output_padding[1]
+        # 4. Canvas Size Calculation
+        # The canvas represents the "uncropped" scatter area.
+        # Height = (Input-1)*Stride + EffectiveKernel + OutputPadding
+        canvas_h = (in_h - 1) * s_h + k_h_eff + output_padding[0]
+        canvas_w = (in_w - 1) * s_w + k_w_eff + output_padding[1]
         
+        # Initialize float32 accumulator (handles int8 inputs safely)
         output_canvas = np.zeros((batch, out_chan, canvas_h, canvas_w), dtype=np.float32)
 
-        # Naive implementation: "Scatter" or "Distribute"
-        # For every pixel in Input, add Input * Weight to the Output area
+        # 5. Scatter Loop
+        # Iterate over input pixels and project the kernel onto the canvas
         for b in range(batch):
             for g in range(group):
-                # Calculate channel ranges for groups
                 ic_start = g * (in_chan // group)
                 ic_end = ic_start + (in_chan // group)
                 oc_start = g * oc_per_group
-                oc_end = oc_start + oc_per_group
                 
                 for ic_off in range(ic_end - ic_start):
                     ic = ic_start + ic_off
                     for oc_off in range(oc_per_group):
                         oc = oc_start + oc_off
                         
-                        # Weight for this pair: W[ic, oc_off, :, :]
-                        # Note: W is indexed by input channel first in ConvTranspose
-                        curr_w = W[ic, oc_off, :, :]
+                        # Weight: W[ic, oc_off] is the kernel (kH, kW)
+                        curr_w = W[ic, oc_off] 
                         
-                        for i in range(in_h):
-                            for j in range(in_w):
-                                val = X[b, ic, i, j]
-                                if val == 0: continue # optimization
-                                
-                                # Where does this land on the canvas?
-                                h_start = i * s_h
-                                w_start = j * s_w
-                                
-                                # Accumulate
-                                output_canvas[b, oc, h_start:h_start+k_h, w_start:w_start+k_w] += val * curr_w
+                        # Optimization: Find non-zero input pixels to avoid useless adds
+                        # (Optional, removes inner loop overhead if input is sparse)
+                        rows, cols = np.where(X[b, ic] != 0)
+                        
+                        for r, c in zip(rows, cols):
+                            val = X[b, ic, r, c]
+                            
+                            # Top-left corner on canvas
+                            h_start = r * s_h
+                            w_start = c * s_w
+                            
+                            # Define the slice on the canvas
+                            # We use slicing with 'step' = dilation
+                            h_end = h_start + k_h_eff
+                            w_end = w_start + k_w_eff
+                            
+                            # ACCUMULATION
+                            # canvas slice: [start : end : dilation] shape matches kernel (kH, kW)
+                            output_canvas[b, oc, h_start:h_end:d_h, w_start:w_end:d_w] += val * curr_w
 
-        # Handle Padding (Crop the canvas)
-        # pads: [y_begin, x_begin, y_end, x_end]
+        # 6. Crop (Handle Padding)
         y_start = pads[0]
         x_start = pads[1]
-        y_end = canvas_h - pads[2]
-        x_end = canvas_w - pads[3]
+        # Ensure we don't slice past the canvas (safety for negative padding/cropping)
+        y_end = max(y_start, canvas_h - pads[2])
+        x_end = max(x_start, canvas_w - pads[3])
         
         final_output = output_canvas[:, :, y_start:y_end, x_start:x_end]
         
-        # Add Bias if present
+        # 7. Add Bias
         if B is not None:
-            # Reshape B to (1, C, 1, 1) for broadcasting
             final_output += B.reshape(1, -1, 1, 1)
             
         return final_output

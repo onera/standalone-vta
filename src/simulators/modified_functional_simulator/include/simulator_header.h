@@ -117,7 +117,8 @@
               }
           }
           // Print the element
-          printf("\t %d", vector[elem]);
+          // printf("\t %d", vector[elem]);
+          std::cout << "\t " << +vector[elem];
       }
   }
 

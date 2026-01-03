@@ -316,10 +316,10 @@ int fsim_nn() {
         int tensor_height = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 12));
         int tensor_width = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 13));
 
-        // // OUTPUT tensor shape
-        // int out_tensor_channel = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 22));
-        // int out_tensor_height = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 23));
-        // int out_tensor_width = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 24));
+        // OUTPUT tensor shape
+        int out_tensor_channel = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 22));
+        int out_tensor_height = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 23));
+        int out_tensor_width = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 24));
 
         // Kernel
         int kh = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 14));
@@ -621,6 +621,86 @@ int fsim_nn() {
             scale = 1.0;
             offsetC = 0;
         }
+        // DEQUANTISE
+        else if (processor == "dequant") {
+            if (debug) printf("\t -> Processing DequantizeLinear (CPU)\n");
+
+            // Get the previous layer
+            std::vector<int8_t> dep_out;
+            if (name_dep == "image"){
+                dep_out = input_nn;
+            }
+            else{
+                LayerContext& dep_ctx = layers_map[name_dep];
+                dep_out = dep_ctx.res;
+            }
+
+            // Rescale
+            std::vector<inp_dtype> rescaled_dep = convert_vector_type<inp_dtype>(dep_out);
+            
+            // Dequantise
+            std::vector<float> float_res = dequantize_linear(rescaled_dep, scaleA, offsetA);
+
+            // Save the result
+            ctx.value = float_res;
+            
+        }
+        // QUANTISE
+        else if (processor == "quant") {
+            if (debug) printf("\t -> Processing QuantizeLinear (CPU)\n");
+
+            // Define the layers
+            LayerContext& dep_ctx = layers_map[name_dep];
+
+            // Get the previou layer
+            std::vector<float> float_res = dep_ctx.value;
+            
+            // Quantise
+            std::vector<acc_dtype> int_res = quantize_linear(float_res, scaleA, offsetA);
+
+            // Save the result
+            ctx.outC = int_res;
+
+            // Fix scale to 1.0
+            scale = 1.0;
+            offsetC = 0;
+            
+        }
+        // CONVTRANSPOSE
+        else if (processor == "convtranspose") {
+            if (debug) printf("\t -> Processing ConvTranspose (CPU)\n");
+
+            // Get the binaries
+            std::string fileCTWgtPath = construct_path("weight" + ctx.suffix + ".bin");
+            std::string fileCTAccPath = construct_path("accumulator" + ctx.suffix + ".bin");
+
+            // Read 
+            std::vector<float> CTwgt = read_binary_file<float>(fileCTWgtPath);
+            std::vector<float> CTacc = read_binary_file<float>(fileCTAccPath);
+
+            // Define the layers
+            LayerContext& dep_ctx = layers_map[name_dep];
+
+            // Get the previou layer
+            std::vector<float> float_dep_out = dep_ctx.value;
+            
+            // ConvTranspose
+            // Inputs: Vector -> Reconstruct Tensor (using input dims) -> Conv -> Flatten
+            std::vector<float> float_res = conv_transpose(
+                float_dep_out, 
+                CTwgt, CTacc, 
+                1, 
+                tensor_channel, tensor_height, tensor_width, // Input Dims
+                out_tensor_channel, out_tensor_height, out_tensor_width, // Output Dims
+                kh, kw, sh, 
+                {p0, p1, p2, p3}, 
+                block_size
+            );
+
+            // Save the result
+            ctx.value = float_res;
+            
+        }
         else { 
             NULL;
         }
@@ -628,14 +708,17 @@ int fsim_nn() {
 
         // E. RESCALE THE RESULT
         // ---
-        if (debug) printf("\nRescaling: \n\t rescaling factor=%.18lf and offset=%d \n", scale, offsetC);
 
         // Perform the rescaling
-        ctx.res = rescaling(
-            ctx.outC, // vector (int32)
-            scale, // rescale_factor (float)
-            offsetC // offset
-        );
+        if ((processor != "dequant") && (processor != "convtranspose")){
+            if (debug) printf("\nRescaling: \n\t rescaling factor=%.18lf and offset=%d \n", scale, offsetC);
+
+            ctx.res = rescaling(
+                ctx.outC, // vector (int32)
+                scale, // rescale_factor (float)
+                offsetC // offset
+            );
+        }
     }
 
 

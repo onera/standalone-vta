@@ -7,7 +7,7 @@
   #define CPU_FUNCTIONS_H
 
   /********************* 
-    Include the packages 
+   Include the packages 
   **********************/
   // System package
   #include <filesystem>
@@ -778,7 +778,7 @@
       }
 
       return result;
-  } 
+  }
 
   // pad_matrix
   template <typename T>
@@ -1045,6 +1045,242 @@
       bool isSquare = true; 
 
       return data_formatting(flat_vector, m_rows, n_cols, block_size, isSquare);
+  }
+
+  // dequantize_linear
+  /**
+    * Dequantizes a vector of integers to floating point values.
+    * ONNX Formula: y = (x - x_zero_point) * x_scale
+    *
+    * Args:
+    * input_vector: Input vector of type T (e.g., int8 or int32).
+    * scale: The floating point scale factor.
+    * zero_point: The integer zero point offset.
+    *
+    * Returns:
+    * std::vector<float>: The resulting floating point vector.
+    */
+  template <typename T>
+  std::vector<float> dequantize_linear(
+      const std::vector<T>& input_vector,
+      float scale,
+      int32_t zero_point) {
+
+      std::vector<float> result;
+      result.reserve(input_vector.size());
+
+      for (const auto& val : input_vector) {
+          // Cast input to float, subtract zero point, then multiply by scale
+          float f = (static_cast<float>(val) - static_cast<float>(zero_point)) * scale;
+          result.push_back(f);
+      }
+
+      return result;
+  }
+
+  // quantize_linear
+  /**
+    * Quantizes a vector of floating point values to integers.
+    * ONNX Formula: y = saturate(round(x / scale) + zero_point)
+    *
+    * Args:
+    * input_vector: Input vector of floats.
+    * scale: The floating point scale factor.
+    * zero_point: The integer zero point offset.
+    *
+    * Returns:
+    * std::vector<int32_t>: The resulting quantized vector (clamped to int8 range).
+    */
+  inline std::vector<int32_t> quantize_linear(
+      const std::vector<float>& input_vector,
+      float scale,
+      int32_t zero_point) {
+
+      std::vector<int32_t> result;
+      // Reserve memory to avoid reallocations
+      result.reserve(input_vector.size());
+
+      for (const auto& val : input_vector) {
+          // 1. Divide by scale
+          // 2. Round to nearest integer (using nearbyint)
+          double scaled_val = std::nearbyint(val / scale);
+
+          // 3. Add Zero Point
+          int32_t quant_val = static_cast<int32_t>(scaled_val) + zero_point;
+
+          // 4. Saturate (Clamp)
+          // Even though we return int32, the operation is "Quantize", 
+          // so we clamp to the standard int8 range [-128, 127].
+          quant_val = std::clamp(quant_val, -128, 127);
+
+          result.push_back(quant_val);
+      }
+
+      return result;
+  }
+
+  // conv_transpose
+  /**
+    * Performs a ConvTranspose (Deconvolution) operation on floating point data.
+    * * Pipeline:
+    * 1. Reconstruct Input Tensor (from VTA blocked format).
+    * 2. Perform arithmetic ConvTranspose (including padding handling).
+    * 3. Add Bias.
+    * 4. Flatten Output Tensor to (N*H*W, C) format.
+    */
+  /**
+    * Performs a ConvTranspose (Deconvolution) on floating point data.
+    * matches 'numpy_implementation.py' reference.
+    */
+  template <typename T>
+  std::vector<T> conv_transpose(
+      const std::vector<T>& input_vector,
+      const std::vector<T>& weights,
+      const std::vector<T>& bias,
+      int batch_size,
+      int in_channels, int in_height, int in_width,
+      int out_channels, int out_height, int out_width,
+      int kernel_h, int kernel_w,
+      int stride,
+      const std::vector<int>& padding, // {top, left, bottom, right}
+      int block_size = 16
+  ) {
+      if (input_vector.empty()) return {};
+
+      // 1. RECONSTRUCT INPUT TENSOR FROM BLOCKED DATA
+      // ---------------------------------------------
+      // The input is ALREADY a sequence of 16x16 blocks (flattened). 
+      // We must not use 'to_blocks' (which assumes flat NCHW). 
+      // Instead, we just reshape the vector into 2D blocks.
+      
+      int prev_h = in_height * in_width; 
+      int prev_w = in_channels;
+      
+      // Calculate layout dimensions
+      int block_col = (prev_w + block_size - 1) / block_size;
+      int block_row = (prev_h + block_size - 1) / block_size; // Should typically be 1 for small inputs
+      
+      // A. Reconstruct the "List of Blocks" structure
+      std::vector<std::vector<std::vector<T>>> list_blocks;
+      size_t vals_per_block = block_size * block_size;
+      size_t num_blocks = input_vector.size() / vals_per_block;
+      
+      // Re-assemble blocks directly from the linear stream
+      for (size_t b = 0; b < num_blocks; ++b) {
+          std::vector<std::vector<T>> block(block_size, std::vector<T>(block_size));
+          size_t base_idx = b * vals_per_block;
+          for (int r = 0; r < block_size; ++r) {
+              for (int c = 0; c < block_size; ++c) {
+                  block[r][c] = input_vector[base_idx + r * block_size + c];
+              }
+          }
+          list_blocks.push_back(block);
+      }
+      
+      // We need a 4D structure for 'unsplit' [BlockRow][BlockCol][BlockH][BlockW]
+      // Since 'unsplit' expects that format, let's rearrange our linear list_blocks
+      std::vector<std::vector<std::vector<std::vector<T>>>> grid_blocks;
+      int block_idx = 0;
+      for (int i = 0; i < block_row; ++i) {
+          std::vector<std::vector<std::vector<T>>> row_of_blocks;
+          for (int j = 0; j < block_col; ++j) {
+              if (block_idx < (int)list_blocks.size()) {
+                  row_of_blocks.push_back(list_blocks[block_idx++]);
+              }
+          }
+          grid_blocks.push_back(row_of_blocks);
+      }
+
+      // B. Unsplit to Matrix -> Tensor
+      auto matrix = unsplit(grid_blocks, block_size, prev_h, prev_w);
+      auto input_tensor = mat_to_tensor(matrix, batch_size, in_channels, in_height, in_width);
+
+
+      // 2. INITIALIZE OUTPUT TENSOR
+      // ---------------------------
+      std::vector<std::vector<std::vector<std::vector<T>>>> output_tensor(
+          batch_size,
+          std::vector<std::vector<std::vector<T>>>(
+              out_channels,
+              std::vector<std::vector<T>>(
+                  out_height,
+                  std::vector<T>(out_width, 0.0f)
+              )
+          )
+      );
+
+      // 3. PERFORM CONV TRANSPOSE
+      // -------------------------
+      int pad_top = padding[0];
+      int pad_left = padding[1];
+
+      for (int b = 0; b < batch_size; ++b) {
+          for (int c_in = 0; c_in < in_channels; ++c_in) {
+              for (int h_in = 0; h_in < in_height; ++h_in) {
+                  for (int w_in = 0; w_in < in_width; ++w_in) {
+                      
+                      T input_val = input_tensor[b][c_in][h_in][w_in];
+                      if (input_val == 0.0f) continue;
+
+                      for (int c_out = 0; c_out < out_channels; ++c_out) {
+                          for (int ky = 0; ky < kernel_h; ++ky) {
+                              for (int kx = 0; kx < kernel_w; ++kx) {
+                                  
+                                  // SCATTER LOGIC
+                                  int h_out = h_in * stride + ky - pad_top;
+                                  int w_out = w_in * stride + kx - pad_left;
+
+                                  if (h_out >= 0 && h_out < out_height && w_out >= 0 && w_out < out_width) {
+                                      
+                                      // NO FLIPPED WEIGHT ACCESS
+                                      // ONNX standard ConvTranspose weights [In][Out][KH][KW] work directly
+                                      // with the scatter logic (Input * Weight -> Output).
+                                      
+                                      // ONNX Layout: [In_Channels][Out_Channels/Group][KH][KW]
+                                      // Assuming Group=1, so dim is [In][Out][KH][KW]
+                                      int w_idx = c_in * (out_channels * kernel_h * kernel_w) + 
+                                                  c_out * (kernel_h * kernel_w) + 
+                                                  ky * kernel_w + kx;
+                                      
+                                      output_tensor[b][c_out][h_out][w_out] += input_val * weights[w_idx];
+                                  }
+                              }
+                          }
+                      }
+                  }
+              }
+          }
+      }
+
+      // 4. ADD BIAS
+      // -----------
+      if (!bias.empty()) {
+          for (int b = 0; b < batch_size; ++b) {
+              for (int c_out = 0; c_out < out_channels; ++c_out) {
+                  T b_val = bias[c_out];
+                  for (int h = 0; h < out_height; ++h) {
+                      for (int w = 0; w < out_width; ++w) {
+                          output_tensor[b][c_out][h][w] += b_val;
+                      }
+                  }
+              }
+          }
+      }
+
+      // 5. FLATTEN OUTPUT AND FORMAT TO BLOCKS
+      // --------------------------------------
+      // We get a vector representing rows of a (N*H*W) x C matrix
+      auto flat_vector = tensor_to_flat_matrix_rows(output_tensor);
+
+      // We must format this into VTA blocks for compatibility with subsequent layers (like Quantize)
+      // Target Matrix Dimensions:
+      // Rows = Spatial (Batch * Height * Width)
+      // Cols = Channels
+      int m_rows = batch_size * out_height * out_width;
+      int n_cols = out_channels;
+
+      // Apply standard formatting (pad -> split -> flatten blocks)
+      return data_formatting(flat_vector, m_rows, n_cols, block_size, true);
   }
 
 #endif  // CPU_FUNCTIONS_H

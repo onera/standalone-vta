@@ -37,12 +37,8 @@ def quantizelinear(node, param={}, node_mapping={}, node_info={}, filename='',
     out_tensor_shape = []
 
     # For Quantisation
-    A_scale = 1.
-    A_zp = 0
-    B_scale = 1.
-    B_zp = 0
-    C_scale = 1.
-    C_zp = 0
+    scale = 1.
+    zp = 0
 
 
     # Get the output tensors
@@ -88,10 +84,10 @@ def quantizelinear(node, param={}, node_mapping={}, node_info={}, filename='',
         elif (inp_name in param):
             # Empty field = metadata
             if (len(inp_shape) == 0):
-                if (j == 1): # ACC1 SCALE
-                    A_scale = param[inp_name]
-                elif (j == 2): # ACC1 ZERO POINT
-                    A_zp = param[inp_name]
+                if (j == 1): # SCALE
+                    scale = param[inp_name]
+                elif (j == 2): # ZERO POINT
+                    zp = param[inp_name]
 
             # There is a problem
             else:
@@ -137,14 +133,18 @@ def quantizelinear(node, param={}, node_mapping={}, node_info={}, filename='',
     # ---
     # RETURN
     # ------
+    if (op_type == 'QuantizeLinear'):
+        node_info["processor"] = "quant"
+    else:
+        node_info["processor"] = "dequant"
+
     node_info.update({
         "matrix_shape": (Xh, Xw),
-        "processor": "quantise",
         "reshape": False,
-        "offsetA": A_zp,
-        "scaleA": A_scale,
-        "offsetB": 1.,
-        "scaleB": 0,
+        "offsetA": zp,
+        "scaleA": scale,
+        "offsetB": 0,
+        "scaleB": 1.,
         "input_shape": inp_tensor_shape,
         "kernel": (1, 1),
         "stride": (1, 1),
@@ -153,7 +153,7 @@ def quantizelinear(node, param={}, node_mapping={}, node_info={}, filename='',
         "offsetC": 0,
         "scaleC": 1.,
         "rescaling": 1.
-    })
+        })
 
     return node_info
 
@@ -342,6 +342,193 @@ def qlinearconcat(node, param={}, node_mapping={}, node_info={}, filename='',
         "output_shape": out_tensor_shape,
         "offsetC": C_zp,
         "scaleC": C_scale,
+        "rescaling": 1.
+    })
+
+    return node_info
+
+
+
+###############################################
+
+# ConvTranspose
+# -------------
+def convtranspose(node, param={}, node_mapping={}, node_info={}, filename='', 
+                  inp_dtype=np.int8, wgt_dtype=np.int8, acc_dtype=np.int32,
+                  debug=False):
+
+    # ---
+    # PARSE METADATA
+    # --------------
+
+    # Get the metadata
+    # ---
+    op_type = node['op_type']
+    inp_list = node['inputs']
+    out_list = node['outputs']
+    attributes_dict = node['attributes']
+
+    # Reset the node data
+    # ---
+    inp_tensor_shape = []
+    wgt_tensor_shape = []
+    acc_tensor_shape = []
+    out_tensor_shape = []
+    
+    wgt_tensor = []
+    acc_tensor = []
+
+
+    # Get the output tensors
+    # ---
+    # A single output is expected
+    if ( len(out_list) != 1 ):
+        raise Exception(f"ERROR (in {filename}): There are {len(out_list)} dimensions when only 1 is expected! \n")
+
+    out_tensor_shape = out_list[0]['shape']
+
+    # The output must have 4 dimensions
+    if ( len(out_tensor_shape) != 4 ):
+        raise Exception(f"ERROR (in {filename}): Wrong output shape ({len(out_tensor_shape)} dimensions when 4 are expected)! \n")
+
+
+    # Get the input tensors
+    # ---
+    # Count the nodes
+    isInpGet = False
+    isWgtGet = False
+    isBias = False
+
+    for j, inp in enumerate(inp_list):
+        # Get the name
+        inp_name = inp['name']
+        inp_shape = inp['shape']
+
+        # Get tensors
+        if (inp_name in node_mapping):
+            # Check there are 4 dimensions
+            if ( len(inp_shape) != 4 ):
+                raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp_shape)} dimensions when 4 are expected)! \n")
+
+            # Get the shape
+            elif (isInpGet == False):
+                isInpGet = True
+                inp_tensor_shape = inp_shape # NCHW
+
+            # Else problem
+            else:
+                raise Exception(f"ERROR (in {filename}): Unexpected input ({inp_name})! \n")
+
+
+        # Get param
+        elif (inp_name in param):
+            # X (bias)
+            if ( (len(inp_shape) == 1) and (isBias == False) ):
+                isBias = True
+                acc_tensor_shape = [1, inp_shape[0], 1, 1]
+                acc_tensor = param[inp_name].astype(np.float32)
+
+            elif ( len(inp_shape) == 4 and isWgtGet == False):
+                isWgtGet = True 
+                wgt_tensor_shape = inp_shape # NCHW
+                wgt_tensor = param[inp_name].astype(np.float32)
+
+            # There is a problem
+            else:
+                raise Exception(f"ERROR (in {filename}): Unexpected parameter ({inp_name})! \n")
+
+
+        # Else problem 
+        else:
+            raise Exception(f"ERROR (in {filename}): Unexpected input ({inp_name}) which does not come from another node nor parameters! \n")
+
+
+    # Get the attributes
+    # ---
+    nc = inp_tensor_shape[1]
+    nh = inp_tensor_shape[2]
+    nw = inp_tensor_shape[3]
+
+    mc = out_tensor_shape[1]
+    mh = out_tensor_shape[2]
+    mw = out_tensor_shape[3]
+
+    fh = wgt_tensor_shape[2]
+    fw = wgt_tensor_shape[3]
+    # Check consistency
+    if (fh != attributes_dict['kernel_shape'][0] or fw != attributes_dict['kernel_shape'][1]):
+        raise Exception(f"ERROR (in {filename}): Kernel size not consistent! \n")
+
+    sh = attributes_dict['strides'][0]
+    sw = attributes_dict['strides'][1]
+
+    # attributes_dict['pads'] = [TOP, LEFT, BOTTOM, RIGHT]
+    if ('pads' in attributes_dict):
+        ph = (attributes_dict['pads'][0], attributes_dict['pads'][2])
+        pw = (attributes_dict['pads'][1], attributes_dict['pads'][3])
+    elif ('auto_pad' in attributes_dict):
+        if ( attributes_dict['auto_pad'].startswith("SAME") and sh == 1 and sw == 1):
+            phtotal = fh - 1
+            pwtotal = fw - 1
+            ph = (phtotal//2, phtotal//2)
+            pw = (pwtotal//2, pwtotal//2)
+    else:
+        ph = (0, 0)
+        pw = (0, 0)
+
+
+    # ---
+    # DEFINE MATRICES
+    # ---------------
+
+    # Define the matrix dimensions
+    # ---
+    Ch = mh*mw
+    Cw = mc
+
+    # BIAS
+    if (isBias == False):
+        acc_tensor = np.zeros((1, accX_tensor_shape[2]), dtype=np.float32)
+
+    
+    # ---
+    # WRITE BINARIES
+    # --------------
+    output_dir = compiler_output_setup()
+    # WGT
+    file_wgt_path = filepath_definition(output_dir, "weight"+filename+".bin")
+    # ACC
+    file_acc_path = filepath_definition(output_dir, "accumulator"+filename+".bin")
+
+    # WRITE
+    with open(file_wgt_path, 'wb') as f:
+        wgt_tensor.tofile(f)
+    with open(file_acc_path, 'wb') as f:
+        acc_tensor.tofile(f)
+
+
+    # ---
+    # RETURN
+    # ------
+    node_info.update({
+        "matrix_shape": (Ch, Cw),
+        "processor": "convtranspose",
+        "reshape": False,
+        "offsetA": 0,
+        "scaleA": 1.,
+        "offsetB": 0,
+        "scaleB": 1.,
+        "offsetU": 0,
+        "scaleU": 1.,
+        "offsetV": 0,
+        "scaleV": 1.,
+        "input_shape": inp_tensor_shape,
+        "kernel": (fh, fw),
+        "stride": (sh, sw),
+        "padding": (ph[0], pw[0], ph[1], pw[1]),
+        "output_shape": out_tensor_shape,
+        "offsetC": 0,
+        "scaleC": 1.,
         "rescaling": 1.
     })
 

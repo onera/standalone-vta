@@ -217,7 +217,7 @@ def vta_backend(vta_config_dict, onnx_model_path,
                     RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accbis", dtype=str_type, debug=False)
 
         # Quantise
-        elif (op_type == 'QuantizeLinear'): 
+        elif (op_type == 'QuantizeLinear' or op_type == "DequantizeLinear"): 
             # Get data from the node
             node_info = \
                 Ncpu.quantizelinear(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, debug=False)
@@ -227,6 +227,12 @@ def vta_backend(vta_config_dict, onnx_model_path,
             # Get data from the node
             node_info = \
                 Ncpu.qlinearconcat(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, debug=False)
+
+        # Concat
+        elif (op_type == 'ConvTranspose'): 
+            # Get data from the node
+            node_info = \
+                Ncpu.convtranspose(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, debug=False)
 
 
         # Others
@@ -248,6 +254,24 @@ def vta_backend(vta_config_dict, onnx_model_path,
     
     # WRITE VTA IR
     # ------------
+    # TODO: tempo
+    if (len(vta_ir_list) == 0):
+        vta_ir = {
+            "NAME": "tempo",
+            "MATRICES": {
+                "A": [1, 1, "debug"],
+                "C": [1, 1, "output"]
+            },
+            "LOAD": {
+                "INP": ["A"]
+            },
+            "GEMM": ["C", "A", int( 1 )],
+            "STORE": {
+                "C": ["C"]
+            }
+        }
+        vta_ir_list.append( ("tempo", vta_ir.copy()) )
+
     # Manage the output dir
     output_dir = compiler_output_setup()
     for filename, current_vta_ir in vta_ir_list:
