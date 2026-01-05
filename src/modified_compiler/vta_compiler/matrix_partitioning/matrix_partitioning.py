@@ -122,7 +122,7 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
 
         # CASE 2: OVERFITTING
         else: # ((nb_A > inp_block_buffer_size) or (nb_B > wgt_block_buffer_size) or (nb_X > out_block_buffer_size))
-            isOverfitting = False
+            isOverfitting = True
 
             # Check if the operations in alu_operations are only vector-scalar
             for alu_ops in alu_operations:
