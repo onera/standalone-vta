@@ -26,8 +26,9 @@ import utils.configuration as conf
 
 # MAIN FUNCTION
 # -------------
-def main(vta_config_dict, operations_dict, base_address, dram_offset, 
-         debug=True):
+def main(vta_config_dict, operations_dict, base_address, dram_offset,
+         strategy_selector=1,
+         debug=True, summary=True):
     
     if (debug):
         print(f"\nVTA COMPILER compiling..." + \
@@ -198,9 +199,6 @@ def main(vta_config_dict, operations_dict, base_address, dram_offset,
     # ---------------------------------------------
     # MATRIX PARTITIONING # TODO: update
     # -------------------
-    # Select a strategy in case of overfitting
-    strategy_selector = 4
-
     # Create a dict
     flag_dict = {
         "doGemm": doGemm,
@@ -279,10 +277,7 @@ def main(vta_config_dict, operations_dict, base_address, dram_offset,
     # MATRICES
     # ---
     # Define the path of file to reserve space
-    # A_blocks_file_path = filepath_definition(output_dir, 'inpsize'+name+'.bin') # 'input'+name+'.bin'
     B_blocks_file_path = filepath_definition(output_dir, 'weight'+name+'.bin')
-    # X_blocks_file_path = filepath_definition(output_dir, 'accsize'+name+'.bin') # 'accumulator'+name+'.bin'
-    # Y_blocks_file_path = filepath_definition(output_dir, 'add_accsize'+name+'.bin') # 'add_accumulator'+name+'.bin'
     C_blocks_file_path = filepath_definition(output_dir, 'output'+name+'.bin')
 
     # Raw matrix files
@@ -294,9 +289,6 @@ def main(vta_config_dict, operations_dict, base_address, dram_offset,
     # Write A_matrix
     with open(A_matrix_file_path, 'wb') as f:
         A_matrix.tofile(f)
-    # with open(A_blocks_file_path, 'wb') as f:
-    #     for block in A_blocks:
-    #         block.tofile(f)
     
     # Write B_blocks matrix (TO TRANSPOSE!)
     with open(B_blocks_file_path, 'wb') as f:
@@ -307,16 +299,10 @@ def main(vta_config_dict, operations_dict, base_address, dram_offset,
     # Write X_matrix
     with open(X_matrix_file_path, 'wb') as f:
         X_matrix.tofile(f)
-    # with open(X_blocks_file_path, 'wb') as f:
-    #     for block in X_blocks:
-    #         block.tofile(f)
 
     # Write Y_matrix
     with open(Y_matrix_file_path, 'wb') as f:
         Y_matrix.tofile(f)
-    # with open(Y_blocks_file_path, 'wb') as f:
-    #     for block in Y_blocks:
-    #         block.tofile(f)
     
     # Write C_blocks (expected result)
     with open(C_blocks_file_path, 'wb') as f:
@@ -356,23 +342,32 @@ def main(vta_config_dict, operations_dict, base_address, dram_offset,
  
     # ---------------------------------------------
     # DEBUG
-    if (debug):
+    nb_steps = len(strategy)
+    nb_uop = len(uop_buffer)
+    nb_insn = len(insn_buffer)
+    if (debug == True or summary == True):
         # VTA IR DECODING
-        print(f"\nVTA IR DECONDING:")
+        print(f"\nVTA COMPILER SUMMARY: {name}")
         print(f"Matrices name: \n\t input_name={input_name}, weight_name={weight_name}, " + \
               f"acc_name={acc_name}, acc_bis_name={acc_bis_name}, output_name={output_name}\n")
-        print(f"Boolean: \n\t doGemm={doGemm}, doMulConstant={doMulConstant}, " + \
-              f"doAlu={doAlu}, doAddMatrix={doAddMatrix}" + \
-              f"\n\t doLoadInp={doLoadInp}, doLoadWgt={doLoadWgt}, doLoadAcc={doLoadAcc}, doLoadAccBis={doLoadAccBis}, doStoreFullMatrix={doStoreFullMatrix} \n")
+        
         print(f"Subsection of JSON: \n\t name={name} \n\t load_dict={load_dict} \n\t matrices_dict={matrices_dict}" + \
-              f"\n\t gemm_op={gemm_op} \n\t alu_list={alu_list} \n\t store_list={store_list} \n")
+              f"\n\t gemm_op={gemm_op} \n\t alu_list={alu_list} \n\t store_list={store_list} \n\n")
+
+        print(f"The flag_dict: \n\t {flag_dict} \n\n")
+
+        print(f"Do the matrices overfit? {flag_dict['isOverfitting']} (Strategy {strategy_selector}) \n")
+        print(f"The compilation of '{name}' generates: \n\t {nb_steps} steps \n\t {nb_uop} UOPs \n\t {nb_insn} instructions")
         
         # BINARY FILES GENERATION
         print(f"\n\nBinary files successfully written at: {output_dir}\n")
 
+        print(f"-"*50)
+
     # ---------------------------------------------
+    
     # RETURN new base_address
-    return updated_base_address, name
+    return updated_base_address, name, nb_steps, nb_uop, nb_insn
 
 
 ###############################################
@@ -385,6 +380,8 @@ if __name__ == "__main__":
     To execute: 
         > python main_vta_compiler.py 
             <debug>
+            <summary>
+            <strategy_selector>
             <config_file> 
             [json_file] ...
     """
@@ -393,28 +390,48 @@ if __name__ == "__main__":
 
     layer_addr_name = []
     
-    # Need at least 4: script_name, debug, config_file, vta_ir
-    if len(sys.argv) < 4:
-        raise Exception(f"ERROR: There are {len(sys.argv)} arguments when 4 are expected! \n\n")
+    # Need at least 6: script_name, debug, summary, strategy_selector, config_file, vta_ir
+    if len(sys.argv) < 6:
+        raise Exception(f"ERROR: There are {len(sys.argv)} arguments when 6 are expected! \n\n")
 
     # Debug settings
     debug = True if (sys.argv[1] == 'True' or sys.argv[1] == 'true') else False
+    summary = True if (sys.argv[2] == 'True' or sys.argv[2] == 'true') else False
+    strategy_selector = int( sys.argv[3] )
     # Config file
-    vta_config_file = sys.argv[2]
+    vta_config_file = sys.argv[4]
     vta_config_dict = parse_json_to_dict(vta_config_file)
+    
+    # DEBUG
+    nb_steps = 0
+    nb_uop = 0
+    nb_insn = 0
 
-    for vta_ir in sys.argv[3:]:
-        # print(f"\nDEBUG: vta_ir={vta_ir} \n\n")
+    for i, vta_ir in enumerate(sys.argv[5:]):
+        if (debug or summary):
+            print(f"-"*50)
+            print(f"COMPILATION of VTA IR: {i}")
+        
         # Parse the JSON files
         operations_dict = parse_json_to_dict(vta_ir)
 
         # Execute the main function
-        base_address, name = \
+        base_address, name, steps, uop, insn = \
             main(vta_config_dict, operations_dict, base_address, dram_offset,
-                 debug=debug)
+                 strategy_selector=strategy_selector,
+                 debug=debug, summary=summary)
         
         # Append layer_addr_name
         layer_addr_name.append( (base_address, name) )
+
+        # DEBUG
+        nb_steps += steps
+        nb_uop += uop
+        nb_insn += insn
+    
+    # DEBUG
+    if (debug or summary):
+        print(f"\nTOTAL: \n\t nb_steps={nb_steps} \n\t nb_uop={nb_uop} \n\t nb_insn={nb_insn} \n\n")
     
     # Generate a CSV
     output_dir = compiler_output_setup()
@@ -422,7 +439,7 @@ if __name__ == "__main__":
     with open(file_path, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         # Write the number of JSON and the debug flag
-        writer.writerow(["nb_vta_ir", len(layer_addr_name), debug])
+        writer.writerow(["nb_vta_ir", len(layer_addr_name), summary])
         # Write the information
         for i, (add, n) in enumerate(layer_addr_name):
             writer.writerow([i, n, hex(add)])

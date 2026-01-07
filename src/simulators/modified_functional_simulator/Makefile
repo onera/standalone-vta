@@ -79,18 +79,6 @@ build/fsim_nn: build/vta_config_def.txt $(OBJS) lib_tvm
 	build/sim_driver.o \
 	$(OBJ_LIB_TVM) -o $@
 
-# TEMPO
-build/tempo: build/vta_config_def.txt $(OBJS) lib_tvm
-	$(CC) $(VTA_DEFS) $(CFLAGS) -o build/tempo.o -c main_simulator.cc
-	$(CC) build/tempo.o build/simulator_functions.o \
-	build/virtual_memory.o build/sim_tlpp.o \
-	build/sim_driver.o \
-	$(OBJ_LIB_TVM) -o $@
-	@echo
-	@echo "Successful link!"
-tempo: build/tempo
-	build/tempo
-
 
 # COMPILING SIMULATOR AND MAIN FILES (without linking: -c)
 # ----------------------------------
@@ -124,23 +112,6 @@ build/cpu_functions.o: src/cpu_functions.cc include/cpu_functions.h
 # Generic rules for all in one (require to execute $ make depend)
 #build/%.o: src/%.cc build/vta_config_def.txt
 #	$(CC) $(VTA_DEFS) $(CFLAGS) -o $@ -c $<
-
-# Compile and link lenet5_implementation_simulator:
-build/lenet5_implementation_simulator.o: examples/lenet5_implementation_simulator.cc include/simulator_header.h
-	$(CC) $(VTA_DEFS) $(CFLAGS) -o build/lenet5_implementation_simulator.o -c examples/lenet5_implementation_simulator.cc
-
-
-build/lenet5_implementation_simulator: build/vta_config_def.txt $(OBJS) build/lenet5_implementation_simulator.o build/reshape.o lib_tvm
-	$(CC) build/lenet5_implementation_simulator.o build/simulator_functions.o build/reshape.o \
-	build/virtual_memory.o build/sim_tlpp.o \
-	build/sim_driver.o \
-	$(OBJ_LIB_TVM) -o $@
-	@echo
-	@echo "Successful link of lenet5_implementation_simulator!"
-	@echo "To run the executable: ./build/lenet5_implementation_simulator" 
-
-lenet5: build/lenet5_implementation_simulator src/reshape.cc examples/lenet5_implementation_simulator.cc
-	build/lenet5_implementation_simulator
 
 
 # COMPILING EXTERNAL LIBRARIES

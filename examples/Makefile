@@ -24,23 +24,21 @@ JSON_FILES := $(COMPILER_OUTPUT_DIR)/*.json
 
 DEBUG ?= False
 DEBUG_PARSE ?= True
+COMPILE_SUMMARY ?= False
 # ort, numpy, compare
 REF_MODE ?= numpy
+# 1, 2, 3, 4
+STRATEGY_SELECTOR ?= 4
 
-ONNX_FILE ?= ../../onnx_zoo/debug.onnx 
+ONNX_FILE ?= ../../onnx_zoo/qyolo_debug.onnx 
 # onnx/qlinearconv_debug.onnx
 # onnx/two_qlinearconv_debug.onnx
 # onnx/qlinearmul_debug.onnx
 # onnx/pattern_debug.onnx
 
-# ../../onnx_zoo/qlinearconv_yolo.onnx 
-# ../../onnx_zoo/two_qlinearconv_yolo.onnx
-# ../../onnx_zoo/subpattern_qconv_branch.onnx
-# ../../onnx_zoo/subpattern_qmul_branch.onnx
+# ../../onnx_zoo/qlinearconv_qyolo.onnx 
 # ../../onnx_zoo/pattern_qyolo.onnx
-
-# ../../onnx_zoo/two_patterns_qyolo.onnx
-# ../../onnx_zoo/qyolo.onnx
+# ../../onnx_zoo/qyolo_debug.onnx
 
 
 ############################################################
@@ -76,6 +74,8 @@ compile:
 	$(PYTHON_CMD) \
 	$(VTA_COMPILER_DIR)/main_vta_compiler.py \
 	$(DEBUG) \
+	$(COMPILE_SUMMARY) \
+	$(STRATEGY_SELECTOR) \
 	$(CONFIG)/vta_config.json \
 	$(JSON_FILES) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
 	@date

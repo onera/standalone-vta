@@ -2,6 +2,7 @@
 # ---------------
 import os
 import sys
+import pickle # DEBUG
 
 import numpy as np
 
@@ -43,6 +44,14 @@ def vta_backend(vta_config_dict, onnx_model_path,
     # ----------------------
     model_dict, dict_name_index = PO.parse_onnx_to_dict(model_path=onnx_model_path, debug=debug)
     model_param = PO.get_onnx_parameters(model_path=onnx_model_path, debug=debug)
+
+    # DEBUG
+    if (False): 
+        output_dir = compiler_output_setup()
+        file_debug_path = filepath_definition(output_dir, "debug_graph.bin")
+        with open(file_debug_path, 'wb') as f:
+            pickle.dump(model_dict, f)
+
 
     # Input nodes
     input_nodes = model_dict['inputs']
@@ -334,17 +343,6 @@ def vta_backend(vta_config_dict, onnx_model_path,
                 dep_list.append( inp_node )
             # Write the second line
             writer.writerow(dep_list)
-        # # write image
-        # image_shape = execution_order[0]['matrix_shape']
-        # image_info = ["image"]
-        # if (len(image_shape) == 2):
-        #     image_info.append(image_shape[0])
-        #     image_info.append(image_shape[1])
-        # elif (len(image_shape) == 3):
-        #     image_info.append(image_shape[0])
-        #     image_info.append(image_shape[2])
-        # else:
-        #     raise Exception(f"\nERROR: image shape not as expected! \n\n")
         # write image
         image_shape = execution_order[0]['input_shape']
         image_info = ["image"]

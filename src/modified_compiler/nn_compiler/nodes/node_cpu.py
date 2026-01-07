@@ -505,6 +505,16 @@ def convtranspose(node, param={}, node_mapping={}, node_info={}, filename='',
         wgt_tensor.tofile(f)
     with open(file_acc_path, 'wb') as f:
         acc_tensor.tofile(f)
+    
+    
+    # # DEBUG
+    # file_debug_wgt_path = filepath_definition(output_dir, "debug_weight"+filename+".bin")
+    # file_debug_acc_path = filepath_definition(output_dir, "debug_acc"+filename+".bin")
+    # with open(file_debug_wgt_path, 'wb') as f:
+    #     wgt_tensor.tofile(f)
+    # if (isBias == True):
+    #     with open(file_debug_acc_path, 'wb') as f:
+    #         acc_tensor.tofile(f)
 
 
     # ---
