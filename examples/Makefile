@@ -24,11 +24,9 @@ JSON_FILES := $(COMPILER_OUTPUT_DIR)/*.json
 
 DEBUG ?= False
 DEBUG_PARSE ?= True
-COMPILE_SUMMARY ?= False
+COMPILE_SUMMARY ?= True
 # ort, numpy, compare
 REF_MODE ?= numpy
-# 1, 2, 3, 4
-STRATEGY_SELECTOR ?= 4
 
 ONNX_FILE ?= ../../onnx_zoo/qyolo_debug.onnx 
 # onnx/qlinearconv_debug.onnx
@@ -46,6 +44,10 @@ ONNX_FILE ?= ../../onnx_zoo/qyolo_debug.onnx
 
 # Default
 all: help
+
+tempo:
+	@python test.py
+	@make compile
 
 view_profiler:
 	@snakeviz $(COMPILER_OUTPUT_DIR)/vta_compiler.prof
@@ -75,7 +77,6 @@ compile:
 	$(VTA_COMPILER_DIR)/main_vta_compiler.py \
 	$(DEBUG) \
 	$(COMPILE_SUMMARY) \
-	$(STRATEGY_SELECTOR) \
 	$(CONFIG)/vta_config.json \
 	$(JSON_FILES) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
 	@date

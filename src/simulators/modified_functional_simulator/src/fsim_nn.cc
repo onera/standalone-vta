@@ -119,11 +119,9 @@ int fsim_nn() {
         CsvMap metadata_map = load_csv_to_map(fileMetadataPath);
 
         // Binaries
-        std::string fileInpPath = construct_path("input" + ctx.suffix + ".bin");
         std::string fileWgtPath = construct_path("weight" + ctx.suffix + ".bin");
         std::string fileAccPath = construct_path("accumulator" + ctx.suffix + ".bin");
         std::string fileAddAccPath = construct_path("add_accumulator" + ctx.suffix + ".bin");
-        std::string fileOutPath = construct_path("output" + ctx.suffix + ".bin");
         std::string fileUopPath = construct_path("uop" + ctx.suffix + ".bin");
         std::string fileInsnPath = construct_path("instructions" + ctx.suffix + ".bin");
 
@@ -132,8 +130,8 @@ int fsim_nn() {
         // ---
         // Block size and square
         block_size = strToInt(get_csv_value(metadata_map, "BS", 2));
-        // std::string out_square_str = get_csv_value(metadata_map, "BS", 1);
-        // bool out_square = (out_square_str == "True");
+        std::string out_square_str = get_csv_value(metadata_map, "BS", 1);
+        bool out_square = (out_square_str == "True");
 
         // Dimensions
         int A_row = strToInt(get_csv_value(metadata_map, "A", 1));
@@ -142,12 +140,14 @@ int fsim_nn() {
         int X_col = strToInt(get_csv_value(metadata_map, "X", 2));
         int Y_row = strToInt(get_csv_value(metadata_map, "Y", 1));
         int Y_col = strToInt(get_csv_value(metadata_map, "Y", 2));
+        int C_row = strToInt(get_csv_value(metadata_map, "C", 1));
+        int C_col = strToInt(get_csv_value(metadata_map, "C", 2));
 
         
         // D. READ AND SHAPE THE DATA
         // ---
         // Input A
-        std::vector<inp_dtype> raw_inpA = read_binary_file<inp_dtype>(fileInpPath);
+        std::vector<inp_dtype> raw_inpA; 
         if (A_row <= 0 || A_col <= 0) ctx.inpA = raw_inpA;
         else ctx.inpA = data_formatting(raw_inpA, A_row, A_col, block_size, true);
 
@@ -165,7 +165,9 @@ int fsim_nn() {
         else ctx.accY = data_formatting(raw_accY, Y_row, Y_col, block_size, true);
 
         // Output C (buffer space)
-        ctx.outC = read_binary_file<inp_dtype>(fileOutPath);
+        std::vector<inp_dtype> raw_outC;
+        if (C_row <= 0 || C_col <= 0) ctx.outC = raw_outC;
+        else ctx.outC = data_formatting(raw_outC, C_row, C_col, block_size, out_square);
 
         // Instructions & UOPs
         ctx.uop_buffer = read_binary_file<uop_t>(fileUopPath);

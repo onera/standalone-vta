@@ -27,7 +27,6 @@ import utils.configuration as conf
 # MAIN FUNCTION
 # -------------
 def main(vta_config_dict, operations_dict, base_address, dram_offset,
-         strategy_selector=1,
          debug=True, summary=True):
     
     if (debug):
@@ -149,6 +148,14 @@ def main(vta_config_dict, operations_dict, base_address, dram_offset,
             nb_loop = store[1]
             for i in range(0, nb_loop):
                 flat_store_list.append( dst_idx + dst_step * i )
+
+    # Strategy (1, 2, 3, 4)
+    strategy_selector = 1
+    if ("STRATEGY" in operations_dict):
+        strategy_selector = operations_dict["STRATEGY"]
+        if ( type(strategy_selector) != int ):
+            raise Exception(f"\nERROR: Strategy is {type(strategy_selector)} while int is expected! \n\n")
+
 
 
     # ADD EXTRA INFORMATION TO IR
@@ -276,19 +283,14 @@ def main(vta_config_dict, operations_dict, base_address, dram_offset,
 
     # MATRICES
     # ---
+    # No need to write A_matrix nor C_blocks
+    
     # Define the path of file to reserve space
     B_blocks_file_path = filepath_definition(output_dir, 'weight'+name+'.bin')
-    C_blocks_file_path = filepath_definition(output_dir, 'output'+name+'.bin')
 
     # Raw matrix files
-    A_matrix_file_path = filepath_definition(output_dir, 'input'+name+'.bin')
     X_matrix_file_path = filepath_definition(output_dir, 'accumulator'+name+'.bin')
     Y_matrix_file_path = filepath_definition(output_dir, 'add_accumulator'+name+'.bin')
-
-
-    # Write A_matrix
-    with open(A_matrix_file_path, 'wb') as f:
-        A_matrix.tofile(f)
     
     # Write B_blocks matrix (TO TRANSPOSE!)
     with open(B_blocks_file_path, 'wb') as f:
@@ -303,11 +305,6 @@ def main(vta_config_dict, operations_dict, base_address, dram_offset,
     # Write Y_matrix
     with open(Y_matrix_file_path, 'wb') as f:
         Y_matrix.tofile(f)
-    
-    # Write C_blocks (expected result)
-    with open(C_blocks_file_path, 'wb') as f:
-        for block in C_blocks:
-            block.tofile(f)
     
 
     # INSTRUCTIONS + UOP
@@ -381,7 +378,6 @@ if __name__ == "__main__":
         > python main_vta_compiler.py 
             <debug>
             <summary>
-            <strategy_selector>
             <config_file> 
             [json_file] ...
     """
@@ -390,16 +386,15 @@ if __name__ == "__main__":
 
     layer_addr_name = []
     
-    # Need at least 6: script_name, debug, summary, strategy_selector, config_file, vta_ir
-    if len(sys.argv) < 6:
-        raise Exception(f"ERROR: There are {len(sys.argv)} arguments when 6 are expected! \n\n")
+    # Need at least: script_name, debug, summary, config_file, vta_ir
+    if len(sys.argv) < 5:
+        raise Exception(f"ERROR: There are {len(sys.argv)} arguments when 5 are expected (at least)! \n\n")
 
     # Debug settings
     debug = True if (sys.argv[1] == 'True' or sys.argv[1] == 'true') else False
     summary = True if (sys.argv[2] == 'True' or sys.argv[2] == 'true') else False
-    strategy_selector = int( sys.argv[3] )
     # Config file
-    vta_config_file = sys.argv[4]
+    vta_config_file = sys.argv[3]
     vta_config_dict = parse_json_to_dict(vta_config_file)
     
     # DEBUG
@@ -407,7 +402,7 @@ if __name__ == "__main__":
     nb_uop = 0
     nb_insn = 0
 
-    for i, vta_ir in enumerate(sys.argv[5:]):
+    for i, vta_ir in enumerate(sys.argv[4:]):
         if (debug or summary):
             print(f"-"*50)
             print(f"COMPILATION of VTA IR: {i}")
@@ -418,7 +413,6 @@ if __name__ == "__main__":
         # Execute the main function
         base_address, name, steps, uop, insn = \
             main(vta_config_dict, operations_dict, base_address, dram_offset,
-                 strategy_selector=strategy_selector,
                  debug=debug, summary=summary)
         
         # Append layer_addr_name

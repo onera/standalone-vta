@@ -240,7 +240,7 @@ def node_conv(node, param={}, node_mapping={}, node_info={}, filename='',
     vta_ir = {
         "NAME": filename,
         "MATRICES": {
-            "A": [Ah, Aw_Bh, "../compiler_output/"+filename+"input_"+str(Ah)+"x"+str(Aw_Bh)+".bin"],
+            "A": [Ah, Aw_Bh, "input"],
             "B": [Aw_Bh, Bw, "../compiler_output/"+filename+"weight_"+str(Aw_Bh)+"x"+str(Bw)+".bin"],
             "X": [Ah, Bw, "../compiler_output/"+filename+"accumulator_"+str(Ah)+"x"+str(Bw)+".bin"],
             "C": [Ah, Bw, "output"]
@@ -253,7 +253,8 @@ def node_conv(node, param={}, node_mapping={}, node_info={}, filename='',
         "GEMM": ["C", "A", "B"],
         "STORE": {
             "C": ["C"]
-        }
+        },
+        "STRATEGY": 2
     }
 
 
@@ -481,7 +482,7 @@ def node_mulconstant(node, param={}, node_mapping={}, node_info={}, filename='',
     vta_ir = {
         "NAME": filename,
         "MATRICES": {
-            "A": [Ah, Aw, "../compiler_output/"+filename+"input_"+str(Ah)+"x"+str(Aw)+".bin"],
+            "A": [Ah, Aw, "input"],
             "C": [Ah, Aw, "output"]
         },
         "LOAD": {

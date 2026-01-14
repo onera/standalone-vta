@@ -141,16 +141,6 @@ def vta_backend(vta_config_dict, onnx_model_path,
             vta_ir, node_info = \
                 Nconv.node_conv(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, debug=False)
 
-            # Generate the associated binaries
-            if (doGenerateBin):
-                Ah = node_info['matrix_shape'][0]
-                Aw_Bh = node_info['matrix_shape'][1]
-                Bw = node_info['matrix_shape'][2]
-
-                str_type = 'int8' if (inp_dtype == np.int8) else 'int32'
-
-                RRBG.random_raw_binary_generator(m_rows=Ah, n_columns=Aw_Bh, filename=filename+"input", dtype=str_type, debug=False)
-
         # ---
 
         # MulConstant
@@ -158,15 +148,6 @@ def vta_backend(vta_config_dict, onnx_model_path,
             # Get data from the node
             vta_ir, node_info = \
                 Nconv.node_mulconstant(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, debug=False)
-
-            # Generate the associated binaries
-            if (doGenerateBin):
-                Ah = node_info['matrix_shape'][0]
-                Aw = node_info['matrix_shape'][1]
-
-                str_type = 'int8' if (inp_dtype == np.int8) else 'int32'
-
-                RRBG.random_raw_binary_generator(m_rows=Ah, n_columns=Aw, filename=filename+"input", dtype=str_type, debug=False)
 
         # ---
 
