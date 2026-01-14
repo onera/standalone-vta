@@ -7,10 +7,10 @@ PROJECT_DIR  := $(abspath $(MAKEFILE_DIR)/..)
 COMPILER_OUTPUT_DIR := $(PROJECT_DIR)/compiler_output
 SIMULATOR_OUTPUT_DIR := $(PROJECT_DIR)/simulators_output
 SRC_DIR := $(PROJECT_DIR)/src
-COMPILER_DIR := $(SRC_DIR)/modified_compiler
+COMPILER_DIR := $(SRC_DIR)/compiler
 VTA_COMPILER_DIR := $(COMPILER_DIR)/vta_compiler
 NN_COMPILER_DIR := $(COMPILER_DIR)/nn_compiler
-FSIM_DIR := $(SRC_DIR)/simulators/modified_functional_simulator
+FSIM_DIR := $(SRC_DIR)/simulators/functional_simulator
 CONFIG := $(PROJECT_DIR)/config
 
 
@@ -28,7 +28,7 @@ COMPILE_SUMMARY ?= True
 # ort, numpy, compare
 REF_MODE ?= numpy
 
-ONNX_FILE ?= ../../onnx_zoo/qyolo_debug.onnx 
+ONNX_FILE ?= ../../onnx_zoo/qlinearconv_qyolo.onnx 
 # onnx/qlinearconv_debug.onnx
 # onnx/two_qlinearconv_debug.onnx
 # onnx/qlinearmul_debug.onnx
