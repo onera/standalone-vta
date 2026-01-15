@@ -1,0 +1,69 @@
+//| mill-version: 1.0.6
+package build
+
+import mill._
+import mill.javalib._
+import mill.javalib.publish._
+import mill.scalalib.SbtModule
+import mill.javalib.TestModule.ScalaTest
+import mill.api.Task.Simple
+
+object `package` extends SbtModule with PublishModule {
+
+  def artifactName = "vta_chiseltest"
+
+  def javacOptions = Seq("-source", "1.8", "-target", "1.8")
+
+  def scalaVersion = "2.13.17"
+
+  def scalacOptions = Seq(
+    "-deprecation",
+    "-feature",
+    "-Xcheckinit",
+    "-language:reflectiveCalls",
+    "-Wconf:cat=deprecation&msg=Importing from firrtl is deprecated:s",
+    "-Wconf:cat=deprecation&msg=will not be supported as part of the migration to the MLIR-based FIRRTL Compiler:s"
+  )
+  
+
+  def repositories = Seq(
+    "https://oss.sonatype.org/content/repositories/snapshots",
+    "https://s01.oss.sonatype.org/content/repositories/snapshots",
+    "https://oss.sonatype.org/service/local/repositories/releases/content/",
+    "https://s01.oss.sonatype.org/content/repositories/releases"
+  )
+
+  def mvnDeps = Seq(
+    mvn"com.fasterxml.jackson.core:jackson-databind:2.17.2",
+    mvn"com.fasterxml.jackson.module::jackson-module-scala:2.17.2",
+    mvn"edu.berkeley.cs::chiseltest:6.0.0",
+    mvn"edu.berkeley.cs::firrtl2:6.0-SNAPSHOT",
+    mvn"net.java.dev.jna:jna:5.14.0",
+    mvn"org.chipsalliance::chisel:6.0.0",
+    mvn"org.scalatest::scalatest:3.2.17"
+  )
+
+  def pomSettings = PomSettings(
+    "vta_chiseltest",
+    "edu.berkeley.cs",
+    "",
+    Seq(),
+    VersionControl(
+      Some("https://github.com/onera/standalone-vta"),
+      Some("scm:git:https://github.com/onera/standalone-vta.git"),
+      Some("scm:git:git@github.com:onera/standalone-vta.git"),
+      None
+    ),
+    Seq()
+  )
+
+  def publishVersion = "6.0-SNAPSHOT"
+
+  trait test extends SbtTests with ScalaTest {
+    override def scalaTestVersion: Simple[String] = "3.2.17"
+
+    def testSandboxWorkingDir = false
+    def testParallelism = false
+
+  }
+}
