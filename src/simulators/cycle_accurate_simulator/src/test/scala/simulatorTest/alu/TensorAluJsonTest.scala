@@ -82,7 +82,7 @@ class TensorAluJsonTest(c: TensorAlu, fn : String = "/x.json",
   val acc_expect_scratchpad = build_scratchpad("acc_expect") // Expected
 
   // Unset start value (block computation -> sIdle)
-  poke(c.io.start, 0)
+  c.io.start.poke( 0)
 
   // Instruction fields with base conversion (hexadecimal)
   val dec_reset = BigInt(inst("reset"), 16)
@@ -101,44 +101,44 @@ class TensorAluJsonTest(c: TensorAlu, fn : String = "/x.json",
 
   // Read instructions
   // RESET
-  poke(c.io.dec.reset, dec_reset)
+  c.io.dec.reset.poke( dec_reset)
   // UOP_BGN
-  poke(c.io.dec.uop_begin, uop_begin)
+  c.io.dec.uop_begin.poke( uop_begin)
   // UOP_END
-  poke(c.io.dec.uop_end, uop_end)
+  c.io.dec.uop_end.poke( uop_end)
   // LOOP_EXTENT_0
-  poke(c.io.dec.lp_0, lp_0)
+  c.io.dec.lp_0.poke( lp_0)
   // LOOP_EXTENT_1
-  poke(c.io.dec.lp_1, lp_1)
+  c.io.dec.lp_1.poke( lp_1)
   // DST_IDX_FACTOR_0 (Y0)
-  poke(c.io.dec.dst_0, dst_0)
+  c.io.dec.dst_0.poke( dst_0)
   // DST_IDX_FACTOR_1 (Y1)
-  poke(c.io.dec.dst_1, dst_1)
+  c.io.dec.dst_1.poke( dst_1)
   // SRC_IDX_FACTOR_0 (X0)
-  poke(c.io.dec.src_0, src_0)
+  c.io.dec.src_0.poke( src_0)
   // SRC_IDX_FACTOR_1 (X1)
-  poke(c.io.dec.src_1, src_1)
+  c.io.dec.src_1.poke( src_1)
   // ALU_OP (opcode: min:0, max:1, add:2, shr:3, shl:4)
-  poke(c.io.dec.alu_op, alu_op)
+  c.io.dec.alu_op.poke( alu_op)
   // USE_IMM
-  poke(c.io.dec.alu_use_imm, use_imm)
+  c.io.dec.alu_use_imm.poke( use_imm)
   // IMM
-  poke(c.io.dec.alu_imm, imm)
+  c.io.dec.alu_imm.poke( imm)
 
   if (debug) {
     println("Read instructions:")
-    print(s"\t RESET: ${peek(c.io.dec.reset)} \n")
-    print(s"\t UOP_BEGIN: ${peek(c.io.dec.uop_begin)} \n")
-    print(s"\t UOP_END: ${peek(c.io.dec.uop_end)} \n")
-    print(s"\t LP_0: ${peek(c.io.dec.lp_0)} \n")
-    print(s"\t LP_1: ${peek(c.io.dec.lp_1)} \n")
-    print(s"\t DST_0: ${peek(c.io.dec.dst_0)} \n")
-    print(s"\t DST_1: ${peek(c.io.dec.dst_1)} \n")
-    print(s"\t SRC_0: ${peek(c.io.dec.src_0)} \n")
-    print(s"\t SRC_1: ${peek(c.io.dec.src_1)} \n")
-    print(s"\t ALU_OP: ${peek(c.io.dec.alu_op)} \t (0 = MIN / 1 = MAX / 2 = ADD / 3 = SHR / 4 = SHL) \n")
-    print(s"\t USE_IMM: ${peek(c.io.dec.alu_use_imm)} \n")
-    print(s"\t IMM: ${peek(c.io.dec.alu_imm)} \n\n")
+    print(s"\t RESET: ${c.io.dec.reset.peek()} \n")
+    print(s"\t UOP_BEGIN: ${c.io.dec.uop_begin.peek()} \n")
+    print(s"\t UOP_END: ${c.io.dec.uop_end.peek()} \n")
+    print(s"\t LP_0: ${c.io.dec.lp_0.peek()} \n")
+    print(s"\t LP_1: ${c.io.dec.lp_1.peek()} \n")
+    print(s"\t DST_0: ${c.io.dec.dst_0.peek()} \n")
+    print(s"\t DST_1: ${c.io.dec.dst_1.peek()} \n")
+    print(s"\t SRC_0: ${c.io.dec.src_0.peek()} \n")
+    print(s"\t SRC_1: ${c.io.dec.src_1.peek()} \n")
+    print(s"\t ALU_OP: ${c.io.dec.alu_op.peek()} \t (0 = MIN / 1 = MAX / 2 = ADD / 3 = SHR / 4 = SHL) \n")
+    print(s"\t USE_IMM: ${c.io.dec.alu_use_imm.peek()} \n")
+    print(s"\t IMM: ${c.io.dec.alu_imm.peek()} \n\n")
   }
 
   // FIXME: comment - what is it???
@@ -147,37 +147,37 @@ class TensorAluJsonTest(c: TensorAlu, fn : String = "/x.json",
 
   // Read scratchpad
   class TensorMasterMock(tm: TensorMaster, scratchpad : Map[BigInt,Array[BigInt]]) {
-    poke(tm.rd(0).data.valid, 0)
-    var valid = peek(tm.rd(0).idx.valid)
+    tm.rd(0).data.valid.poke( 0)
+    var valid = tm.rd(0.peek().idx.valid)
     var idx : Int = 0
     def logical_step() : Unit = {
       if (valid == 1) {
-        poke(tm.rd(0).data.valid, 1)
+        tm.rd(0).data.valid.poke( 1)
         val cols = tm.rd(0).data.bits(0).size
         for {i <- 0 until tm.rd(0).data.bits.size
           j <- 0 until cols
         } {
-          poke(tm.rd(0).data.bits(i)(j), scratchpad(idx)(i*cols + j))
+          tm.rd(0).data.bits(i)(j).poke( scratchpad(idx)(i*cols + j))
         }
       } else {
-        poke(tm.rd(0).data.valid, 0)
+        tm.rd(0).data.valid.poke( 0)
       }
-      valid = peek(tm.rd(0).idx.valid)
-      idx = peek(tm.rd(0).idx.bits).toInt
+      valid = tm.rd(0.peek().idx.valid)
+      idx = tm.rd(0.peek().idx.bits).toInt
     }
   }
 
   // Write scratchpad
   class TensorMasterMockWr(tm: TensorMaster, scratchpad : Map[BigInt,Array[BigInt]]) {
     def logical_step() : Unit = {
-      if (peek(tm.wr(0).valid) == 1) {
-        val idx = peek(tm.wr(0).bits.idx).toInt
+      if (tm.wr(0.peek().valid) == 1) {
+        val idx = tm.wr(0.peek().bits.idx).toInt
         val cols = tm.wr(0).bits.data(0).size
         for {
           i <- 0 until tm.wr(0).bits.data.size
           j <- 0 until cols
         } {
-          scratchpad(idx)(i*cols + j) = peek(tm.wr(0).bits.data(i)(j))
+          scratchpad(idx)(i*cols + j) = tm.wr(0.peek().bits.data(i)(j))
         }
       }
     }
@@ -185,29 +185,29 @@ class TensorAluJsonTest(c: TensorAlu, fn : String = "/x.json",
 
   // Write UOP buffer scratchpad
   class UopMasterMock(um: UopMaster, scratchpad: Map[BigInt,Array[BigInt]]) {
-    poke(um.data.valid, 0)
-    var valid = peek(um.idx.valid)
+    um.data.valid.poke( 0)
+    var valid = um.idx.valid.peek()
     var idx : Int = 0
     def logical_step() : Unit = {
       if (valid == 1) {
-        poke(um.data.valid, 1)
+        um.data.valid.poke( 1)
 
         // Read the dst offset of the current UOP
         val dst_offset = scratchpad(idx)(0)
-        poke(um.data.bits.u0, dst_offset)
+        um.data.bits.u0.poke( dst_offset)
 
         // Read the src offset of the current UOP
         val src_offset = scratchpad(idx)(1)
-        poke(um.data.bits.u1, src_offset)
+        um.data.bits.u1.poke( src_offset)
 
         // Non-used field
-        poke(c.io.uop.data.bits.u2, 0) // if src_offset is big, some bits go here
+        c.io.uop.data.bits.u2.poke( 0) // if src_offset is big, some bits go here
 
       } else {
-        poke(um.data.valid, 0)
+        um.data.valid.poke( 0)
       }
-      valid = peek(um.idx.valid)
-      idx = peek(um.idx.bits).toInt
+      valid = um.idx.valid.peek()
+      idx = um.idx.bits.peek().toInt
     }
   }
 
@@ -234,18 +234,18 @@ class TensorAluJsonTest(c: TensorAlu, fn : String = "/x.json",
       acc_mock_wr.logical_step()
 
       // Print the valid flags
-      /*println(s"UOP: ${peek(c.io.uop.idx.valid)} \t ACC_RD: ${peek(c.io.acc.rd(0).idx.valid)} " +
-        s"\t ACC_WR: ${peek(c.io.acc.wr(0).valid)} \t OUT: ${peek(c.io.out.wr(0).valid)}")*/
+      /*println(s"UOP: ${c.io.uop.idx.valid.peek()} \t ACC_RD: ${c.io.acc.rd(0.peek().idx.valid)} " +
+        s"\t ACC_WR: ${c.io.acc.wr(0.peek().valid)} \t OUT: ${c.io.out.wr(0.peek().valid)}")*/
 
       // Check that the queues have been correctly read
       // Read UOP
-      if (peek(c.io.uop.idx.valid) == 1) {
-        expect(c.io.uop.idx.bits, uop_indices.dequeue())
+      if (c.io.uop.idx.valid.peek() == 1) {
+        c.io.uop.idx.bits.expect(uop_indices.dequeue())
       }
       // Read ACC
-      if (peek(c.io.acc.rd(0).idx.valid) == 1) {
+      if (c.io.acc.rd(0.peek().idx.valid) == 1) {
         val expected_acc_rd_idx = acc_indices.dequeue()
-        expect(c.io.acc.rd(0).idx.bits, expected_acc_rd_idx)
+        c.io.acc.rd(0).idx.bits.expect(expected_acc_rd_idx)
 
         if (debug) {
           // Print data (SRC and, DST or IMM)
@@ -267,14 +267,14 @@ class TensorAluJsonTest(c: TensorAlu, fn : String = "/x.json",
         }
       }
       // Write ACC
-      if (peek(c.io.acc.wr(0).valid) == 1) {
+      if (c.io.acc.wr(0.peek().valid) == 1) {
         val expected_acc_wr_idx = accout_indices.dequeue()
-        expect(c.io.acc.wr(0).bits.idx, expected_acc_wr_idx)
+        c.io.acc.wr(0).bits.idx.expect(expected_acc_wr_idx)
       }
       // Write OUT
-      if (peek(c.io.out.wr(0).valid) == 1) {
+      if (c.io.out.wr(0.peek().valid) == 1) {
         val expected_out_wr_idx = out_indices.dequeue()
-        expect(c.io.out.wr(0).bits.idx, expected_out_wr_idx)
+        c.io.out.wr(0).bits.idx.expect(expected_out_wr_idx)
 
         if (debug) {
           // Print output
@@ -338,9 +338,9 @@ class TensorAluJsonTest(c: TensorAlu, fn : String = "/x.json",
   mocks.enqueue_indices()
 
   // Start the operation
-  poke(c.io.start, 0)
+  c.io.start.poke( 0)
   step(1)
-  poke(c.io.start, 1)
+  c.io.start.poke( 1)
 
   // Count the number of cycles and set a limit to avoid infinite loop
   var count = 0
@@ -352,12 +352,12 @@ class TensorAluJsonTest(c: TensorAlu, fn : String = "/x.json",
   }
 
   // Logical step for operation
-  while (peek(c.io.done) == 0 && count < 10*end + 100) {
+  while (c.io.done.peek() == 0 && count < 10*end + 100) {
     mocks.logical_step()
-    poke(c.io.start, 0)
+    c.io.start.poke( 0)
     count += 1
   }
-  expect(c.io.done, 1) // Operation is done
+  c.io.done.expect(1) // Operation is done
 
   if (debug) {
     // Check if the queues are empty

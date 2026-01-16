@@ -136,38 +136,38 @@ class LoadDecodeTest(c: LoadDecode, debug: Boolean = false)
   if (debug) {
     print("\n\n Decode I2 (load INP):\n")
   }
-  poke(c.io.inst, R2)
+  c.io.inst.poke( R2)
   // Expected output:
-  expect(c.io.pop_next, 1)
-  expect(c.io.push_next, 0)
-  expect(c.io.isInput, 1)
-  expect(c.io.isWeight, 0)
-  expect(c.io.isSync, 0)
+  c.io.pop_next.expect(1)
+  c.io.push_next.expect(0)
+  c.io.isInput.expect(1)
+  c.io.isWeight.expect(0)
+  c.io.isSync.expect(0)
 
 
   // Decode I3 = LOAD WGT => LoadDecode
   if (debug) {
     print("\n\n Decode I3 (load WGT):\n")
   }
-  poke(c.io.inst, R3)
+  c.io.inst.poke( R3)
   // Expected output:
-  expect(c.io.pop_next, 0)
-  expect(c.io.push_next, 1)
-  expect(c.io.isInput, 0)
-  expect(c.io.isWeight, 1)
-  expect(c.io.isSync, 0)
+  c.io.pop_next.expect(0)
+  c.io.push_next.expect(1)
+  c.io.isInput.expect(0)
+  c.io.isWeight.expect(1)
+  c.io.isSync.expect(0)
 
   // Decode I7 = NOP-MEMORY-STAGE
   if (debug) {
     print("\n\n Decode I7 (nop-memory-stage):\n")
   }
-  poke(c.io.inst, R7)
+  c.io.inst.poke( R7)
   // Expected output:
-  expect(c.io.pop_next, 0)
-  expect(c.io.push_next, 1)
-  expect(c.io.isInput, 0) // Inp but size = 0
-  expect(c.io.isWeight, 0)
-  expect(c.io.isSync, 1)
+  c.io.pop_next.expect(0)
+  c.io.push_next.expect(1)
+  c.io.isInput.expect(0) // Inp but size = 0
+  c.io.isWeight.expect(0)
+  c.io.isSync.expect(1)
 }
 
 

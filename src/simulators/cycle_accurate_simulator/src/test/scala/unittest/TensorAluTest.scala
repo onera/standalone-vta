@@ -42,16 +42,16 @@ class TensorAluIndexGeneratorTester(c: TensorAluIndexGenerator, alu_use_imm : In
   val dst_1 = 1
   val src_1 = 2
 
-  poke(c.io.dec.reset, 0)
-  poke(c.io.dec.alu_use_imm, alu_use_imm)
-  poke(c.io.dec.uop_begin, uop_begin)
-  poke(c.io.dec.uop_end, uop_end)
-  poke(c.io.dec.lp_0, lp_0)
-  poke(c.io.dec.lp_1, lp_1)
-  poke(c.io.dec.dst_0, dst_0)
-  poke(c.io.dec.dst_1, dst_1)
-  poke(c.io.dec.src_0, src_0)
-  poke(c.io.dec.src_1, src_1)
+  c.io.dec.reset.poke( 0)
+  c.io.dec.alu_use_imm.poke( alu_use_imm)
+  c.io.dec.uop_begin.poke( uop_begin)
+  c.io.dec.uop_end.poke( uop_end)
+  c.io.dec.lp_0.poke( lp_0)
+  c.io.dec.lp_1.poke( lp_1)
+  c.io.dec.dst_0.poke( dst_0)
+  c.io.dec.dst_1.poke( dst_1)
+  c.io.dec.src_0.poke( src_0)
+  c.io.dec.src_1.poke( src_1)
   // Don't need empty_0,{push,pop}_{next,prev},op
 
 
@@ -62,12 +62,12 @@ class TensorAluIndexGeneratorTester(c: TensorAluIndexGenerator, alu_use_imm : In
 
     def logical_step() : Unit = {
       step(1)
-      if (peek(c.io.valid) == 1) {
-        expect(c.io.uop_idx, uop_indices.dequeue())
-        expect(c.io.dst_idx, dst_indices.dequeue())
+      if (c.io.valid.peek() == 1) {
+        c.io.uop_idx.expect(uop_indices.dequeue())
+        c.io.dst_idx.expect(dst_indices.dequeue())
       }
-      if (peek(c.io.src_valid) == 1) {
-        expect(c.io.src_idx, src_indices.dequeue())
+      if (c.io.src_valid.peek() == 1) {
+        c.io.src_idx.expect(src_indices.dequeue())
       }
     }
 
@@ -96,13 +96,13 @@ class TensorAluIndexGeneratorTester(c: TensorAluIndexGenerator, alu_use_imm : In
     }
   }
 
-  poke(c.io.start, 1)
+  c.io.start.poke( 1)
   mocks.logical_step()
-  poke(c.io.start, 0)
+  c.io.start.poke( 0)
 
   val end = (uop_end-uop_begin)*lp_0*lp_1
   var count = 0
-  while(peek(c.io.last) == 0 && count < 10*end + 100) {
+  while(c.io.last.peek() == 0 && count < 10*end + 100) {
     mocks.logical_step()
     count += 1
   }
@@ -117,7 +117,7 @@ class TensorAluIndexGenerator_1_Test extends GenericTest("TensorAluIndexGenerato
   new TensorAluIndexGenerator()(p), (c:TensorAluIndexGenerator) => new TensorAluIndexGeneratorTester(c, 1))
 
 class TensorAluPipelinedTester(c: TensorAlu, debug: Boolean = false) extends PeekPokeTester(c) {
-  poke(c.io.start, 0)
+  c.io.start.poke( 0)
 
   val uop_begin = 0
   val uop_end = 1
@@ -137,50 +137,50 @@ class TensorAluPipelinedTester(c: TensorAlu, debug: Boolean = false) extends Pee
   val u1 = src_offset
   val u2 = 0 // if src_offset is big, some bits go here
 
-  poke(c.io.dec.reset, 0)
-  poke(c.io.dec.alu_op, 2) // ADD or ADDI 1
-  poke(c.io.dec.alu_imm, 1)
-  poke(c.io.dec.alu_use_imm, alu_use_imm)
-  poke(c.io.dec.uop_begin, uop_begin)
-  poke(c.io.dec.uop_end, uop_end)
-  poke(c.io.dec.lp_0, lp_0)
-  poke(c.io.dec.lp_1, lp_1)
-  poke(c.io.dec.dst_0, dst_0)
-  poke(c.io.dec.dst_1, dst_1)
-  poke(c.io.dec.src_0, src_0)
-  poke(c.io.dec.src_1, src_1)
+  c.io.dec.reset.poke( 0)
+  c.io.dec.alu_op.poke( 2) // ADD or ADDI 1
+  c.io.dec.alu_imm.poke( 1)
+  c.io.dec.alu_use_imm.poke( alu_use_imm)
+  c.io.dec.uop_begin.poke( uop_begin)
+  c.io.dec.uop_end.poke( uop_end)
+  c.io.dec.lp_0.poke( lp_0)
+  c.io.dec.lp_1.poke( lp_1)
+  c.io.dec.dst_0.poke( dst_0)
+  c.io.dec.dst_1.poke( dst_1)
+  c.io.dec.src_0.poke( src_0)
+  c.io.dec.src_1.poke( src_1)
 
   // Don't need empty_0,{push,pop}_{next,prev},op
 
-  poke(c.io.uop.data.bits.u0, u0)
-  poke(c.io.uop.data.bits.u1, u1)
-  poke(c.io.uop.data.bits.u2, u2)
+  c.io.uop.data.bits.u0.poke( u0)
+  c.io.uop.data.bits.u1.poke( u1)
+  c.io.uop.data.bits.u2.poke( u2)
 
   require(c.io.acc.splitWidth == 1, "-F- Test doesnt support acc data access split")
   require(c.io.acc.splitLength == 1, "-F- Test doesnt support acc data access split")
 
   val acc = IndexedSeq.tabulate(c.io.acc.rd(0).data.bits(0).size){ i => BigInt(i) }
   for { lhs <- c.io.acc.rd(0).data.bits} {
-    poke(lhs, acc.reverse)
+    lhs.poke( acc.reverse)
   }
 
   class TensorMasterMock(tm: TensorMaster) {
-    poke(tm.rd(0).data.valid, 0)
-    var valid = peek(tm.rd(0).idx.valid)
+    tm.rd(0).data.valid.poke( 0)
+    var valid = tm.rd(0.peek().idx.valid)
     def logical_step(v: Option[BigInt]) : Unit = {
-      poke(tm.rd(0).data.valid, valid)
-      valid = peek(tm.rd(0).idx.valid)
-      for { x <- v} expect(tm.rd(0).idx.valid, x)
+      tm.rd(0).data.valid.poke( valid)
+      valid = tm.rd(0.peek().idx.valid)
+      for { x <- v} tm.rd(0).idx.valid.expect(x)
     }
   }
 
   class UopMasterMock(um: UopMaster) {
-    poke(um.data.valid, 0)
-    var valid = peek(um.idx.valid)
+    um.data.valid.poke( 0)
+    var valid = um.idx.valid.peek()
     def logical_step(v: Option[BigInt]) : Unit = {
-      poke(um.data.valid, valid)
-      valid = peek(um.idx.valid)
-      for { x <- v} expect(um.idx.valid, x)
+      um.data.valid.poke( valid)
+      valid = um.idx.valid.peek()
+      for { x <- v} um.idx.valid.expect(x)
     }
   }
 
@@ -197,17 +197,17 @@ class TensorAluPipelinedTester(c: TensorAlu, debug: Boolean = false) extends Pee
       step(1)
       uop_mock.logical_step(None)
       acc_mock.logical_step(None)
-      if (peek(c.io.uop.idx.valid) == 1) {
-        expect(c.io.uop.idx.bits, uop_indices.dequeue())
+      if (c.io.uop.idx.valid.peek() == 1) {
+        c.io.uop.idx.bits.expect(uop_indices.dequeue())
       }
-      if (peek(c.io.acc.rd(0).idx.valid) == 1) {
-        expect(c.io.acc.rd(0).idx.bits, acc_indices.dequeue())
+      if (c.io.acc.rd(0.peek().idx.valid) == 1) {
+        c.io.acc.rd(0).idx.bits.expect(acc_indices.dequeue())
       }
-      if (peek(c.io.acc.wr(0).valid) == 1) {
-        expect(c.io.acc.wr(0).bits.idx, accout_indices.dequeue())
+      if (c.io.acc.wr(0.peek().valid) == 1) {
+        c.io.acc.wr(0).bits.idx.expect(accout_indices.dequeue())
       }
-      if (peek(c.io.out.wr(0).valid) == 1) {
-        expect(c.io.out.wr(0).bits.idx, out_indices.dequeue())
+      if (c.io.out.wr(0.peek().valid) == 1) {
+        c.io.out.wr(0).bits.idx.expect(out_indices.dequeue())
       }
     }
 
@@ -235,19 +235,19 @@ class TensorAluPipelinedTester(c: TensorAlu, debug: Boolean = false) extends Pee
     mocks.out_indices.enqueue(dst_offset + dst_0*cnt_o + dst_1*cnt_i)
   }
 
-  poke(c.io.start, 0)
+  c.io.start.poke( 0)
   step(1)
-  poke(c.io.start, 1)
+  c.io.start.poke( 1)
 
   var count = 0
   val end = (uop_end-uop_begin)*lp_0*lp_1
 
-  while (peek(c.io.done) == 0 && count < 10*end + 100) {
+  while (c.io.done.peek() == 0 && count < 10*end + 100) {
     mocks.logical_step()
-    poke(c.io.start, 0)
+    c.io.start.poke( 0)
     count += 1
   }
-  expect(c.io.done, 1)
+  c.io.done.expect(1)
   if (debug) {
     mocks.test_if_done()
   }

@@ -81,26 +81,26 @@ class AluVectorTester(c: AluVector, seed: Int = 47) extends PeekPokeTester(c) {
     val res = Alu_ref.alu(op, in_a, in_b, bits)
 
     for (i <- 0 until c.blockOut) {
-      poke(c.io.acc_a.data.bits(0)(i), in_a(i) & mask)
-      poke(c.io.acc_b.data.bits(0)(i), in_b(i) & mask)
+      c.io.acc_a.data.bits(0)(i).poke( in_a(i) & mask)
+      c.io.acc_b.data.bits(0)(i).poke( in_b(i) & mask)
     }
-    poke(c.io.opcode, op)
+    c.io.opcode.poke( op)
 
-    poke(c.io.acc_a.data.valid, 1)
-    poke(c.io.acc_b.data.valid, 1)
+    c.io.acc_a.data.valid.poke( 1)
+    c.io.acc_b.data.valid.poke( 1)
 
     step(1)
 
-    poke(c.io.acc_a.data.valid, 0)
-    poke(c.io.acc_b.data.valid, 0)
+    c.io.acc_a.data.valid.poke( 0)
+    c.io.acc_b.data.valid.poke( 0)
 
     // wait for valid signal
-    while (peek(c.io.acc_y.data.valid) == BigInt(0)) {
+    while (c.io.acc_y.data.valid.peek() == BigInt(0)) {
       step(1) // advance clock
     }
-    if (peek(c.io.acc_y.data.valid) == BigInt(1)) {
+    if (c.io.acc_y.data.valid.peek() == BigInt(1)) {
       for (i <- 0 until c.blockOut) {
-        expect(c.io.acc_y.data.bits(0)(i), res(i) & mask)
+        c.io.acc_y.data.bits(0)(i).expect(res(i) & mask)
       }
     }
   }

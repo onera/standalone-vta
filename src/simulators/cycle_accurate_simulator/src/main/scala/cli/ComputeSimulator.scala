@@ -1,16 +1,18 @@
 package cli
 
 import chisel3.assert
-import chiseltest.iotesters.PeekPokeTester
+import chisel3.simulator.ChiselSim
+// import chiseltest.iotesters.PeekPokeTester
 import util.BinaryReader.{DataType, computeAddresses, computeCSVFile}
 import util.BinaryReader.DataType.{DataTypeValue, INP}
-import util.GenericSim
+// import util.GenericSim
 import vta.core.{Compute, TensorMaster}
 import vta.core.ISA.{FNSH, GEMM, LACC, LINP, LUOP, LWGT, SOUT, VADD, VMAX, VMIN, VSHX}
 import vta.shell.VMEReadMaster
 import vta.util.config.Parameters
 
 import scala.util.{Failure, Success}
+import util.GenericSim
 
 object ComputeSimulator {
   /* COMMON PART - MANAGE VIRTUAL MEMORIES */
@@ -29,10 +31,9 @@ object ComputeSimulator {
   }
 }
 
-
 class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt, Array[BigInt]], weight: String, out: String, acc: String, expected_out: String,
                   base_addresses: String, doCompare: Boolean, debug: Boolean, fromResources: Boolean)
-  extends PeekPokeTester(c) {
+   extends ChiselSim{
 
   def this(c: Compute, insn: String, uop: String, input: String, weight: String, out: String, acc: String, expected_out: String,
            base_addresses: String, doCompare: Boolean, debug: Boolean, fromResources: Boolean) = {
@@ -111,7 +112,7 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
     if (debug) {
       print(s"\n\nCycle ${cycle_counter}:\n")
     }
-    step(1)
+    c.clock.step(1)
   }
 
   /* Function to loop for each instruction */
@@ -119,16 +120,16 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
     val end = 10000 // Timeout
     var count = 0
     // Set the input semaphore
-    poke(c.io.i_post(0), prev_signal)
-    poke(c.io.i_post(1), next_signal)
+    c.io.i_post(0).poke( prev_signal)
+    c.io.i_post(1).poke( next_signal)
     // Loop (step + 1)
-    while (peek(c.io.finish) == 0 && count < end) {
+    while (c.io.finish.peek() == 0 && count < end) {
       mocks.logical_step()
-      poke(c.io.inst.valid, 0)
+      c.io.inst.valid.poke( 0)
       count += 1
     }
     // Check if operation is done or if it is a timeout
-    expect(c.io.finish, 1) // Operation is done
+    c.io.finish.expect(1) // Operation is done
     // Add a step to execute the finish state
     cycle_step()
   }
@@ -137,17 +138,17 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
   // Emulate a READ access to the data buffer
   class TensorMasterMockRd(tm: TensorMaster, scratchpad: Map[BigInt, Array[BigInt]]) {
     // Unset the data validity signal
-    poke(tm.rd(0).data.valid, 0)
+    tm.rd(0).data.valid.poke( 0)
 
     // Check the index validity
-    var valid = peek(tm.rd(0).idx.valid)
+    var valid = tm.rd(0).idx.valid.peek()
     var idx: Int = 0
 
     def logical_step(): Unit = {
       // If index is valid
       if (valid == 1) {
         // Set the data validity signal
-        poke(tm.rd(0).data.valid, 1)
+        tm.rd(0).data.valid.poke( 1)
 
         if (debug) {
           print(s"\n\nDEBUG: READ SCRATCHPAD ${scratchpad.size} IDX: ${idx}\n\n")
@@ -159,14 +160,14 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
           j <- 0 until cols
         } {
           //print(s"\n\nDEBUG: READ SCRATCHPAD ${scratchpad(idx).length} IDX: ${idx} vect: ${i * cols + j}\n\n")
-          poke(tm.rd(0).data.bits(i)(j), scratchpad(idx)(i * cols + j))
+          tm.rd(0).data.bits(i)(j).poke( scratchpad(idx)(i * cols + j))
         }
       } else { // If index is not valid => data is not valid
-        poke(tm.rd(0).data.valid, 0)
+        tm.rd(0).data.valid.poke( 0)
       }
       // Update the values
-      valid = peek(tm.rd(0).idx.valid)
-      idx = peek(tm.rd(0).idx.bits).toInt
+      valid = tm.rd(0).idx.valid.peek()
+      idx = tm.rd(0).idx.bits.peek().litValue.toInt
     }
   }
 
@@ -174,15 +175,15 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
   class TensorMasterMockWr(tm: TensorMaster, scratchpad: Map[BigInt, Array[BigInt]]) {
     def logical_step(): Unit = {
       // If data is valid
-      if (peek(tm.wr(0).valid) == 1) {
+      if (tm.wr(0).valid.peekBoolean()) {
         // Write into the scratchpad the signal
-        val idx = peek(tm.wr(0).bits.idx).toInt
+        val idx = tm.wr(0).bits.idx.peek().litValue
         val cols = tm.wr(0).bits.data(0).size
         for {
           i <- 0 until tm.wr(0).bits.data.size
           j <- 0 until cols
         } {
-          scratchpad(idx)(i * cols + j) = peek(tm.wr(0).bits.data(i)(j))
+          scratchpad(idx)(i * cols + j) = tm.wr(0).bits.data(i)(j).peek().litValue
         }
         if (debug) {
           // Print the scratchpad after the update
@@ -206,29 +207,29 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
     // Exchange between DRAM (slave) and LoadUop (master)
     def logical_step() : Unit = {
       //  Data is not valid yet
-      poke(dm.data.valid, 0)
+      dm.data.valid.poke( 0)
       // Check if command is ready
-      var valid = peek(dm.cmd.valid)
+      var valid = dm.cmd.valid.peek()
 
       // Configure if DRAM is ready to receive the command
       if (!uop_exchange){ // No exchange in progress, DRAM is ready
-        poke(dm.cmd.ready, 1)
+        dm.cmd.ready.poke( 1)
       }
       else { // Exchange in progress, DRAM not ready
-        poke(dm.cmd.ready, 0)
+        dm.cmd.ready.poke( 0)
       }
       // Check if command is ready to receive the data
-      var ready = peek(dm.data.ready)
+      var ready = dm.data.ready.peek()
 
       //      print(s"\n\nDEBUG: (UOP) CMD VALID: ${valid}, DATA READY: ${ready}")
-      //      print(s"\nDEBUG: tag: ${peek(dm.cmd.bits.tag)}, len: ${peek(dm.cmd.bits.len)}, addr: ${peek(dm.cmd.bits.addr)}\n\n")
+      //      print(s"\nDEBUG: tag: ${dm.cmd.bits.tag.peek()}, len: ${dm.cmd.bits.len.peek()}, addr: ${dm.cmd.bits.addr.peek()}\n\n")
 
       // Read the command if command is valid and DRAM ready to receive (no exchange in progress)
       if (valid == 1 && !uop_exchange) {
         // Store the command
-        tag = peek(dm.cmd.bits.tag)
-        len = peek(dm.cmd.bits.len)
-        addr = peek(dm.cmd.bits.addr)
+        tag = dm.cmd.bits.tag.peek().litValue
+        len = dm.cmd.bits.len.peek().litValue
+        addr = dm.cmd.bits.addr.peek().litValue
 
         //        print(s"\n\nDEBUG: (UOP) STORE TAG, LEN, ADDR\n\n")
 
@@ -239,7 +240,7 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
       // Send data if command is ready to receive and exchange is started
       if (ready == 1 && uop_exchange) {
         // Return the tag to link the data to the command
-        poke(dm.data.bits.tag, tag)
+        dm.data.bits.tag.poke( tag)
 
         //        print(s"\n\nDEBUG: uop_exchange (${nb_uop}) with: tag=${tag}, len=${len}, addr=${addr}" +
         //          s"\n (Current addr: ${addr + 8 * nb_uop})\n\n")
@@ -274,13 +275,13 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
           )
 
         // Send the data and increment the number of exchange
-        poke(dm.data.bits.data, uop_val)
+        dm.data.bits.data.poke( uop_val)
         nb_uop = nb_uop + 1
 
         // If number of exchange is greater than LEN, then end of the exchange
         if (nb_uop > len) {
           // Last data
-          poke(dm.data.bits.last, 1)
+          dm.data.bits.last.poke( 1)
           // End of the exchange
           uop_exchange = false
 
@@ -290,13 +291,13 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
           nb_uop = 0
         }
         else { // Exchange in progress, not the last data
-          poke(dm.data.bits.last, 0)
+          dm.data.bits.last.poke( 0)
         }
         // Data is valid
-        poke(dm.data.valid, 1)
+        dm.data.valid.poke( 1)
       } // End case send data
       else{ // No data send, data not valid
-        poke(dm.data.valid, 0)
+        dm.data.valid.poke( 0)
       }
     }
 
@@ -316,29 +317,29 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
     // Exchange between DRAM (slave) and TensorAcc (master)
     def logical_step(): Unit = {
       // Data is not valid yet
-      poke(dm.data.valid, 0)
+      dm.data.valid.poke( 0)
       // Check if command is ready
-      var valid = peek(dm.cmd.valid)
+      var valid = dm.cmd.valid.peek()
 
       // Configure if DRAM is ready to receive the command
       if (!acc_exchange) { // No exchange in progress, DRAM is ready
-        poke(dm.cmd.ready, 1)
+        dm.cmd.ready.poke( 1)
       }
       else { // Exchange in progress, DRAM not ready
-        poke(dm.cmd.ready, 0)
+        dm.cmd.ready.poke( 0)
       }
       // Check if command is ready to receive the data
-      var ready = peek(dm.data.ready)
+      var ready = dm.data.ready.peek()
 
       //      print(s"\n\nDEBUG: (ACC) CMD VALID: ${valid}, DATA READY: ${ready}")
-      //      print(s"\nDEBUG: tag: ${peek(dm.cmd.bits.tag)}, len: ${peek(dm.cmd.bits.len)}, addr: ${peek(dm.cmd.bits.addr)}\n\n")
+      //      print(s"\nDEBUG: tag: ${dm.cmd.bits.tag.peek()}, len: ${dm.cmd.bits.len.peek()}, addr: ${dm.cmd.bits.addr.peek()}\n\n")
 
       // Read the command if command is valid and DRAM ready to receive (no exchange in progress)
       if (valid == 1 && !acc_exchange) {
         // Store the command
-        tag = peek(dm.cmd.bits.tag)
-        len = peek(dm.cmd.bits.len)
-        addr = peek(dm.cmd.bits.addr)
+        tag = dm.cmd.bits.tag.peek().litValue
+        len = dm.cmd.bits.len.peek().litValue
+        addr = dm.cmd.bits.addr.peek().litValue
 
         //        print(s"\n\nDEBUG: (ACC) STORE TAG, LEN, ADDR\n\n")
 
@@ -349,7 +350,7 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
       // Send data if command is ready to receive and exchange is started
       if (ready == 1 && acc_exchange) {
         // Return the tag to link the data to the command
-        poke(dm.data.bits.tag, tag)
+        dm.data.bits.tag.poke( tag)
 
         //        print(s"\n\nDEBUG: acc_exchange (${nb_acc}) with: tag=${tag}, len=${len}, addr=${addr}" +
         //          s"\n (Current addr: ${addr + 64*(nb_acc/8)}, current idx: ${2*(nb_acc%8)} and ${1 + 2*(nb_acc%8)}) \n\n")
@@ -365,13 +366,13 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
           )
 
         // Send the data and increment the number of exchange
-        poke(dm.data.bits.data, acc_val)
+        dm.data.bits.data.poke( acc_val)
         nb_acc = nb_acc + 1
 
         // If number of exchange is greater than LEN, then end of the exchange
         if (nb_acc > len) {
           // Last data
-          poke(dm.data.bits.last, 1)
+          dm.data.bits.last.poke( 1)
           // End of the exchange
           acc_exchange = false
 
@@ -381,13 +382,13 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
           nb_acc = 0
         }
         else { // Exchange in progress, not the last data
-          poke(dm.data.bits.last, 0)
+          dm.data.bits.last.poke( 0)
         }
         // Data is valid
-        poke(dm.data.valid, 1)
+        dm.data.valid.poke( 1)
       } // End case send data
       else { // No data send, data not valid
-        poke(dm.data.valid, 0)
+        dm.data.valid.poke( 0)
       }
     }
 
@@ -417,7 +418,7 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
       out_mock_wr.logical_step()
 
       // Unset valid signal
-      poke(c.io.inst.valid, 0)
+      c.io.inst.valid.poke( 0)
     }
   }
   /* END COMMON PART - MANAGE VIRTUAL MEMORIES */
@@ -441,9 +442,9 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
 
   // Define the base addresses of UOP and ACC in DRAM (addr: idx*data_size + baddr)
   val uop_baddr = BigInt("00000000",16) // We do not take any offset
-  poke(c.io.uop_baddr, uop_baddr)
+  c.io.uop_baddr.poke( uop_baddr)
   val acc_baddr = BigInt("00000000", 16) // We do not take any offset
-  poke(c.io.acc_baddr, acc_baddr)
+  c.io.acc_baddr.poke( acc_baddr)
 
   // Cycle 0
   if (debug) {
@@ -459,9 +460,9 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
         print(s"Instruction ${key} (${mnemonic}) is Compute type. Sending...\n")
       }
       // Send the instruction
-      poke(c.io.inst.bits, value)
+      c.io.inst.bits.poke( value)
       // Instruction is valid for this cycle
-      poke(c.io.inst.valid, 1)
+      c.io.inst.valid.poke( 1)
       // Increment the step (handles clock cycle and mock logic)
       mocks.logical_step()
     } else {

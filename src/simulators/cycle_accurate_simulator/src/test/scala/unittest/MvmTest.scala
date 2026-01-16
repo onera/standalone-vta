@@ -60,32 +60,32 @@ class TestMatrixVectorMultiplication(c: MatrixVectorMultiplication) extends Peek
     val accMask = Helper.getMask(c.accBits)
 
     for (i <- 0 until c.size) {
-      poke(c.io.inp.data.bits(0)(i), in_a(i) & inpMask)
-      poke(c.io.acc_i.data.bits(0)(i), 0)
+      c.io.inp.data.bits(0)(i).poke( in_a(i) & inpMask)
+      c.io.acc_i.data.bits(0)(i).poke( 0)
       for (j <- 0 until c.size) {
-        poke(c.io.wgt.data.bits(i)(j), in_b(i)(j) & wgtMask)
+        c.io.wgt.data.bits(i)(j).poke( in_b(i)(j) & wgtMask)
       }
     }
 
-    poke(c.io.reset, 0)
+    c.io.reset.poke( 0)
 
-    poke(c.io.inp.data.valid, 1)
-    poke(c.io.wgt.data.valid, 1)
-    poke(c.io.acc_i.data.valid, 1)
+    c.io.inp.data.valid.poke( 1)
+    c.io.wgt.data.valid.poke( 1)
+    c.io.acc_i.data.valid.poke( 1)
 
     step(1)
 
-    poke(c.io.inp.data.valid, 0)
-    poke(c.io.wgt.data.valid, 0)
-    poke(c.io.acc_i.data.valid, 0)
+    c.io.inp.data.valid.poke( 0)
+    c.io.wgt.data.valid.poke( 0)
+    c.io.acc_i.data.valid.poke( 0)
 
     // wait for valid signal
-    while (peek(c.io.acc_o.data.valid) == BigInt(0)) {
+    while (c.io.acc_o.data.valid.peek() == BigInt(0)) {
       step(1) // advance clock
     }
-    if (peek(c.io.acc_o.data.valid) == BigInt(1)) {
+    if (c.io.acc_o.data.valid.peek() == BigInt(1)) {
       for (i <- 0 until c.size) {
-        expect(c.io.acc_o.data.bits(0)(i), res(i) & accMask)
+        c.io.acc_o.data.bits(0)(i).expect(res(i) & accMask)
       }
     }
   }

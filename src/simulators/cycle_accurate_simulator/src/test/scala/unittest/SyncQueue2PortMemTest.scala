@@ -28,33 +28,33 @@ import vta.util.config._
 class Checker2P(c: SyncQueue2PTestWrapper[UInt], t: PeekPokeTester[SyncQueue2PTestWrapper[UInt]]) {
 
   def bits (bits: Int) = {
-    t.expect(c.io.tq.deq.bits, bits)
-    t.expect(c.io.rq.deq.bits, bits)
+    t.c.io.tq.deq.bits.expect(bits)
+    t.c.io.rq.deq.bits.expect(bits)
 
   }
   def ready (bits: Int) = {
-    t.expect(c.io.tq.enq.ready, bits)
-    t.expect(c.io.rq.enq.ready, bits)
+    t.c.io.tq.enq.ready.expect(bits)
+    t.c.io.rq.enq.ready.expect(bits)
 
   }
   def valid (bits: Int) = {
-    t.expect(c.io.tq.deq.valid, bits)
-    t.expect(c.io.rq.deq.valid, bits)
+    t.c.io.tq.deq.valid.expect(bits)
+    t.c.io.rq.deq.valid.expect(bits)
 
   }
   def status () = {
-    val rv = t.peek(c.io.rq.enq.ready)
-    t.expect(c.io.tq.enq.ready, rv)
-    val rc = t.peek(c.io.rq.count)
-    t.expect(c.io.tq.count, rc)
-    val vv = t.peek(c.io.rq.deq.valid)
-    t.expect(c.io.tq.deq.valid, vv)
+    val rv = t.c.io.rq.enq.ready.peek()
+    t.c.io.tq.enq.ready.expect(rv)
+    val rc = t.c.io.rq.count.peek()
+    t.c.io.tq.count.expect(rc)
+    val vv = t.c.io.rq.deq.valid.peek()
+    t.c.io.tq.deq.valid.expect(vv)
     if (vv != 0) {
-      val bv = t.peek(c.io.rq.deq.bits)
-      t.expect(c.io.tq.deq.bits, bv)
+      val bv = t.c.io.rq.deq.bits.peek()
+      t.c.io.tq.deq.bits.expect(bv)
     }
-    t.peek(c.io.rq.count)
-    t.peek(c.io.tq.count)
+    t.c.io.rq.count.peek()
+    t.c.io.tq.count.peek()
   }
 }
 class TestSyncQueue2PLongRead(c: SyncQueue2PTestWrapper[UInt]) extends PeekPokeTester(c) {
@@ -62,7 +62,7 @@ class TestSyncQueue2PLongRead(c: SyncQueue2PTestWrapper[UInt]) extends PeekPokeT
   val chr = new Checker2P (c, this)
 
   def testFillRW(depth: Int) = {
-    val qsize = peek(c.io.tq.count)
+    val qsize = c.io.tq.count.peek()
     require(qsize == 0, s"-F- An empty queue is expected ${qsize}")
 
     poke (c.io.tq.deq.ready, 0)
@@ -104,7 +104,7 @@ class TestSyncQueue2PWaveRead(c: SyncQueue2PTestWrapper[UInt]) extends PeekPokeT
   val chr = new Checker2P (c, this)
 
   def testFillRW(depth: Int) = {
-    val qsize = peek(c.io.tq.count)
+    val qsize = c.io.tq.count.peek()
     require(qsize == 0, s"-F- An empty queue is expected ${qsize}")
 
     poke (c.io.tq.deq.ready, 0)

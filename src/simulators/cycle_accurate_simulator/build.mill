@@ -1,4 +1,5 @@
 //| mill-version: 1.0.6
+//| mill-jvm-opts: ["-Dchisel.project.root=${PWD}"]
 package build
 
 import mill._
@@ -36,12 +37,13 @@ object `package` extends SbtModule with PublishModule {
   def mvnDeps = Seq(
     mvn"com.fasterxml.jackson.core:jackson-databind:2.17.2",
     mvn"com.fasterxml.jackson.module::jackson-module-scala:2.17.2",
-    mvn"edu.berkeley.cs::chiseltest:6.0.0",
-    mvn"edu.berkeley.cs::firrtl2:6.0-SNAPSHOT",
+    // mvn"edu.berkeley.cs::chiseltest:6.0.0",
+    // mvn"edu.berkeley.cs::firrtl2:6.0-SNAPSHOT",
     mvn"net.java.dev.jna:jna:5.14.0",
-    mvn"org.chipsalliance::chisel:6.0.0",
+    mvn"org.chipsalliance::chisel:7.6.0",
     mvn"org.scalatest::scalatest:3.2.17"
   )
+  override def scalacPluginMvnDeps: Simple[Seq[Dep]] = Seq(mvn"org.chipsalliance:::chisel-plugin:7.6.0")
 
   def pomSettings = PomSettings(
     "vta_chiseltest",

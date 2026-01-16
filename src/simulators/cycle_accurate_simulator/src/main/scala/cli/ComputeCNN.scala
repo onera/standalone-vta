@@ -1,8 +1,8 @@
 package cli
 
-import chiseltest.iotesters.PeekPokeTester
+// import chiseltest.iotesters.PeekPokeTester
 import util.BinaryReader.{DataType, computeCSVFile}
-import util.{Filter, GenericSim}
+import util.{Filter,GenericSim}
 import util.Reshape.{reshape, vector_to_map}
 import vta.core.Compute
 import vta.util.config.Parameters
@@ -10,7 +10,7 @@ import vta.util.config.Parameters
 import java.io.File
 
 class ComputeCNN(c: Compute, CNN_param: String, doCompare: Boolean = true, debug: Boolean = true, fromResources: Boolean = false)
-  extends PeekPokeTester(c) {
+  {
 
   /** params contains a description of the CNN
     * layers : Int = number of layers of the CNN

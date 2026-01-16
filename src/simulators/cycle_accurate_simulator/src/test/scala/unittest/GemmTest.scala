@@ -24,44 +24,44 @@ import vta.core._
 import vta.util.config._
 
 class MACTester(c: MAC) extends PeekPokeTester(c) {
-  poke(c.io.a, -1)
-  poke(c.io.b,  7)
-  poke(c.io.c, 10)
+  c.io.a.poke( -1)
+  c.io.b.poke(  7)
+  c.io.c.poke( 10)
   step(1)
-  expect(c.io.y, 3)
-  poke(c.io.a, -2)
-  poke(c.io.b,  7)
-  poke(c.io.c, 11)
+  c.io.y.expect(3)
+  c.io.a.poke( -2)
+  c.io.b.poke(  7)
+  c.io.c.poke( 11)
   step(1)
-  expect(c.io.y, -3)
+  c.io.y.expect(-3)
 }
 
 class MACTest extends GenericTest("MACTest", (p:Parameters) => new MAC(),
   (c:MAC) => new MACTester(c))
 
 class PipeAdderTester(c: PipeAdder) extends PeekPokeTester(c) {
-  poke(c.io.a, -1)
-  poke(c.io.b,  7)
+  c.io.a.poke( -1)
+  c.io.b.poke(  7)
   step(1)
-  expect(c.io.y, 6)
-  poke(c.io.a, -2)
-  poke(c.io.b,  7)
+  c.io.y.expect(6)
+  c.io.a.poke( -2)
+  c.io.b.poke(  7)
   step(1)
-  expect(c.io.y, 5)
+  c.io.y.expect(5)
 }
 
 class PipeAdderTest extends GenericTest("PipeAdderTest", (p:Parameters) => new PipeAdder(),
   (c:PipeAdder) => new PipeAdderTester(c))
 
 class AdderTester(c: Adder) extends PeekPokeTester(c) {
-  poke(c.io.a, -1)
-  poke(c.io.b,  7)
-  expect(c.io.y, 6)
+  c.io.a.poke( -1)
+  c.io.b.poke(  7)
+  c.io.y.expect(6)
   step(1)
 
-  poke(c.io.a, -2)
-  poke(c.io.b,  7)
-  expect(c.io.y, 5)
+  c.io.a.poke( -2)
+  c.io.b.poke(  7)
+  c.io.y.expect(5)
   step(1)
 }
 
@@ -70,18 +70,18 @@ class AdderTest extends GenericTest("AdderTest", (p:Parameters) => new Adder(),
 
 class DotProductTester(c: DotProduct) extends PeekPokeTester(c) {
   for {i<- 0 until 16} {
-    poke(c.io.a(i), if (i %2 == 0) 1 else -1)
-    poke(c.io.b(i), i)
+    c.io.a(i).poke( if (i %2 == 0) 1 else -1)
+    c.io.b(i).poke( i)
   }
   step(1)
   for {i<- 0 until 16} {
-    poke(c.io.a(i), if (i %2 == 1) 1 else -1)
-    poke(c.io.b(i), i)
+    c.io.a(i).poke( if (i %2 == 1) 1 else -1)
+    c.io.b(i).poke( i)
   }
   step(1)
-  expect(c.io.y, -8)
+  c.io.y.expect(-8)
   step(1)
-  expect(c.io.y,  8)
+  c.io.y.expect(8)
 }
 
 class DotProductTest extends GenericTest("DotProductTest", (p:Parameters) => new DotProduct(),

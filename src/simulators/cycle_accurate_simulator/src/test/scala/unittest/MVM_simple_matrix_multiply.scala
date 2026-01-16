@@ -78,20 +78,20 @@ class MVM_simple_matrix_multiply(c: MatrixVectorMultiplication, debug: Boolean =
   // Loading of the input, weight and accumulator data
   for (i <- 0 until c.size) {
     // for each value, the mask convert the Scala Int to a UInt with bitwidth of c.inpBits
-    poke(c.io.inp.data.bits(0)(i), in_a(i) & inpMask)
-    poke(c.io.acc_i.data.bits(0)(i), 0)
+    c.io.inp.data.bits(0)(i).poke( in_a(i) & inpMask)
+    c.io.acc_i.data.bits(0)(i).poke( 0)
     for (j <- 0 until c.size) {
-      poke(c.io.wgt.data.bits(i)(j), in_b(i)(j) & wgtMask)
+      c.io.wgt.data.bits(i)(j).poke( in_b(i)(j) & wgtMask)
     }
   }
 
   // Unset the reset signal
-  poke(c.io.reset, 0)
+  c.io.reset.poke( 0)
 
   // Set validity signal
-  poke(c.io.inp.data.valid, 1)
-  poke(c.io.wgt.data.valid, 1)
-  poke(c.io.acc_i.data.valid, 1)
+  c.io.inp.data.valid.poke( 1)
+  c.io.wgt.data.valid.poke( 1)
+  c.io.acc_i.data.valid.poke( 1)
 
   // Clock step
   step(1)
@@ -99,34 +99,34 @@ class MVM_simple_matrix_multiply(c: MatrixVectorMultiplication, debug: Boolean =
   // HW READ DATA!
 
   // Unset validity signal (data have been consumed)
-  poke(c.io.inp.data.valid, 0)
-  poke(c.io.wgt.data.valid, 0)
-  poke(c.io.acc_i.data.valid, 0)
+  c.io.inp.data.valid.poke( 0)
+  c.io.wgt.data.valid.poke( 0)
+  c.io.acc_i.data.valid.poke( 0)
 
   // Wait for valid signal from HW
-  while (peek(c.io.acc_o.data.valid) == BigInt(0)) {
+  while (c.io.acc_o.data.valid.peek() == BigInt(0)) {
     step(1) // advance clock
   }
 
   if (debug) {
     // Print INPUT vector
     println("The input vector (INP with mask):")
-    print(s"${peek(c.io.inp.data.bits(0))} \n\n")
+    print(s"${c.io.inp.data.bits(0.peek())} \n\n")
     // Print WEIGHT tensor
     println("The weight tensor (WGT with mask):")
     for (i <- 0 until c.size) {
-      print(s"${peek(c.io.wgt.data.bits(i))} \n")
+      print(s"${c.io.wgt.data.bits(i.peek())} \n")
     }
     print("\n")
     // Print the result from MatrixVectorMultiplication
     println("The output vector (OUT with mask):")
-    print(s"${peek(c.io.acc_o.data.bits(0))} \n\n")
+    print(s"${c.io.acc_o.data.bits(0.peek())} \n\n")
   }
 
   // Assertion
-  if (peek(c.io.acc_o.data.valid) == BigInt(1)) {
+  if (c.io.acc_o.data.valid.peek() == BigInt(1)) {
     for (i <- 0 until c.size) {
-      expect(c.io.acc_o.data.bits(0)(i), res(i) & accMask)
+      c.io.acc_o.data.bits(0)(i).expect(res(i) & accMask)
     }
   }
   if (debug) {
