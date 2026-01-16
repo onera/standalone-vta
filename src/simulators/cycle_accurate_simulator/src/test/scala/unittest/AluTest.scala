@@ -81,24 +81,24 @@ class AluVectorTester(c: AluVector, seed: Int = 47) extends ChiselSim {
     val res = Alu_ref.alu(op, in_a, in_b, bits)
 
     for (i <- 0 until c.blockOut) {
-      c.io.acc_a.data.bits(0)(i).poke( in_a(i) & mask)
-      c.io.acc_b.data.bits(0)(i).poke( in_b(i) & mask)
+      c.io.acc_a.data.bits(0)(i).poke(in_a(i) & mask)
+      c.io.acc_b.data.bits(0)(i).poke(in_b(i) & mask)
     }
     c.io.opcode.poke( op)
 
-    c.io.acc_a.data.valid.poke( 1)
-    c.io.acc_b.data.valid.poke( 1)
+    c.io.acc_a.data.valid.poke(true)
+    c.io.acc_b.data.valid.poke(true)
 
     c.clock.step(1)
 
-    c.io.acc_a.data.valid.poke( 0)
-    c.io.acc_b.data.valid.poke( 0)
+    c.io.acc_a.data.valid.poke(false)
+    c.io.acc_b.data.valid.poke(false)
 
     // wait for valid signal
-    while (c.io.acc_y.data.valid.peek() == BigInt(0)) {
+    while (!c.io.acc_y.data.valid.peekBoolean()) {
       c.clock.step(1) // advance clock
     }
-    if (c.io.acc_y.data.valid.peek() == BigInt(1)) {
+    if (c.io.acc_y.data.valid.peekBoolean()) {
       for (i <- 0 until c.blockOut) {
         c.io.acc_y.data.bits(0)(i).expect(res(i) & mask)
       }

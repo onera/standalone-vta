@@ -113,7 +113,7 @@ class TensorGemmJsonTester(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
         tm.rd(0).data.valid.poke( 0)
       }
       valid = tm.rd(0).idx.valid
-      idx = tm.rd(0).idx.bits.litValue.toInt
+      idx = tm.rd(0).idx.bits.peek().litValue.toInt
     }
   }
 
@@ -172,7 +172,7 @@ class TensorGemmJsonTester(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
       acc_mock.logical_step()
       acc_mock_wr.logical_step()
 
-      if (c.io.uop.idx.valid.peek() == 1) {
+      if (c.io.uop.idx.valid.peekBoolean()) {
         c.io.uop.idx.bits.expect(uop_indices.dequeue())
       }
       if (c.io.acc.rd(0).idx.valid.peekBoolean()) {
@@ -248,7 +248,7 @@ class TensorGemmJsonTester(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
 
   val max_count = 100 + 4*total_steps
   var count = 0
-  while (c.io.done.peek() == 0 && count < max_count) {
+  while (!c.io.done.peekBoolean() && count < max_count) {
     if (count % 100 == 0 && debug==true) {
       println(s"logical_step $count")
     }
@@ -259,7 +259,7 @@ class TensorGemmJsonTester(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
     count += 1
   }
 
-  assert(c.io.done.peek() == 1, s"Signal done never high even after $count steps.")
+  assert(c.io.done.peekBoolean(), s"Signal done never high even after $count steps.")
   if (debug) {
     println(s"Signal done high after $count steps.")
   }

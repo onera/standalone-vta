@@ -79,10 +79,10 @@ class TestMatrixVectorMultiplication(c: MatrixVectorMultiplication) extends Chis
     c.io.acc_i.data.valid.poke( 0)
 
     // wait for valid signal
-    while (c.io.acc_o.data.valid.peek() == BigInt(0)) {
+    while (!c.io.acc_o.data.valid.peekBoolean()) {
       c.clock.step() // advance clock
     }
-    if (c.io.acc_o.data.valid.peek() == BigInt(1)) {
+    if (c.io.acc_o.data.valid.peekBoolean()) {
       for (i <- 0 until c.size) {
         c.io.acc_o.data.bits(0)(i).expect(res(i) & accMask)
       }

@@ -62,7 +62,7 @@ class TestSyncQueue2PLongRead(c: SyncQueue2PTestWrapper[UInt]) extends ChiselSim
 
   def testFillRW(depth: Int) = {
     val qsize = c.io.tq.count.peek()
-    require(qsize == 0, s"-F- An empty queue is expected ${qsize}")
+    require(qsize.litValue == 0, s"-F- An empty queue is expected ${qsize}")
 
     c.io.tq.deq.ready.poke(false.B)
     c.io.tq.enq.valid.poke(false.B)
@@ -104,7 +104,7 @@ class TestSyncQueue2PWaveRead(c: SyncQueue2PTestWrapper[UInt]) extends ChiselSim
 
   def testFillRW(depth: Int) = {
     val qsize = c.io.tq.count.peek()
-    require(qsize == 0, s"-F- An empty queue is expected ${qsize}")
+    require(qsize.litValue == 0, s"-F- An empty queue is expected ${qsize}")
 
     c.io.tq.deq.ready.poke(false.B)
     c.io.tq.enq.valid.poke(false.B)
@@ -114,7 +114,7 @@ class TestSyncQueue2PWaveRead(c: SyncQueue2PTestWrapper[UInt]) extends ChiselSim
     // fill up to depth
     for (i <- 10 until 10 + depth) {
       c.io.tq.enq.bits.poke(i)
-      c.io.tq.enq.valid.poke(1)
+      c.io.tq.enq.valid.poke(true)
       chr.status()
       c.clock.step()
 
@@ -161,8 +161,8 @@ class SyncQueue2PTestWrapper[T <: Data](
 
     })
 
-  val tq = Module(new SyncQueue2PortMem(genType.asUInt, entries))
-  val rq = Module(new Queue(genType.asUInt, entries))
+  val tq = Module(new SyncQueue2PortMem(genType, entries))
+  val rq = Module(new Queue(genType, entries))
   io.tq <> tq.io
   io.rq <> rq.io
   tq.io.enq.valid := RegNext(io.tq.enq.valid)

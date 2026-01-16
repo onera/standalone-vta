@@ -104,7 +104,7 @@ class MVM_simple_matrix_multiply(c: MatrixVectorMultiplication, debug: Boolean =
   c.io.acc_i.data.valid.poke( 0)
 
   // Wait for valid signal from HW
-  while (c.io.acc_o.data.valid.peek() == BigInt(0)) {
+  while (!c.io.acc_o.data.valid.peekBoolean()) {
     c.clock.step() // advance clock
   }
 
@@ -124,7 +124,7 @@ class MVM_simple_matrix_multiply(c: MatrixVectorMultiplication, debug: Boolean =
   }
 
   // Assertion
-  if (c.io.acc_o.data.valid.peek() == BigInt(1)) {
+  if (c.io.acc_o.data.valid.peekBoolean()) {
     for (i <- 0 until c.size) {
       c.io.acc_o.data.bits(0)(i).expect(res(i) & accMask)
     }

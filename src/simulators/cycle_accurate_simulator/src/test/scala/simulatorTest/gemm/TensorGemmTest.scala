@@ -234,13 +234,13 @@ class TensorGemmTest(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
       acc_mock.logical_step()
       acc_mock_wr.logical_step()
 
-      if (c.io.uop.idx.valid.peek() == 1) {
+      if (c.io.uop.idx.valid.peekBoolean()) {
         c.io.uop.idx.bits.expect(uop_indices.dequeue())
       }
-      if (c.io.acc.rd(0).idx.valid.peek() == 1) {
+      if (c.io.acc.rd(0).idx.valid.peekBoolean()) {
         c.io.acc.rd(0).idx.bits.expect(acc_indices.dequeue())
       }
-      if (c.io.inp.rd(0).idx.valid.peek() == 1) {
+      if (c.io.inp.rd(0).idx.valid.peekBoolean()) {
         c.io.inp.rd(0).idx.bits.expect(inp_indices.dequeue())
         if (debug) {
           // Print INPUT vector
@@ -248,7 +248,7 @@ class TensorGemmTest(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
           print_scratchpad(inp_scratchpad, c.io.inp.rd(0).idx.bits.peek().litValue, "INP")
         }
       }
-      if (c.io.wgt.rd(0).idx.valid.peek() == 1) {
+      if (c.io.wgt.rd(0).idx.valid.peekBoolean()) {
         c.io.wgt.rd(0).idx.bits.expect(wgt_indices.dequeue())
         if (debug) {
           // Print WEIGHT tensor
@@ -256,10 +256,10 @@ class TensorGemmTest(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
           print_scratchpad(wgt_scratchpad, c.io.wgt.rd(0).idx.bits.peek().litValue, "WGT")
         }
       }
-      if (c.io.acc.wr(0).valid.peek() == 1) {
+      if (c.io.acc.wr(0).valid.peekBoolean()) {
         c.io.acc.wr(0).bits.idx.expect(accout_indices.dequeue())
       }
-      if (c.io.out.wr(0).valid.peek() == 1) {
+      if (c.io.out.wr(0).valid.peekBoolean()) {
         c.io.out.wr(0).bits.idx.expect(out_indices.dequeue())
         if (debug) {
           // Print the result
@@ -325,7 +325,7 @@ class TensorGemmTest(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
 
   // Count time to complete execuion
   var count = 0
-  while (c.io.done.peek() == 0 && count < max_count) {
+  while (!c.io.done.peekBoolean() && count < max_count) {
     if (debug) {
       print(s"[CYCLE $count] \n")
     }
@@ -337,7 +337,7 @@ class TensorGemmTest(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
   }
 
   // Execution is done
-  assert(c.io.done.peek() == 1, s"Signal done never high even after $count steps.")
+  assert(c.io.done.peekBoolean(), s"Signal done never high even after $count steps.")
   if (debug) {
     print(s"DEBUG: Signal done high after $count steps. \n")
   }

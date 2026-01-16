@@ -239,7 +239,7 @@ class TensorAluJsonTest(c: TensorAlu, fn : String = "/x.json",
 
       // Check that the queues have been correctly read
       // Read UOP
-      if (c.io.uop.idx.valid.peek() == 1) {
+      if (c.io.uop.idx.valid.peekBoolean()) {
         c.io.uop.idx.bits.expect(uop_indices.dequeue())
       }
       // Read ACC
@@ -352,7 +352,7 @@ class TensorAluJsonTest(c: TensorAlu, fn : String = "/x.json",
   }
 
   // Logical step for operation
-  while (c.io.done.peek() == 0 && count < 10*end + 100) {
+  while (!c.io.done.peekBoolean() && count < 10*end + 100) {
     mocks.logical_step()
     c.io.start.poke( 0)
     count += 1

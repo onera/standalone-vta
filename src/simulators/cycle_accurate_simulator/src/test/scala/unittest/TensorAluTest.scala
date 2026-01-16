@@ -62,11 +62,11 @@ class TensorAluIndexGeneratorTester(c: TensorAluIndexGenerator, alu_use_imm : In
 
     def logical_step() : Unit = {
       c.clock.step()
-      if (c.io.valid.peek() == 1) {
+      if (c.io.valid.peekBoolean()) {
         c.io.uop_idx.expect(uop_indices.dequeue())
         c.io.dst_idx.expect(dst_indices.dequeue())
       }
-      if (c.io.src_valid.peek() == 1) {
+      if (c.io.src_valid.peekBoolean()) {
         c.io.src_idx.expect(src_indices.dequeue())
       }
     }
@@ -197,7 +197,7 @@ class TensorAluPipelinedTester(c: TensorAlu, debug: Boolean = false) extends Chi
       c.clock.step()
       uop_mock.logical_step(None)
       acc_mock.logical_step(None)
-      if (c.io.uop.idx.valid.peek() == 1) {
+      if (c.io.uop.idx.valid.peekBoolean()) {
         c.io.uop.idx.bits.expect(uop_indices.dequeue())
       }
       if (c.io.acc.rd(0).idx.valid.peekBoolean()) {

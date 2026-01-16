@@ -118,7 +118,7 @@ class Checker(c: SyncQueueTestWrapper[UInt]) extends ChiselSim {
     c.io.tq.count.expect(rc)
     val vv = c.io.rq.deq.valid.peek()
     c.io.tq.deq.valid.expect(vv)
-    if (vv != 0) {
+    if (vv.litValue != 0) {
       val bv = c.io.rq.deq.bits.peek()
       c.io.tq.deq.bits.expect(bv)
     }
@@ -132,7 +132,7 @@ class TestSyncQueueLongRead(c: SyncQueueTestWrapper[UInt])  extends ChiselSim {
 
   def testFillRW(depth: Int) = {
     val qsize = c.io.tq.count.peek()
-    require(qsize == 0, s"-F- An empty queue is expected ${qsize}")
+    require(qsize.litValue == 0, s"-F- An empty queue is expected ${qsize}")
 
     c.io.tq.deq.ready.poke(0)
     c.io.tq.enq.valid.poke(0)
@@ -174,7 +174,7 @@ class TestSyncQueueWaveRead(c: SyncQueueTestWrapper[UInt]) extends ChiselSim {
 
   def testFillRW(depth: Int) = {
     val qsize = c.io.tq.count.peek()
-    require(qsize == 0, s"-F- An empty queue is expected ${qsize}")
+    require(qsize.litValue == 0, s"-F- An empty queue is expected ${qsize}")
 
     c.io.tq.deq.ready.poke(0)
     c.io.tq.enq.valid.poke(0)
@@ -249,14 +249,17 @@ class SyncQueueTestLongRead24 extends GenericTest(
   "Queue",
   (p:Parameters) => new SyncQueueTestWrapper(UInt(16.W), 24),
   (c:SyncQueueTestWrapper[UInt]) => new TestSyncQueueLongRead(c))
+
 class SyncQueueTestLongRead13 extends GenericTest(
   "Queue",
   (p:Parameters) => new SyncQueueTestWrapper(UInt(16.W), 13),
   (c:SyncQueueTestWrapper[UInt]) => new TestSyncQueueLongRead(c))
+
 class SyncQueueTestWaveRead24 extends GenericTest(
   "Queue",
   (p:Parameters) => new SyncQueueTestWrapper(UInt(16.W), 24),
   (c:SyncQueueTestWrapper[UInt]) => new TestSyncQueueWaveRead(c))
+
 class OnePorMemTest extends GenericTest(
   "Queue",
   (p:Parameters) => new OnePortMem(UInt(16.W), 16, ""),

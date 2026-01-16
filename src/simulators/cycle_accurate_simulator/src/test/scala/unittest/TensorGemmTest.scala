@@ -252,16 +252,16 @@ class TensorGemmIdxTester(c: TensorGemmSimple) extends ChiselSim {
       inp_mock.logical_step(sram_valid)
       wgt_mock.logical_step(sram_valid)
       acc_mock.logical_step(sram_valid)
-      if (c.io.uop.idx.valid.peek() == 1) {
+      if (c.io.uop.idx.valid.peekBoolean()) {
         c.io.uop.idx.bits.expect(uop_indices.dequeue())
       }
-      if (c.io.acc.rd(0).idx.valid.peek() == 1) {
+      if (c.io.acc.rd(0).idx.valid.peekBoolean()) {
         c.io.acc.rd(0).idx.bits.expect(acc_indices.dequeue())
       }
-      if (c.io.inp.rd(0).idx.valid.peek() == 1) {
+      if (c.io.inp.rd(0).idx.valid.peekBoolean()) {
         c.io.inp.rd(0).idx.bits.expect(inp_indices.dequeue())
       }
-      if (c.io.wgt.rd(0).idx.valid.peek() == 1) {
+      if (c.io.wgt.rd(0).idx.valid.peekBoolean()) {
         c.io.wgt.rd(0).idx.bits.expect(wgt_indices.dequeue())
       }
       if (c.io.acc.wr(0).valid.peekBoolean()) {
@@ -385,7 +385,7 @@ class TensorGemmIndexGeneratorTester(c: TensorGemmIndexGenerator, debug: Boolean
 
     def logical_step() : Unit = {
       c.clock.step(1)
-      if (c.io.valid.peek() == 1) {
+      if (c.io.valid.peekBoolean()) {
         c.io.uop_idx.expect(uop_indices.dequeue())
         c.io.acc_i.expect(acc_indices.dequeue())
         c.io.inp_i.expect(inp_indices.dequeue())
@@ -425,7 +425,7 @@ class TensorGemmIndexGeneratorTester(c: TensorGemmIndexGenerator, debug: Boolean
 
   val end = (uop_end-uop_begin)*lp_0*lp_1
   var count = 0
-  while(c.io.last.peek() == 0 && count < 10*end + 100) {
+  while(c.io.last.peekBoolean() && count < 10*end + 100) {
     mocks.logical_step()
     count += 1
   }
@@ -525,16 +525,16 @@ class TensorGemmPipelinedTester(c: TensorGemmPipelinedSplit, debug: Boolean = fa
       inp_mock.logical_step(None)
       wgt_mock.logical_step(None)
       acc_mock.logical_step(None)
-      if (c.io.uop.idx.valid.peek() == 1) {
+      if (c.io.uop.idx.valid.peekBoolean()) {
         c.io.uop.idx.bits.expect(uop_indices.dequeue())
       }
-      if (c.io.acc.rd(0).idx.valid.peek() == 1) {
+      if (c.io.acc.rd(0).idx.valid.peekBoolean()) {
         c.io.acc.rd(0).idx.bits.expect(acc_indices.dequeue())
       }
-      if (c.io.inp.rd(0).idx.valid.peek() == 1) {
+      if (c.io.inp.rd(0).idx.valid.peekBoolean()) {
         c.io.inp.rd(0).idx.bits.expect(inp_indices.dequeue())
       }
-      if (c.io.wgt.rd(0).idx.valid.peek() == 1) {
+      if (c.io.wgt.rd(0).idx.valid.peekBoolean()) {
         c.io.wgt.rd(0).idx.bits.expect(wgt_indices.dequeue())
       }
       if (c.io.acc.wr(0).valid.peekBoolean()) {
@@ -577,7 +577,7 @@ class TensorGemmPipelinedTester(c: TensorGemmPipelinedSplit, debug: Boolean = fa
   var count = 0
   val end = (uop_end-uop_begin)*lp_0*lp_1
 
-  while (c.io.done.peek() == 0 && count < 10*end + 100) {
+  while (!c.io.done.peekBoolean() && count < 10*end + 100) {
     mocks.logical_step()
     c.io.start.poke( 0)
   }
@@ -594,7 +594,6 @@ class TensorGemmPipelinedTest extends GenericTest("TensorGemmPipelined",
 
 class TensorGemmResetTester(c: TensorGemm) extends ChiselSim {
   c.io.start.poke( 0)
-
   val uop_begin = 0
   val uop_end = 2
   assert(uop_begin < uop_end)
@@ -734,7 +733,7 @@ class TensorGemmResetTester(c: TensorGemm) extends ChiselSim {
   c.io.state.expect(c.sIdle)
   c.io.start.poke( 1)
 
-  while(c.io.done.peek() == 0) {
+  while(!c.io.done.peekBoolean()) {
     mocks.logical_step(0, 0)
     c.io.start.poke( 0)
   }

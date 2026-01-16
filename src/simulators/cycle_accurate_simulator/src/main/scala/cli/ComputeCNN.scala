@@ -39,6 +39,7 @@ class ComputeCNN(c: Compute, CNN_param: String, doCompare: Boolean = true, debug
   val nb_layers = params("layers").toInt
   var outScratchpad: Map[BigInt, Array[BigInt]] = Map.empty
 
+val root = "examples_compute/lenet5/"
   def fileExists(filePath: String): Boolean = {
     val newFilePath =
       if (!fromResources) {
@@ -48,38 +49,38 @@ class ComputeCNN(c: Compute, CNN_param: String, doCompare: Boolean = true, debug
         s"$basePath/" + filePath
       }
       else {
-        filePath
+        root+filePath
       }
     new File(newFilePath).exists()
   }
 
   for (i <- 1 to nb_layers) {
     val inputFile = if (i == 1)
-      ComputeSimulator.build_scratchpad_binary("input.bin", DataType.INP, ComputeSimulator.getBaseAddr(s"base_addr_L$i.csv", fromResources)("inp"), isDRAM = false, fromResources)
+      ComputeSimulator.build_scratchpad_binary(root+"input.bin", DataType.INP, ComputeSimulator.getBaseAddr(root+s"base_addr_L$i.csv", fromResources)("inp"), isDRAM = false, fromResources)
     else outScratchpad
 
     val computeSimulator =
       if (doCompare && fileExists(s"outL$i.bin")) {
         new ComputeSimulator(c,
-          s"instructions_L$i.bin",
-          s"uop_L$i.bin",
+          root+s"instructions_L$i.bin",
+          root+s"uop_L$i.bin",
           inputFile,
-          s"weight_L$i.bin",
-          s"out_init_L$i.bin",
-          "accumulator.bin",
-          s"outL$i.bin",
-          s"base_addr_L$i.csv",
+          root+s"weight_L$i.bin",
+          root+s"out_init_L$i.bin",
+          root+"accumulator.bin",
+          root+s"outL$i.bin",
+          root+s"base_addr_L$i.csv",
           doCompare = true, debug, fromResources)
       }
       else {
         new ComputeSimulator(c,
-          s"instructions_L$i.bin",
-          s"uop_L$i.bin",
+          root + s"instructions_L$i.bin",
+          root + s"uop_L$i.bin",
           inputFile,
-          s"weight_L$i.bin",
-          s"out_init_L$i.bin",
-          "accumulator.bin",
-          s"base_addr_L$i.csv",
+          root + s"weight_L$i.bin",
+          root + s"out_init_L$i.bin",
+          root + "accumulator.bin",
+          root + s"base_addr_L$i.csv",
           doCompare = false, debug, fromResources)
       }
 
@@ -99,7 +100,7 @@ class ComputeCNN(c: Compute, CNN_param: String, doCompare: Boolean = true, debug
           params(s"out_matrix_width$i").toInt, params(s"batch_size$i").toInt, params(s"out_tensor_channel$i").toInt, params(s"out_tensor_height$i").toInt,
           params(s"out_tensor_width$i").toInt, kernel_size, params(s"stride$i").toInt, params(s"isSquare$i").toBoolean)
         val j = i + 1
-        val base_addr_inp = ComputeSimulator.getBaseAddr(s"base_addr_L$j.csv", fromResources = false)
+        val base_addr_inp = ComputeSimulator.getBaseAddr(root + s"base_addr_L$j.csv", fromResources)
         vector_to_map(reshaped_out, base_addr_inp("inp"))
       }
       else {
