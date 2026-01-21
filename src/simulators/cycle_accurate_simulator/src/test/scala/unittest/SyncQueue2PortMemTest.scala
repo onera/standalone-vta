@@ -21,126 +21,125 @@ package unittest
 
 import chisel3._
 import chisel3.util._
-import chiseltest.iotesters._
 import vta.util._
 import vta.util.config._
+import chisel3.simulator.ChiselSim
 
-class Checker2P(c: SyncQueue2PTestWrapper[UInt], t: PeekPokeTester[SyncQueue2PTestWrapper[UInt]]) {
-
+class Checker2P(c: SyncQueue2PTestWrapper[UInt]) extends ChiselSim {
   def bits (bits: Int) = {
-    t.c.io.tq.deq.bits.expect(bits)
-    t.c.io.rq.deq.bits.expect(bits)
+    c.io.tq.deq.bits.expect(bits)
+    c.io.rq.deq.bits.expect(bits)
 
   }
   def ready (bits: Int) = {
-    t.c.io.tq.enq.ready.expect(bits)
-    t.c.io.rq.enq.ready.expect(bits)
+    c.io.tq.enq.ready.expect(bits)
+    c.io.rq.enq.ready.expect(bits)
 
   }
   def valid (bits: Int) = {
-    t.c.io.tq.deq.valid.expect(bits)
-    t.c.io.rq.deq.valid.expect(bits)
+    c.io.tq.deq.valid.expect(bits)
+    c.io.rq.deq.valid.expect(bits)
 
   }
   def status () = {
-    val rv = t.c.io.rq.enq.ready.peek()
-    t.c.io.tq.enq.ready.expect(rv)
-    val rc = t.c.io.rq.count.peek()
-    t.c.io.tq.count.expect(rc)
-    val vv = t.c.io.rq.deq.valid.peek()
-    t.c.io.tq.deq.valid.expect(vv)
+    val rv = c.io.rq.enq.ready.peek()
+    c.io.tq.enq.ready.expect(rv)
+    val rc = c.io.rq.count.peek()
+    c.io.tq.count.expect(rc)
+    val vv = c.io.rq.deq.valid.peek()
+    c.io.tq.deq.valid.expect(vv)
     if (vv != 0) {
-      val bv = t.c.io.rq.deq.bits.peek()
-      t.c.io.tq.deq.bits.expect(bv)
+      val bv = c.io.rq.deq.bits.peek()
+      c.io.tq.deq.bits.expect(bv)
     }
-    t.c.io.rq.count.peek()
-    t.c.io.tq.count.peek()
+    c.io.rq.count.peek()
+    c.io.tq.count.peek()
   }
 }
-class TestSyncQueue2PLongRead(c: SyncQueue2PTestWrapper[UInt]) extends PeekPokeTester(c) {
+class TestSyncQueue2PLongRead(c: SyncQueue2PTestWrapper[UInt]) extends ChiselSim {
 
-  val chr = new Checker2P (c, this)
+  val chr = new Checker2P (c)
 
   def testFillRW(depth: Int) = {
     val qsize = c.io.tq.count.peek()
     require(qsize == 0, s"-F- An empty queue is expected ${qsize}")
 
-    poke (c.io.tq.deq.ready, 0)
-    poke (c.io.tq.enq.valid, 0)
+    c.io.tq.deq.ready.poke(false.B)
+    c.io.tq.enq.valid.poke(false.B)
     chr.ready(1)
-    step(1)
+    c.clock.step()
 
     // fill up to depth
     for (i <- 10 until 10 + depth) {
-      poke (c.io.tq.enq.bits, i)
-      poke (c.io.tq.enq.valid, 1)
+      c.io.tq.enq.bits.poke(i)
+      c.io.tq.enq.valid.poke(1)
       chr.status()
-      step(1)
+      c.clock.step()
 
     }
     // read and write same cycle
     for (i <- 30 + depth until 30 + depth * 2) {
-      poke (c.io.tq.enq.valid, 1)
-      poke (c.io.tq.deq.ready, 1)
-      poke (c.io.tq.enq.bits, i)
+      c.io.tq.enq.valid.poke(1)
+      c.io.tq.deq.ready.poke(1)
+      c.io.tq.enq.bits.poke(i)
       chr.status()
-      step(1)
+      c.clock.step()
     }
     // read out
     for (i <- 0 until depth + 1) {
-      poke (c.io.tq.enq.valid, 0)
-      poke (c.io.tq.deq.ready, 1)
-      poke (c.io.tq.enq.bits, 99)
+      c.io.tq.enq.valid.poke(0)
+      c.io.tq.deq.ready.poke(1)
+      c.io.tq.enq.bits.poke(99)
       chr.status()
-      step(1)
+      c.clock.step()
     }
   }
   for (i <- 1 until 28) {
     testFillRW(i)
   }
 }
-class TestSyncQueue2PWaveRead(c: SyncQueue2PTestWrapper[UInt]) extends PeekPokeTester(c) {
+class TestSyncQueue2PWaveRead(c: SyncQueue2PTestWrapper[UInt]) extends ChiselSim {
 
-  val chr = new Checker2P (c, this)
+  val chr = new Checker2P (c)
 
   def testFillRW(depth: Int) = {
     val qsize = c.io.tq.count.peek()
     require(qsize == 0, s"-F- An empty queue is expected ${qsize}")
 
-    poke (c.io.tq.deq.ready, 0)
-    poke (c.io.tq.enq.valid, 0)
+    c.io.tq.deq.ready.poke(false.B)
+    c.io.tq.enq.valid.poke(false.B)
     chr.ready(1)
-    step(1)
+    c.clock.step()
 
     // fill up to depth
     for (i <- 10 until 10 + depth) {
-      poke (c.io.tq.enq.bits, i)
-      poke (c.io.tq.enq.valid, 1)
+      c.io.tq.enq.bits.poke(i)
+      c.io.tq.enq.valid.poke(1)
       chr.status()
-      step(1)
+      c.clock.step()
 
     }
     // read out, no write
-    poke (c.io.tq.enq.valid, 0)
-    poke (c.io.tq.deq.ready, 1)
+    c.io.tq.enq.valid.poke(false.B)
+    c.io.tq.deq.ready.poke(1)
     for (i <- 0 until 7) {
       chr.status()
-      step(1)
+      c.clock.step()
     }
     // fill more
-    poke (c.io.tq.deq.ready, 0)
-    poke (c.io.tq.enq.valid, 1)
+    c.io.tq.deq.ready.poke(false.B)
+    c.io.tq.enq.valid.poke(1)
     for (i <- 0 until 13) {
-      poke (c.io.tq.enq.bits, 99 + i)
+      c.io.tq.enq.bits.poke(99 + i)
       chr.status()
-      step(1)
+      c.clock.step()
     }
     // read out, no write
-    poke (c.io.tq.enq.valid, 0)
-    poke (c.io.tq.deq.ready, 1)
+    c.io.tq.enq.valid.poke(false.B)
+    c.io.tq.deq.ready.poke(1)
     for (i <- 1 until 14 + depth) {
       chr.status()
-      step(1)
+      c.clock.step()
     }
   }
   // read

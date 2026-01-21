@@ -1,6 +1,7 @@
 package unittest.decode
 
-import chiseltest.iotesters.PeekPokeTester
+import chisel3._
+import chisel3.simulator.ChiselSim
 import unittest.GenericTest
 import vta.core._
 import vta.util.config.Parameters
@@ -8,7 +9,7 @@ import vta.util.config.Parameters
 import scala.language.postfixOps
 
 class LoadDecodeTest(c: LoadDecode, debug: Boolean = false)
-  extends PeekPokeTester(c) {
+  extends ChiselSim {
   if (debug) {
     // Print the test name
     println("TEST NAME: \n\t LoadDecodeTester")

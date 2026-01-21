@@ -20,11 +20,11 @@
 package unittest
 
 import chisel3.util._
-import chiseltest.iotesters._
 import scala.util.Random
 import unittest.util._
 import vta.core._
 import vta.util.config._
+import chisel3.simulator.ChiselSim
 
 object Alu_ref {
   /* alu_ref
@@ -67,7 +67,7 @@ object Alu_ref {
   }
 }
 
-class AluVectorTester(c: AluVector, seed: Int = 47) extends PeekPokeTester(c) {
+class AluVectorTester(c: AluVector, seed: Int = 47) extends ChiselSim {
   val r = new Random(seed)
 
   val num_ops = ALU_OP_NUM
@@ -89,14 +89,14 @@ class AluVectorTester(c: AluVector, seed: Int = 47) extends PeekPokeTester(c) {
     c.io.acc_a.data.valid.poke( 1)
     c.io.acc_b.data.valid.poke( 1)
 
-    step(1)
+    c.clock.step(1)
 
     c.io.acc_a.data.valid.poke( 0)
     c.io.acc_b.data.valid.poke( 0)
 
     // wait for valid signal
     while (c.io.acc_y.data.valid.peek() == BigInt(0)) {
-      step(1) // advance clock
+      c.clock.step(1) // advance clock
     }
     if (c.io.acc_y.data.valid.peek() == BigInt(1)) {
       for (i <- 0 until c.blockOut) {

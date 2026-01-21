@@ -1,7 +1,7 @@
 package cli
 
 import chisel3._
-import chiseltest.iotesters._
+import chisel3.simulator.ChiselSim
 import unittest.GenericTest
 import vta.core.ISA._
 import vta.core._
@@ -12,7 +12,7 @@ import scala.language.postfixOps
 
 class ComputeTest(c: Compute, insn: String, uop: String, input: String, weight: String, out: String, acc: String, expected_out: String,
                   base_addresses: String, doCompare: Boolean = false, debug: Boolean = false, fromResources: Boolean = true)
-  extends PeekPokeTester(c) {
+  extends ChiselSim {
 
   val computeSimulator = new ComputeSimulator(
     c, insn, uop, input, weight, out, acc, expected_out, base_addresses,

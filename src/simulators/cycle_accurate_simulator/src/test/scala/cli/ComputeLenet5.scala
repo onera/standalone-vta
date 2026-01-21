@@ -1,12 +1,11 @@
 package cli
 
-import chiseltest.iotesters.PeekPokeTester
+// import chiseltest.iotesters.PeekPokeTester
 import unittest.GenericTest
 import vta.core.Compute
 import vta.util.config.Parameters
 
-class ComputeLenet5(c: Compute, lenet_params: String, debug: Boolean = false, fromResources: Boolean = true)
-  extends PeekPokeTester(c) {
+class ComputeLenet5(c: Compute, lenet_params: String, debug: Boolean = false, fromResources: Boolean = true) {
 
   val computeLeNet5 = new ComputeCNN(
     c, lenet_params,

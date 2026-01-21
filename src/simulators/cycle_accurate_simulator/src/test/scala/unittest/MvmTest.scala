@@ -21,13 +21,12 @@ package unittest
 
 import chisel3._
 import chisel3.util._
-import chiseltest._
-import chiseltest.iotesters._
+import chisel3.simulator.ChiselSim
 import scala.math.pow
 import unittest.util._
 import vta.core._
 
-class TestMatrixVectorMultiplication(c: MatrixVectorMultiplication) extends PeekPokeTester(c) {
+class TestMatrixVectorMultiplication(c: MatrixVectorMultiplication) extends ChiselSim {
 
   /* mvm_ref
    *
@@ -73,7 +72,7 @@ class TestMatrixVectorMultiplication(c: MatrixVectorMultiplication) extends Peek
     c.io.wgt.data.valid.poke( 1)
     c.io.acc_i.data.valid.poke( 1)
 
-    step(1)
+    c.clock.step()
 
     c.io.inp.data.valid.poke( 0)
     c.io.wgt.data.valid.poke( 0)
@@ -81,7 +80,7 @@ class TestMatrixVectorMultiplication(c: MatrixVectorMultiplication) extends Peek
 
     // wait for valid signal
     while (c.io.acc_o.data.valid.peek() == BigInt(0)) {
-      step(1) // advance clock
+      c.clock.step() // advance clock
     }
     if (c.io.acc_o.data.valid.peek() == BigInt(1)) {
       for (i <- 0 until c.size) {

@@ -21,14 +21,14 @@ package unittest
 
 import chisel3._
 import chisel3.util._
-import chiseltest._
-import chiseltest.iotesters._
 import scala.util.Random
 import unittest.util._
 import vta.core._
 import vta.util.config._
+import chisel3.simulator.ChiselSim
+import chisel3.experimental.VecLiterals._
 
-class TensorAluIndexGeneratorTester(c: TensorAluIndexGenerator, alu_use_imm : Int = 0, debug: Boolean = false) extends PeekPokeTester(c) {
+class TensorAluIndexGeneratorTester(c: TensorAluIndexGenerator, alu_use_imm : Int = 0, debug: Boolean = false) extends ChiselSim  {
 
 
   val uop_begin = 0
@@ -61,7 +61,7 @@ class TensorAluIndexGeneratorTester(c: TensorAluIndexGenerator, alu_use_imm : In
     val src_indices = new scala.collection.mutable.Queue[BigInt]
 
     def logical_step() : Unit = {
-      step(1)
+      c.clock.step()
       if (c.io.valid.peek() == 1) {
         c.io.uop_idx.expect(uop_indices.dequeue())
         c.io.dst_idx.expect(dst_indices.dequeue())
@@ -107,7 +107,7 @@ class TensorAluIndexGeneratorTester(c: TensorAluIndexGenerator, alu_use_imm : In
     count += 1
   }
   mocks.test_if_done()
-  step(1)
+  c.clock.step()
 }
 
 class TensorAluIndexGenerator_0_Test extends GenericTest("TensorAluIndexGenerator_0", (p:Parameters) =>
@@ -116,7 +116,7 @@ class TensorAluIndexGenerator_0_Test extends GenericTest("TensorAluIndexGenerato
 class TensorAluIndexGenerator_1_Test extends GenericTest("TensorAluIndexGenerator_1", (p:Parameters) =>
   new TensorAluIndexGenerator()(p), (c:TensorAluIndexGenerator) => new TensorAluIndexGeneratorTester(c, 1))
 
-class TensorAluPipelinedTester(c: TensorAlu, debug: Boolean = false) extends PeekPokeTester(c) {
+class TensorAluPipelinedTester(c: TensorAlu, debug: Boolean = false) extends ChiselSim {
   c.io.start.poke( 0)
 
   val uop_begin = 0
@@ -161,15 +161,15 @@ class TensorAluPipelinedTester(c: TensorAlu, debug: Boolean = false) extends Pee
 
   val acc = IndexedSeq.tabulate(c.io.acc.rd(0).data.bits(0).size){ i => BigInt(i) }
   for { lhs <- c.io.acc.rd(0).data.bits} {
-    lhs.poke( acc.reverse)
+    lhs.zip(acc.reverse).foreach{case (p,s) => p.poke(s)}
   }
 
   class TensorMasterMock(tm: TensorMaster) {
     tm.rd(0).data.valid.poke( 0)
-    var valid = tm.rd(0.peek().idx.valid)
+    var valid = tm.rd(0).idx.valid.peek()
     def logical_step(v: Option[BigInt]) : Unit = {
-      tm.rd(0).data.valid.poke( valid)
-      valid = tm.rd(0.peek().idx.valid)
+      tm.rd(0).data.valid.poke(valid)
+      valid = tm.rd(0).idx.valid.peek()
       for { x <- v} tm.rd(0).idx.valid.expect(x)
     }
   }
@@ -184,7 +184,7 @@ class TensorAluPipelinedTester(c: TensorAlu, debug: Boolean = false) extends Pee
     }
   }
 
-  class Mocks {
+  class Mocks extends ChiselSim {
     val uop_mock = new UopMasterMock(c.io.uop)
     val acc_mock = new TensorMasterMock(c.io.acc)
 
@@ -194,19 +194,19 @@ class TensorAluPipelinedTester(c: TensorAlu, debug: Boolean = false) extends Pee
     val out_indices = new scala.collection.mutable.Queue[BigInt]
 
     def logical_step() : Unit = {
-      step(1)
+      c.clock.step()
       uop_mock.logical_step(None)
       acc_mock.logical_step(None)
       if (c.io.uop.idx.valid.peek() == 1) {
         c.io.uop.idx.bits.expect(uop_indices.dequeue())
       }
-      if (c.io.acc.rd(0.peek().idx.valid) == 1) {
+      if (c.io.acc.rd(0).idx.valid.peekBoolean()) {
         c.io.acc.rd(0).idx.bits.expect(acc_indices.dequeue())
       }
-      if (c.io.acc.wr(0.peek().valid) == 1) {
+      if (c.io.acc.wr(0).valid.peekBoolean()) {
         c.io.acc.wr(0).bits.idx.expect(accout_indices.dequeue())
       }
-      if (c.io.out.wr(0.peek().valid) == 1) {
+      if (c.io.out.wr(0).valid.peekBoolean()) {
         c.io.out.wr(0).bits.idx.expect(out_indices.dequeue())
       }
     }
@@ -235,9 +235,9 @@ class TensorAluPipelinedTester(c: TensorAlu, debug: Boolean = false) extends Pee
     mocks.out_indices.enqueue(dst_offset + dst_0*cnt_o + dst_1*cnt_i)
   }
 
-  c.io.start.poke( 0)
-  step(1)
-  c.io.start.poke( 1)
+  c.io.start.poke(false.B)
+  c.clock.step()
+  c.io.start.poke(true.B)
 
   var count = 0
   val end = (uop_end-uop_begin)*lp_0*lp_1

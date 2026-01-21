@@ -21,196 +21,195 @@ package unittest
 
 import chisel3._
 import chisel3.util._
-import chiseltest._
-import chiseltest.iotesters._
 import scala.util.Random
 import unittest.util._
 import vta.util._
 import vta.util.config._
+import chisel3.simulator.ChiselSim
 
-class TestOnePortMem(c: OnePortMem[UInt], debug: Boolean = false) extends PeekPokeTester(c) {
+class TestOnePortMem(c: OnePortMem[UInt], debug: Boolean = false) extends ChiselSim {
 
   // write a:0 d:24
   if (debug) {
     println("-----------------------------")
     println("Cycle 0 write 24 to address 0")
   }
-  poke (c.io.wr_en, 1)
-  poke (c.io.wr_data, 24)
-  poke (c.io.ch_en, 1)
-  poke (c.io.addr, 0)
-  step(1)
+  c.io.wr_en.poke(1)
+  c.io.wr_data.poke(24)
+  c.io.ch_en.poke(1)
+  c.io.addr.poke(0)
+  c.clock.step()
   // read a:0
   if (debug) {
     println("-----------------------------")
     println("Cycle 1 read address 0")
   }
-  poke (c.io.wr_en, 0)
-  poke (c.io.addr, 0)
-  poke (c.io.ch_en, 1)
-  step(1)
+  c.io.wr_en.poke(0)
+  c.io.addr.poke(0)
+  c.io.ch_en.poke(1)
+  c.clock.step()
   // write a:1 d:99
   if (debug) {
     println("-----------------------------")
     println("Cycle 2 write 99 to address 1")
   }
-  poke (c.io.wr_en, 1)
-  poke (c.io.wr_data, 99)
-  poke (c.io.ch_en, 1)
-  poke (c.io.addr, 1)
+  c.io.wr_en.poke(1)
+  c.io.wr_data.poke(99)
+  c.io.ch_en.poke(1)
+  c.io.addr.poke(1)
   // read d:24
   if (debug) {
     println("Cycle 2 read expect data 24")
   }
-  expect (c.io.rd_data, 24)
-  step(1)
+  c.io.rd_data.expect(24)
+  c.clock.step()
   if (debug) {
     println("-----------------------------")
     println("Cycle 3 should still read data 24")
   }
-  poke (c.io.ch_en, 0)
+  c.io.ch_en.poke(0)
   // read d:24
-  expect (c.io.rd_data, 24)
-  step(1)
+  c.io.rd_data.expect(24)
+  c.clock.step()
   if (debug) {
     println("-----------------------------")
     println("Cycle 4 read address 0")
   }
-  poke (c.io.wr_en, 0)
-  poke (c.io.addr, 0)
-  poke (c.io.ch_en, 1)
-  step(1)
+  c.io.wr_en.poke(0)
+  c.io.addr.poke(0)
+  c.io.ch_en.poke(1)
+  c.clock.step()
   if (debug) {
     println("-----------------------------")
   }
   // write a:1 d:99
-  poke (c.io.wr_en, 0)
-  poke (c.io.wr_data, 99)
-  poke (c.io.ch_en, 0)
-  poke (c.io.addr, 1)
+  c.io.wr_en.poke(0)
+  c.io.wr_data.poke(99)
+  c.io.ch_en.poke(0)
+  c.io.addr.poke(1)
   // read d:24
   if (debug) {
     println("Cycle 5 read expect data 24")
   }
-  expect (c.io.rd_data, 24)
-  step(1)
+  c.io.rd_data.expect(24)
+  c.clock.step()
 }
-class Checker(c: SyncQueueTestWrapper[UInt], t: PeekPokeTester[SyncQueueTestWrapper[UInt]]) {
+class Checker(c: SyncQueueTestWrapper[UInt]) extends ChiselSim {
 
   def bits (bits: Int) = {
-    t.c.io.tq.deq.bits.expect(bits)
-    t.c.io.rq.deq.bits.expect(bits)
+    c.io.tq.deq.bits.expect(bits)
+    c.io.rq.deq.bits.expect(bits)
 
   }
   def ready (bits: Int) = {
-    t.c.io.tq.enq.ready.expect(bits)
-    t.c.io.rq.enq.ready.expect(bits)
+    c.io.tq.enq.ready.expect(bits)
+    c.io.rq.enq.ready.expect(bits)
 
   }
   def valid (bits: Int) = {
-    t.c.io.tq.deq.valid.expect(bits)
-    t.c.io.rq.deq.valid.expect(bits)
+    c.io.tq.deq.valid.expect(bits)
+    c.io.rq.deq.valid.expect(bits)
 
   }
   def status () = {
-    val rv = t.c.io.rq.enq.ready.peek()
-    t.c.io.tq.enq.ready.expect(rv)
-    val rc = t.c.io.rq.count.peek()
-    t.c.io.tq.count.expect(rc)
-    val vv = t.c.io.rq.deq.valid.peek()
-    t.c.io.tq.deq.valid.expect(vv)
+    val rv = c.io.rq.enq.ready.peek()
+    c.io.tq.enq.ready.expect(rv)
+    val rc = c.io.rq.count.peek()
+    c.io.tq.count.expect(rc)
+    val vv = c.io.rq.deq.valid.peek()
+    c.io.tq.deq.valid.expect(vv)
     if (vv != 0) {
-      val bv = t.c.io.rq.deq.bits.peek()
-      t.c.io.tq.deq.bits.expect(bv)
+      val bv = c.io.rq.deq.bits.peek()
+      c.io.tq.deq.bits.expect(bv)
     }
-    t.c.io.rq.count.peek()
-    t.c.io.tq.count.peek()
+    c.io.rq.count.peek()
+    c.io.tq.count.peek()
   }
 }
-class TestSyncQueueLongRead(c: SyncQueueTestWrapper[UInt]) extends PeekPokeTester(c) {
+class TestSyncQueueLongRead(c: SyncQueueTestWrapper[UInt])  extends ChiselSim {
 
-  val chr = new Checker (c, this)
+  val chr = new Checker (c)
 
   def testFillRW(depth: Int) = {
     val qsize = c.io.tq.count.peek()
     require(qsize == 0, s"-F- An empty queue is expected ${qsize}")
 
-    poke (c.io.tq.deq.ready, 0)
-    poke (c.io.tq.enq.valid, 0)
+    c.io.tq.deq.ready.poke(0)
+    c.io.tq.enq.valid.poke(0)
     chr.ready(1)
-    step(1)
+    c.clock.step()
 
     // fill up to depth
     for (i <- 10 until 10 + depth) {
-      poke (c.io.tq.enq.bits, i)
-      poke (c.io.tq.enq.valid, 1)
+      c.io.tq.enq.bits.poke(i)
+      c.io.tq.enq.valid.poke(1)
       chr.status()
-      step(1)
+      c.clock.step()
 
     }
     // read and write same cycle
     for (i <- 30 + depth until 30 + depth * 2) {
-      poke (c.io.tq.enq.valid, 1)
-      poke (c.io.tq.deq.ready, 1)
-      poke (c.io.tq.enq.bits, i)
+      c.io.tq.enq.valid.poke(1)
+      c.io.tq.deq.ready.poke(1)
+      c.io.tq.enq.bits.poke(i)
       chr.status()
-      step(1)
+      c.clock.step()
     }
     // read out
     for (i <- 0 until depth + 1) {
-      poke (c.io.tq.enq.valid, 0)
-      poke (c.io.tq.deq.ready, 1)
-      poke (c.io.tq.enq.bits, 99)
+      c.io.tq.enq.valid.poke(0)
+      c.io.tq.deq.ready.poke(1)
+      c.io.tq.enq.bits.poke(99)
       chr.status()
-      step(1)
+      c.clock.step()
     }
   }
   for (i <- 1 until 28) {
     testFillRW(i)
   }
 }
-class TestSyncQueueWaveRead(c: SyncQueueTestWrapper[UInt]) extends PeekPokeTester(c) {
+class TestSyncQueueWaveRead(c: SyncQueueTestWrapper[UInt]) extends ChiselSim {
 
-  val chr = new Checker (c, this)
+  val chr = new Checker (c)
 
   def testFillRW(depth: Int) = {
     val qsize = c.io.tq.count.peek()
     require(qsize == 0, s"-F- An empty queue is expected ${qsize}")
 
-    poke (c.io.tq.deq.ready, 0)
-    poke (c.io.tq.enq.valid, 0)
+    c.io.tq.deq.ready.poke(0)
+    c.io.tq.enq.valid.poke(0)
     chr.ready(1)
-    step(1)
+    c.clock.step()
 
     // fill up to depth
     for (i <- 10 until 10 + depth) {
-      poke (c.io.tq.enq.bits, i)
-      poke (c.io.tq.enq.valid, 1)
+      c.io.tq.enq.bits.poke(i)
+      c.io.tq.enq.valid.poke(1)
       chr.status()
-      step(1)
+      c.clock.step()
 
     }
     // read out, no write
-    poke (c.io.tq.enq.valid, 0)
-    poke (c.io.tq.deq.ready, 1)
+    c.io.tq.enq.valid.poke(0)
+    c.io.tq.deq.ready.poke(1)
     for (i <- 0 until 7) {
       chr.status()
-      step(1)
+      c.clock.step()
     }
     // fill more
-    poke (c.io.tq.deq.ready, 0)
-    poke (c.io.tq.enq.valid, 1)
+    c.io.tq.deq.ready.poke(0)
+    c.io.tq.enq.valid.poke(1)
     for (i <- 0 until 13) {
-      poke (c.io.tq.enq.bits, 99 + i)
+      c.io.tq.enq.bits.poke(99 + i)
       chr.status()
-      step(1)
+      c.clock.step()
     }
     // read out, no write
-    poke (c.io.tq.enq.valid, 0)
-    poke (c.io.tq.deq.ready, 1)
+    c.io.tq.enq.valid.poke(0)
+    c.io.tq.deq.ready.poke(1)
     for (i <- 1 until 14 + depth) {
       chr.status()
-      step(1)
+      c.clock.step()
     }
   }
   // read

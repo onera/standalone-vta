@@ -2,8 +2,6 @@ package simulatorTest.gemm
 
 import chisel3._
 import chisel3.util._
-import chiseltest._
-import chiseltest.iotesters._
 import unittest.util._
 import vta.core._
 import vta.util.config._
@@ -14,6 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 
 import unittest.{GenericTest, TensorGemmJsonTester}
+import chisel3.simulator.ChiselSim
 
 /**
  * Similar to unittest.TensorGemmJsonTest
@@ -22,7 +21,7 @@ import unittest.{GenericTest, TensorGemmJsonTester}
 
 class TensorGemmTest(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
                      debug: Boolean = false)
-  extends PeekPokeTester(c) {
+  extends ChiselSim {
 
   // Print the test name
   if(debug) {
@@ -155,11 +154,11 @@ class TensorGemmTest(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
   // Read scratchpad
   class TensorMasterMock(tm: TensorMaster, scratchpad: Map[BigInt, Array[BigInt]]) {
     tm.rd(0).data.valid.poke( 0)
-    var valid = tm.rd(0.peek().idx.valid)
+    var valid = tm.rd(0).idx.valid.peekBoolean()
     var idx: Int = 0
 
     def logical_step(): Unit = {
-      if (valid == 1) {
+      if (valid) {
         tm.rd(0).data.valid.poke( 1)
         val cols = tm.rd(0).data.bits(0).size
         for {i <- 0 until tm.rd(0).data.bits.size
@@ -170,22 +169,22 @@ class TensorGemmTest(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
       } else {
         tm.rd(0).data.valid.poke( 0)
       }
-      valid = tm.rd(0.peek().idx.valid)
-      idx = tm.rd(0.peek().idx.bits).toInt
+      valid = tm.rd(0).idx.valid.peekBoolean()
+      idx = tm.rd(0).idx.bits.peek().litValue.toInt
     }
   }
 
   // Write scratchpad
   class TensorMasterMockWr(tm: TensorMaster, scratchpad: Map[BigInt, Array[BigInt]]) {
     def logical_step(): Unit = {
-      if (tm.wr(0.peek().valid) == 1) {
-        val idx = tm.wr(0.peek().bits.idx).toInt
+      if (tm.wr(0).valid.peekBoolean()) {
+        val idx = tm.wr(0).bits.idx.peek().litValue.toInt
         val cols = tm.wr(0).bits.data(0).size
         for {
           i <- 0 until tm.wr(0).bits.data.size
           j <- 0 until cols
         } {
-          scratchpad(idx)(i * cols + j) = tm.wr(0.peek().bits.data(i)(j))
+          scratchpad(idx)(i * cols + j) = tm.wr(0).bits.data(i)(j).peek().litValue
         }
       }
     }
@@ -206,7 +205,7 @@ class TensorGemmTest(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
         um.data.valid.poke( 0)
       }
       valid = um.idx.valid.peek()
-      idx = um.idx.bits.peek().toInt
+      idx = um.idx.bits.peek().litValue.toInt
     }
   }
 
@@ -227,7 +226,7 @@ class TensorGemmTest(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
 
     // Emulate the clock
     def logical_step() : Unit = {
-      step(1)
+      c.clock.step(1)
       // Perform the defined operations for each emulated memory
       uop_mock.logical_step()
       inp_mock.logical_step()
@@ -238,34 +237,34 @@ class TensorGemmTest(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
       if (c.io.uop.idx.valid.peek() == 1) {
         c.io.uop.idx.bits.expect(uop_indices.dequeue())
       }
-      if (c.io.acc.rd(0.peek().idx.valid) == 1) {
+      if (c.io.acc.rd(0).idx.valid.peek() == 1) {
         c.io.acc.rd(0).idx.bits.expect(acc_indices.dequeue())
       }
-      if (c.io.inp.rd(0.peek().idx.valid) == 1) {
+      if (c.io.inp.rd(0).idx.valid.peek() == 1) {
         c.io.inp.rd(0).idx.bits.expect(inp_indices.dequeue())
         if (debug) {
           // Print INPUT vector
-          print(s"\n\nThe input vector (offset: ${c.io.inp.rd(0.peek().idx.bits)}): \n")
-          print_scratchpad(inp_scratchpad, c.io.inp.rd(0.peek().idx.bits), "INP")
+          print(s"\n\nThe input vector (offset: ${c.io.inp.rd(0).idx.bits.peek()}): \n")
+          print_scratchpad(inp_scratchpad, c.io.inp.rd(0).idx.bits.peek().litValue, "INP")
         }
       }
-      if (c.io.wgt.rd(0.peek().idx.valid) == 1) {
+      if (c.io.wgt.rd(0).idx.valid.peek() == 1) {
         c.io.wgt.rd(0).idx.bits.expect(wgt_indices.dequeue())
         if (debug) {
           // Print WEIGHT tensor
-          print(s"\n\nThe weight tensor (offset: ${c.io.wgt.rd(0.peek().idx.bits)}): \n")
-          print_scratchpad(wgt_scratchpad, c.io.wgt.rd(0.peek().idx.bits), "WGT")
+          print(s"\n\nThe weight tensor (offset: ${c.io.wgt.rd(0).idx.bits.peek()}): \n")
+          print_scratchpad(wgt_scratchpad, c.io.wgt.rd(0).idx.bits.peek().litValue, "WGT")
         }
       }
-      if (c.io.acc.wr(0.peek().valid) == 1) {
+      if (c.io.acc.wr(0).valid.peek() == 1) {
         c.io.acc.wr(0).bits.idx.expect(accout_indices.dequeue())
       }
-      if (c.io.out.wr(0.peek().valid) == 1) {
+      if (c.io.out.wr(0).valid.peek() == 1) {
         c.io.out.wr(0).bits.idx.expect(out_indices.dequeue())
         if (debug) {
           // Print the result
-          print(s"\n\nThe output vector (offset: ${c.io.out.wr(0.peek().bits.idx)}): \n") // Call acc and not out (???)
-          print_scratchpad(acc_scratchpad, c.io.out.wr(0.peek().bits.idx), "ACC")
+          print(s"\n\nThe output vector (offset: ${c.io.out.wr(0).bits.idx.peek()}): \n") // Call acc and not out (???)
+          print_scratchpad(acc_scratchpad, c.io.out.wr(0).bits.idx.peek().litValue, "ACC")
         }
       }
     }

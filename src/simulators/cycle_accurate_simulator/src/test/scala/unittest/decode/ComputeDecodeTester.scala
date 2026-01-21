@@ -1,6 +1,7 @@
 package unittest.decode
 
-import chiseltest.iotesters.PeekPokeTester
+import chisel3._
+import chisel3.simulator.ChiselSim
 import unittest.GenericTest
 import vta.core._
 import vta.util.config.Parameters
@@ -8,7 +9,7 @@ import vta.util.config.Parameters
 import scala.language.postfixOps
 
 class ComputeDecodeTest(c: ComputeDecode, debug:Boolean = false)
-  extends PeekPokeTester(c) {
+  extends ChiselSim {
   if (debug) {
     // Print the test name
     println("TEST NAME: \n\t ComputeDecodeTester")
@@ -280,7 +281,7 @@ class ComputeDecodeTest(c: ComputeDecode, debug:Boolean = false)
 }
 
 class AlternativeComputeMemDecodeTest(c: AlternativeComputeMemDecode, debug: Boolean = false)
-  extends PeekPokeTester(c) {
+  extends ChiselSim {
   if (debug) {
     // Print the test name
     println("TEST NAME: \n\t AlternativeComputeMemDecodeTester")
@@ -367,7 +368,7 @@ class AlternativeComputeMemDecodeTest(c: AlternativeComputeMemDecode, debug: Boo
 }
 
 class AlternativeComputeGemmDecodeTest(c: AlternativeComputeGemmDecode, debug:Boolean = false)
-  extends PeekPokeTester(c) {
+  extends ChiselSim {
   if (debug) {
     // Print the test name
     println("TEST NAME: \n\t AlternativeComputeGemmDecodeTester")

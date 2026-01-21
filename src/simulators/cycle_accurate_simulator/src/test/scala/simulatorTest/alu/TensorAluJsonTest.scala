@@ -1,7 +1,6 @@
 package simulatorTest.alu
 
 import chisel3._
-import chiseltest.iotesters.PeekPokeTester
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import scala.io._
@@ -9,10 +8,11 @@ import scala.language.postfixOps
 import vta.core._
 import vta.util.config._
 import unittest.GenericTest
+import chisel3.simulator.ChiselSim
 
 class TensorAluJsonTest(c: TensorAlu, fn : String = "/x.json",
                         debug : Boolean = false)
-  extends PeekPokeTester(c) {
+  extends ChiselSim {
 
   if (debug) {
     // Print the test name
@@ -148,10 +148,10 @@ class TensorAluJsonTest(c: TensorAlu, fn : String = "/x.json",
   // Read scratchpad
   class TensorMasterMock(tm: TensorMaster, scratchpad : Map[BigInt,Array[BigInt]]) {
     tm.rd(0).data.valid.poke( 0)
-    var valid = tm.rd(0.peek().idx.valid)
+    var valid = tm.rd(0).idx.valid.peekBoolean()
     var idx : Int = 0
     def logical_step() : Unit = {
-      if (valid == 1) {
+      if (valid) {
         tm.rd(0).data.valid.poke( 1)
         val cols = tm.rd(0).data.bits(0).size
         for {i <- 0 until tm.rd(0).data.bits.size
@@ -162,22 +162,22 @@ class TensorAluJsonTest(c: TensorAlu, fn : String = "/x.json",
       } else {
         tm.rd(0).data.valid.poke( 0)
       }
-      valid = tm.rd(0.peek().idx.valid)
-      idx = tm.rd(0.peek().idx.bits).toInt
+      valid = tm.rd(0).idx.valid.peekBoolean()
+      idx = tm.rd(0).idx.bits.peek().litValue.toInt
     }
   }
 
   // Write scratchpad
   class TensorMasterMockWr(tm: TensorMaster, scratchpad : Map[BigInt,Array[BigInt]]) {
     def logical_step() : Unit = {
-      if (tm.wr(0.peek().valid) == 1) {
-        val idx = tm.wr(0.peek().bits.idx).toInt
+      if (tm.wr(0).valid.peekBoolean()) {
+        val idx = tm.wr(0).bits.idx.peek().litValue.toInt
         val cols = tm.wr(0).bits.data(0).size
         for {
           i <- 0 until tm.wr(0).bits.data.size
           j <- 0 until cols
         } {
-          scratchpad(idx)(i*cols + j) = tm.wr(0.peek().bits.data(i)(j))
+          scratchpad(idx)(i*cols + j) = tm.wr(0).bits.data(i)(j).peek().litValue
         }
       }
     }
@@ -207,7 +207,7 @@ class TensorAluJsonTest(c: TensorAlu, fn : String = "/x.json",
         um.data.valid.poke( 0)
       }
       valid = um.idx.valid.peek()
-      idx = um.idx.bits.peek().toInt
+      idx = um.idx.bits.peek().litValue.toInt
     }
   }
 
@@ -226,7 +226,7 @@ class TensorAluJsonTest(c: TensorAlu, fn : String = "/x.json",
     // Print the data in this function!
     def logical_step() : Unit = {
       // Increment the clock
-      step(1)
+      c.clock.step(1)
 
       // Perform the defined operations for each memory
       uop_mock.logical_step()
@@ -243,7 +243,7 @@ class TensorAluJsonTest(c: TensorAlu, fn : String = "/x.json",
         c.io.uop.idx.bits.expect(uop_indices.dequeue())
       }
       // Read ACC
-      if (c.io.acc.rd(0.peek().idx.valid) == 1) {
+      if (c.io.acc.rd(0).idx.valid.peekBoolean()) {
         val expected_acc_rd_idx = acc_indices.dequeue()
         c.io.acc.rd(0).idx.bits.expect(expected_acc_rd_idx)
 
@@ -267,12 +267,12 @@ class TensorAluJsonTest(c: TensorAlu, fn : String = "/x.json",
         }
       }
       // Write ACC
-      if (c.io.acc.wr(0.peek().valid) == 1) {
+      if (c.io.acc.wr(0).valid.peekBoolean()) {
         val expected_acc_wr_idx = accout_indices.dequeue()
         c.io.acc.wr(0).bits.idx.expect(expected_acc_wr_idx)
       }
       // Write OUT
-      if (c.io.out.wr(0.peek().valid) == 1) {
+      if (c.io.out.wr(0).valid.peekBoolean()) {
         val expected_out_wr_idx = out_indices.dequeue()
         c.io.out.wr(0).bits.idx.expect(expected_out_wr_idx)
 
@@ -339,7 +339,7 @@ class TensorAluJsonTest(c: TensorAlu, fn : String = "/x.json",
 
   // Start the operation
   c.io.start.poke( 0)
-  step(1)
+  c.clock.step(1)
   c.io.start.poke( 1)
 
   // Count the number of cycles and set a limit to avoid infinite loop

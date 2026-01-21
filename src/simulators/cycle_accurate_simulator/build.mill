@@ -61,11 +61,12 @@ object `package` extends SbtModule with PublishModule {
 
   def publishVersion = "6.0-SNAPSHOT"
 
-  trait test extends SbtTests with ScalaTest {
+  object test extends SbtTests with ScalaTest {
     override def scalaTestVersion: Simple[String] = "3.2.17"
 
     def testSandboxWorkingDir = false
     def testParallelism = false
 
   }
+  
 }

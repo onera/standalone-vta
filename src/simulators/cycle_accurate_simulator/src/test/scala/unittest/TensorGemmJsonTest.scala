@@ -21,8 +21,6 @@ package unittest
 
 import chisel3._
 import chisel3.util._
-import chiseltest._
-import chiseltest.iotesters._
 import unittest.util._
 import vta.core._
 import vta.util.config._
@@ -31,11 +29,12 @@ import scala.io._
 import scala.language.postfixOps
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
+import chisel3.simulator.ChiselSim
 //import com.fasterxml.jackson.module.scala.experimental.ScalaObjectMapper // No more needed (deprecated)
 
 class TensorGemmJsonTester(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
                            debug:Boolean = false)
-  extends PeekPokeTester(c) {
+  extends ChiselSim {
 
   val bufferedSource = Source.fromURL(getClass.getResource(fn))
   val mapper = new ObjectMapper() //with ScalaObjectMapper // No more needed (deprecated)
@@ -99,7 +98,7 @@ class TensorGemmJsonTester(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
 
   class TensorMasterMock(tm: TensorMaster, scratchpad : Array[Array[BigInt]]) {
     tm.rd(0).data.valid.poke( 0)
-    var valid = tm.rd(0.peek().idx.valid)
+    var valid = tm.rd(0).idx.valid.peek()
     var idx : Int = 0
     def logical_step() : Unit = {
       if (valid == 1) {
@@ -113,21 +112,21 @@ class TensorGemmJsonTester(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
       } else {
         tm.rd(0).data.valid.poke( 0)
       }
-      valid = tm.rd(0.peek().idx.valid)
-      idx = tm.rd(0.peek().idx.bits).toInt
+      valid = tm.rd(0).idx.valid
+      idx = tm.rd(0).idx.bits.litValue.toInt
     }
   }
 
   class TensorMasterMockWr(tm: TensorMaster, scratchpad : Array[Array[BigInt]]) {
     def logical_step() : Unit = {
-      if (tm.wr(0.peek().valid) == 1) {
-        val idx = tm.wr(0.peek().bits.idx).toInt
+      if (tm.wr(0).valid == 1) {
+        val idx = tm.wr(0).bits.idx.peek().litValue.toInt
         val cols = tm.wr(0).bits.data(0).size
         for {
           i <- 0 until tm.wr(0).bits.data.size
           j <- 0 until cols
         } {
-          scratchpad(idx)(i*cols + j) = tm.wr(0.peek().bits.data(i)(j))
+          scratchpad(idx)(i*cols + j) = tm.wr(0).bits.data(i)(j).peek().litValue
         }
       }
     }
@@ -147,7 +146,7 @@ class TensorGemmJsonTester(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
         um.data.valid.poke( 0)
       }
       valid = um.idx.valid.peek()
-      idx = um.idx.bits.peek().toInt
+      idx = um.idx.bits.peek().litValue.toInt
     }
   }
 
@@ -166,7 +165,7 @@ class TensorGemmJsonTester(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
     val out_indices = new scala.collection.mutable.Queue[BigInt]
 
     def logical_step() : Unit = {
-      step(1)
+      c.clock.step(1)
       uop_mock.logical_step()
       inp_mock.logical_step()
       wgt_mock.logical_step()
@@ -176,19 +175,19 @@ class TensorGemmJsonTester(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
       if (c.io.uop.idx.valid.peek() == 1) {
         c.io.uop.idx.bits.expect(uop_indices.dequeue())
       }
-      if (c.io.acc.rd(0.peek().idx.valid) == 1) {
+      if (c.io.acc.rd(0).idx.valid.peekBoolean()) {
         c.io.acc.rd(0).idx.bits.expect(acc_indices.dequeue())
       }
-      if (c.io.inp.rd(0.peek().idx.valid) == 1) {
+      if (c.io.inp.rd(0).idx.valid.peekBoolean()) {
         c.io.inp.rd(0).idx.bits.expect(inp_indices.dequeue())
       }
-      if (c.io.wgt.rd(0.peek().idx.valid) == 1) {
+      if (c.io.wgt.rd(0).idx.valid.peekBoolean()) {
         c.io.wgt.rd(0).idx.bits.expect(wgt_indices.dequeue())
       }
-      if (c.io.acc.wr(0.peek().valid) == 1) {
+      if (c.io.acc.wr(0).valid.peekBoolean()) {
         c.io.acc.wr(0).bits.idx.expect(accout_indices.dequeue())
       }
-      if (c.io.out.wr(0.peek().valid) == 1) {
+      if (c.io.out.wr(0).valid.peekBoolean()) {
         c.io.out.wr(0).bits.idx.expect(out_indices.dequeue())
       }
     }

@@ -5,13 +5,13 @@
 
 package unittest.gemm
 
-import chiseltest.iotesters.PeekPokeTester
 import unittest.GenericTest
 import unittest.util._
 import vta.core._
 import vta.util.config.Parameters
 
 import scala.math.pow
+import chisel3.simulator.ChiselSim
 
 /**
  * Simple matrix multiply implemented in
@@ -19,7 +19,7 @@ import scala.math.pow
  *
  * @param c The hardware description of the MVM
  */
-class MVM_simple_matrix_multiply(c: MatrixVectorMultiplication, debug: Boolean = false) extends PeekPokeTester(c) {
+class MVM_simple_matrix_multiply(c: MatrixVectorMultiplication, debug: Boolean = false) extends ChiselSim {
 
   /* mvm_ref
    *
@@ -94,7 +94,7 @@ class MVM_simple_matrix_multiply(c: MatrixVectorMultiplication, debug: Boolean =
   c.io.acc_i.data.valid.poke( 1)
 
   // Clock step
-  step(1)
+  c.clock.step()
 
   // HW READ DATA!
 
@@ -105,22 +105,22 @@ class MVM_simple_matrix_multiply(c: MatrixVectorMultiplication, debug: Boolean =
 
   // Wait for valid signal from HW
   while (c.io.acc_o.data.valid.peek() == BigInt(0)) {
-    step(1) // advance clock
+    c.clock.step() // advance clock
   }
 
   if (debug) {
     // Print INPUT vector
     println("The input vector (INP with mask):")
-    print(s"${c.io.inp.data.bits(0.peek())} \n\n")
+    print(s"${c.io.inp.data.bits(0).peek()} \n\n")
     // Print WEIGHT tensor
     println("The weight tensor (WGT with mask):")
     for (i <- 0 until c.size) {
-      print(s"${c.io.wgt.data.bits(i.peek())} \n")
+      print(s"${c.io.wgt.data.bits(i).peek()} \n")
     }
     print("\n")
     // Print the result from MatrixVectorMultiplication
     println("The output vector (OUT with mask):")
-    print(s"${c.io.acc_o.data.bits(0.peek())} \n\n")
+    print(s"${c.io.acc_o.data.bits(0).peek()} \n\n")
   }
 
   // Assertion

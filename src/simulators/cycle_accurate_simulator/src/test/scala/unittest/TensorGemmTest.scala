@@ -21,13 +21,12 @@ package unittest
 
 import chisel3._
 import chisel3.util._
-import chiseltest._
-import chiseltest.iotesters._
 import unittest.util._
 import vta.core._
 import vta.util.config._
+import chisel3.simulator.ChiselSim
 
-class TensorGemmTester(c: TensorGemmSimple) extends PeekPokeTester(c) {
+class TensorGemmTester(c: TensorGemmSimple) extends ChiselSim {
   c.io.start.poke( 0)
   c.io.dec.reset.poke( 0)
   c.io.dec.uop_begin.poke( 0)
@@ -48,26 +47,26 @@ class TensorGemmTester(c: TensorGemmSimple) extends PeekPokeTester(c) {
 
   val inp = IndexedSeq.fill(c.io.inp.rd(0).data.bits(0).size){BigInt(1)}
   for {lhs <- c.io.inp.rd(0).data.bits} {
-    lhs.poke( inp.reverse)
+    lhs.zip(inp.reverse).foreach{case (l,r) => l.poke(r)}
   }
 
   val wgt = IndexedSeq.fill(c.io.wgt.rd(0).data.bits(0).size){BigInt(1)}
   for {lhs <- c.io.wgt.rd(0).data.bits} {
-    lhs.poke( wgt.reverse)
+    lhs.zip( wgt.reverse).foreach{case (p,s) => p.poke(s)}
   }
 
   val acc = IndexedSeq.fill(c.io.acc.rd(0).data.bits(0).size){BigInt(1)}
   for {lhs <- c.io.acc.rd(0).data.bits} {
-    lhs.poke( acc.reverse)
+    lhs.zip( acc.reverse).foreach{case (p,s) => p.poke(s)}
   }
 
   class TensorMasterMock(tm: TensorMaster) {
     tm.rd(0).data.valid.poke( 0)
-    var valid = tm.rd(0.peek().idx.valid)
+    var valid = tm.rd(0).idx.valid.peek()
 
     def logical_step(v: BigInt) : Unit = {
       tm.rd(0).data.valid.poke( valid)
-      valid = tm.rd(0.peek().idx.valid)
+      valid = tm.rd(0).idx.valid.peek()
       tm.rd(0).idx.valid.expect(v)
     }
   }
@@ -90,7 +89,7 @@ class TensorGemmTester(c: TensorGemmSimple) extends PeekPokeTester(c) {
     val acc_mock = new TensorMasterMock(c.io.acc)
 
     def logical_step(sram_valid: BigInt, uop_valid: BigInt) : Unit = {
-      step(1)
+      c.clock.step(1)
       uop_mock.logical_step(uop_valid)
       inp_mock.logical_step(sram_valid)
       wgt_mock.logical_step(sram_valid)
@@ -101,7 +100,7 @@ class TensorGemmTester(c: TensorGemmSimple) extends PeekPokeTester(c) {
   val mocks = new Mocks
   c.io.start.poke( 0)
 
-  step(1)
+  c.clock.step(1)
 
   c.io.state.expect(c.sIdle)
 
@@ -163,7 +162,7 @@ class TensorGemmTester(c: TensorGemmSimple) extends PeekPokeTester(c) {
 class TensorGemmTest extends GenericTest("TensorGemm", (p:Parameters) => new TensorGemmSimple()(p),
   (c:TensorGemmSimple) => new TensorGemmTester(c))
 
-class TensorGemmIdxTester(c: TensorGemmSimple) extends PeekPokeTester(c) {
+class TensorGemmIdxTester(c: TensorGemmSimple) extends ChiselSim {
 
   c.io.start.poke( 0)
 
@@ -201,25 +200,25 @@ class TensorGemmIdxTester(c: TensorGemmSimple) extends PeekPokeTester(c) {
 
   val inp = IndexedSeq.fill(c.io.inp.rd(0).data.bits(0).size){BigInt(1)}
   for {lhs <- c.io.inp.rd(0).data.bits} {
-    lhs.poke( inp.reverse)
+    lhs.zip( inp.reverse).foreach{case (p,s) => p.poke(s)}
   }
 
   val wgt = IndexedSeq.fill(c.io.wgt.rd(0).data.bits(0).size){BigInt(1)}
   for {lhs <- c.io.wgt.rd(0).data.bits} {
-    lhs.poke( wgt.reverse)
+    lhs.zip( wgt.reverse).foreach{case (p,s) => p.poke(s)}
   }
 
   val acc = IndexedSeq.fill(c.io.acc.rd(0).data.bits(0).size){BigInt(1)}
   for {lhs <- c.io.acc.rd(0).data.bits} {
-    lhs.poke( acc.reverse)
+    lhs.zip( acc.reverse).foreach{case (p,s) => p.poke(s)}
   }
 
   class TensorMasterMock(tm: TensorMaster) {
     tm.rd(0).data.valid.poke( 0)
-    var valid = tm.rd(0.peek().idx.valid)
+    var valid = tm.rd(0).idx.valid.peek()
     def logical_step(v: BigInt) : Unit = {
       tm.rd(0).data.valid.poke( valid)
-      valid = tm.rd(0.peek().idx.valid)
+      valid = tm.rd(0).idx.valid.peek()
       tm.rd(0).idx.valid.expect(v)
     }
   }
@@ -248,7 +247,7 @@ class TensorGemmIdxTester(c: TensorGemmSimple) extends PeekPokeTester(c) {
     val out_indices = new scala.collection.mutable.Queue[BigInt]
 
     def logical_step(sram_valid: BigInt, uop_valid: BigInt) : Unit = {
-      step(1)
+      c.clock.step(1)
       uop_mock.logical_step(uop_valid)
       inp_mock.logical_step(sram_valid)
       wgt_mock.logical_step(sram_valid)
@@ -256,19 +255,19 @@ class TensorGemmIdxTester(c: TensorGemmSimple) extends PeekPokeTester(c) {
       if (c.io.uop.idx.valid.peek() == 1) {
         c.io.uop.idx.bits.expect(uop_indices.dequeue())
       }
-      if (c.io.acc.rd(0.peek().idx.valid) == 1) {
+      if (c.io.acc.rd(0).idx.valid.peek() == 1) {
         c.io.acc.rd(0).idx.bits.expect(acc_indices.dequeue())
       }
-      if (c.io.inp.rd(0.peek().idx.valid) == 1) {
+      if (c.io.inp.rd(0).idx.valid.peek() == 1) {
         c.io.inp.rd(0).idx.bits.expect(inp_indices.dequeue())
       }
-      if (c.io.wgt.rd(0.peek().idx.valid) == 1) {
+      if (c.io.wgt.rd(0).idx.valid.peek() == 1) {
         c.io.wgt.rd(0).idx.bits.expect(wgt_indices.dequeue())
       }
-      if (c.io.acc.wr(0.peek().valid) == 1) {
+      if (c.io.acc.wr(0).valid.peekBoolean()) {
         c.io.acc.wr(0).bits.idx.expect(accout_indices.dequeue())
       }
-      if (c.io.out.wr(0.peek().valid) == 1) {
+      if (c.io.out.wr(0).valid.peekBoolean()) {
         c.io.out.wr(0).bits.idx.expect(out_indices.dequeue())
       }
     }
@@ -296,7 +295,7 @@ class TensorGemmIdxTester(c: TensorGemmSimple) extends PeekPokeTester(c) {
   }
 
   c.io.start.poke( 0)
-  step(1)
+  c.clock.step(1)
   c.io.state.expect(c.sIdle)
 
   c.io.start.poke( 1)
@@ -352,7 +351,7 @@ class TensorGemmIdxTester(c: TensorGemmSimple) extends PeekPokeTester(c) {
 class TensorGemmIdxTest extends GenericTest("TensorGemmIdx", (p:Parameters) => new TensorGemmSimple()(p),
   (c:TensorGemmSimple) => new TensorGemmIdxTester(c))
 
-class TensorGemmIndexGeneratorTester(c: TensorGemmIndexGenerator, debug: Boolean = false) extends PeekPokeTester(c) {
+class TensorGemmIndexGeneratorTester(c: TensorGemmIndexGenerator, debug: Boolean = false) extends ChiselSim {
   val uop_begin = 0
   val uop_end = 2
   assert(uop_begin < uop_end)
@@ -385,7 +384,7 @@ class TensorGemmIndexGeneratorTester(c: TensorGemmIndexGenerator, debug: Boolean
     val wgt_indices = new scala.collection.mutable.Queue[BigInt]
 
     def logical_step() : Unit = {
-      step(1)
+      c.clock.step(1)
       if (c.io.valid.peek() == 1) {
         c.io.uop_idx.expect(uop_indices.dequeue())
         c.io.acc_i.expect(acc_indices.dequeue())
@@ -437,7 +436,7 @@ class TensorGemmIndexGeneratorTest extends GenericTest("TensorGemmIndexGenerator
   (p:Parameters) => new TensorGemmIndexGenerator()(p),
   (c:TensorGemmIndexGenerator) => new TensorGemmIndexGeneratorTester(c))
 
-class TensorGemmPipelinedTester(c: TensorGemmPipelinedSplit, debug: Boolean = false) extends PeekPokeTester(c) {
+class TensorGemmPipelinedTester(c: TensorGemmPipelinedSplit, debug: Boolean = false) extends ChiselSim {
   c.io.start.poke( 0)
 
   val uop_begin = 0
@@ -474,25 +473,25 @@ class TensorGemmPipelinedTester(c: TensorGemmPipelinedSplit, debug: Boolean = fa
 
   val inp = IndexedSeq.fill(c.io.inp.rd(0).data.bits(0).size){BigInt(1)}
   for {lhs <- c.io.inp.rd(0).data.bits} {
-    lhs.poke( inp.reverse)
+    lhs.zip( inp.reverse).foreach{case (p,s) => p.poke(s)}
   }
 
   val wgt = IndexedSeq.fill(c.io.wgt.rd(0).data.bits(0).size){BigInt(1)}
   for {lhs <- c.io.wgt.rd(0).data.bits} {
-    lhs.poke( wgt.reverse)
+    lhs.zip( wgt.reverse).foreach{case (p,s) => p.poke(s)}
   }
 
   val acc = IndexedSeq.fill(c.io.acc.rd(0).data.bits(0).size){BigInt(1)}
   for {lhs <- c.io.acc.rd(0).data.bits} {
-    lhs.poke( acc.reverse)
+    lhs.zip( acc.reverse).foreach{case (p,s) => p.poke(s)}
   }
 
   class TensorMasterMock(tm: TensorMaster) {
     tm.rd(0).data.valid.poke( 0)
-    var valid = tm.rd(0.peek().idx.valid)
+    var valid = tm.rd(0).idx.valid.peek()
     def logical_step(v: Option[BigInt]) : Unit = {
       tm.rd(0).data.valid.poke( valid)
-      valid = tm.rd(0.peek().idx.valid)
+      valid = tm.rd(0).idx.valid.peek()
       for {x <- v} tm.rd(0).idx.valid.expect(x)
     }
   }
@@ -521,7 +520,7 @@ class TensorGemmPipelinedTester(c: TensorGemmPipelinedSplit, debug: Boolean = fa
     val out_indices = new scala.collection.mutable.Queue[BigInt]
 
     def logical_step() : Unit = {
-      step(1)
+      c.clock.step(1)
       uop_mock.logical_step(None)
       inp_mock.logical_step(None)
       wgt_mock.logical_step(None)
@@ -529,19 +528,19 @@ class TensorGemmPipelinedTester(c: TensorGemmPipelinedSplit, debug: Boolean = fa
       if (c.io.uop.idx.valid.peek() == 1) {
         c.io.uop.idx.bits.expect(uop_indices.dequeue())
       }
-      if (c.io.acc.rd(0.peek().idx.valid) == 1) {
+      if (c.io.acc.rd(0).idx.valid.peek() == 1) {
         c.io.acc.rd(0).idx.bits.expect(acc_indices.dequeue())
       }
-      if (c.io.inp.rd(0.peek().idx.valid) == 1) {
+      if (c.io.inp.rd(0).idx.valid.peek() == 1) {
         c.io.inp.rd(0).idx.bits.expect(inp_indices.dequeue())
       }
-      if (c.io.wgt.rd(0.peek().idx.valid) == 1) {
+      if (c.io.wgt.rd(0).idx.valid.peek() == 1) {
         c.io.wgt.rd(0).idx.bits.expect(wgt_indices.dequeue())
       }
-      if (c.io.acc.wr(0.peek().valid) == 1) {
+      if (c.io.acc.wr(0).valid.peekBoolean()) {
         c.io.acc.wr(0).bits.idx.expect(accout_indices.dequeue())
       }
-      if (c.io.out.wr(0.peek().valid) == 1) {
+      if (c.io.out.wr(0).valid.peekBoolean()) {
         c.io.out.wr(0).bits.idx.expect(out_indices.dequeue())
       }
     }
@@ -571,7 +570,7 @@ class TensorGemmPipelinedTester(c: TensorGemmPipelinedSplit, debug: Boolean = fa
   }
 
   c.io.start.poke( 0)
-  step(1)
+  c.clock.step(1)
   c.io.state.expect(c.sIdle)
   c.io.start.poke( 1)
 
@@ -593,7 +592,7 @@ class TensorGemmPipelinedTest extends GenericTest("TensorGemmPipelined",
   (p:Parameters) => new TensorGemmPipelinedSplit()(p),
   (c:TensorGemmPipelinedSplit) => new TensorGemmPipelinedTester(c))
 
-class TensorGemmResetTester(c: TensorGemm) extends PeekPokeTester(c) {
+class TensorGemmResetTester(c: TensorGemm) extends ChiselSim {
   c.io.start.poke( 0)
 
   val uop_begin = 0
@@ -631,25 +630,25 @@ class TensorGemmResetTester(c: TensorGemm) extends PeekPokeTester(c) {
 
   val inp = IndexedSeq.fill(c.io.inp.rd(0).data.bits(0).size){BigInt(1)}
   for {lhs <- c.io.inp.rd(0).data.bits} {
-    lhs.poke( inp.reverse)
+    lhs.zip( inp.reverse).foreach{case (p,s) => p.poke(s)}
   }
 
   val wgt = IndexedSeq.fill(c.io.wgt.rd(0).data.bits(0).size){BigInt(1)}
   for {lhs <- c.io.wgt.rd(0).data.bits} {
-    lhs.poke( wgt.reverse)
+    lhs.zip( wgt.reverse).foreach{case (p,s) => p.poke(s)}
   }
 
   val acc = IndexedSeq.fill(c.io.acc.rd(0).data.bits(0).size){BigInt(1)}
   for {lhs <- c.io.acc.rd(0).data.bits} {
-    lhs.poke( acc.reverse)
+    lhs.zip( acc.reverse).foreach{case (p,s) => p.poke(s)}
   }
 
   class TensorMasterMock(tm: TensorMaster) {
     tm.rd(0).data.valid.poke( 0)
-    var valid = tm.rd(0.peek().idx.valid)
+    var valid = tm.rd(0).idx.valid.peek()
     def logical_step(v: Option[BigInt]) : Unit = {
       tm.rd(0).data.valid.poke( valid)
-      valid = tm.rd(0.peek().idx.valid)
+      valid = tm.rd(0).idx.valid.peek()
       for {x <- v} tm.rd(0).idx.valid.expect(x)
     }
   }
@@ -678,27 +677,27 @@ class TensorGemmResetTester(c: TensorGemm) extends PeekPokeTester(c) {
     val out_indices = new scala.collection.mutable.Queue[BigInt]
 
     def logical_step(sram_valid: BigInt, uop_valid: BigInt) : Unit = {
-      step(1)
+      c.clock.step(1)
       uop_mock.logical_step(None)
       inp_mock.logical_step(None)
       wgt_mock.logical_step(None)
       acc_mock.logical_step(None)
-      if (c.io.uop.idx.valid.peek() == 1) {
+      if (c.io.uop.idx.valid.peekBoolean()) {
         c.io.uop.idx.bits.expect(uop_indices.dequeue())
       }
-      if (c.io.acc.rd(0.peek().idx.valid) == 1) {
+      if (c.io.acc.rd(0).idx.valid.peekBoolean()) {
         c.io.acc.rd(0).idx.bits.expect(acc_indices.dequeue())
       }
-      if (c.io.inp.rd(0.peek().idx.valid) == 1) {
+      if (c.io.inp.rd(0).idx.valid.peekBoolean()) {
         c.io.inp.rd(0).idx.bits.expect(inp_indices.dequeue())
       }
-      if (c.io.wgt.rd(0.peek().idx.valid) == 1) {
+      if (c.io.wgt.rd(0).idx.valid.peekBoolean()) {
         c.io.wgt.rd(0).idx.bits.expect(wgt_indices.dequeue())
       }
-      if (c.io.acc.wr(0.peek().valid) == 1) {
+      if (c.io.acc.wr(0).valid.peekBoolean()) {
         c.io.acc.wr(0).bits.idx.expect(accout_indices.dequeue())
       }
-      if (c.io.out.wr(0.peek().valid) == 1) {
+      if (c.io.out.wr(0).valid.peekBoolean()) {
         c.io.out.wr(0).bits.idx.expect(out_indices.dequeue())
       }
     }
@@ -731,7 +730,7 @@ class TensorGemmResetTester(c: TensorGemm) extends PeekPokeTester(c) {
   }
 
   c.io.start.poke( 0)
-  step(1)
+  c.clock.step(1)
   c.io.state.expect(c.sIdle)
   c.io.start.poke( 1)
 

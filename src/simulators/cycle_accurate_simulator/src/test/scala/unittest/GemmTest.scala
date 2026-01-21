@@ -19,68 +19,68 @@
 
 package unittest
 
-import chiseltest.iotesters._
 import vta.core._
 import vta.util.config._
+import chisel3.simulator.ChiselSim
 
-class MACTester(c: MAC) extends PeekPokeTester(c) {
+class MACTester(c: MAC) extends ChiselSim {
   c.io.a.poke( -1)
   c.io.b.poke(  7)
   c.io.c.poke( 10)
-  step(1)
+  c.clock.step()
   c.io.y.expect(3)
   c.io.a.poke( -2)
   c.io.b.poke(  7)
   c.io.c.poke( 11)
-  step(1)
+  c.clock.step()
   c.io.y.expect(-3)
 }
 
 class MACTest extends GenericTest("MACTest", (p:Parameters) => new MAC(),
   (c:MAC) => new MACTester(c))
 
-class PipeAdderTester(c: PipeAdder) extends PeekPokeTester(c) {
+class PipeAdderTester(c: PipeAdder) extends ChiselSim {
   c.io.a.poke( -1)
   c.io.b.poke(  7)
-  step(1)
+  c.clock.step()
   c.io.y.expect(6)
   c.io.a.poke( -2)
   c.io.b.poke(  7)
-  step(1)
+  c.clock.step()
   c.io.y.expect(5)
 }
 
 class PipeAdderTest extends GenericTest("PipeAdderTest", (p:Parameters) => new PipeAdder(),
   (c:PipeAdder) => new PipeAdderTester(c))
 
-class AdderTester(c: Adder) extends PeekPokeTester(c) {
+class AdderTester(c: Adder) extends ChiselSim {
   c.io.a.poke( -1)
   c.io.b.poke(  7)
   c.io.y.expect(6)
-  step(1)
+  c.clock.step()
 
   c.io.a.poke( -2)
   c.io.b.poke(  7)
   c.io.y.expect(5)
-  step(1)
+  c.clock.step()
 }
 
 class AdderTest extends GenericTest("AdderTest", (p:Parameters) => new Adder(),
   (c:Adder) => new AdderTester(c))
 
-class DotProductTester(c: DotProduct) extends PeekPokeTester(c) {
+class DotProductTester(c: DotProduct) extends ChiselSim {
   for {i<- 0 until 16} {
     c.io.a(i).poke( if (i %2 == 0) 1 else -1)
     c.io.b(i).poke( i)
   }
-  step(1)
+  c.clock.step()
   for {i<- 0 until 16} {
     c.io.a(i).poke( if (i %2 == 1) 1 else -1)
     c.io.b(i).poke( i)
   }
-  step(1)
+  c.clock.step()
   c.io.y.expect(-8)
-  step(1)
+  c.clock.step()
   c.io.y.expect(8)
 }
 
