@@ -26,7 +26,8 @@ import vta.core._
 import vta.test._
 import circt.stage.ChiselStage // CIRCT = Circuit IR Compilers and Tools
 
-/** VTA.
+
+  /** VTA.
  *
  * This file contains all the configurations supported by VTA.
  * These configurations are built in a mix/match form based on core
@@ -38,7 +39,14 @@ class DefaultDe10Config extends Config(new CoreConfig ++ new De10Config)
 
 object DefaultPynqConfig extends App {
   implicit val p: Parameters = new DefaultPynqConfig
-  ChiselStage.emitSystemVerilog(new XilinxShell, args)
+  ChiselStage.emitSystemVerilogFile(new XilinxShell, 
+args=Array("--target-dir", s"chisel-outputs/genRTL/vta-pynq","--split-verilog")
+,firtoolOpts = Array(
+    "-disable-all-randomization",
+    "-strip-debug-info",
+    "--lowering-options=disallowLocalVariables,disallowPackedArrays"
+  )
+)
 }
 
 object DefaultF1Config extends App {
@@ -53,7 +61,10 @@ object DefaultDe10Config extends App {
 
 object TestDefaultPynqConfig extends App {
   implicit val p: Parameters = new DefaultPynqConfig
-  ChiselStage.emitSystemVerilog(new Test, args)
+  // ChiselStage.emitSystemVerilog(new Test, args)
+  ChiselStage.emitSystemVerilogFile(new Test, 
+args=Array("--target-dir", s"chisel-outputs/genRTL/test-vta-pynq")
+)
 }
 
 object TestDefaultF1Config extends App {

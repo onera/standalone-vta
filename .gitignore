@@ -30,3 +30,11 @@
 # ------------------------------------------------
 /**/prompt*.txt
 /**/tempo*.txt
+
+# Do not consider IDEs dots dirs
+/**/.idea/
+/**/.vscode/
+/**/.metals/
+/**/.bloop/
+/**/out/
+/**/chisel-outputs/

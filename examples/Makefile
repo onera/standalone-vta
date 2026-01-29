@@ -17,7 +17,7 @@ CONFIG := $(PROJECT_DIR)/config
 
 # VARIABLES
 ###########
-PYTHON_CMD := python 
+PYTHON_CMD ?= python 
 # PYTHON_CMD := python -m cProfile -o $(COMPILER_OUTPUT_DIR)/vta_compiler.prof
 
 JSON_FILES := $(COMPILER_OUTPUT_DIR)/*.json

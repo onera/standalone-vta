@@ -35,6 +35,7 @@ class PynqConfig extends Config((site, here, up) => {
         userBits = 1),
       memParams = AXIParams(coherent = true,
         addrBits = 32,
+        idBits = 8,
         dataBits = 64,
         lenBits = 8,
         userBits = 1),
