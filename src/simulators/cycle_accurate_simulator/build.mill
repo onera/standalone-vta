@@ -1,4 +1,4 @@
-//| mill-version: 1.0.6
+//| mill-version: 1.1.1
 //| mill-jvm-opts: ["-Dchisel.project.root=${PWD}"]
 package build
 
@@ -22,9 +22,8 @@ object `package` extends SbtModule with PublishModule {
     "-feature",
     "-Xcheckinit",
     "-language:reflectiveCalls",
-    "-Ymacro-annotations",
+    "-Ymacro-annotations"
   )
-  
 
   def repositories = Seq(
     "https://oss.sonatype.org/content/repositories/snapshots",
@@ -32,7 +31,7 @@ object `package` extends SbtModule with PublishModule {
     "https://oss.sonatype.org/service/local/repositories/releases/content/",
     "https://s01.oss.sonatype.org/content/repositories/releases"
   )
-  def chiselVersion  = "7.7.0"
+  def chiselVersion = "7.8.0"
 
   def mvnDeps = Seq(
     mvn"com.fasterxml.jackson.core:jackson-databind:2.21.0",
@@ -41,7 +40,9 @@ object `package` extends SbtModule with PublishModule {
     mvn"org.chipsalliance::chisel:${chiselVersion}",
     mvn"org.scalatest::scalatest:3.2.19"
   )
-  override def scalacPluginMvnDeps: Simple[Seq[Dep]] = Seq(mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}")
+  override def scalacPluginMvnDeps: Simple[Seq[Dep]] = Seq(
+    mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}"
+  )
 
   def pomSettings = PomSettings(
     "vta_chiseltest",
@@ -66,5 +67,5 @@ object `package` extends SbtModule with PublishModule {
     def testParallelism = false
 
   }
-  
+
 }

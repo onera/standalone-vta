@@ -17,7 +17,6 @@
  * under the License.
  */
 
-
 package vta.core
 
 import scala.math.pow
@@ -27,12 +26,12 @@ import vta.util.config._
 import vta.shell._
 
 /** TensorStore.
- *
- * Store 1D and 2D tensors from out-scratchpad (SRAM) to main memory (DRAM).
- */
+  *
+  * Store 1D and 2D tensors from out-scratchpad (SRAM) to main memory (DRAM).
+  */
 class TensorStoreWideVME(tensorType: String = "none", debug: Boolean = false)(
-    implicit p: Parameters)
-    extends Module {
+    implicit p: Parameters
+) extends Module {
   val tp = new TensorParams(tensorType)
   val mp = p(ShellKey).memParams
   val io = IO(new Bundle {
@@ -54,7 +53,7 @@ class TensorStoreWideVME(tensorType: String = "none", debug: Boolean = false)(
   val sIdle :: sWriteCmd :: sWriteData :: sWriteAck :: Nil = Enum(4)
   val state = RegInit(sIdle)
 
-  val cmdGen = Module (new GenVMECmdWide(tensorType, debug))
+  val cmdGen = Module(new GenVMECmdWide(tensorType, debug))
 
   cmdGen.io.ysize := dec.ysize
   cmdGen.io.xsize := dec.xsize
@@ -71,35 +70,35 @@ class TensorStoreWideVME(tensorType: String = "none", debug: Boolean = false)(
   cmdGen.io.updateState := state === sWriteCmd
   cmdGen.io.canSendCmd := cmdGen.io.updateState
   io.vme_wr.cmd <> cmdGen.io.vmeCmd
-  val commandsDone =  cmdGen.io.done
+  val commandsDone = cmdGen.io.done
 
   // latch cmd parameters
-  val readLenReg = Reg(cmdGen.io.readLen.cloneType)
-  val readLen = Wire(readLenReg.cloneType)
-  val fstPulseDataStartReg = Reg(cmdGen.io.fstPulseDataStart.cloneType)
-  val fstPulseDataStart = Wire(fstPulseDataStartReg.cloneType)
-  val lstPulseDataEndReg = Reg(cmdGen.io.lstPulseDataEnd.cloneType)
-  val lstPulseDataEnd = Wire(lstPulseDataEndReg.cloneType)
-  val spElemIdxReg = Reg(cmdGen.io.spElemIdx.cloneType)
-  val spElemIdx = Wire(spElemIdxReg.cloneType)
-  when (cmdGen.io.updateState) {
-    readLen    := cmdGen.io.readLen
+  val readLenReg = Reg(chiselTypeOf(cmdGen.io.readLen))
+  val readLen = Wire(chiselTypeOf(readLenReg))
+  val fstPulseDataStartReg = Reg(chiselTypeOf(cmdGen.io.fstPulseDataStart))
+  val fstPulseDataStart = Wire(chiselTypeOf(fstPulseDataStartReg))
+  val lstPulseDataEndReg = Reg(chiselTypeOf(cmdGen.io.lstPulseDataEnd))
+  val lstPulseDataEnd = Wire(chiselTypeOf(lstPulseDataEndReg))
+  val spElemIdxReg = Reg(chiselTypeOf(cmdGen.io.spElemIdx))
+  val spElemIdx = Wire(chiselTypeOf(spElemIdxReg))
+  when(cmdGen.io.updateState) {
+    readLen := cmdGen.io.readLen
     readLenReg := readLen
-    fstPulseDataStart    := cmdGen.io.fstPulseDataStart
+    fstPulseDataStart := cmdGen.io.fstPulseDataStart
     fstPulseDataStartReg := fstPulseDataStart
-    lstPulseDataEnd    := cmdGen.io.lstPulseDataEnd
+    lstPulseDataEnd := cmdGen.io.lstPulseDataEnd
     lstPulseDataEndReg := lstPulseDataEnd
-    spElemIdx    := cmdGen.io.spElemIdx
+    spElemIdx := cmdGen.io.spElemIdx
     spElemIdxReg := spElemIdx
   }.otherwise {
     readLenReg := readLenReg
-    readLen    := readLenReg
+    readLen := readLenReg
     fstPulseDataStartReg := fstPulseDataStartReg
-    fstPulseDataStart    := fstPulseDataStartReg
+    fstPulseDataStart := fstPulseDataStartReg
     lstPulseDataEndReg := lstPulseDataEndReg
-    lstPulseDataEnd    := lstPulseDataEndReg
+    lstPulseDataEnd := lstPulseDataEndReg
     spElemIdxReg := spElemIdxReg
-    spElemIdx    := spElemIdxReg
+    spElemIdx := spElemIdxReg
   }
 
   val xcnt = Reg(chiselTypeOf(io.vme_wr.cmd.bits.len))
@@ -109,7 +108,7 @@ class TensorStoreWideVME(tensorType: String = "none", debug: Boolean = false)(
   updateState := false.B
   switch(state) {
     is(sIdle) {
-      when (localStart) {
+      when(localStart) {
         state := sWriteCmd
       }
     }
@@ -140,37 +139,44 @@ class TensorStoreWideVME(tensorType: String = "none", debug: Boolean = false)(
     }
   }
 
-
-  //--------------------
-  //--- Write memory ---
-  //--------------------
+  // --------------------
+  // --- Write memory ---
+  // --------------------
 
   val splitDataFactor = tp.splitWidth * tp.splitLength
-  val groupSizeBits = tp.tensorSizeBits/splitDataFactor
+  val groupSizeBits = tp.tensorSizeBits / splitDataFactor
   val tensorFile = Seq.fill(tp.clSizeRatio * splitDataFactor) {
-    SyncReadMem(tp.memDepth/tp.clSizeRatio, UInt(groupSizeBits.W))
+    SyncReadMem(tp.memDepth / tp.clSizeRatio, UInt(groupSizeBits.W))
   }
 
   // direct write
   for (grpIdx <- 0 until splitDataFactor) {
-    val directWrIdx = io.tensor.wr(grpIdx).bits.idx >> log2Ceil(tp.clSizeRatio) // SP idx
+    val directWrIdx =
+      io.tensor.wr(grpIdx).bits.idx >> log2Ceil(tp.clSizeRatio) // SP idx
     val directWrTensorIdx =
-      if(tp.clSizeRatio == 1) 0.U
+      if (tp.clSizeRatio == 1) 0.U
       else io.tensor.wr(grpIdx).bits.idx(log2Ceil(tp.clSizeRatio) - 1, 0)
     for (i <- 0 until tp.clSizeRatio) {
-      when(ShiftRegister(io.tensor.wr(grpIdx).valid && directWrTensorIdx === i.U, writePipeLatency,
-        false.B, true.B)) {
+      when(
+        ShiftRegister(
+          io.tensor.wr(grpIdx).valid && directWrTensorIdx === i.U,
+          writePipeLatency,
+          false.B,
+          true.B
+        )
+      ) {
 
-        tensorFile(i*splitDataFactor + grpIdx).write(ShiftRegister(directWrIdx, writePipeLatency),
-          ShiftRegister(io.tensor.wr(grpIdx).bits.data.asUInt, writePipeLatency))
+        tensorFile(i * splitDataFactor + grpIdx).write(
+          ShiftRegister(directWrIdx, writePipeLatency),
+          ShiftRegister(io.tensor.wr(grpIdx).bits.data.asUInt, writePipeLatency)
+        )
       }
     }
   }
 
-
-  //--------------------
-  //--- Read memory ---
-  //--------------------
+  // --------------------
+  // --- Read memory ---
+  // --------------------
   // first pulse doesnt reead whole data size, it is bounded by DRAM data alignment
   // ! - data pulse boundary
   // . - tenzor boundary
@@ -186,10 +192,16 @@ class TensorStoreWideVME(tensorType: String = "none", debug: Boolean = false)(
   val firstPulseTenzorsNb = tp.clSizeRatio.U - fstPulseDataStart
   val isLastPulse = io.vme_wr.data.fire && xcnt === readLen - 1.U
   val spReadAddrReg = Reg(UInt(M_SRAM_OFFSET_BITS.W))
-  val spReadAddr = Wire(spReadAddrReg.cloneType)
+  val spReadAddr = Wire(chiselTypeOf(spReadAddrReg))
   val srcElemOffsetReg = Reg(UInt(log2Ceil(tp.clSizeRatio).W))
-  val srcElemOffset = Wire(srcElemOffsetReg.cloneType)
-  val incrFstIdx = Mux((spElemIdx % tp.clSizeRatio.U) < fstPulseDataStart.asTypeOf(UInt(width = 8.W)), 0.U , 1.U)
+  val srcElemOffset = Wire(chiselTypeOf(srcElemOffsetReg))
+  val incrFstIdx = Mux(
+    (spElemIdx % tp.clSizeRatio.U) < fstPulseDataStart.asTypeOf(
+      UInt(width = 8.W)
+    ),
+    0.U,
+    1.U
+  )
   spReadAddr := DontCare
   when(state === sWriteCmd) {
     // init by data block index
@@ -208,55 +220,68 @@ class TensorStoreWideVME(tensorType: String = "none", debug: Boolean = false)(
     srcElemOffset := srcElemOffsetReg
   }
 
-
-  val dstData   = Wire(Vec(tp.clSizeRatio, UInt(tp.tensorSizeBits.W)))
-  val srcData   = Wire(Vec(tp.clSizeRatio, UInt(tp.tensorSizeBits.W)))
-  val srcMemIdx = Wire(Vec(tp.clSizeRatio, spReadAddr.cloneType))
-  val dstOffset = Wire(Vec(tp.clSizeRatio, UInt((log2Ceil(tp.clSizeRatio) + 1).W)))
-  val dstIdx    = Wire(Vec(tp.clSizeRatio, UInt(log2Ceil(tp.clSizeRatio).W)))
-
+  val dstData = Wire(Vec(tp.clSizeRatio, UInt(tp.tensorSizeBits.W)))
+  val srcData = Wire(Vec(tp.clSizeRatio, UInt(tp.tensorSizeBits.W)))
+  val srcMemIdx = Wire(Vec(tp.clSizeRatio, chiselTypeOf(spReadAddr)))
+  val dstOffset = Wire(
+    Vec(tp.clSizeRatio, UInt((log2Ceil(tp.clSizeRatio) + 1).W))
+  )
+  val dstIdx = Wire(Vec(tp.clSizeRatio, UInt(log2Ceil(tp.clSizeRatio).W)))
 
   // D(j+d) = S(j+s)  replace i=j+d --> D(i) = S(i-d+s)
   for (i <- 0 until tp.clSizeRatio) {
 
-    //if src offset overflow, incr that dest idx, read next memory row
-    val incrIdx = if (tp.clSizeRatio == 1 ) {
+    // if src offset overflow, incr that dest idx, read next memory row
+    val incrIdx = if (tp.clSizeRatio == 1) {
       0.U
     } else {
       Mux(i.U >= srcElemOffset, 0.U, 1.U)
     }
     srcMemIdx(i) := spReadAddr + incrIdx
 
-    //read memory
+    // read memory
     srcData(i) := VecInit(for (grpIdx <- 0 until splitDataFactor) yield {
-      tensorFile(i*splitDataFactor + grpIdx).read(
+      tensorFile(i * splitDataFactor + grpIdx).read(
         srcMemIdx(i),
-        state === sWriteCmd | (state === sWriteData && io.vme_wr.data.fire))
+        state === sWriteCmd | (state === sWriteData && io.vme_wr.data.fire)
+      )
     }).asTypeOf(UInt(tp.tensorSizeBits.W))
 
     // crossbar src to dst
     dstOffset(i) := i.U + spElemIdx % tp.clSizeRatio.U
-    dstIdx(i) := dstOffset(i)  -% fstPulseDataStart
+    dstIdx(i) := dstOffset(i) -% fstPulseDataStart
     dstData(i) := Mux1H(UIntToOH(dstIdx(i)), srcData)
 
   }
 
   // build valid bytes strb
-  val tensorSizeBytes = tp.tensorSizeBits/8
+  val tensorSizeBytes = tp.tensorSizeBits / 8
   val validBytes = Wire(Vec(tp.clSizeRatio, UInt(tensorSizeBytes.W)))
   val tensorBytesOnes = (BigInt(1) << tensorSizeBytes) - 1
   when(isFirstPulse && !isLastPulse) {
     for (i <- 0 until tp.clSizeRatio) {
-      validBytes(i) := Mux(i.U < fstPulseDataStart && fstPulseDataStart =/= 0.U, 0.U, tensorBytesOnes.U)
+      validBytes(i) := Mux(
+        i.U < fstPulseDataStart && fstPulseDataStart =/= 0.U,
+        0.U,
+        tensorBytesOnes.U
+      )
     }
-  }.elsewhen (!isFirstPulse && isLastPulse) {
+  }.elsewhen(!isFirstPulse && isLastPulse) {
     for (i <- 0 until tp.clSizeRatio) {
-      validBytes(i) := Mux(i.U >= lstPulseDataEnd && lstPulseDataEnd =/= 0.U, 0.U, tensorBytesOnes.U)
+      validBytes(i) := Mux(
+        i.U >= lstPulseDataEnd && lstPulseDataEnd =/= 0.U,
+        0.U,
+        tensorBytesOnes.U
+      )
     }
-  }.elsewhen (isFirstPulse && isLastPulse) {
+  }.elsewhen(isFirstPulse && isLastPulse) {
     for (i <- 0 until tp.clSizeRatio) {
-      validBytes(i) := Mux((i.U < fstPulseDataStart  && fstPulseDataStart =/= 0.U)
-        || (i.U >= lstPulseDataEnd && lstPulseDataEnd =/= 0.U), 0.U, tensorBytesOnes.U)
+      validBytes(i) := Mux(
+        (i.U < fstPulseDataStart && fstPulseDataStart =/= 0.U)
+          || (i.U >= lstPulseDataEnd && lstPulseDataEnd =/= 0.U),
+        0.U,
+        tensorBytesOnes.U
+      )
     }
   }.otherwise {
     for (i <- 0 until tp.clSizeRatio) {
@@ -264,11 +289,9 @@ class TensorStoreWideVME(tensorType: String = "none", debug: Boolean = false)(
     }
   }
 
-
   io.vme_wr.data.valid := state === sWriteData
   io.vme_wr.data.bits.data := dstData.asUInt
   io.vme_wr.data.bits.strb := validBytes.asUInt
-
 
   // disable external read-from-sram requests
   io.tensor.tieoffRead()
