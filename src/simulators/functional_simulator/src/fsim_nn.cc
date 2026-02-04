@@ -2,12 +2,6 @@
     PRE-PROCESSOR DIRECTIVES
 ****************************/
 #include "../include/simulator_header.h"
-#include "../external_lib/tvm/packed_func.h"
-#include "../external_lib/tvm/registry.h"
-#include <vector>
-#include <string>
-#include <iostream>
-#include <unordered_map>
 
 // Define the data type
 using inp_dtype = int32_t;

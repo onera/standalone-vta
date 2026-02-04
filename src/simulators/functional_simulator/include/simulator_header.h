@@ -27,7 +27,10 @@
   #include "../include/virtual_memory.h"
   #include "../include/cpu_functions.h"
 
+  #include "../external_lib/tvm/packed_func.h"
+  #include "../external_lib/tvm/registry.h"
 
+  
   /******************************
     Execute simulator's prototype
   *******************************/

@@ -66,9 +66,9 @@ def node_add(node, param={}, node_mapping={}, node_info={}, filename='',
     # Get the input tensors
     # ---
     # Count the nodes
-    isAcc1Get = False
-    isAcc2Get = False
-    initAccBis = False
+    isAcc1Get = -1
+    isAcc2Get = -1
+    initAccBis = -1
 
     for j, inp in enumerate(inp_list):
         # Get the name
@@ -82,12 +82,12 @@ def node_add(node, param={}, node_mapping={}, node_info={}, filename='',
                 raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp_shape)} dimensions when 4 are expected)! \n")
 
             # Get the shape
-            elif (isAcc1Get == False):
-                isAcc1Get = True
+            elif (isAcc1Get < 0):
+                isAcc1Get = j
                 acc_tensor_shape = inp_shape # NCHW
             
-            elif (isAcc2Get == False):
-                isAcc2Get = True
+            elif (isAcc2Get < 0):
+                isAcc2Get = j
                 # Check the consistency between both inputs
                 if (inp_shape != acc_tensor_shape):
                     raise Exception(f"ERROR (in {filename}): Add must add 2 same shape tensors! \n")
@@ -101,14 +101,14 @@ def node_add(node, param={}, node_mapping={}, node_info={}, filename='',
         elif (inp_name in param):
             # Empty field = metadata
             if (len(inp_shape) == 0):
-                if (j == 1): # ACC1 SCALE
+                if (j == isAcc1Get+1): # ACC1 SCALE
                     A_scale = param[inp_name]
-                elif (j == 2): # ACC1 ZERO POINT
+                elif (j == isAcc1Get+2): # ACC1 ZERO POINT
                     A_zp = param[inp_name]
                 
-                elif (j == 4): # ACC2 SCALE
+                elif (j == isAcc2Get+1): # ACC2 SCALE
                     B_scale = param[inp_name]
-                elif (j == 5): # ACC2 ZERO POINT
+                elif (j == isAcc2Get+2): # ACC2 ZERO POINT
                     B_zp = param[inp_name]
                 
                 elif (j == 6): # OUT SCALE

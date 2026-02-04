@@ -78,8 +78,8 @@ def node_conv(node, param={}, node_mapping={}, node_info={}, filename='',
     # Get the input tensors
     # ---
     # Count the nodes
-    isInpGet = False
-    isWgtGet = False
+    isInpGet = -1
+    isWgtGet = -1
 
     for j, inp in enumerate(inp_list):
         # Get the name
@@ -93,8 +93,8 @@ def node_conv(node, param={}, node_mapping={}, node_info={}, filename='',
                 if ( len(inp_shape) != 2 ):
                     raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp_shape)} dimensions when 2 are expected)! \n")
                 # Get the shape
-                if (isInpGet == False):
-                    isInpGet = True
+                if (isInpGet < 0):
+                    isInpGet = j
                     inp_tensor_shape = (inp_shape[0], inp_shape[1], 1, 1)
                 else:
                     raise Exception(f"ERROR (in {filename}): Unexpected input ({inp_name})! \n")
@@ -103,8 +103,8 @@ def node_conv(node, param={}, node_mapping={}, node_info={}, filename='',
                 if ( len(inp_shape) != 4 ):
                     raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp_shape)} dimensions when 4 are expected)! \n")
                 # Get the shape
-                if (isInpGet == False):
-                    isInpGet = True
+                if (isInpGet < 0):
+                    isInpGet = j
                     inp_tensor_shape = inp_shape # NCHW
                 else:
                     raise Exception(f"ERROR (in {filename}): Unexpected input ({inp_name})! \n")
@@ -114,14 +114,14 @@ def node_conv(node, param={}, node_mapping={}, node_info={}, filename='',
         elif (inp_name in param):
             # Empty field = metadata
             if (len(inp_shape) == 0):
-                if (j == 1): # INP SCALE
+                if (j == isInpGet+1): # INP SCALE
                     A_scale = param[inp_name]
-                elif (j == 2): # INP ZERO POINT
+                elif (j == isInpGet+2): # INP ZERO POINT
                     A_zp = param[inp_name]
                 
-                elif (j == 4): # WGT SCALE
+                elif (j == isWgtGet+1): # WGT SCALE
                     B_scale = param[inp_name]
-                elif (j == 5): # WGT ZERO POINT
+                elif (j == isWgtGet+2): # WGT ZERO POINT
                     B_zp = param[inp_name]
                 
                 elif (j == 6): # OUT SCALE
@@ -135,7 +135,7 @@ def node_conv(node, param={}, node_mapping={}, node_info={}, filename='',
                 acc_tensor = param[inp_name].astype(acc_dtype)
 
             else: # B (weight)
-                if (isWgtGet == True):
+                if (isWgtGet >= 0):
                     raise Exception(f"ERROR (in {filename}): Multiple weight tensors in the node! \n")
 
                 elif (op_type == 'MatMul'):
@@ -150,7 +150,7 @@ def node_conv(node, param={}, node_mapping={}, node_info={}, filename='',
                         raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp_shape)} dimensions when 4 are expected)! \n")
                     wgt_tensor_shape = inp_shape # NCHW
                     wgt_tensor = param[inp_name].astype(wgt_dtype)
-                isWgtGet = True
+                isWgtGet = j
         
         # Else problem 
         else:
@@ -362,8 +362,8 @@ def node_mulconstant(node, param={}, node_mapping={}, node_info={}, filename='',
     # Get the input tensors
     # ---
     # Count the nodes
-    isInpGet = False
-    isScalarGet = False
+    isInpGet = -1
+    isScalarGet = -1
 
     for j, inp in enumerate(inp_list):
         # Get the name
@@ -376,8 +376,8 @@ def node_mulconstant(node, param={}, node_mapping={}, node_info={}, filename='',
             if ( len(inp_shape) != 4 ):
                 raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp_shape)} dimensions when 4 are expected)! \n")
             # Get the shape
-            if (isInpGet == False):
-                isInpGet = True
+            if (isInpGet < 0):
+                isInpGet = j
                 inp_tensor_shape = inp_shape # NCHW
             else:
                 raise Exception(f"ERROR (in {filename}): Unexpected input ({inp_name})! \n")
@@ -391,14 +391,14 @@ def node_mulconstant(node, param={}, node_mapping={}, node_info={}, filename='',
         elif (inp_name in param):
             # Empty field = metadata
             if (len(inp_shape) == 0):
-                if (j == 1): # WGT SCALE
+                if (j == isScalarGet+1): # WGT SCALE
                     B_scale = param[inp_name]
-                elif (j == 2): # WGT ZERO POINT
+                elif (j == isScalarGet+2): # WGT ZERO POINT
                     B_zp = param[inp_name]
                 
-                elif (j == 4): # INP SCALE
+                elif (j == isInpGet+1): # INP SCALE
                     A_scale = param[inp_name]
-                elif (j == 5): # INP ZERO POINT
+                elif (j == isInpGet+2): # INP ZERO POINT
                     A_zp = param[inp_name]
                 
                 elif (j == 6): # OUT SCALE
@@ -407,8 +407,11 @@ def node_mulconstant(node, param={}, node_mapping={}, node_info={}, filename='',
                     C_zp = param[inp_name]
             
             # Scalar
-            elif (len(inp['shape']) == 1 and isScalarGet == False):
-                isScalarGet = True
+            elif (len(inp['shape']) >= 1 and isScalarGet < 0):
+                for shape in inp['shape']:
+                    if (shape != 1):
+                        raise Exception(f"ERROR (in {filename}): Wrong shape ({shape} when 1 is expected)! \n")
+                isScalarGet = j
                 scalar = param[inp['name']][0]
 
             # Error on the shape

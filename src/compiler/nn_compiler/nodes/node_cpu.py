@@ -57,7 +57,7 @@ def quantizelinear(node, param={}, node_mapping={}, node_info={}, filename='',
     # Get the input tensors
     # ---
     # Count the nodes
-    isInpGet = False
+    isInpGet = -1
 
     for j, inp in enumerate(inp_list):
         # Get the name
@@ -71,8 +71,8 @@ def quantizelinear(node, param={}, node_mapping={}, node_info={}, filename='',
                 raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp_shape)} dimensions when 4 are expected)! \n")
 
             # Get the shape
-            elif (isInpGet == False):
-                isInpGet = True
+            elif (isInpGet < 0):
+                isInpGet = j
                 inp_tensor_shape = inp_shape # NCHW
             
             # Else problem
@@ -212,10 +212,10 @@ def qlinearconcat(node, param={}, node_mapping={}, node_info={}, filename='',
     # Get the input tensors
     # ---
     # Count the nodes
-    isAGet = False
-    isBGet = False
-    isUGet = False
-    isVGet = False
+    isAGet = -1
+    isBGet = -1
+    isUGet = -1
+    isVGet = -1
 
     for j, inp in enumerate(inp_list):
         # Get the name
@@ -229,17 +229,17 @@ def qlinearconcat(node, param={}, node_mapping={}, node_info={}, filename='',
                 raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp_shape)} dimensions when 4 are expected)! \n")
 
             # Get the shape
-            elif (isAGet == False):
-                isAGet = True
+            elif (isAGet < 0):
+                isAGet = j
                 inpA_tensor_shape = inp_shape # NCHW
 
-            elif (isBGet == False or isUGet == False or isVGet == False):
-                if (isBGet == False):
-                    isBGet = True
-                elif (isUGet == False):
-                    isUGet = True
-                elif (isVGet == False):
-                    isVGet = True
+            elif (isBGet < 0 or isUGet < 0 or isVGet < 0):
+                if (isBGet < 0):
+                    isBGet = j
+                elif (isUGet < 0):
+                    isUGet = j
+                elif (isVGet < 0):
+                    isVGet = j
 
                 inpB_tensor_shape = inp_shape # NCHW
 
@@ -260,24 +260,24 @@ def qlinearconcat(node, param={}, node_mapping={}, node_info={}, filename='',
                 elif (j == 1): # OUT ZERO POINT
                     C_zp = param[inp_name]
 
-                elif (j == 3): # A SCALE
+                elif (j == isAGet+1): # A SCALE
                     A_scale = param[inp_name]
-                elif (j == 4): # A ZERO POINT
+                elif (j == isAGet+2): # A ZERO POINT
                     A_zp = param[inp_name]
 
-                elif (j == 6): # B SCALE
+                elif (j == isBGet+1): # B SCALE
                     B_scale = param[inp_name]
-                elif (j == 7): # B ZERO POINT
+                elif (j == isBGet+2): # B ZERO POINT
                     B_zp = param[inp_name]
 
-                elif (j == 9): # U SCALE
+                elif (j == isUGet+1): # U SCALE
                     U_scale = param[inp_name]
-                elif (j == 10): # U ZERO POINT
+                elif (j == isUGet+2): # U ZERO POINT
                     U_zp = param[inp_name]
 
-                elif (j == 12): # V SCALE
+                elif (j == isVGet+1): # V SCALE
                     V_scale = param[inp_name]
-                elif (j == 13): # V ZERO POINT
+                elif (j == isVGet+2): # V ZERO POINT
                     V_zp = param[inp_name]
 
             # There is a problem
@@ -395,9 +395,9 @@ def convtranspose(node, param={}, node_mapping={}, node_info={}, filename='',
     # Get the input tensors
     # ---
     # Count the nodes
-    isInpGet = False
-    isWgtGet = False
-    isBias = False
+    isInpGet = -1
+    isWgtGet = -1
+    isBias = -1
 
     for j, inp in enumerate(inp_list):
         # Get the name
@@ -411,8 +411,8 @@ def convtranspose(node, param={}, node_mapping={}, node_info={}, filename='',
                 raise Exception(f"ERROR (in {filename}): Wrong input shape ({len(inp_shape)} dimensions when 4 are expected)! \n")
 
             # Get the shape
-            elif (isInpGet == False):
-                isInpGet = True
+            elif (isInpGet < 0):
+                isInpGet = j
                 inp_tensor_shape = inp_shape # NCHW
 
             # Else problem
@@ -423,13 +423,13 @@ def convtranspose(node, param={}, node_mapping={}, node_info={}, filename='',
         # Get param
         elif (inp_name in param):
             # X (bias)
-            if ( (len(inp_shape) == 1) and (isBias == False) ):
-                isBias = True
+            if ( (len(inp_shape) == 1) and (isBias < 0) ):
+                isBias = j
                 acc_tensor_shape = [1, inp_shape[0], 1, 1]
                 acc_tensor = param[inp_name].astype(np.float32)
 
-            elif ( len(inp_shape) == 4 and isWgtGet == False):
-                isWgtGet = True 
+            elif ( len(inp_shape) == 4 and isWgtGet < 0):
+                isWgtGet = j 
                 wgt_tensor_shape = inp_shape # NCHW
                 wgt_tensor = param[inp_name].astype(np.float32)
 
@@ -487,7 +487,7 @@ def convtranspose(node, param={}, node_mapping={}, node_info={}, filename='',
     Cw = mc
 
     # BIAS
-    if (isBias == False):
+    if (isBias < 0):
         acc_tensor = np.zeros((1, accX_tensor_shape[2]), dtype=np.float32)
 
     
