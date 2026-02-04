@@ -547,7 +547,7 @@ int fsim_nn() {
                 float valY = (float)ctx.accY[k] * scaleB;
                 float val = (valX + valY) / scaleC;
                 // Round
-                ctx.outC[k] = (inp_dtype)std::nearbyint(val);
+                ctx.outC[k] = (inp_dtype)std::nearbyint(val); // round vs nearbyint
             }
 
             // Fix scale to 1.0

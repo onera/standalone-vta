@@ -764,7 +764,7 @@
       for (const auto& val : input_vector) {
           // 1. Multiply by factor (cast input to double for precision)
           // 2. Round to nearest integer
-          double scaled_val = std::nearbyint(static_cast<double>(val) * rescale_factor);
+          double scaled_val = std::nearbyint(static_cast<double>(val) * rescale_factor); // round vs nearbyint
 
           // 3. Add offset (cast back to int32 for arithmetic)
           int32_t offsetted_val = static_cast<int32_t>(scaled_val) + offset;
@@ -1018,7 +1018,7 @@
 
                           // Requantize: (x / s_out) + zp_out
                           // Using nearbyint for rounding
-                          int32_t val_rec = static_cast<int32_t>(std::nearbyint(val_f / output_scale)) + output_zp;
+                          int32_t val_rec = static_cast<int32_t>(std::nearbyint(val_f / output_scale)) + output_zp; // round vs nearbyint
                           
                           // Clamp (assuming int8 output range)
                           val_rec = std::clamp(val_rec, -128, 127);
@@ -1103,7 +1103,7 @@
       for (const auto& val : input_vector) {
           // 1. Divide by scale
           // 2. Round to nearest integer (using nearbyint)
-          double scaled_val = std::nearbyint(val / scale);
+          double scaled_val = std::nearbyint(val / scale); // round vs nearbyint
 
           // 3. Add Zero Point
           int32_t quant_val = static_cast<int32_t>(scaled_val) + zero_point;

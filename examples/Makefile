@@ -20,7 +20,6 @@ PYTHON_CMD := python
 # PYTHON_CMD := python -m cProfile -o $(COMPILER_OUTPUT_DIR)/vta_compiler.prof
 
 JSON_FILES := $(COMPILER_OUTPUT_DIR)/*.json
-# JSON_FILES := $(COMPILER_OUTPUT_DIR)/QLinearAdd5.json
 
 DEBUG ?= False
 DEBUG_PARSE ?= True
@@ -28,14 +27,12 @@ COMPILE_SUMMARY ?= True
 # ort, numpy, compare
 REF_MODE ?= numpy
 
-ONNX_FILE ?= ../../onnx_zoo/qlinearconv_qyolo.onnx 
+ONNX_FILE ?= onnx/qyolo_pattern.onnx
 # onnx/qlinearconv_debug.onnx
-# onnx/two_qlinearconv_debug.onnx
-# onnx/qlinearmul_debug.onnx
-# onnx/pattern_debug.onnx
+# onnx/qyolo_qconvtranspose.onnx
+# onnx/qyolo_qconv_maxpool_qconcat.onnx
+# onnx/qyolo_pattern.onnx
 
-# ../../onnx_zoo/qlinearconv_qyolo.onnx 
-# ../../onnx_zoo/pattern_qyolo.onnx
 # ../../onnx_zoo/qyolo_debug.onnx
 
 
@@ -45,16 +42,12 @@ ONNX_FILE ?= ../../onnx_zoo/qlinearconv_qyolo.onnx
 # Default
 all: help
 
-tempo:
-	@python test.py
-	@make compile
-
 view_profiler:
 	@snakeviz $(COMPILER_OUTPUT_DIR)/vta_compiler.prof
 
-# ONNX PARSING
-##############
-parse_onnx: ## Parse the specified ONNX
+# NN COMPILER (1st stage compilation)
+#############
+nn_compiler: ## NN compilation: qONNX -> CPU parameters + VTA IRs
 	make clean
 	@echo ""
 	@echo "PARSE ONNX..."
@@ -67,9 +60,9 @@ parse_onnx: ## Parse the specified ONNX
 	@date
 
 
-# COMPILE EXISTING 
-##################
-compile:
+# VTA COMPILER (2nd stage compilation) 
+##############
+vta_compiler: ## VTA compilation: VTA IRs -> VTA code
 	@echo ""
 	@echo "COMPILE tests..."
 	@date
@@ -82,28 +75,18 @@ compile:
 	@date
 
 
-# FSIM compilation
-compile_clean_fsim:
+# COMPILE FSIM
+##############
+fsim_clean: ## Clean FSIM repository
 	cd $(FSIM_DIR) && make clean
 
-compile_fsim:
-	cd $(FSIM_DIR) && make build/functional_simulator
-
-compile_nn_fsim:
+fsim_compile: ## Compile FSIM
 	cd $(FSIM_DIR) && make build/fsim_nn
 
 
 # REFERENCE EXECUTION
 #####################
 reference:
-	@echo ""
-	@echo "PROVIDE references..."
-	python $(COMPILER_DIR)/reference_computation/reference_computation.py \
-	$(DEBUG) \
-	$(CONFIG)/vta_config.json \
-	$(JSON_FILES) > $(COMPILER_OUTPUT_DIR)/prompt_reference.txt
-
-reference_onnx:
 	@echo ""
 	@echo "PROVIDE ONNX reference..."
 	python $(COMPILER_DIR)/reference_computation/reference_onnx.py \
@@ -120,16 +103,7 @@ check:
 
 # FSIM EXECUTION
 ################
-fsim: 
-	@echo ""
-	@echo "RUN functional simulation..."
-	@date
-	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
-	@date
-	@echo ""
-	@echo "SUCCESS!"
-
-nn_fsim: 
+fsim_inference: ## Infer FSIM with random values
 	@echo ""
 	@echo "RUN functional simulation (for NN)..."
 	@date
@@ -141,187 +115,18 @@ nn_fsim:
 
 # EXECUTION
 ###########
-# Do "make compile_fsim"
-run:
-	@make clean
-	@make compile
-	@make reference
-	@make fsim
-
-
 # Do "make compile_nn_fsim"
-nn_run:
-	@make parse_onnx
-	@make compile
-	@make reference_onnx
-	@make nn_fsim
+run: ## Run: NN compiler + VTA compiler + inference and check
+	@make nn_compiler
+	@make vta_compiler
+	@make reference
+	@make fsim_inference
 	@make check
 
-nn_execute:
-	@make reference_onnx
-	@make nn_fsim
+execute: ## Execute: only inference and check
+	@make reference
+	@make fsim_inference
 	@make check
-
-############################################################
-############################################################
-
-# COMPILATION TESTS
-###################
-DTYPE = int32
-
-# MATRIX MULTIPLICATION EXAMPLES
-matmul_16x16: ## Execute vta_ir/matmul_16x16.json
-	make clean
-	@echo "Create the binaries"
-	python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 input $(DTYPE)
-	python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 weight $(DTYPE)
-	@echo ""
-	@echo "Compiling the VTA IR"
-	python $(VTA_COMPILER_DIR)/main_vta_compiler.py \
-	$(DEBUG) \
-	$(CONFIG)/vta_config.json \
-	$(MAKEFILE_DIR)vta_ir/matmul_16x16.json > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
-	@echo ""
-	@echo "Provide reference computation"
-	python $(COMPILER_DIR)/reference_computation/reference_computation.py \
-	$(DEBUG) \
-	$(CONFIG)/vta_config.json \
-	$(MAKEFILE_DIR)vta_ir/matmul_16x16.json  > $(COMPILER_OUTPUT_DIR)/prompt_reference.txt
-	@make fsim
-
-# Test
-test_matmul: ## Test matrix multiplication with random size (1-2048)
-	make clean
-	@echo "CREATE the JSON matmul_relu"
-	python $(COMPILER_DIR)/utils/testing.py matmul
-	@make compile
-	@make reference
-	@make fsim
-
-# Test
-test_matmul_relu: ## Test matrix multiplication and ReLU with random size (1-2048)
-	make clean
-	@echo "CREATE the JSON matmul_relu"
-	python $(COMPILER_DIR)/utils/testing.py matmul_relu
-	@make compile
-	@make reference
-	@make fsim
-
-
-# MATRIX MULTIPLICATION WITH SCALAR EXAMPLES
-matrix_mul_constant: ## Execute vta_ir/matmulConst_16x16.json
-	make clean
-	@echo "Create the binaries"
-	python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 input int8
-	@echo ""
-	@echo "Compiling the VTA IR"
-	python $(VTA_COMPILER_DIR)/main_vta_compiler.py \
-	$(DEBUG) \
-	$(CONFIG)/vta_config.json \
-	$(MAKEFILE_DIR)vta_ir/matmulConst_16x16.json > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
-	@echo ""
-	@echo "Provide reference computation"
-	python $(COMPILER_DIR)/reference_computation/reference_computation.py \
-	$(DEBUG) \
-	$(CONFIG)/vta_config.json \
-	$(MAKEFILE_DIR)vta_ir/matmulConst_16x16.json  > $(COMPILER_OUTPUT_DIR)/prompt_reference.txt
-	@make fsim
-
-# Test
-test_mulconstant: ## Test the multiplication between random size matrix and scalar
-	make clean
-	@echo "CREATE the JSON mulconstant"
-	python $(COMPILER_DIR)/utils/testing.py mulconstant
-	@make compile
-	@make reference
-	@make fsim
-
-
-# MATRIX POOLING EXAMPLE
-matrix_maxpool: ## Execute vta_ir/maxpool_36x16.json
-	make clean
-	@echo "Create the binaries"
-	python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 36 16 accumulator int32
-	@echo ""
-	@echo "Compiling the VTA IR"
-	python $(VTA_COMPILER_DIR)/main_vta_compiler.py \
-	$(DEBUG) \
-	$(CONFIG)/vta_config.json \
-	$(MAKEFILE_DIR)vta_ir/maxpool_36x16.json > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
-	@echo ""
-	@echo "Provide reference computation"
-	python $(COMPILER_DIR)/reference_computation/reference_computation.py \
-	$(DEBUG) \
-	$(CONFIG)/vta_config.json \
-	$(MAKEFILE_DIR)vta_ir/maxpool_36x16.json  > $(COMPILER_OUTPUT_DIR)/prompt_reference.txt
-	@echo ""
-	@echo "Functional simulation"
-	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
-
-# Test
-test_maxpool: ## TestALU through MAXPOOL configuration with a random size matrix
-	make clean
-	@echo "CREATE the JSON maxpool"
-	python $(COMPILER_DIR)/utils/testing.py maxpool
-	@make compile
-	@make reference
-	@make fsim
-
-
-# ADDING 2 MATRICES EXAMPLES
-matrix_add: ## Execute vta_ir/add_36x16.json
-	make clean
-	@echo "Create the binaries"
-	python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 36 16 accumulator int32
-	python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 36 16 accbis int32
-	@echo ""
-	@echo "Compiling the VTA IR"
-	python $(VTA_COMPILER_DIR)/main_vta_compiler.py \
-	$(DEBUG) \
-	$(CONFIG)/vta_config.json \
-	$(MAKEFILE_DIR)vta_ir/add_36x16.json > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
-	@echo ""
-	@echo "Provide reference computation"
-	python $(COMPILER_DIR)/reference_computation/reference_computation.py \
-	$(DEBUG) \
-	$(CONFIG)/vta_config.json \
-	$(MAKEFILE_DIR)vta_ir/add_36x16.json  > $(COMPILER_OUTPUT_DIR)/prompt_reference.txt
-	@make fsim
-
-# Test
-test_add: ## Test adding two same shape matrices together with random size
-	make clean
-	@echo "CREATE the JSON add_acc"
-	python $(COMPILER_DIR)/utils/testing.py add_acc
-	@make compile
-	@make reference
-	@make fsim
-
-
-# GENERAL TESTS
-###############
-test: ## Test campaign
-	@make test_matmul
-	@make test_matmul_relu
-	@make test_mulconstant
-	@make test_maxpool
-	@make test_add
-	@echo ""
-	@echo "Everything has matched the reference!"
-
-test_sequence:
-	@make clean
-	@echo ""
-	@echo "GENERATE tests..."
-	python $(COMPILER_DIR)/utils/testing.py matmul
-	python $(COMPILER_DIR)/utils/testing.py matmul_relu
-	python $(COMPILER_DIR)/utils/testing.py mulconstant
-	python $(COMPILER_DIR)/utils/testing.py maxpool
-	python $(COMPILER_DIR)/utils/testing.py add_acc
-	@make compile
-	@make reference
-	@make fsim
-
 
 ############################################################
 ############################################################
@@ -342,7 +147,7 @@ clean: | $(COMPILER_OUTPUT_DIR) $(SIMULATOR_OUTPUT_DIR) ## Clean the project gen
 	-rm $(COMPILER_OUTPUT_DIR)/*.*
 	-rm $(SIMULATOR_OUTPUT_DIR)/*.*
 
-force_clean: ## Clean the FSIM directory
+force_clean: ## Clean the FSIM directory
 	make clean
 	cd $(FSIM_DIR) && make clean
 
