@@ -27,7 +27,7 @@ jobs:
           environment-file: environment_setup/standalone-vta.yml
           activate-environment: standalone-vta
       - name: Tests VTA compiler and functional simulator
-        run: cd examples && make test
+        run: cd examples && make run
 
   cycle-accurate-simulator-test:
     runs-on: ubuntu-latest
