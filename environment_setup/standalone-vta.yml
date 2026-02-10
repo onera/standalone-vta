@@ -1,9 +1,6 @@
 name: standalone-vta
 channels:
   - defaults
-  - conda-forge
-  - anaconda-org/pytorch
-  - anaconda-org/conda-forge
   - https://repo.anaconda.com/pkgs/main
   - https://repo.anaconda.com/pkgs/r
 dependencies:
