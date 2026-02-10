@@ -26,6 +26,8 @@ jobs:
           auto-activate-base: false
           environment-file: environment_setup/standalone-vta.yml
           activate-environment: standalone-vta
+          channels: conda-forge,defaults
+          channel-priority: flexible
       - name: Tests VTA compiler and functional simulator
         run: cd examples && make run
 

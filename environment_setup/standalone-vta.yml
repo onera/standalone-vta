@@ -1,11 +1,11 @@
 name: standalone-vta
 channels:
+  - conda-forge
   - defaults
+  - anaconda-org/pytorch
   - https://repo.anaconda.com/pkgs/main
   - https://repo.anaconda.com/pkgs/r
 dependencies:
-  - _libgcc_mutex=0.1=conda_forge
-  - _openmp_mutex=4.5=2_gnu
   - archspec=0.2.3=pyhd8ed1ab_0
   - attrs=24.2.0=pyh71513ae_0
   - beautifulsoup4=4.12.3=pyha770c72_0
