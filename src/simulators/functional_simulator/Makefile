@@ -165,7 +165,7 @@ build/others/: | build/
 
 # Clean the build directory
 clean: 
-	find build/ -type f -delete
+	-find build/ -type f -delete
 
 # Generate dependencies
 depend:
