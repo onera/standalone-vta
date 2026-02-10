@@ -29,7 +29,7 @@ jobs:
           channels: conda-forge,defaults
           channel-priority: flexible
       - name: Tests VTA compiler and functional simulator
-        run: cd examples && make run
+        run: cd examples && make compile_and_run
 
   cycle-accurate-simulator-test:
     runs-on: ubuntu-latest

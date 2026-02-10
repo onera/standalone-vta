@@ -128,6 +128,12 @@ execute: ## Execute: only inference and check
 	@make fsim_inference
 	@make check
 
+
+compile_and_run: ## Compile and run
+	@make fsim_clean
+	@make fsim_compile
+	@make run
+
 ############################################################
 ############################################################
 
