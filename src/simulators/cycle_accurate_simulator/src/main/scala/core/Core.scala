@@ -41,34 +41,35 @@ case class CoreParams(
     outMemDepth: Int,
     instQueueEntries: Int
 ) {
-  require(uopBits % 8 == 0,
-    s"\n\n[VTA] [CoreParams] uopBits must be byte aligned\n\n")
+  require(
+    uopBits % 8 == 0,
+    s"\n\n[VTA] [CoreParams] uopBits must be byte aligned\n\n"
+  )
 }
 
 case object CoreKey extends Field[CoreParams]
 
 /** Core.
- *
- * The core defines the current VTA architecture by connecting memory and
- * compute modules together such as load/store and compute. Most of the
- * connections in the core are bulk (<>), and we should try to keep it this
- * way, because it is easier to understand what is going on.
- *
- * Also, the core must be instantiated by a shell using the
- * VTA Control Register (VCR) and the VTA Memory Engine (VME) interfaces.
- * More info about these interfaces and modules can be found in the shell
- * directory.
- */
-class Core(implicit p: Parameters) extends Module {
+  *
+  * The core defines the current VTA architecture by connecting memory and
+  * compute modules together such as load/store and compute. Most of the
+  * connections in the core are bulk (<>), and we should try to keep it this
+  * way, because it is easier to understand what is going on.
+  *
+  * Also, the core must be instantiated by a shell using the VTA Control
+  * Register (VCR) and the VTA Memory Engine (VME) interfaces. More info about
+  * these interfaces and modules can be found in the shell directory.
+  */
+class Core(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val io = IO(new Bundle {
     val vcr = new VCRClient
     val vme = new VMEMaster
   })
-  val fetch = Module(new Fetch)
-  val load = Module(new Load)
-  val compute = Module(new Compute)
-  val store = Module(new Store)
-  val ecounters = Module(new EventCounters)
+  val fetch = Module(new Fetch(debug))
+  val load = Module(new Load(debug))
+  val compute = Module(new Compute(debug))
+  val store = Module(new Store(debug))
+  val ecounters = Module(new EventCounters(debug))
 
   // Read(rd) and write(wr) from/to memory (i.e. DRAM)
   io.vme.rd(0) <> fetch.io.vme_rd

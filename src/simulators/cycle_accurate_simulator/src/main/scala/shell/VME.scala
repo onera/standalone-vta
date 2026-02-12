@@ -299,6 +299,7 @@ class VME(implicit p: Parameters) extends Module {
   // centralized tag buffer vmeTag_array
   // Adding a flop stage for mem.r.data, mem.r.last, mem.r.valid
   // till local tag lookup is performed.
+  val rreadyTemp = RegInit(false.B)
   io.mem.r.ready := true.B
   vmeTag_array_rd_addr := io.mem.r.bits.id
   localTag_out := vmeTag_array(vmeTag_array_rd_addr)

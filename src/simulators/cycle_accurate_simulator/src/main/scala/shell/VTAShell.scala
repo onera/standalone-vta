@@ -35,11 +35,11 @@ case class ShellParams(
 case object ShellKey extends Field[ShellParams]
 
 /** VTAShell.
- *
- * The VTAShell is based on a VME, VCR and core. This creates a complete VTA
- * system that can be used for simulation or real hardware.
- */
-class VTAShell(implicit p: Parameters) extends Module {
+  *
+  * The VTAShell is based on a VME, VCR and core. This creates a complete VTA
+  * system that can be used for simulation or real hardware.
+  */
+class VTAShell(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val io = IO(new Bundle {
     val host = new AXILiteClient(p(ShellKey).hostParams)
     val mem = new AXIMaster(p(ShellKey).memParams)
@@ -47,7 +47,7 @@ class VTAShell(implicit p: Parameters) extends Module {
 
   val vcr = Module(new VCR)
   val vme = Module(new VME)
-  val core = Module(new Core)
+  val core = Module(new Core(debug))
 
   core.io.vcr <> vcr.io.vcr
   vme.io.vme <> core.io.vme

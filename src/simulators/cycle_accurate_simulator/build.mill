@@ -11,7 +11,7 @@ import mill.api.Task.Simple
 
 object `package` extends SbtModule with PublishModule {
 
-  def artifactName = "vta_chiseltest"
+  def artifactName = "vta-standalone"
 
   def javacOptions = Seq("-source", "1.8", "-target", "1.8")
 
@@ -45,7 +45,7 @@ object `package` extends SbtModule with PublishModule {
   )
 
   def pomSettings = PomSettings(
-    "vta_chiseltest",
+    "vta-standalone",
     "edu.berkeley.cs",
     "",
     Seq(),

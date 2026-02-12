@@ -15,6 +15,7 @@ trait AxiClientWrapper extends Module {
     */
   def writeHandler(axi: AXIClient, enabled: Bool = true.B): UInt = {
     val dataWidth = axi.params.dataBits
+
     object WriteState extends ChiselEnum {
       val idle, waddr, wdata = Value
     }
@@ -41,12 +42,12 @@ trait AxiClientWrapper extends Module {
 
     val awBurstWire = axi.aw.bits.burst
     // axi.aw.bits.len := awLen
-    val addrLSB = (axi.params.addrBits / 32) + 1
+    val addrLSB = (dataWidth / 32) + 1
 
     switch(writeState) {
       is(WriteState.idle) {
         awReady := true.B
-        wReady := false.B
+        wReady := true.B
         writeState := WriteState.waddr
       }
       is(WriteState.waddr) {
@@ -75,7 +76,6 @@ trait AxiClientWrapper extends Module {
       }
 
       is(WriteState.wdata) {
-        wReady := true.B
         when(axi.w.valid && axi.w.bits.last) {
           writeState := WriteState.waddr
           bValid := true.B
@@ -129,11 +129,9 @@ trait AxiClientWrapper extends Module {
 
   def readHandler(axi: AXIClient, enabled: Bool): UInt = {
 
-    object ReadState extends ChiselEnum {
-      val idle, raddr, rdata = Value
-    }
+    val idle :: raddr :: rdata :: Nil = util.Enum(3)
 
-    val readState = RegInit(ReadState.idle)
+    val readState = RegInit(idle)
 
     val arReady = RegInit(false.B)
     val arLen = RegInit(0.U.asTypeOf(axi.ar.bits.len))
@@ -156,13 +154,13 @@ trait AxiClientWrapper extends Module {
     // ReadState machine
 
     switch(readState) {
-      is(ReadState.idle) {
-        readState := ReadState.raddr
+      is(idle) {
+        readState := raddr
         arReady := true.B
       }
-      is(ReadState.raddr) {
+      is(raddr) {
         when(axi.ar.fire) {
-          readState := ReadState.rdata
+          readState := rdata
           rValid := true.B
           arReady := false.B
           rId := axi.r.bits.id
@@ -173,15 +171,15 @@ trait AxiClientWrapper extends Module {
           arLen := axi.ar.bits.len
         }.otherwise(readState := readState)
       }
-      is(ReadState.rdata) {
+      is(rdata) {
         when(arLenCounter === arLen - 1.U && !rLast && axi.r.ready) {
           rLast := true.B
         }
-        when(axi.r.fire && !axi.r.bits.last) {
+        when(axi.r.fire && axi.r.bits.last) {
           rValid := false.B
           rReady := true.B
           rLast := false.B
-          readState := ReadState.raddr
+          readState := raddr
         }.otherwise(readState := readState)
       }
     }
@@ -194,7 +192,7 @@ trait AxiClientWrapper extends Module {
 
     // Handles read address increment
     when(axi.ar.fire) {
-      when(axi.w.valid) {
+      when(axi.r.fire) {
         arLenCounter := 1.U
         when(
           arBurstWire === 0.U || (arBurstWire === 1.U && !(axi.ar.bits.len === 0.U))
@@ -207,7 +205,7 @@ trait AxiClientWrapper extends Module {
       })
 
     }
-      .elsewhen(arLenCounter < arLen && axi.w.valid) {
+      .elsewhen(arLenCounter < arLen && axi.r.fire) {
         arLenCounter := arLenCounter + 1.U
         switch(arBurst) {
           is(0.U) {

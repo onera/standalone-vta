@@ -29,14 +29,16 @@ import vta.util._
 import vta.shell._
 
 /** Compute.
- *
- * The compute unit is in charge of the following:
- * - Loading micro-ops from memory (loadUop module)
- * - Loading biases (acc) from memory (tensorAcc module)
- * - Compute ALU instructions (tensorAlu module)
- * - Compute GEMM instructions (tensorGemm module)
- */
-class Compute(debug: Boolean = false)(implicit val p: Parameters) extends Module {
+  *
+  * The compute unit is in charge of the following:
+  *   - Loading micro-ops from memory (loadUop module)
+  *   - Loading biases (acc) from memory (tensorAcc module)
+  *   - Compute ALU instructions (tensorAlu module)
+  *   - Compute GEMM instructions (tensorGemm module)
+  */
+class Compute(debug: Boolean = false)(implicit
+    val p: Parameters
+) extends Module {
   val mp = p(ShellKey).memParams
   val io = IO(new Bundle {
     val i_post = Vec(2, Input(Bool()))
@@ -55,29 +57,33 @@ class Compute(debug: Boolean = false)(implicit val p: Parameters) extends Module
   val state = RegInit(sIdle)
 
   val s = Seq.tabulate(2)(_ =>
-    Module(new Semaphore(counterBits = 8, counterInitValue = 0)))
-
+    Module(new Semaphore(counterBits = 8, counterInitValue = 0))
+  )
 
   val loadUop = Module(new LoadUopTop)
   val tensorAcc = Module(new TensorLoad(tensorType = "acc"))
   val tensorGemm = Module(new TensorGemm)
   val tensorAlu = Module(new TensorAlu)
 
-  //try to use the acc closest to top IO
+  // try to use the acc closest to top IO
   val topAccGrpIdx = tensorGemm.io.acc.closestIOGrpIdx
 
-  val inst_q = Module(new SyncQueue(UInt(INST_BITS.W), p(CoreKey).instQueueEntries))
+  val inst_q = Module(
+    new SyncQueue(UInt(INST_BITS.W), p(CoreKey).instQueueEntries)
+  )
 
   // decode
   val dec = Module(new ComputeDecode)
   dec.io.inst := inst_q.io.deq.bits
 
   val inst_type =
-    Cat(dec.io.isFinish,
+    Cat(
+      dec.io.isFinish,
       dec.io.isAlu,
       dec.io.isGemm,
       dec.io.isLoadAcc,
-      dec.io.isLoadUop).asUInt
+      dec.io.isLoadUop
+    ).asUInt
 
   val sprev = inst_q.io.deq.valid & Mux(dec.io.pop_prev, s(0).io.sready, true.B)
   val snext = inst_q.io.deq.valid & Mux(dec.io.pop_next, s(1).io.sready, true.B)
@@ -87,13 +93,13 @@ class Compute(debug: Boolean = false)(implicit val p: Parameters) extends Module
     false.B // default
   )(
     Seq(
-        "h_01".U -> loadUop.io.done,
-        "h_02".U -> tensorAcc.io.done,
-        "h_04".U -> tensorGemm.io.done,
-        "h_08".U -> tensorAlu.io.done,
-        "h_10".U -> true.B // Finish
-      )
+      "h_01".U -> loadUop.io.done,
+      "h_02".U -> tensorAcc.io.done,
+      "h_04".U -> tensorGemm.io.done,
+      "h_08".U -> tensorAlu.io.done,
+      "h_10".U -> true.B // Finish
     )
+  )
 
   // control
   switch(state) {
@@ -126,7 +132,11 @@ class Compute(debug: Boolean = false)(implicit val p: Parameters) extends Module
   loadUop.io.baddr := io.uop_baddr
   io.vme_rd(0) <> loadUop.io.vme_rd
 //  loadUop.io.uop.idx <> Mux(dec.io.isGemm, tensorGemm.io.uop.idx, tensorAlu.io.uop.idx)
-  loadUop.io.uop.idx := Mux(dec.io.isGemm, tensorGemm.io.uop.idx, tensorAlu.io.uop.idx) // MODIFICATION '<>' into ':=' (other alternative behind)
+  loadUop.io.uop.idx := Mux(
+    dec.io.isGemm,
+    tensorGemm.io.uop.idx,
+    tensorAlu.io.uop.idx
+  ) // MODIFICATION '<>' into ':=' (other alternative behind)
 //  when(dec.io.isGemm) {
 //    loadUop.io.uop.idx <> tensorGemm.io.uop.idx
 //  }.otherwise {
@@ -138,34 +148,46 @@ class Compute(debug: Boolean = false)(implicit val p: Parameters) extends Module
   tensorAcc.io.start := state === sIdle & start & dec.io.isLoadAcc
   tensorAcc.io.inst := inst_q.io.deq.bits
   tensorAcc.io.baddr := io.acc_baddr
-  require(tensorAcc.io.tensor.lenSplit ==
-    tensorAcc.io.tensor.tensorLength, "-F- Expecting a whole batch in acc group")
+  require(
+    tensorAcc.io.tensor.lenSplit ==
+      tensorAcc.io.tensor.tensorLength,
+    "-F- Expecting a whole batch in acc group"
+  )
 
   // split factor of isGemm for many groups
-  val splitFactorL0 = pow(2,log2Ceil(tensorAcc.io.tensor.splitWidth) / 2).toInt
-  val splitFactorL1 = pow(2,log2Ceil(tensorAcc.io.tensor.splitWidth)
-    - log2Ceil(tensorAcc.io.tensor.splitWidth) / 2).toInt
+  val splitFactorL0 = pow(2, log2Ceil(tensorAcc.io.tensor.splitWidth) / 2).toInt
+  val splitFactorL1 = pow(
+    2,
+    log2Ceil(tensorAcc.io.tensor.splitWidth)
+      - log2Ceil(tensorAcc.io.tensor.splitWidth) / 2
+  ).toInt
   require(splitFactorL0 * splitFactorL1 == tensorAcc.io.tensor.splitWidth)
   val accRdSelectL0 = for (idx <- 0 until splitFactorL1) yield {
     // can save 1 stage on small design
-    if (splitFactorL1 > 1) RegNext(dec.io.isGemm, init = false.B) else dec.io.isGemm
+    if (splitFactorL1 > 1) RegNext(dec.io.isGemm, init = false.B)
+    else dec.io.isGemm
   }
 
   for (idx <- 0 until tensorAcc.io.tensor.splitWidth) {
-    tensorAcc.io.tensor.rd(idx).idx := Mux(  // MODIFICATION '<>' into ':='
-      RegNext(accRdSelectL0(idx/splitFactorL0), init = false.B),
+    tensorAcc.io.tensor.rd(idx).idx := Mux( // MODIFICATION '<>' into ':='
+      RegNext(accRdSelectL0(idx / splitFactorL0), init = false.B),
       tensorGemm.io.acc.rd(idx).idx,
-      tensorAlu.io.acc.rd(idx).idx)
-    tensorAcc.io.tensor.wr(idx) := Mux(  // MODIFICATION '<>' into ':='
-      RegNext(accRdSelectL0(idx/splitFactorL0), init = false.B),
+      tensorAlu.io.acc.rd(idx).idx
+    )
+    tensorAcc.io.tensor.wr(idx) := Mux( // MODIFICATION '<>' into ':='
+      RegNext(accRdSelectL0(idx / splitFactorL0), init = false.B),
       tensorGemm.io.acc.wr(idx),
-      tensorAlu.io.acc.wr(idx))
+      tensorAlu.io.acc.wr(idx)
+    )
   }
   io.vme_rd(1) <> tensorAcc.io.vme_rd
   io.acc_wr_event := tensorAcc.io.tensor.wr(topAccGrpIdx).valid
 
   // gemm
-  tensorGemm.io.start := RegNext(state === sIdle & start & dec.io.isGemm, init = false.B)
+  tensorGemm.io.start := RegNext(
+    state === sIdle & start & dec.io.isGemm,
+    init = false.B
+  )
   tensorGemm.io.dec := inst_q.io.deq.bits.asTypeOf(new GemmDecode)
   tensorGemm.io.uop.data.valid := loadUop.io.uop.data.valid & dec.io.isGemm
   tensorGemm.io.uop.data.bits <> loadUop.io.uop.data.bits
@@ -173,7 +195,10 @@ class Compute(debug: Boolean = false)(implicit val p: Parameters) extends Module
   tensorGemm.io.wgt <> io.wgt
   for (idx <- 0 until tensorGemm.io.acc.splitWidth) {
     tensorGemm.io.acc.rd(idx).data.valid :=
-      tensorAcc.io.tensor.rd(idx).data.valid & RegNext(dec.io.isGemm, init = false.B)
+      tensorAcc.io.tensor.rd(idx).data.valid & RegNext(
+        dec.io.isGemm,
+        init = false.B
+      )
     tensorGemm.io.acc.rd(idx).data.bits <> tensorAcc.io.tensor.rd(idx).data.bits
   }
   for (idx <- 0 until tensorGemm.io.out.splitWidth) {
@@ -183,13 +208,19 @@ class Compute(debug: Boolean = false)(implicit val p: Parameters) extends Module
   }
 
   // alu
-  tensorAlu.io.start := RegNext(state === sIdle & start & dec.io.isAlu, init = false.B)
+  tensorAlu.io.start := RegNext(
+    state === sIdle & start & dec.io.isAlu,
+    init = false.B
+  )
   tensorAlu.io.dec := inst_q.io.deq.bits.asTypeOf(new AluDecode)
   tensorAlu.io.uop.data.valid := loadUop.io.uop.data.valid & dec.io.isAlu
   tensorAlu.io.uop.data.bits <> loadUop.io.uop.data.bits
   for (idx <- 0 until tensorAlu.io.acc.splitWidth) {
     tensorAlu.io.acc.rd(idx).data.valid :=
-      tensorAcc.io.tensor.rd(idx).data.valid & RegNext(dec.io.isAlu, init = false.B)
+      tensorAcc.io.tensor.rd(idx).data.valid & RegNext(
+        dec.io.isAlu,
+        init = false.B
+      )
     tensorAlu.io.acc.rd(idx).data.bits <> tensorAcc.io.tensor.rd(idx).data.bits
   }
   for (idx <- 0 until tensorAlu.io.out.splitWidth) {
@@ -200,22 +231,41 @@ class Compute(debug: Boolean = false)(implicit val p: Parameters) extends Module
 
   // out
   for (idx <- 0 until tensorGemm.io.out.splitWidth) {
-    io.out.rd(idx).idx := Mux(dec.io.isGemm,  // MODIFICATION '<>' into ':='
+    io.out.rd(idx).idx := Mux(
+      dec.io.isGemm, // MODIFICATION '<>' into ':='
       tensorGemm.io.out.rd(idx).idx,
-      tensorAlu.io.out.rd(idx).idx)
-    assert(!tensorGemm.io.out.rd(idx).idx.valid || !tensorAlu.io.out.rd(idx).idx.valid)
-    assert(!tensorGemm.io.out.rd(idx).data.valid || !tensorAlu.io.out.rd(idx).data.valid)
+      tensorAlu.io.out.rd(idx).idx
+    )
+    assert(
+      !tensorGemm.io.out.rd(idx).idx.valid || !tensorAlu.io.out
+        .rd(idx)
+        .idx
+        .valid
+    )
+    assert(
+      !tensorGemm.io.out.rd(idx).data.valid || !tensorAlu.io.out
+        .rd(idx)
+        .data
+        .valid
+    )
 
     assert(!tensorGemm.io.out.wr(idx).valid || !tensorAlu.io.out.wr(idx).valid)
   }
-  require (tensorGemm.io.out.splitWidth == 1)
-  require (tensorAlu.io.out.splitWidth == 1)
+  require(tensorGemm.io.out.splitWidth == 1)
+  require(tensorAlu.io.out.splitWidth == 1)
   io.out.wr(0).valid := Mux(
-    RegNext(dec.io.isGemm, init = false.B), tensorGemm.io.out.wr(0).valid, tensorAlu.io.out.wr(0).valid)
+    RegNext(dec.io.isGemm, init = false.B),
+    tensorGemm.io.out.wr(0).valid,
+    tensorAlu.io.out.wr(0).valid
+  )
   io.out.wr(0).bits.idx := Mux(
-    RegNext(dec.io.isGemm, init = false.B), tensorGemm.io.out.wr(0).bits.idx, tensorAlu.io.out.wr(0).bits.idx)
-  //put mux/Reg into every gemm group to build pipe (for Mux select) tree over distance
-  val chunkWidth = io.out.wr(0).bits.data.getWidth / tensorGemm.io.acc.splitWidth
+    RegNext(dec.io.isGemm, init = false.B),
+    tensorGemm.io.out.wr(0).bits.idx,
+    tensorAlu.io.out.wr(0).bits.idx
+  )
+  // put mux/Reg into every gemm group to build pipe (for Mux select) tree over distance
+  val chunkWidth =
+    io.out.wr(0).bits.data.getWidth / tensorGemm.io.acc.splitWidth
   val outDataBits = Wire(Vec(tensorGemm.io.acc.splitWidth, UInt(chunkWidth.W)))
   io.out.wr(0).bits.data := outDataBits.asTypeOf(io.out.wr(0).bits.data)
   for (idx <- 0 until tensorGemm.io.acc.splitWidth) {
@@ -226,15 +276,20 @@ class Compute(debug: Boolean = false)(implicit val p: Parameters) extends Module
     outDataBits(idx) := Mux(
       RegNext(dec.io.isGemm, init = false.B),
       srcGemFlat(highBitIdx, lowBitIdx),
-      srcAluFlat(highBitIdx, lowBitIdx))
+      srcAluFlat(highBitIdx, lowBitIdx)
+    )
   }
   // semaphore
   s(0).io.spost := io.i_post(0)
   s(1).io.spost := io.i_post(1)
   s(0).io.swait := dec.io.pop_prev & (state === sIdle & start)
   s(1).io.swait := dec.io.pop_next & (state === sIdle & start)
-  io.o_post(0) := dec.io.push_prev & ((state === sExe & done) | (state === sSync))
-  io.o_post(1) := dec.io.push_next & ((state === sExe & done) | (state === sSync))
+  io.o_post(
+    0
+  ) := dec.io.push_prev & ((state === sExe & done) | (state === sSync))
+  io.o_post(
+    1
+  ) := dec.io.push_next & ((state === sExe & done) | (state === sSync))
 
   // finish
   io.finish := state === sExe & done & dec.io.isFinish
