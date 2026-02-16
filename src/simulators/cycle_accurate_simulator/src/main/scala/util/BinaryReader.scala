@@ -17,7 +17,11 @@ object BinaryReader {
 
     class DataTypeValue(val id: Int, val nbValues: Int, val precision: Map[Int, Int]) extends Value
 
-    val params = computeJSONFile("vta_config.json", fromResources = false)
+    val configFileName = System.getProperty("vta.config.file", "vta_config.json")
+    val useResources = System.getProperty("vta.config.fromResources", "false").toBoolean
+
+    val params = computeJSONFile(configFileName, fromResources = useResources)
+    // val params = computeJSONFile("vta_config.json", fromResources = false)
 
     val INP: DataTypeValue = new DataTypeValue(0, params("LOG_BLOCK"), samePrecision(params("LOG_INP_WIDTH")))
     val WGT: DataTypeValue = new DataTypeValue(1, params("LOG_BLOCK") * params("LOG_BLOCK"), samePrecision(params("LOG_WGT_WIDTH")))

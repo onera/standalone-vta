@@ -35,7 +35,13 @@ lazy val chiseltestSettings = Seq(
     compilerPlugin(("org.chipsalliance" % "chisel-plugin" % chiselVersion).cross(CrossVersion.full))
   ),
   resolvers ++= Resolver.sonatypeOssRepos("snapshots"),
-  resolvers ++= Resolver.sonatypeOssRepos("releases")
+  resolvers ++= Resolver.sonatypeOssRepos("releases"),
+
+  Test / fork := true,
+  Test / javaOptions ++= Seq(
+    "-Dvta.config.file=vta_config_test.json",
+    "-Dvta.config.fromResources=true"
+  )
 )
 
 lazy val chiseltest = (project in file("."))
