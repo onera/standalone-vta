@@ -33,7 +33,10 @@ import scala.math.pow
  */
 class CoreConfig extends Config((site, here, up) => {
   case CoreKey =>
-    val params = computeJSONFile("vta_config.json", fromResources = false)
+    val configFileName = System.getProperty("vta.config.file", "vta_config.json")
+    val useResources = System.getProperty("vta.config.fromResources", "false").toBoolean
+    val params = computeJSONFile(configFileName, fromResources = useResources)
+    //val params = computeJSONFile("vta_config.json", fromResources = false)
     CoreParams(
       batch = params("LOG_BATCH"),
       blockOut = params("LOG_BLOCK"),
