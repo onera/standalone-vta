@@ -426,3 +426,15 @@ class TensorGemmTester_loopOut2 extends GenericTest("Test 2 loop out", (p: Param
     true),
   true)
 
+class TensorGemmTester_block_pattern extends GenericTest("Test block pattern", (p: Parameters) =>
+  new TensorGemmPipelinedSplit()(p),
+  (c: TensorGemmPipelinedSplit) => new TensorGemmTest(c, "/examples_gemm/performance_tests/block_matrix_pattern.json",
+    true),
+  true)
+
+class TensorGemmTester_block_uop extends GenericTest("Test block uop", (p: Parameters) =>
+  new TensorGemmPipelinedSplit()(p),
+  (c: TensorGemmPipelinedSplit) => new TensorGemmTest(c, "/examples_gemm/performance_tests/block_matrix_uop.json",
+    true),
+  true)
+
