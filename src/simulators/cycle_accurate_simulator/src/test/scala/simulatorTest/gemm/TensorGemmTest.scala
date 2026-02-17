@@ -328,7 +328,7 @@ class TensorGemmTest(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
   var count = 0
   while (peek(c.io.done) == 0 && count < max_count) {
     if (debug) {
-      print(s"DEBUG: Logical step: counter = $count \n")
+      print(s"[CYCLE $count] \n")
     }
     mocks.logical_step()
     if (count == 0) {
@@ -394,4 +394,35 @@ class TensorGemmTester_batches extends GenericTest("Batches", (p: Parameters) =>
 class TensorGemmTester_test extends GenericTest("Test instructions", (p: Parameters) =>
   new TensorGemmPipelinedSplit()(p),
   (c: TensorGemmPipelinedSplit) => new TensorGemmTest(c, "/examples_gemm/test_instructions.json"))
+
+/* Tests of performance */
+class TensorGemmTester_atomic extends GenericTest("Test atomic", (p: Parameters) =>
+  new TensorGemmPipelinedSplit()(p),
+  (c: TensorGemmPipelinedSplit) => new TensorGemmTest(c, "/examples_gemm/performance_tests/LoopOut1_LoopIn1_UOP1.json",
+    true),
+  true)
+
+class TensorGemmTester_UOP2 extends GenericTest("Test 2 uop (ordered)", (p: Parameters) =>
+  new TensorGemmPipelinedSplit()(p),
+  (c: TensorGemmPipelinedSplit) => new TensorGemmTest(c, "/examples_gemm/performance_tests/LoopOut1_LoopIn1_UOP2.json",
+    true),
+  true)
+
+class TensorGemmTester_UOP2_bis extends GenericTest("Test 2 uop (reverse)", (p: Parameters) =>
+  new TensorGemmPipelinedSplit()(p),
+  (c: TensorGemmPipelinedSplit) => new TensorGemmTest(c, "/examples_gemm/performance_tests/LoopOut1_LoopIn1_UOP2_bis.json",
+    true),
+  true)
+
+class TensorGemmTester_loopIn2 extends GenericTest("Test 2 loop in", (p: Parameters) =>
+  new TensorGemmPipelinedSplit()(p),
+  (c: TensorGemmPipelinedSplit) => new TensorGemmTest(c, "/examples_gemm/performance_tests/LoopOut1_LoopIn2_UOP1.json",
+    true),
+  true)
+
+class TensorGemmTester_loopOut2 extends GenericTest("Test 2 loop out", (p: Parameters) =>
+  new TensorGemmPipelinedSplit()(p),
+  (c: TensorGemmPipelinedSplit) => new TensorGemmTest(c, "/examples_gemm/performance_tests/LoopOut2_LoopIn1_UOP1.json",
+    true),
+  true)
 
