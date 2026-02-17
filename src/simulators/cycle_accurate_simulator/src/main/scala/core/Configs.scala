@@ -26,32 +26,49 @@ import scala.math.Fractional.Implicits.infixFractionalOps
 import scala.math.pow
 
 /** CoreConfig.
- *
- * This is one supported configuration for VTA. This file will
- * be eventually filled out with class configurations that can be
- * mixed/matched with Shell configurations for different backends.
- */
-class CoreConfig extends Config((site, here, up) => {
-  case CoreKey =>
-    val configFileName = System.getProperty("vta.config.file", "vta_config.json")
-    val useResources = System.getProperty("vta.config.fromResources", "false").toBoolean
-    val params = computeJSONFile(configFileName, fromResources = useResources)
-    //val params = computeJSONFile("vta_config.json", fromResources = false)
-    CoreParams(
-      batch = params("LOG_BATCH"),
-      blockOut = params("LOG_BLOCK"),
-      blockOutFactor = 1,
-      blockIn = params("LOG_BLOCK"),
-      inpBits = params("LOG_INP_WIDTH"),
-      wgtBits = params("LOG_WGT_WIDTH"),
-      uopBits = 32,
-      accBits = params("LOG_ACC_WIDTH"),
-      outBits = params("LOG_INP_WIDTH"),
-      uopMemDepth = (params("LOG_UOP_BUFF_SIZE") * pow(2, 3)).toInt / (params("LOG_BATCH") * pow(2, 0).toInt * pow(2, 5).toInt), // is 2048 here but used to be 8192
-      inpMemDepth = (params("LOG_INP_BUFF_SIZE") * pow(2, 3).toInt) / (params("LOG_BATCH") * params("LOG_BLOCK") * params("LOG_INP_WIDTH")),
-      wgtMemDepth = (params("LOG_WGT_BUFF_SIZE") * pow(2, 3).toInt) / (params("LOG_BATCH") * params("LOG_BLOCK") * params("LOG_BLOCK") * params("LOG_WGT_WIDTH")),
-      accMemDepth = (params("LOG_ACC_BUFF_SIZE") * pow(2, 3).toInt) / (params("LOG_BATCH") * params("LOG_BLOCK") * params("LOG_ACC_WIDTH")),
-      outMemDepth = (params("LOG_INP_BUFF_SIZE") * pow(2, 3).toInt) / (params("LOG_BATCH") * params("LOG_BLOCK") * params("LOG_INP_WIDTH")),
-      instQueueEntries = 512
-    )
-})
+  *
+  * This is one supported configuration for VTA. This file will be eventually
+  * filled out with class configurations that can be mixed/matched with Shell
+  * configurations for different backends.
+  */
+class CoreConfig
+    extends Config((site, here, up) => { case CoreKey =>
+      val configFileName =
+        System.getProperty("vta.config.file", "vta_config.json")
+      val useResources =
+        System.getProperty("vta.config.fromResources", "false").toBoolean
+      val params = computeJSONFile(configFileName, fromResources = useResources)
+      // val params = computeJSONFile("vta_config.json", fromResources = false)
+      CoreParams(
+        batch = params("LOG_BATCH"),
+        blockOut = params("LOG_BLOCK"),
+        blockOutFactor = 1,
+        blockIn = params("LOG_BLOCK"),
+        inpBits = params("LOG_INP_WIDTH"),
+        wgtBits = params("LOG_WGT_WIDTH"),
+        uopBits = 32,
+        accBits = params("LOG_ACC_WIDTH"),
+        outBits = params("LOG_INP_WIDTH"),
+        uopMemDepth = (params("LOG_UOP_BUFF_SIZE") * pow(2, 3)).toInt / (params(
+          "LOG_BATCH"
+        ) * pow(2, 0).toInt * pow(
+          2,
+          5
+        ).toInt), // is 2048 here but used to be 8192
+        inpMemDepth = (params("LOG_INP_BUFF_SIZE") * pow(2, 3).toInt) / (params(
+          "LOG_BATCH"
+        ) * params("LOG_BLOCK") * params("LOG_INP_WIDTH")),
+        wgtMemDepth = (params("LOG_WGT_BUFF_SIZE") * pow(2, 3).toInt) / (params(
+          "LOG_BATCH"
+        ) * params("LOG_BLOCK") * params("LOG_BLOCK") * params(
+          "LOG_WGT_WIDTH"
+        )),
+        accMemDepth = (params("LOG_ACC_BUFF_SIZE") * pow(2, 3).toInt) / (params(
+          "LOG_BATCH"
+        ) * params("LOG_BLOCK") * params("LOG_ACC_WIDTH")),
+        outMemDepth = (params("LOG_INP_BUFF_SIZE") * pow(2, 3).toInt) / (params(
+          "LOG_BATCH"
+        ) * params("LOG_BLOCK") * params("LOG_INP_WIDTH")),
+        instQueueEntries = 512
+      )
+    })

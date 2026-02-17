@@ -26,19 +26,17 @@ import chisel3.util._
 import vta.util.config._
 import vta.shell._
 
-
-
 /** TensorLoad.
- *
- * Load 1D and 2D tensors from main memory (DRAM) to input/weight
- * scratchpads (SRAM). Also, there is support for zero padding, while
- * doing the load. Zero-padding works on the y and x axis, and it is
- * managed by TensorPadCtrl. The TensorDataCtrl is in charge of
- * handling the way tensors are stored on the scratchpads.
- */
-class TensorLoad(tensorType: String = "none", debug: Boolean = false)(
-    implicit p: Parameters)
-    extends Module {
+  *
+  * Load 1D and 2D tensors from main memory (DRAM) to input/weight scratchpads
+  * (SRAM). Also, there is support for zero padding, while doing the load.
+  * Zero-padding works on the y and x axis, and it is managed by TensorPadCtrl.
+  * The TensorDataCtrl is in charge of handling the way tensors are stored on
+  * the scratchpads.
+  */
+class TensorLoad(tensorType: String = "none", debug: Boolean = false)(implicit
+    p: Parameters
+) extends Module {
   val tp = new TensorParams(tensorType)
   val mp = p(ShellKey).memParams
   val io = IO(new Bundle {
@@ -72,4 +70,3 @@ class TensorLoad(tensorType: String = "none", debug: Boolean = false)(
     io <> tensorLoad.io
   }
 }
-

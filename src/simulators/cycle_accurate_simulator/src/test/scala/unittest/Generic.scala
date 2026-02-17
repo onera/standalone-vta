@@ -20,34 +20,37 @@
 package unittest
 
 import chisel3._
-import chiseltest.iotesters._
 import org.scalatest.Tag
 import vta.util.config._
 
 import vta.util.config._
-import chiseltest._
 import org.scalatest.flatspec.AnyFlatSpec
 import vta.DefaultPynqConfig
+import chisel3.simulator.scalatest.ChiselSim
+import _root_.util.SimulationUtils.verilatorWithWaveDump
 
 object UnitTests extends Tag("UnitTests")
 object LongTests extends Tag("LongTests")
 
-class GenericTest[T <: Module, P <: PeekPokeTester[T], C <: Parameters](
-    tag : String, dutFactory : (Parameters) => T, testerFactory : (T) => P, isLongTest : Boolean = false
-  ) extends AnyFlatSpec with ChiselScalatestTester {
+class GenericTest[T <: Module, C <: Parameters](
+    tag: String,
+    dutFactory: (Parameters) => T,
+    testerFactory: (T) => Unit,
+    isLongTest: Boolean = false
+) extends AnyFlatSpec
+    with ChiselSim {
 
   implicit val p: Parameters = new DefaultPynqConfig
-  //val defaultOpts = Seq(TreadleBackendAnnotation,WriteVcdAnnotation)
-  val defaultOpts = Seq(VerilatorBackendAnnotation,WriteVcdAnnotation)
 
+  implicit val verilatorWithVcd = verilatorWithWaveDump
   behavior of tag
   if (isLongTest) {
-    it should "not have expect violations" taggedAs(LongTests) in {
-      test(dutFactory(p)).withAnnotations(defaultOpts).runPeekPoke(testerFactory)
+    it should "not have expect violations" taggedAs (LongTests) in {
+      simulate(dutFactory(p), additionalResetCycles = 2)(testerFactory)
     }
   } else {
-    it should "not have expect violations" taggedAs(UnitTests) in {
-      test(dutFactory(p)).withAnnotations(defaultOpts).runPeekPoke(testerFactory)
+    it should "not have expect violations" taggedAs (UnitTests) in {
+      simulate(dutFactory(p), additionalResetCycles = 2)(testerFactory)
     }
   }
 }

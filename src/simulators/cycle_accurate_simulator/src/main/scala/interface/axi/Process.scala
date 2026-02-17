@@ -3,6 +3,7 @@ import chisel3._
 import chisel3.experimental.dataview.DataViewable
 import chisel3.util.is
 import chisel3.util.switch
+import chisel3.util.DecoupledIO
 
 trait AxiClientWrapper extends Module {
 
@@ -127,6 +128,45 @@ trait AxiClientWrapper extends Module {
     awAddr
   }
 
+  def newReadHandler(axi: AXIClient, enabled: Bool): UInt = {
+
+    object ReadState extends ChiselEnum {
+      val idle, receive = Value
+    }
+    val state = RegInit(ReadState.idle)
+    val address = Reg(chiselTypeOf(axi.ar.bits))
+    val rValid = RegInit(false.B)
+    val arReady = RegInit(false.B)
+
+    axi.ar.ready := arReady
+    axi.r.valid := rValid
+    axi.r.bits.resp := 0.U
+    axi.r.bits.id := address.id
+    switch(state) {
+      is(ReadState.idle) {
+        arReady := true.B
+        when(axi.ar.fire) {
+          state := ReadState.receive
+          arReady := false.B
+          address := axi.ar.bits
+          rValid := true.B
+        }
+      }
+      is(ReadState.receive) {
+        arReady := false.B
+        when(axi.r.fire) {
+          when(address.len === 0.U || !axi.r.bits.last) {
+            state := ReadState.idle
+          }.otherwise {
+            address.len := address.len - 1.U
+          }
+        }
+      }
+    }
+    axi.r.bits.last := axi.r.fire && address.len === 0.U && state === ReadState.receive
+    address.addr
+  }
+
   def readHandler(axi: AXIClient, enabled: Bool): UInt = {
 
     val idle :: raddr :: rdata :: Nil = util.Enum(3)
@@ -164,26 +204,22 @@ trait AxiClientWrapper extends Module {
           rValid := true.B
           arReady := false.B
           rId := axi.r.bits.id
-          when(axi.ar.bits.len === 1.U) {
-            rLast := true.B
-          }
           arBurst := axi.ar.bits.burst
           arLen := axi.ar.bits.len
         }.otherwise(readState := readState)
       }
       is(rdata) {
-        when(arLenCounter === arLen - 1.U && !rLast && axi.r.ready) {
-          rLast := true.B
-        }
         when(axi.r.fire && axi.r.bits.last) {
           rValid := false.B
-          rReady := true.B
+          rReady := false.B
+          arReady := true.B
           rLast := false.B
           readState := raddr
         }.otherwise(readState := readState)
       }
     }
 
+    axi.r.bits.last := (arLenCounter === arLen && axi.r.fire)
     val dataWidth = axi.params.dataBits
     val addrWidth = axi.params.addrBits
     val arAddr = RegInit(0.U.asTypeOf(axi.ar.bits.addr))
@@ -205,7 +241,7 @@ trait AxiClientWrapper extends Module {
       })
 
     }
-      .elsewhen(arLenCounter < arLen && axi.r.fire) {
+      .elsewhen(arLenCounter <= arLen && axi.r.fire) {
         arLenCounter := arLenCounter + 1.U
         switch(arBurst) {
           is(0.U) {

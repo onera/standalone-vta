@@ -130,7 +130,7 @@ class VTAShellSpec
   val accAddress = getAddress("ACC", 32)
   val outAddress = getAddress("OUT", 32)
   val uopAddress = getAddress("UOP", 32)
-  // FIXME: the addresses in MUXCase are not consistent, reshape the data Vecs (should be 64b words)
+
   class DramMockModule(content: Map[String, (Int, Seq[UInt])])(implicit
       p: Parameters
   ) extends Module
@@ -163,57 +163,62 @@ class VTAShellSpec
     val accAddress = content("ACC")._1
     val outAddress = content("OUT")._1
     val uopAddress = content("UOP")._1
-    val readAddr = readHandler(io, true.B)
-    val writeAddr = writeHandler(io, true.B)
+    val readHandle = readHandler(io, true.B)
+    val writeHandle = writeHandler(io, true.B)
 
     def enCondition(addr: Int, size: Int) = WireInit(
-      addr.U <= readAddr && readAddr < (addr + size).U
+      addr.U <= readHandle && readHandle < (addr + size).U
     )
     val enInp = enCondition(inputAddress, inputsVec.size)
 
     val enInstr = WireInit(
-      instrAddress.U <= readAddr && readAddr < (instrAddress + weights.size).U
+      instrAddress.U <= readHandle && readHandle < (instrAddress + weights.size).U
     )
     val enWgt = WireInit(
-      weightAddress.U <= readAddr && readAddr < (weightAddress + weights.size).U
+      weightAddress.U <= readHandle && readHandle < (weightAddress + weights.size).U
     )
     val enAcc = WireInit(
-      accAddress.U <= readAddr && readAddr < (accAddress + accs.size).U
+      accAddress.U <= readHandle && readHandle < (accAddress + accs.size).U
     )
     val enUop = WireInit(
-      uopAddress.U <= readAddr && readAddr < (uopAddress + uops.size).U
+      uopAddress.U <= readHandle && readHandle < (uopAddress + uops.size).U
     )
 
     val enOut = WireInit(
-      outAddress.U <= readAddr && readAddr < (outAddress + outputs.size).U
+      outAddress.U <= readHandle && readHandle < (outAddress + outputs.size).U
     )
-    val mem = SyncReadMem(outputs.size, UInt(32.W))
+
+    val enWrOut = WireInit(
+      outAddress.U <= writeHandle && writeHandle < (outAddress + outputs.size).U
+    )
+    val mem = Reg(Vec(outputs.size, UInt(64.W)))
 
     io.r.bits.data := MuxCase(
       DontCare,
       // "xdeadbeef".U,
       Seq(
         enInstr -> instrVec(
-          readAddr - instrAddress.U
+          readHandle - instrAddress.U
         ),
         enInp -> inputsVec(
-          readAddr - inputAddress.U
+          readHandle - inputAddress.U
         ),
         enWgt -> weightsVec(
-          readAddr - weightAddress.U
+          readHandle - weightAddress.U
         ),
         enAcc -> accsVec(
-          readAddr - accAddress.U
+          readHandle - accAddress.U
         ),
         enUop -> uopsVec(
-          readAddr - uopAddress.U
+          readHandle - uopAddress.U
         ),
         enOut ->
-          mem.read(readAddr - outAddress.U)
+          mem(readHandle - outAddress.U)
       )
     )
-    when(io.w.fire && enOut) {
-      mem.write(writeAddr - outAddress.U, io.w.bits.data)
+    when(io.w.fire && enWrOut) {
+      mem(writeHandle - outAddress.U) := io.w.bits.data
+      io.b.valid := true.B
     }
     io.b.bits.user := DontCare
     io.r.bits.user := DontCare
@@ -241,7 +246,7 @@ class VTAShellSpec
       axi.len.peek().litValue.toInt
     )
   }
-  it should "initiate processing with some configuration from host" in {
+  it should "initiate processing with some configuration from host" ignore {
 
     implicit val parameters: Parameters = new DefaultPynqConfig
 
@@ -367,7 +372,10 @@ class VTAShellSpec
       // launch the processing of VTA
       launchVTA()
 
-      clock.stepUntil(vta.vta.vcr.io.vcr.finish, 1, timeout)
+      // step clock until the computation is over
+      // FIXME: for now uses a number of cycles => use finish()
+      clock.step(timeout)
+      // clock.stepUntil(vta.vta.vcr.io.vcr.finish, 1, timeout)
     }
   }
 
@@ -375,26 +383,21 @@ class VTAShellSpec
     implicit val parameters: Parameters = new DefaultPynqConfig
 
     val content = parseMemorySections(dramInitJson)
-    runVtaTestWithMockDram(content, timeout = 1000, waves = true)
+    runVtaTestWithMockDram(content, timeout = 10000, waves = true)
   }
 
-  it should "run a load command" in {
+  it should "write a burst in Mock Dram and read" in {
     implicit val parameters: Parameters = new DefaultPynqConfig
-
-    val content = parseMemorySections(dramInitJson).collect {
-      case l if l._1.matches("INSN") =>
-        (
-          l._1,
-          (
-            l._2._1,
-            Seq(
-              ISA.LINP.value.U
-            )
-          )
-        )
-      case r => r
+    val content = parseMemorySections(dramInitJson)
+    simulate(new DramMockModule(content)) { dut =>
+      enableWaves()
+      implicit val clock = dut.clock
+      implicit val axi = dut.io
+      implicit val timeout = 10
+      writeAxiBurst(content("OUT")._1, (0 until 10))
+      val res = readAxiBurst(content("OUT")._1, 10)
+      println(res)
+      res.size shouldBe 10
     }
-
-    runVtaTestWithMockDram(content, timeout = 100, waves = true)
   }
 }

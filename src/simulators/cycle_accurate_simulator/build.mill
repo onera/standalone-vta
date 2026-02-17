@@ -1,4 +1,4 @@
-//| mill-version: 1.1.1
+//| mill-version: 1.1.2
 //| mill-jvm-opts: ["-Dchisel.project.root=${PWD}"]
 package build
 
@@ -31,7 +31,7 @@ object `package` extends SbtModule with PublishModule {
     "https://oss.sonatype.org/service/local/repositories/releases/content/",
     "https://s01.oss.sonatype.org/content/repositories/releases"
   )
-  def chiselVersion = "7.8.0"
+  def chiselVersion = "7.9.0"
 
   def mvnDeps = Seq(
     mvn"com.fasterxml.jackson.core:jackson-databind:2.21.0",
@@ -63,8 +63,12 @@ object `package` extends SbtModule with PublishModule {
   object test extends SbtTests with ScalaTest {
     override def scalaTestVersion: Simple[String] = "3.2.19"
 
-    def testSandboxWorkingDir = false
-    def testParallelism = false
+    // def testSandboxWorkingDir = false
+    // def testParallelism = false
+    override def forkArgs: Simple[Seq[String]] = Seq(
+      "-Dvta.config.file=vta_config_test.json",
+      "-Dvta.config.fromResources=true"
+    )
 
   }
 

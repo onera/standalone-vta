@@ -140,7 +140,7 @@ class TensorLoadWideVME(tensorType: String = "none", debug: Boolean = false)(
     clInFlight := clInFlight + readLen
   }.elsewhen(isBusy && io.vme_rd.cmd.fire && vmeDataFirePipe) {
     clInFlight := clInFlight + readLen - 1.U
-  }.elsewhen(isBusy && !io.vme_rd.cmd.fire && vmeDataFirePipe) {
+  }.elsewhen(isBusy && !localDone && !io.vme_rd.cmd.fire && vmeDataFirePipe) {
     assert(clInFlight > 0.U)
     clInFlight := clInFlight - 1.U
   }.otherwise {

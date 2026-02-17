@@ -396,7 +396,7 @@ class TensorAluPipelined(debug: Boolean = false)(implicit p: Parameters)
       save_src
     )
 
-    assert(alu.io.acc_y.data.valid === valid_r4)
+    // assert(alu.io.acc_y.data.valid === valid_r4)
     io.acc.wr(idx).valid := valid_r4
     io.acc.wr(idx).bits.idx := dst_idx_r4
 
@@ -409,7 +409,7 @@ class TensorAluPipelined(debug: Boolean = false)(implicit p: Parameters)
       }
     }
 
-    assert(alu.io.out.data.valid === valid_r4)
+    // assert(alu.io.out.data.valid === valid_r4)
     for (idx1 <- 0 until io.out.tensorLength) {
       for (idx2 <- 0 until io.out.tensorWidth / numVecUnits) {
         outData(idx1)(

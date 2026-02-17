@@ -60,7 +60,7 @@ class Compute(debug: Boolean = false)(implicit
     Module(new Semaphore(counterBits = 8, counterInitValue = 0))
   )
 
-  val loadUop = Module(new LoadUopTop)
+  val loadUop = Module(new LoadUopTop(debug))
   val tensorAcc = Module(new TensorLoad(tensorType = "acc"))
   val tensorGemm = Module(new TensorGemm)
   val tensorAlu = Module(new TensorAlu)

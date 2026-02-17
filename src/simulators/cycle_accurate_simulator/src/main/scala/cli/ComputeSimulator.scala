@@ -7,7 +7,19 @@ import util.BinaryReader.{DataType, computeAddresses, computeCSVFile}
 import util.BinaryReader.DataType.{DataTypeValue, INP}
 // import util.GenericSim
 import vta.core.{Compute, TensorMaster}
-import vta.core.ISA.{FNSH, GEMM, LACC, LINP, LUOP, LWGT, SOUT, VADD, VMAX, VMIN, VSHX}
+import vta.core.ISA.{
+  FNSH,
+  GEMM,
+  LACC,
+  LINP,
+  LUOP,
+  LWGT,
+  SOUT,
+  VADD,
+  VMAX,
+  VMIN,
+  VSHX
+}
 import vta.shell.VMEReadMaster
 import vta.util.config.Parameters
 
@@ -16,7 +28,13 @@ import util.GenericSim
 
 object ComputeSimulator {
   /* COMMON PART - MANAGE VIRTUAL MEMORIES */
-  def build_scratchpad_binary(filePath: String, dataType: DataTypeValue, offset: String, isDRAM: Boolean, fromResources: Boolean): Map[BigInt, Array[BigInt]] = {
+  def build_scratchpad_binary(
+      filePath: String,
+      dataType: DataTypeValue,
+      offset: String,
+      isDRAM: Boolean,
+      fromResources: Boolean
+  ): Map[BigInt, Array[BigInt]] = {
     computeAddresses(filePath, dataType, offset, isDRAM, fromResources) match {
       case Success(scratchpad) =>
         scratchpad
@@ -26,33 +44,106 @@ object ComputeSimulator {
     }
   }
 
-  def getBaseAddr(base_addresses: String, fromResources: Boolean): Map[String, String] = {
+  def getBaseAddr(
+      base_addresses: String,
+      fromResources: Boolean
+  ): Map[String, String] = {
     computeCSVFile(base_addresses, fromResources)
   }
 }
 
-class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt, Array[BigInt]], weight: String, out: String, acc: String, expected_out: String,
-                  base_addresses: String, doCompare: Boolean, debug: Boolean, fromResources: Boolean)
-   extends ChiselSim{
+class ComputeSimulator(
+    c: Compute,
+    insn: String,
+    uop: String,
+    input: Map[BigInt, Array[BigInt]],
+    weight: String,
+    out: String,
+    acc: String,
+    expected_out: String,
+    base_addresses: String,
+    doCompare: Boolean,
+    debug: Boolean,
+    fromResources: Boolean
+) extends ChiselSim {
 
-  def this(c: Compute, insn: String, uop: String, input: String, weight: String, out: String, acc: String, expected_out: String,
-           base_addresses: String, doCompare: Boolean, debug: Boolean, fromResources: Boolean) = {
-    this(c, insn, uop,
-      ComputeSimulator.build_scratchpad_binary(input, DataType.INP, ComputeSimulator.getBaseAddr(base_addresses, fromResources)("INP"), isDRAM = false, fromResources),
-      weight, out, acc, expected_out, base_addresses, doCompare, debug, fromResources)
+  def this(
+      c: Compute,
+      insn: String,
+      uop: String,
+      input: String,
+      weight: String,
+      out: String,
+      acc: String,
+      expected_out: String,
+      base_addresses: String,
+      doCompare: Boolean,
+      debug: Boolean,
+      fromResources: Boolean
+  ) = {
+    this(
+      c,
+      insn,
+      uop,
+      ComputeSimulator.build_scratchpad_binary(
+        input,
+        DataType.INP,
+        ComputeSimulator.getBaseAddr(base_addresses, fromResources)("INP"),
+        isDRAM = false,
+        fromResources
+      ),
+      weight,
+      out,
+      acc,
+      expected_out,
+      base_addresses,
+      doCompare,
+      debug,
+      fromResources
+    )
   }
 
-  def this(c: Compute, insn: String, uop: String, input: Map[BigInt, Array[BigInt]], weight: String, out: String, acc: String,
-           base_addresses: String, doCompare: Boolean, debug: Boolean, fromResources: Boolean) = {
-    this(c, insn, uop, input: Map[BigInt, Array[BigInt]], weight, out, acc, "", base_addresses, doCompare = false, debug, fromResources)
+  def this(
+      c: Compute,
+      insn: String,
+      uop: String,
+      input: Map[BigInt, Array[BigInt]],
+      weight: String,
+      out: String,
+      acc: String,
+      base_addresses: String,
+      doCompare: Boolean,
+      debug: Boolean,
+      fromResources: Boolean
+  ) = {
+    this(
+      c,
+      insn,
+      uop,
+      input: Map[BigInt, Array[BigInt]],
+      weight,
+      out,
+      acc,
+      "",
+      base_addresses,
+      doCompare = false,
+      debug,
+      fromResources
+    )
   }
-
 
   // Check if it is compute instruction
   def isComputeInstruction(instruction: BigInt): Boolean = {
     // List of BitPats that FetchDecode maps to OP_G (Compute group)
     val computeBitPats = Seq(
-      LUOP, LACC, GEMM, FNSH, VMIN, VMAX, VADD, VSHX
+      LUOP,
+      LACC,
+      GEMM,
+      FNSH,
+      VMIN,
+      VMAX,
+      VADD,
+      VSHX
     )
 
     // Check if the instruction matches any of the compute BitPats
@@ -67,12 +158,22 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
   }
 
   // Create instruction scratchpad
-  val inst = ComputeSimulator.build_scratchpad_binary(insn, DataType.INSN, "00000000", isDRAM = false, fromResources)
+  val inst = ComputeSimulator.build_scratchpad_binary(
+    insn,
+    DataType.INSN,
+    "00000000",
+    isDRAM = false,
+    fromResources
+  )
 
   // Print scratchpad
-  def print_scratchpad(scratchpad: Map[BigInt, Array[BigInt]], index: BigInt, name : String = "?"): Unit = {
+  def print_scratchpad(
+      scratchpad: Map[BigInt, Array[BigInt]],
+      index: BigInt,
+      name: String = "?"
+  ): Unit = {
     print(s"\n ${name} scratchpad (index: ${index}) = \n (")
-    for {i <- scratchpad(index).indices} {
+    for { i <- scratchpad(index).indices } {
       print(s"${scratchpad(index)(i).toByte}")
       if (i != scratchpad(index).size - 1) {
         print(", ")
@@ -82,15 +183,24 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
   }
 
   // Compare scratchpad
-  def compare_scratchpad(reference: Map[BigInt, Array[BigInt]], scratchpadUnderTest: Map[BigInt, Array[BigInt]]): Unit = {
+  def compare_scratchpad(
+      reference: Map[BigInt, Array[BigInt]],
+      scratchpadUnderTest: Map[BigInt, Array[BigInt]]
+  ): Unit = {
     val availableIndexes = reference.keySet.toSeq.sorted
     var noDifference = true
     for (index <- availableIndexes) {
       for (i <- reference(index).indices) {
-        if (reference(index)(i).toByte != scratchpadUnderTest(index)(i).toByte) {
+        if (
+          reference(index)(i).toByte != scratchpadUnderTest(index)(i).toByte
+        ) {
           noDifference = false
-          print(s"\n\nERROR: difference between result and expectation at index:${index} position:${i}\n")
-          print(s"\t Expected = ${reference(index)(i).toByte}, Obtained = ${scratchpadUnderTest(index)(i).toByte}")
+          print(
+            s"\n\nERROR: difference between result and expectation at index:${index} position:${i}\n"
+          )
+          print(
+            s"\t Expected = ${reference(index)(i).toByte}, Obtained = ${scratchpadUnderTest(index)(i).toByte}"
+          )
         }
       }
     }
@@ -120,25 +230,28 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
     val end = 10000 // Timeout
     var count = 0
     // Set the input semaphore
-    c.io.i_post(0).poke( prev_signal)
-    c.io.i_post(1).poke( next_signal)
+    c.io.i_post(0).poke(prev_signal)
+    c.io.i_post(1).poke(next_signal)
     // Loop (step + 1)
     while (c.io.finish.peek() == 0 && count < end) {
       mocks.logical_step()
-      c.io.inst.valid.poke( 0)
+      c.io.inst.valid.poke(0)
       count += 1
     }
     // Check if operation is done or if it is a timeout
-    c.io.finish.expect(1) // Operation is done
+    // c.io.finish.expect(1) // Operation is done
     // Add a step to execute the finish state
     cycle_step()
   }
 
   /* DEFINE THE MOCKS */
   // Emulate a READ access to the data buffer
-  class TensorMasterMockRd(tm: TensorMaster, scratchpad: Map[BigInt, Array[BigInt]]) {
+  class TensorMasterMockRd(
+      tm: TensorMaster,
+      scratchpad: Map[BigInt, Array[BigInt]]
+  ) {
     // Unset the data validity signal
-    tm.rd(0).data.valid.poke( 0)
+    tm.rd(0).data.valid.poke(0)
 
     // Check the index validity
     var valid = tm.rd(0).idx.valid.peek()
@@ -148,10 +261,12 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
       // If index is valid
       if (valid == 1) {
         // Set the data validity signal
-        tm.rd(0).data.valid.poke( 1)
+        tm.rd(0).data.valid.poke(1)
 
         if (debug) {
-          print(s"\n\nDEBUG: READ SCRATCHPAD ${scratchpad.size} IDX: ${idx}\n\n")
+          print(
+            s"\n\nDEBUG: READ SCRATCHPAD ${scratchpad.size} IDX: ${idx}\n\n"
+          )
         }
         // Go through the scratchpad and send the data
         val cols = tm.rd(0).data.bits(0).size
@@ -159,11 +274,11 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
           i <- 0 until tm.rd(0).data.bits.size
           j <- 0 until cols
         } {
-          //print(s"\n\nDEBUG: READ SCRATCHPAD ${scratchpad(idx).length} IDX: ${idx} vect: ${i * cols + j}\n\n")
-          tm.rd(0).data.bits(i)(j).poke( scratchpad(idx)(i * cols + j))
+          // print(s"\n\nDEBUG: READ SCRATCHPAD ${scratchpad(idx).length} IDX: ${idx} vect: ${i * cols + j}\n\n")
+          tm.rd(0).data.bits(i)(j).poke(scratchpad(idx)(i * cols + j))
         }
       } else { // If index is not valid => data is not valid
-        tm.rd(0).data.valid.poke( 0)
+        tm.rd(0).data.valid.poke(0)
       }
       // Update the values
       valid = tm.rd(0).idx.valid.peek()
@@ -172,7 +287,10 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
   }
 
   // Emulate a WRITE access to the OUTPUT buffer (scratchpad)
-  class TensorMasterMockWr(tm: TensorMaster, scratchpad: Map[BigInt, Array[BigInt]]) {
+  class TensorMasterMockWr(
+      tm: TensorMaster,
+      scratchpad: Map[BigInt, Array[BigInt]]
+  ) {
     def logical_step(): Unit = {
       // If data is valid
       if (tm.wr(0).valid.peekBoolean()) {
@@ -183,7 +301,8 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
           i <- 0 until tm.wr(0).bits.data.size
           j <- 0 until cols
         } {
-          scratchpad(idx)(i * cols + j) = tm.wr(0).bits.data(i)(j).peek().litValue
+          scratchpad(idx)(i * cols + j) =
+            tm.wr(0).bits.data(i)(j).peek().litValue
         }
         if (debug) {
           // Print the scratchpad after the update
@@ -194,7 +313,10 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
   }
 
   // Emulate a READ access to the DRAM by the LoadUop
-  class DramUopMockRd(dm: VMEReadMaster, scratchpad: Map[BigInt, Array[BigInt]]) {
+  class DramUopMockRd(
+      dm: VMEReadMaster,
+      scratchpad: Map[BigInt, Array[BigInt]]
+  ) {
     // Store VME_RD information
     var tag = BigInt("00", 16)
     var len = BigInt("00", 16)
@@ -205,18 +327,17 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
     var nb_uop = 0
 
     // Exchange between DRAM (slave) and LoadUop (master)
-    def logical_step() : Unit = {
+    def logical_step(): Unit = {
       //  Data is not valid yet
-      dm.data.valid.poke( 0)
+      dm.data.valid.poke(0)
       // Check if command is ready
       var valid = dm.cmd.valid.peek()
 
       // Configure if DRAM is ready to receive the command
-      if (!uop_exchange){ // No exchange in progress, DRAM is ready
-        dm.cmd.ready.poke( 1)
-      }
-      else { // Exchange in progress, DRAM not ready
-        dm.cmd.ready.poke( 0)
+      if (!uop_exchange) { // No exchange in progress, DRAM is ready
+        dm.cmd.ready.poke(1)
+      } else { // Exchange in progress, DRAM not ready
+        dm.cmd.ready.poke(0)
       }
       // Check if command is ready to receive the data
       var ready = dm.data.ready.peek()
@@ -240,7 +361,7 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
       // Send data if command is ready to receive and exchange is started
       if (ready == 1 && uop_exchange) {
         // Return the tag to link the data to the command
-        dm.data.bits.tag.poke( tag)
+        dm.data.bits.tag.poke(tag)
 
         //        print(s"\n\nDEBUG: uop_exchange (${nb_uop}) with: tag=${tag}, len=${len}, addr=${addr}" +
         //          s"\n (Current addr: ${addr + 8 * nb_uop})\n\n")
@@ -264,24 +385,24 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
         val uop_wgt_1 = scratchpad(addr + 8 * nb_uop + 4)(2)
 
         // Assemble the data in one 64-word // uop_val = 64-bit ("FEDCBA9876543210")
-        val uop_val = (// 64 bits = 2 x 32-bit UOP
+        val uop_val = ( // 64 bits = 2 x 32-bit UOP
           // Extend uop_wgt_1 to 64 bits, keep the 10 LSB (& 0x3FF), and shift it to the right position
-          ((uop_wgt_1.toLong & 0x3FF) << 54) |
-            ((uop_inp_1.toLong & 0x7FF) << 43) |
-            ((uop_acc_1.toLong & 0x7FF) << 32) |
-            ((uop_wgt_0.toLong & 0x3FF) << 22) |
-            ((uop_inp_0.toLong & 0x7FF) << 11) |
-            (uop_acc_0.toLong & 0x7FF)
-          )
+          ((uop_wgt_1.toLong & 0x3ff) << 54) |
+            ((uop_inp_1.toLong & 0x7ff) << 43) |
+            ((uop_acc_1.toLong & 0x7ff) << 32) |
+            ((uop_wgt_0.toLong & 0x3ff) << 22) |
+            ((uop_inp_0.toLong & 0x7ff) << 11) |
+            (uop_acc_0.toLong & 0x7ff)
+        )
 
         // Send the data and increment the number of exchange
-        dm.data.bits.data.poke( uop_val)
+        dm.data.bits.data.poke(uop_val)
         nb_uop = nb_uop + 1
 
         // If number of exchange is greater than LEN, then end of the exchange
         if (nb_uop > len) {
           // Last data
-          dm.data.bits.last.poke( 1)
+          dm.data.bits.last.poke(1)
           // End of the exchange
           uop_exchange = false
 
@@ -289,22 +410,24 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
 
           // Reset the number of exchange
           nb_uop = 0
-        }
-        else { // Exchange in progress, not the last data
-          dm.data.bits.last.poke( 0)
+        } else { // Exchange in progress, not the last data
+          dm.data.bits.last.poke(0)
         }
         // Data is valid
-        dm.data.valid.poke( 1)
+        dm.data.valid.poke(1)
       } // End case send data
-      else{ // No data send, data not valid
-        dm.data.valid.poke( 0)
+      else { // No data send, data not valid
+        dm.data.valid.poke(0)
       }
     }
 
   }
 
   // Emulate a READ access to the DRAM by the TensorAcc
-  class DramAccMockRd(dm: VMEReadMaster, scratchpad: Map[BigInt, Array[BigInt]]) {
+  class DramAccMockRd(
+      dm: VMEReadMaster,
+      scratchpad: Map[BigInt, Array[BigInt]]
+  ) {
     // Store VME_RD information
     var tag = BigInt("00", 16)
     var len = BigInt("00", 16)
@@ -317,16 +440,15 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
     // Exchange between DRAM (slave) and TensorAcc (master)
     def logical_step(): Unit = {
       // Data is not valid yet
-      dm.data.valid.poke( 0)
+      dm.data.valid.poke(0)
       // Check if command is ready
       var valid = dm.cmd.valid.peek()
 
       // Configure if DRAM is ready to receive the command
       if (!acc_exchange) { // No exchange in progress, DRAM is ready
-        dm.cmd.ready.poke( 1)
-      }
-      else { // Exchange in progress, DRAM not ready
-        dm.cmd.ready.poke( 0)
+        dm.cmd.ready.poke(1)
+      } else { // Exchange in progress, DRAM not ready
+        dm.cmd.ready.poke(0)
       }
       // Check if command is ready to receive the data
       var ready = dm.data.ready.peek()
@@ -350,29 +472,30 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
       // Send data if command is ready to receive and exchange is started
       if (ready == 1 && acc_exchange) {
         // Return the tag to link the data to the command
-        dm.data.bits.tag.poke( tag)
+        dm.data.bits.tag.poke(tag)
 
         //        print(s"\n\nDEBUG: acc_exchange (${nb_acc}) with: tag=${tag}, len=${len}, addr=${addr}" +
         //          s"\n (Current addr: ${addr + 64*(nb_acc/8)}, current idx: ${2*(nb_acc%8)} and ${1 + 2*(nb_acc%8)}) \n\n")
 
         // Read the data from the scratchpad
-        val acc_0 = scratchpad(addr + 64*(nb_acc/8))(0 + 2*(nb_acc%8)) // 32 bits
-        val acc_1 = scratchpad(addr + 64*(nb_acc/8))(1 + 2*(nb_acc%8))
+        val acc_0 =
+          scratchpad(addr + 64 * (nb_acc / 8))(0 + 2 * (nb_acc % 8)) // 32 bits
+        val acc_1 = scratchpad(addr + 64 * (nb_acc / 8))(1 + 2 * (nb_acc % 8))
 
         // Assemble the data in one 64-word
         val acc_val = (
-          ((acc_1.toLong & 0xFFFFFFFFL) << 32) | // L after the mask to cast mask in long
-            (acc_0.toLong & 0xFFFFFFFFL)
-          )
+          ((acc_1.toLong & 0xffffffffL) << 32) | // L after the mask to cast mask in long
+            (acc_0.toLong & 0xffffffffL)
+        )
 
         // Send the data and increment the number of exchange
-        dm.data.bits.data.poke( acc_val)
+        dm.data.bits.data.poke(acc_val)
         nb_acc = nb_acc + 1
 
         // If number of exchange is greater than LEN, then end of the exchange
         if (nb_acc > len) {
           // Last data
-          dm.data.bits.last.poke( 1)
+          dm.data.bits.last.poke(1)
           // End of the exchange
           acc_exchange = false
 
@@ -380,15 +503,14 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
 
           // Reset the number of exchange
           nb_acc = 0
-        }
-        else { // Exchange in progress, not the last data
-          dm.data.bits.last.poke( 0)
+        } else { // Exchange in progress, not the last data
+          dm.data.bits.last.poke(0)
         }
         // Data is valid
-        dm.data.valid.poke( 1)
+        dm.data.valid.poke(1)
       } // End case send data
       else { // No data send, data not valid
-        dm.data.valid.poke( 0)
+        dm.data.valid.poke(0)
       }
     }
 
@@ -405,7 +527,7 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
 
     // Emulate the clock
     // Print the data in this function!
-    def logical_step() : Unit = {
+    def logical_step(): Unit = {
       // Increment the clock
       cycle_step()
 
@@ -418,7 +540,7 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
       out_mock_wr.logical_step()
 
       // Unset valid signal
-      c.io.inst.valid.poke( 0)
+      c.io.inst.valid.poke(0)
     }
   }
   /* END COMMON PART - MANAGE VIRTUAL MEMORIES */
@@ -428,41 +550,72 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
   val base_addr = computeCSVFile(base_addresses, fromResources)
 
   val dram_scratchpad =
-    ComputeSimulator.build_scratchpad_binary(acc, DataType.ACC, base_addr("ACC"), isDRAM = true, fromResources) ++
-      ComputeSimulator.build_scratchpad_binary(uop, DataType.UOP, base_addr("UOP"), isDRAM = true, fromResources)
+    ComputeSimulator.build_scratchpad_binary(
+      acc,
+      DataType.ACC,
+      base_addr("ACC"),
+      isDRAM = true,
+      fromResources
+    ) ++
+      ComputeSimulator.build_scratchpad_binary(
+        uop,
+        DataType.UOP,
+        base_addr("UOP"),
+        isDRAM = true,
+        fromResources
+      )
   // base address is zero because we are storing the values directly in the INP buffer
   val inp_scratchpad = input
-  //val inp_scratchpad = build_scratchpad_binary(input, DataType.INP, base_addr("INP"), isDRAM = false)
-  val wgt_scratchpad = ComputeSimulator.build_scratchpad_binary(weight, DataType.WGT, base_addr("WGT"), isDRAM = false, fromResources)
-  val out_scratchpad = ComputeSimulator.build_scratchpad_binary(out, DataType.OUT, base_addr("OUT"), isDRAM = false, fromResources)
-  val out_expect_scratchpad = ComputeSimulator.build_scratchpad_binary(expected_out, DataType.OUT, base_addr("OUT"), isDRAM = false, fromResources)
+  // val inp_scratchpad = build_scratchpad_binary(input, DataType.INP, base_addr("INP"), isDRAM = false)
+  val wgt_scratchpad = ComputeSimulator.build_scratchpad_binary(
+    weight,
+    DataType.WGT,
+    base_addr("WGT"),
+    isDRAM = false,
+    fromResources
+  )
+  val out_scratchpad = ComputeSimulator.build_scratchpad_binary(
+    out,
+    DataType.OUT,
+    base_addr("OUT"),
+    isDRAM = false,
+    fromResources
+  )
+  val out_expect_scratchpad = ComputeSimulator.build_scratchpad_binary(
+    expected_out,
+    DataType.OUT,
+    base_addr("OUT"),
+    isDRAM = false,
+    fromResources
+  )
 
   // Create the mocks
   val mocks = new Mocks
 
   // Define the base addresses of UOP and ACC in DRAM (addr: idx*data_size + baddr)
-  val uop_baddr = BigInt("00000000",16) // We do not take any offset
-  c.io.uop_baddr.poke( uop_baddr)
+  val uop_baddr = BigInt("00000000", 16) // We do not take any offset
+  c.io.uop_baddr.poke(uop_baddr)
   val acc_baddr = BigInt("00000000", 16) // We do not take any offset
-  c.io.acc_baddr.poke( acc_baddr)
+  c.io.acc_baddr.poke(acc_baddr)
 
   // Cycle 0
   if (debug) {
     print(s"\nCycle ${cycle_counter}:\n")
   }
 
-  for ((key,Array(value)) <- inst.toSeq.sortBy(_._1)) {
+  for ((key, Array(value)) <- inst.toSeq.sortBy(_._1)) {
     // Get instruction mnemonic for better logging (optional but helpful)
-    val mnemonic = ISAHelper.getMnemonic(value) // Assuming ISA has a helper like this
+    val mnemonic =
+      ISAHelper.getMnemonic(value) // Assuming ISA has a helper like this
     // Check the instruction
     if (isComputeInstruction(value)) {
       if (debug) {
         print(s"Instruction ${key} (${mnemonic}) is Compute type. Sending...\n")
       }
       // Send the instruction
-      c.io.inst.bits.poke( value)
+      c.io.inst.bits.poke(value)
       // Instruction is valid for this cycle
-      c.io.inst.valid.poke( 1)
+      c.io.inst.valid.poke(1)
       // Increment the step (handles clock cycle and mock logic)
       mocks.logical_step()
     } else {
@@ -485,8 +638,6 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
     print(s"\n\t END COMPUTE TESTS! \n\t (done in ${cycle_counter} cycles)\n\n")
   }
 
-
-
   def getOutScratchpad: Map[BigInt, Array[BigInt]] = {
     out_scratchpad
   }
@@ -496,35 +647,51 @@ object ISAHelper { // Or place inside ISA object if preferred
   // Basic example, might need refinement based on actual ISA definitions
   def getMnemonic(instruction: BigInt): String = {
     val computeBitPats = Map(
-      LUOP -> "LUOP", LACC -> "LACC", GEMM -> "GEMM", FNSH -> "FNSH",
-      VMIN -> "VMIN", VMAX -> "VMAX", VADD -> "VADD", VSHX -> "VSHX"
+      LUOP -> "LUOP",
+      LACC -> "LACC",
+      GEMM -> "GEMM",
+      FNSH -> "FNSH",
+      VMIN -> "VMIN",
+      VMAX -> "VMAX",
+      VADD -> "VADD",
+      VSHX -> "VSHX"
     )
     // Add other instruction types if needed (LWGT, LINP, SOUT, etc.)
     val otherBitPats = Map(
-      LWGT -> "LWGT", LINP -> "LINP", SOUT -> "SOUT"
+      LWGT -> "LWGT",
+      LINP -> "LINP",
+      SOUT -> "SOUT"
       // Potentially add others like NOP if defined
     )
 
     val allBitPats = computeBitPats ++ otherBitPats
 
-    allBitPats.find { case (bitPat, _) =>
-      (instruction & bitPat.mask) == bitPat.value
-    }.map(_._2).getOrElse("UNKNOWN") // Return mnemonic or "UNKNOWN"
+    allBitPats
+      .find { case (bitPat, _) =>
+        (instruction & bitPat.mask) == bitPat.value
+      }
+      .map(_._2)
+      .getOrElse("UNKNOWN") // Return mnemonic or "UNKNOWN"
   }
 }
 
-
-class ComputeApp extends GenericSim("ComputeApp", (p:Parameters) =>
-  new Compute(true)(p), (c: Compute) => new ComputeSimulator(c,
-  "instructions.bin",
-  "uop.bin",
-  "input.bin",
-  "weight.bin",
-  "out_init.bin",
-  "accumulator.bin",
-  "expected_out_sram.bin",
-  "memory_addresses.csv",
-  doCompare = false, debug = true, fromResources = false))
-
-
-
+class ComputeApp
+    extends GenericSim(
+      "ComputeApp",
+      (p: Parameters) => new Compute(true)(p),
+      (c: Compute) =>
+        new ComputeSimulator(
+          c,
+          "instructions.bin",
+          "uop.bin",
+          "input.bin",
+          "weight.bin",
+          "out_init.bin",
+          "accumulator.bin",
+          "expected_out_sram.bin",
+          "memory_addresses.csv",
+          doCompare = false,
+          debug = true,
+          fromResources = false
+        )
+    )

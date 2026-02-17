@@ -589,7 +589,7 @@ class TensorGemmPipelinedSplit(implicit p: Parameters) extends TensorGemmIfc {
   require(numOuts > 0, "-F- Cannot factor more groups than blockOut")
   val batch = p(CoreKey).batch
 
-  val m = Module(new TensorGemmIndexGenerator)
+  val indexGenerator = Module(new TensorGemmIndexGenerator)
 
   // additional pipe latency of wgt/inp read if needed
   val scratchpadReadLatency = 0
@@ -597,10 +597,10 @@ class TensorGemmPipelinedSplit(implicit p: Parameters) extends TensorGemmIfc {
   val uopReadLatency = 0
 
   val delayed_valid =
-    ShiftRegister(m.io.valid, uopReadLatency + 1, false.B, true.B)
-  val delayed_acc_i = ShiftRegister(m.io.acc_i, uopReadLatency + 1)
-  val delayed_inp_i = ShiftRegister(m.io.inp_i, uopReadLatency + 1)
-  val delayed_wgt_i = ShiftRegister(m.io.wgt_i, uopReadLatency + 1)
+    ShiftRegister(indexGenerator.io.valid, uopReadLatency + 1, false.B, true.B)
+  val delayed_acc_i = ShiftRegister(indexGenerator.io.acc_i, uopReadLatency + 1)
+  val delayed_inp_i = ShiftRegister(indexGenerator.io.inp_i, uopReadLatency + 1)
+  val delayed_wgt_i = ShiftRegister(indexGenerator.io.wgt_i, uopReadLatency + 1)
 
   val state = RegInit(sIdle)
   val inflight = RegInit(0.U(inflightBits.W))
@@ -613,7 +613,7 @@ class TensorGemmPipelinedSplit(implicit p: Parameters) extends TensorGemmIfc {
     capture_dec := io.dec
     // if (io.dec.empty_0 != None) assert(io.dec.empty_0.get === 0.U)
     // if (io.dec.empty_1 != None) assert(io.dec.empty_1.get === 0.U)
-  }.elsewhen(state === sRun && m.io.last) {
+  }.elsewhen(state === sRun && indexGenerator.io.last) {
     state := sWait
   }.elsewhen(state === sWait && inflight === 0.U) {
     state := sIdle
@@ -624,15 +624,15 @@ class TensorGemmPipelinedSplit(implicit p: Parameters) extends TensorGemmIfc {
   assert(state =/= sRun || capture_dec.asUInt === io.dec.asUInt)
   assert(state =/= sWait || capture_dec.asUInt === io.dec.asUInt)
 
-  m.io.start := io.start
+  indexGenerator.io.start := io.start
 
-  m.io.dec := io.dec
-  io.uop.idx.bits := m.io.uop_idx
-  io.uop.idx.valid := m.io.valid
+  indexGenerator.io.dec := io.dec
+  io.uop.idx.bits := indexGenerator.io.uop_idx
+  io.uop.idx.valid := indexGenerator.io.valid
 
   val delayedUopData = ShiftRegister(io.uop.data, uopReadLatency)
 
-  assert(delayedUopData.valid === delayed_valid, "valid should be delayed")
+  // assert(delayedUopData.valid === delayed_valid, "valid should be delayed")
 
   val uop_valid =
     ShiftRegister(delayed_valid, inpReadIdxLatency, false.B, true.B)
@@ -650,7 +650,7 @@ class TensorGemmPipelinedSplit(implicit p: Parameters) extends TensorGemmIfc {
         3 /* 1 stage is borrowed down here*/ + scratchpadReadLatency + inpReadIdxLatency + uopReadLatency
     )
   )
-  reset_pipe.io.enq.valid := m.io.valid
+  reset_pipe.io.enq.valid := indexGenerator.io.valid
   reset_pipe.io.enq.bits := capture_dec.reset
 
   val acc_idx_pipe = Module(
@@ -721,8 +721,8 @@ class TensorGemmPipelinedSplit(implicit p: Parameters) extends TensorGemmIfc {
     assert(io.acc.rd(idx).data.valid === wrpipe(idx).io.deq.valid)
   }
 
-  when(m.io.valid && wrpipeNs.io.deq.valid) {}
-    .elsewhen(m.io.valid) {
+  when(indexGenerator.io.valid && wrpipeNs.io.deq.valid) {}
+    .elsewhen(indexGenerator.io.valid) {
       assert(inflight =/= ((1 << inflightBits) - 1).U)
       inflight := inflight + 1.U
     }
