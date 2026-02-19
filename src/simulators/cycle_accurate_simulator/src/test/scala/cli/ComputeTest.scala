@@ -50,6 +50,7 @@ class ComputeApp_16x16 extends GenericTest("ComputeApp_16x16", (p:Parameters) =>
   "examples_compute/16x16/accumulator.bin",
   "examples_compute/16x16/expected_out.bin",
   "examples_compute/16x16/memory_addresses.csv",
+  true,
   true))
 
 ///* Matrix 16x16 multiply with matrix 16x16 (WGT and INP are int16) */

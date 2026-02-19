@@ -65,31 +65,40 @@ if __name__ == '__main__':
     # DEFINE VARIABLES
     # ----------------
     # Input tensor
-    input_channel = 1
-    input_height = 32
-    input_width = 32
+    input_channel = 2
+    input_height = 2
+    input_width = 2
 
     # Output tensor
-    output_channel = 6
-    output_height = 28
-    output_width = 28
+    output_channel = 2
+    output_height = 1
+    output_width = 1
 
     # Filter tensor 
     # => (number of filters = output_channel)
     # => (number of channels within filters = input_channel)
-    kernel_height = 5
-    kernel_width = 5
+    kernel_height = 2
+    kernel_width = kernel_height
 
     # Computation parameters
-    stride_height = 1
-    stride_width = 1
+    stride_height = 2
+    stride_width = stride_height
     pad_height = 0
-    pad_width = 0
+    pad_width = pad_height
 
     # EXECUTE
     # -------
-    im2row_matrix_dimension(input_channel, input_height, input_width, \
-                            output_channel, output_height, output_width, \
-                            kernel_height, kernel_width, \
-                            stride_height, stride_width, pad_height, pad_width,
+    doReComputeOut = True
+    if (doReComputeOut == True):
+        output_height, output_width = \
+            output_dimension(inp_dim=(input_height, input_width), 
+                         wgt_dim=(kernel_height, kernel_width),
+                         stride=(stride_height, stride_width), 
+                         padding=((pad_height,pad_height), (pad_width,pad_width)))
+    
+    im2row_matrix_dimension(nc=input_channel, nh=input_height, nw=input_width,
+                            mc=output_channel, mh=output_height, mw=output_width,
+                            fh=kernel_height, fw=kernel_width,
+                            sh=stride_height, sw=stride_width,
+                            ph=(pad_height,pad_height), pw=(pad_width,pad_width),
                             debug=True)

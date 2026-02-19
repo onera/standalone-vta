@@ -37,7 +37,7 @@ class GenericTest[T <: Module, P <: PeekPokeTester[T], C <: Parameters](
   ) extends AnyFlatSpec with ChiselScalatestTester {
 
   implicit val p: Parameters = new DefaultPynqConfig
-  val defaultOpts = Seq(TreadleBackendAnnotation)
+  val defaultOpts = Seq(TreadleBackendAnnotation,WriteVcdAnnotation)
   //val verilatorOpts = Seq(VerilatorBackendAnnotation,WriteVcdAnnotation)
 
   behavior of tag
