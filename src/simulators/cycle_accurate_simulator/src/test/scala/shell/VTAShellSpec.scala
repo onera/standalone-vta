@@ -42,6 +42,13 @@ import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import chisel3.util.MuxCase
 import chisel3.util.Cat
 import vta.core.ISA
+import vta.core.VTAISA.OpCode.LOAD
+import chisel3.util.experimental.BoringUtils
+import chisel3.simulator.stimulus.RunUntilFinished
+import chisel3.util.HasExtModuleResource
+import chisel3.util.HasBlackBoxResource
+import vta.shell.InstructionGen.Load
+import vta.shell.InstructionGen.Gemm
 
 class VTAShellSpec
     extends AnyFlatSpec
@@ -83,7 +90,10 @@ class VTAShellSpec
 
   def parseMemorySections(map: Map[String, Object]) = map.map { p =>
     val address = p._2 match {
-      case m: Map[String, String] => m("PhysicalAddr").toInt
+      case m: Map[String, String] => {
+        val s = m("PhysicalAddr")
+        ("x" + s).U((s.size * 4).W).litValue.toInt
+      }
     }
     val values = p._2 match {
       case m: Map[String, Object] =>
@@ -131,6 +141,32 @@ class VTAShellSpec
   val outAddress = getAddress("OUT", 32)
   val uopAddress = getAddress("UOP", 32)
 
+  class DramWithInit(memoryFile: String, size: Int)(implicit p: Parameters)
+      extends Module
+      with AxiClientWrapper {
+    val io = IO(new AXIClient(p(ShellKey).memParams))
+
+    val mem = SyncReadMem(
+      size,
+      UInt(p(ShellKey).memParams.dataBits.W)
+    )
+    if (memoryFile.trim().nonEmpty) {
+      loadMemoryFromFile(mem, memoryFile)
+    }
+    val readHandle = readHandler(io, true.B)
+
+    val writeHandle = writeHandler(io, true.B)
+
+    io.r.bits.data := mem.read(readHandle)
+    when(io.w.fire) {
+      mem.write(writeHandle, io.w.bits.data)
+      io.b.valid := true.B
+    }
+
+    io.b.bits.user := DontCare
+    io.r.bits.user := DontCare
+  }
+
   class DramMockModule(content: Map[String, (Int, Seq[UInt])])(implicit
       p: Parameters
   ) extends Module
@@ -151,7 +187,7 @@ class VTAShellSpec
     val weightsVec = reshapeMem(content("WGT")._2)
     val accsVec = reshapeMem(content("ACC")._2)
     val outputsVec = reshapeMem(content("OUT")._2)
-    val uopsVec = reshapeMem(content("UOP")._2)
+    val uopsVec = VecInit(content("UOP")._2)
     val instrVec = VecInit(
       content("INSN")._2.flatMap(u =>
         Seq(u(63, 0), u(127, 64))
@@ -234,110 +270,14 @@ class VTAShellSpec
 
     val mem = Module(new DramMockModule(content))
 
+    val stop_read = dontTouch(
+      WireInit(BoringUtils.tapAndRead(vta.vcr.io.vcr.finish))
+    )
+    when(stop_read) {
+      stop()
+    }
     vta.io.host <> io.host
     vta.io.mem <> mem.io
-  }
-
-  case class AxiAddressLit(addr: Int, burstType: Int, len: Int)
-  def getAxiAddressLit(axi: AXIAddress) = {
-    AxiAddressLit(
-      axi.addr.peek().litValue.toInt,
-      axi.burst.peek().litValue.toInt,
-      axi.len.peek().litValue.toInt
-    )
-  }
-  it should "initiate processing with some configuration from host" ignore {
-
-    implicit val parameters: Parameters = new DefaultPynqConfig
-
-    simulate(new VTAShell) { vta =>
-      implicit val clock = vta.clock
-      implicit val axiLiteClient = vta.io.host
-      implicit val timeout = 1
-      vta.io.host.b.ready.poke(true.B)
-
-      enableWaves()
-      // Configure memory pointers
-      writeInstructionBaseAddress(instrAddress)
-      writeUopBaseAddress(uopAddress)
-      writeInputBaseAddress(inputAddress)
-      writeWeightBaseAddress(weightAddress)
-      writeAccBaseAddress(accAddress)
-      writeOutBaseAddress(outAddress)
-
-      // Configure instruction size
-
-      writeInstructionCount(instructionHexSeq.size)
-
-      // enableWaves()
-      // launch the processing of VTA
-      launchVTA()
-
-      clock.step()
-      var currentReadAddress = 0
-      var readBurstType = 0
-      var readSize = 0
-      var currentWriteAddress = 0
-      vta.io.mem.ar.ready.poke(true)
-      vta.io.mem.aw.ready.poke(true)
-      for (i <- 0 until 1000) {
-        if (vta.io.mem.ar.valid.peekBoolean()) {
-          currentReadAddress = vta.io.mem.ar.bits.addr.peek().litValue.toInt
-          readBurstType = vta.io.mem.ar.bits.burst.peek().litValue.toInt
-          readSize = vta.io.mem.ar.bits.size.peek().litValue.toInt
-          println(s"AxiReadAddress: ${getAxiAddressLit(vta.io.mem.ar.bits)}")
-        }
-        if (vta.io.mem.aw.valid.peekBoolean()) {
-          currentWriteAddress = vta.io.mem.aw.bits.addr.peek().litValue.toInt
-        }
-
-        val data = currentReadAddress match {
-          case l: Int
-              if (l - instrAddress >= 0 && l < instrAddress + instructions.size) =>
-            instructions(l - instrAddress)
-          case l: Int
-              if (l - inputAddress >= 0 && l < inputAddress + inputs.size) =>
-            inputs(l - inputAddress)
-
-          case l: Int
-              if (l - weightAddress >= 0 && l < weightAddress + weights.size) =>
-            weights(l - weightAddress)
-
-          case l: Int if (l - accAddress >= 0 && l < accAddress + accs.size) =>
-            accs(l - accAddress)
-
-          case l: Int if (l - uopAddress >= 0 && l < uopAddress + uops.size) =>
-            uops(l - uopAddress)
-          case _ =>
-            "xdeadbeef".U(64.W)
-        }
-
-        if (readSize == 1) {
-          vta.io.mem.r.bits.last.poke(true.B)
-        } else {
-          vta.io.mem.r.bits.last.poke(false.B)
-        }
-        if (readBurstType == 1 && readSize > 0) {
-          currentReadAddress = currentReadAddress + 1
-          readSize = readSize - 1
-        }
-        vta.io.mem.r.bits.data.poke(data)
-        vta.io.mem.r.valid.poke(true)
-        if (vta.io.mem.w.valid.peekBoolean()) {
-
-          println(
-            s"New data written at address ${currentWriteAddress} -> ${vta.io.mem.w.bits.data.peek()}"
-          )
-          vta.io.mem.w.ready.poke(true)
-        }
-        clock.step()
-      }
-
-      clock.step(10)
-
-      disableWaves()
-      // clock.stepUntil(vta.vcr.io.vcr.finish, 1, 10)
-    }
   }
 
   def runVtaTestWithMockDram(
@@ -358,13 +298,19 @@ class VTAShellSpec
       }
 
       // Configure memory pointers
-      writeInstructionBaseAddress(content("INSN")._1)
-      writeUopBaseAddress(content("UOP")._1)
-      writeInputBaseAddress(content("INP")._1)
-      writeWeightBaseAddress(content("WGT")._1)
-      writeAccBaseAddress(content("ACC")._1)
-      writeOutBaseAddress(content("OUT")._1)
+      // writeInstructionBaseAddress(content("INSN")._1)
+      // writeUopBaseAddress(content("UOP")._1)
+      // writeInputBaseAddress(content("INP")._1)
+      // writeWeightBaseAddress(content("WGT")._1)
+      // writeAccBaseAddress(content("ACC")._1)
+      // writeOutBaseAddress(content("OUT")._1)
 
+      writeInstructionBaseAddress(content("INSN")._1)
+      writeUopBaseAddress(0)
+      writeInputBaseAddress(0)
+      writeWeightBaseAddress(0)
+      writeAccBaseAddress(0)
+      writeOutBaseAddress(0)
       // Configure instruction size
 
       writeInstructionCount(content("INSN")._2.size)
@@ -375,6 +321,7 @@ class VTAShellSpec
       // step clock until the computation is over
       // FIXME: for now uses a number of cycles => use finish()
       clock.step(timeout)
+      RunUntilFinished(timeout)
       // clock.stepUntil(vta.vta.vcr.io.vcr.finish, 1, timeout)
     }
   }
@@ -382,10 +329,31 @@ class VTAShellSpec
   it should "run with initialization from JSON file" in {
     implicit val parameters: Parameters = new DefaultPynqConfig
 
-    val content = parseMemorySections(dramInitJson)
-    runVtaTestWithMockDram(content, timeout = 10000, waves = true)
+    val content = parseMemorySections(dramInitJson).map {
+      case ("INP", (i, s)) =>
+        "INP" -> (
+          i,
+          (0 until s.size).map(v => v.toInt.U(32.W))
+        )
+      case l => l
+    }
+    runVtaTestWithMockDram(
+      content,
+      timeout = 10000,
+      waves = true
+    )
   }
 
+  it should "print the sizes of content" in {
+    val content = parseMemorySections(dramInitJson)
+    val sizes = content.view.mapValues { case (i, s) =>
+      (i, s.size)
+    }.toMap
+    println(sizes)
+    val countInp = content("INP")._2.count(_.litValue.toInt != 0)
+    println(countInp)
+
+  }
   it should "write a burst in Mock Dram and read" in {
     implicit val parameters: Parameters = new DefaultPynqConfig
     val content = parseMemorySections(dramInitJson)
@@ -398,6 +366,31 @@ class VTAShellSpec
       val res = readAxiBurst(content("OUT")._1, 10)
       println(res)
       res.size shouldBe 10
+    }
+  }
+
+  it should "export VTA" ignore {
+    implicit val parameters: Parameters = new DefaultPynqConfig
+
+    ChiselStage.emitCHIRRTLFile(new VTAShell, Array(""))
+  }
+
+  it should "initialize a DRam with a file" ignore {
+
+    implicit val parameters = new DefaultPynqConfig
+    val file =
+      new File(
+        getClass.getClassLoader
+          .getResource("examples_core/simple.mem")
+          .getPath()
+      )
+
+    simulate(new DramWithInit(file.getAbsolutePath(), 10)) { dut =>
+      implicit val axi = dut.io
+      implicit val clock = dut.clock
+
+      val data = readAxiBurst(0, 10)
+      println(data)
     }
   }
 }

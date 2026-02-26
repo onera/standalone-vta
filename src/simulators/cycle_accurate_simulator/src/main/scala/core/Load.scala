@@ -25,12 +25,12 @@ import vta.util.config._
 import vta.shell._
 
 /** Load.
- *
- * Load inputs and weights from memory (DRAM) into scratchpads (SRAMs).
- * This module instantiate the TensorLoad unit which is in charge of
- * loading 1D and 2D tensors to scratchpads, so it can be used by
- * other modules such as Compute.
- */
+  *
+  * Load inputs and weights from memory (DRAM) into scratchpads (SRAMs). This
+  * module instantiate the TensorLoad unit which is in charge of loading 1D and
+  * 2D tensors to scratchpads, so it can be used by other modules such as
+  * Compute.
+  */
 class Load(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val mp = p(ShellKey).memParams
   val io = IO(new Bundle {
@@ -111,8 +111,10 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module {
         printf("[Load] start sync\n")
       }.elsewhen(dec.io.isInput) {
         printf("[Load] start input\n")
+        printf(cf"[Load] decoded: ${dec.io.inst.asTypeOf(new MemDecode)}")
       }.elsewhen(dec.io.isWeight) {
         printf("[Load] start weight\n")
+        printf(cf"[Load] decoded: ${dec.io.inst.asTypeOf(new MemDecode)}")
       }
     }
     // done

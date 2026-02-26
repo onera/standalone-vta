@@ -1,11 +1,17 @@
 lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
-  scalaVersion := "2.13.12",
-  crossScalaVersions := Seq("2.13.12"),
-  Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-n", "UnitTests", "-n", "FormalTests")
+  scalaVersion := "2.13.18",
+  crossScalaVersions := Seq("2.13.18"),
+  Test / testOptions += Tests.Argument(
+    TestFrameworks.ScalaTest,
+    "-n",
+    "UnitTests",
+    "-n",
+    "FormalTests"
+  )
 )
 
-val chiselVersion = "6.0.0"
+val chiselVersion = "7.9.0"
 val firrtlVersion = "6.0.0"
 
 lazy val chiseltestSettings = Seq(
@@ -32,7 +38,11 @@ lazy val chiseltestSettings = Seq(
     "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.17.2", // ADDED FOR PARSING JSON
     "com.fasterxml.jackson.core" % "jackson-databind" % "2.17.2", // ADDED FOR PARSING JSON
     "net.java.dev.jna" % "jna" % "5.14.0",
-    compilerPlugin(("org.chipsalliance" % "chisel-plugin" % chiselVersion).cross(CrossVersion.full))
+    compilerPlugin(
+      ("org.chipsalliance" % "chisel-plugin" % chiselVersion).cross(
+        CrossVersion.full
+      )
+    )
   ),
   resolvers ++= Resolver.sonatypeOssRepos("snapshots"),
   resolvers ++= Resolver.sonatypeOssRepos("releases"),
@@ -47,3 +57,4 @@ lazy val chiseltestSettings = Seq(
 lazy val chiseltest = (project in file("."))
   .settings(commonSettings)
   .settings(chiseltestSettings)
+

@@ -20,11 +20,16 @@ import chisel3.util.experimental.loadMemoryFromFileInline
 import firrtl.annotations.MemoryLoadFileType
 import vta.interface.axi.AxiClientWrapper
 import _root_.util.BinaryReader
+import circt.stage.ChiselStage
+import svsim.verilator.Backend.CompilationSettings
+import svsim.BackendSettingsModifications
+import svsim.CommonSettingsModifications
+import svsim.CommonCompilationSettings
 
 class SyncAxiDramSpec extends AnyFlatSpec with ChiselSim with AxiFullSimUtils {
 
-  class InitMemInline(memoryFile: String = "") extends Module {
-    val width: Int = 32
+  class InitMemInline(memoryFile: String = "", size: Int, width: Int)
+      extends Module {
     val io = IO(new Bundle {
       val enable = Input(Bool())
       val write = Input(Bool())
@@ -33,7 +38,7 @@ class SyncAxiDramSpec extends AnyFlatSpec with ChiselSim with AxiFullSimUtils {
       val dataOut = Output(UInt(width.W))
     })
 
-    val mem = SyncReadMem(10, UInt(width.W))
+    val mem = SyncReadMem(size, UInt(width.W))
     // Initialize memory
     if (memoryFile.trim().nonEmpty) {
       loadMemoryFromFileInline(mem, memoryFile)
@@ -51,7 +56,27 @@ class SyncAxiDramSpec extends AnyFlatSpec with ChiselSim with AxiFullSimUtils {
     implicit val simulator = verilatorWithWaveDump
 
     val file = getClass.getClassLoader.getResource(resource).getFile()
-    simulate(new InitMemInline(file)) { mem =>
+
+    val compilationSettings = svsim.CommonCompilationSettings.default
+
+    implicit object EnableMemInitVerilog extends CommonSettingsModifications {
+
+      override def apply(
+          v1: CommonCompilationSettings
+      ): CommonCompilationSettings = {
+        v1.copy(verilogPreprocessorDefines =
+          compilationSettings.verilogPreprocessorDefines :+ CommonCompilationSettings
+            .VerilogPreprocessorDefine("ENABLE_INITIAL_MEM_")
+        )
+      }
+
+    }
+
+    simulate(
+      new InitMemInline(file, 16, 32),
+      // Array("--verilator-cflags", "-DENABLE_MEM_INIT=1"),
+      firtoolOpts = Array("--disable-all-randomization")
+    ) { mem =>
       enableWaves()
       mem.io.enable.poke(true)
       for (i <- 1 until 10) {

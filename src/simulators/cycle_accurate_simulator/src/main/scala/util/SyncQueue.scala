@@ -29,16 +29,16 @@ class SyncQueue[T <: Data](
     gen: T,
     val entries: Int,
     pipe: Boolean = false,
-    flow: Boolean = false)
-    extends Module() {
+    flow: Boolean = false
+) extends Module() {
 
   val genType = gen
-  val forceSimpleQueue = false // Force usage of Queue
+  val forceSimpleQueue = true // Force usage of Queue
 
   val io = IO(new QueueIO(genType, entries))
 
-  require (!pipe, "-F- Not supported")
-  require (!flow, "-F- Not supported")
+  require(!pipe, "-F- Not supported")
+  require(!flow, "-F- Not supported")
 
   if (forceSimpleQueue) {
     val queue = Module(new Queue(genType.asUInt, entries))
@@ -47,7 +47,6 @@ class SyncQueue[T <: Data](
     val queue = Module(new SyncQueue2PortMem(genType.asUInt, entries))
     io <> queue.io
   }
-
 
 }
 
@@ -59,47 +58,48 @@ class SyncQueue1PortMem[T <: Data](
     gen: T,
     val entries: Int,
     pipe: Boolean = false,
-    flow: Boolean = false)
-    extends Module() {
+    flow: Boolean = false
+) extends Module() {
 
   val genType = gen
 
   val io = IO(new QueueIO(genType, entries))
 
-  require (!pipe, "-F- Not supported")
-  require (!flow, "-F- Not supported")
+  require(!pipe, "-F- Not supported")
+  require(!flow, "-F- Not supported")
 
-  if (entries < 4 ) {
-    val queue =  Module(new Queue(genType.asUInt, entries))
+  if (entries < 4) {
+    val queue = Module(new Queue(genType.asUInt, entries))
     io <> queue.io
   } else {
     val queue = Module(new SyncQueue1PortMemImpl(genType.asUInt, entries))
     io <> queue.io
   }
 
-
 }
 class SyncQueue1PortMemImpl[T <: Data](
     gen: T,
     val entries: Int,
     pipe: Boolean = false,
-    flow: Boolean = false)
-    extends Module() {
+    flow: Boolean = false
+) extends Module() {
 
-  require (!pipe, "-F- Not supported")
-  require (!flow, "-F- Not supported")
+  require(!pipe, "-F- Not supported")
+  require(!flow, "-F- Not supported")
 
   val genType = gen
 
   val io = IO(new QueueIO(genType, entries))
 
-  require (entries > 3, "-F- TODO: small queue implemetation")
+  require(entries > 3, "-F- TODO: small queue implemetation")
   val doubleQueue = Module(new DoubleQueue(genType.asUInt, entries))
   val buffer = Module(new Queue(genType.asUInt, 3))
 
   val doubleQueueHasValues = doubleQueue.io.count =/= 0.U
-  val bufferInValid = Mux(doubleQueueHasValues, doubleQueue.io.deq.valid, io.enq.valid)
-  val bufferInBits = Mux(doubleQueueHasValues, doubleQueue.io.deq.bits, io.enq.bits)
+  val bufferInValid =
+    Mux(doubleQueueHasValues, doubleQueue.io.deq.valid, io.enq.valid)
+  val bufferInBits =
+    Mux(doubleQueueHasValues, doubleQueue.io.deq.bits, io.enq.bits)
   buffer.io.enq.valid := bufferInValid
   buffer.io.enq.bits := bufferInBits
 
@@ -112,11 +112,12 @@ class SyncQueue1PortMemImpl[T <: Data](
   val countNext = RegEnable(
     count, // NEXT
     0.U, // INIT
-    io.enq.fire || io.deq.fire) // ENABLE
-  when (io.enq.fire && !io.deq.fire) {
+    io.enq.fire || io.deq.fire
+  ) // ENABLE
+  when(io.enq.fire && !io.deq.fire) {
     assert(countNext < entries.U)
     count := countNext + 1.U
-  }.elsewhen (!io.enq.fire && io.deq.fire) {
+  }.elsewhen(!io.enq.fire && io.deq.fire) {
     assert(countNext > 0.U)
     count := countNext - 1.U
   }.otherwise {
@@ -124,8 +125,8 @@ class SyncQueue1PortMemImpl[T <: Data](
   }
 
   io.count := countNext
-  io.enq.ready :=  countNext =/= entries.U
-  io.deq.valid :=  countNext =/= 0.U
+  io.enq.ready := countNext =/= entries.U
+  io.deq.valid := countNext =/= 0.U
   assert(io.deq.valid === buffer.io.deq.valid)
   assert(io.enq.ready === buffer.io.enq.ready || doubleQueue.io.enq.ready)
 }
@@ -134,17 +135,17 @@ class SyncQueue2PortMem[T <: Data](
     gen: T,
     val entries: Int,
     pipe: Boolean = false,
-    flow: Boolean = false)
-    extends Module() {
+    flow: Boolean = false
+) extends Module() {
 
   val genType = gen
 
   val io = IO(new QueueIO(genType, entries))
 
-  require (!pipe, "-F- Not supported")
-  require (!flow, "-F- Not supported")
+  require(!pipe, "-F- Not supported")
+  require(!flow, "-F- Not supported")
 
-  if (entries < 4 ) {
+  if (entries < 4) {
     val queue = Module(new Queue(genType.asUInt, entries))
     io <> queue.io
   } else {
@@ -158,23 +159,25 @@ class SyncQueue2PortMemImpl[T <: Data](
     gen: T,
     val entries: Int,
     pipe: Boolean = false,
-    flow: Boolean = false)
-    extends Module() {
+    flow: Boolean = false
+) extends Module() {
 
-  require (!pipe, "-F- Not supported")
-  require (!flow, "-F- Not supported")
+  require(!pipe, "-F- Not supported")
+  require(!flow, "-F- Not supported")
 
   val genType = gen
 
   val io = IO(new QueueIO(genType, entries))
 
-  require (entries > 3, "-F- TODO: small queue implemetation")
+  require(entries > 3, "-F- TODO: small queue implemetation")
   val memoryQueue = Module(new OneCycleQueue(genType.asUInt, entries, ""))
   val buffer = Module(new Queue(genType.asUInt, 3))
 
   val memoryQueueHasValues = memoryQueue.io.count =/= 0.U
-  val bufferInValid = Mux(memoryQueueHasValues, memoryQueue.io.deq.valid, io.enq.valid)
-  val bufferInBits = Mux(memoryQueueHasValues, memoryQueue.io.deq.bits, io.enq.bits)
+  val bufferInValid =
+    Mux(memoryQueueHasValues, memoryQueue.io.deq.valid, io.enq.valid)
+  val bufferInBits =
+    Mux(memoryQueueHasValues, memoryQueue.io.deq.bits, io.enq.bits)
   buffer.io.enq.valid := bufferInValid
   buffer.io.enq.bits := bufferInBits
 
@@ -187,11 +190,12 @@ class SyncQueue2PortMemImpl[T <: Data](
   val countNext = RegEnable(
     count, // NEXT
     0.U, // INIT
-    io.enq.fire || io.deq.fire) // ENABLE
-  when (io.enq.fire && !io.deq.fire) {
+    io.enq.fire || io.deq.fire
+  ) // ENABLE
+  when(io.enq.fire && !io.deq.fire) {
     assert(countNext < entries.U)
     count := countNext + 1.U
-  }.elsewhen (!io.enq.fire && io.deq.fire) {
+  }.elsewhen(!io.enq.fire && io.deq.fire) {
     assert(countNext > 0.U)
     count := countNext - 1.U
   }.otherwise {
@@ -199,25 +203,22 @@ class SyncQueue2PortMemImpl[T <: Data](
   }
 
   io.count := countNext
-  io.enq.ready :=  countNext =/= entries.U
-  io.deq.valid :=  countNext =/= 0.U
+  io.enq.ready := countNext =/= entries.U
+  io.deq.valid := countNext =/= 0.U
   assert(io.deq.valid === buffer.io.deq.valid)
   assert(io.enq.ready === buffer.io.enq.ready || memoryQueue.io.enq.ready)
 }
 
 //combines two TwoCycle one-port memory queues into a queue
 // with a latency 3
-class DoubleQueue[T <: Data](
-    gen: T,
-    val entries: Int)
-    extends Module() {
+class DoubleQueue[T <: Data](gen: T, val entries: Int) extends Module() {
 
   val genType = gen
 
   val io = IO(new QueueIO(genType, entries))
 
   require(entries > 1, "Zero size not tested")
-  val entriesRam0 = entries/2
+  val entriesRam0 = entries / 2
   val entriesRam1 = entries - entriesRam0
   val queue0 = Module(new TwoCycleQueue(genType.asUInt, entriesRam0, "q0"))
   val queue1 = Module(new TwoCycleQueue(genType.asUInt, entriesRam1, "q1"))
@@ -226,13 +227,14 @@ class DoubleQueue[T <: Data](
   enqRR := RegEnable(
     ~enqRR, // NEXT
     1.U, // INIT
-    io.enq.fire) // ENABLE
+    io.enq.fire
+  ) // ENABLE
   val deqRR = Wire(Bool())
   deqRR := RegEnable(
     ~deqRR, // NEXT
     1.U, // INIT
-    io.deq.fire) // ENABLE
-
+    io.deq.fire
+  ) // ENABLE
 
   val do_enq0 = WireInit(io.enq.fire && enqRR)
   val do_enq1 = WireInit(io.enq.fire && ~enqRR)
@@ -244,7 +246,7 @@ class DoubleQueue[T <: Data](
   val do_deq1 = (deq1 && ~do_enq1) || do_deq1_next
 
   val do_deq = WireInit(io.deq.fire)
-  val full  = !queue0.io.enq.ready && !queue1.io.enq.ready
+  val full = !queue0.io.enq.ready && !queue1.io.enq.ready
   val empty = !queue0.io.deq.valid && !queue1.io.deq.valid
 
   queue0.io.enq.bits := io.enq.bits
@@ -256,7 +258,6 @@ class DoubleQueue[T <: Data](
 
   io.deq.valid := !empty
   io.enq.ready := !full
-
 
   when(do_deq0) {
     assert(queue0.io.deq.valid, "-F- Deq empty queue 0")
@@ -272,7 +273,6 @@ class DoubleQueue[T <: Data](
     assert(queue1.io.enq.ready, "-F- Enq full queue 1")
   }
 
-
   io.deq.bits := Mux(deqRR, queue0.io.deq.bits, queue1.io.deq.bits)
   io.count := queue0.io.count +& queue1.io.count
 }
@@ -281,10 +281,7 @@ class DoubleQueue[T <: Data](
 // enq and deq should not overlap
 // two subsequent enq should be cycle separated
 // two subsequent deq can be next cycle
-class TwoCycleQueue[T <: Data](
-    gen: T,
-    val entries: Int,
-    val qname: String)
+class TwoCycleQueue[T <: Data](gen: T, val entries: Int, val qname: String)
     extends Module() {
 
   val genType = gen
@@ -295,7 +292,6 @@ class TwoCycleQueue[T <: Data](
   val enq_ptr = Counter(entries)
   val deq_ptr = Counter(entries)
   val maybe_full = RegInit(false.B)
-
 
   val ptr_match = enq_ptr.value === deq_ptr.value
   val empty = ptr_match && !maybe_full
@@ -321,18 +317,18 @@ class TwoCycleQueue[T <: Data](
   io.deq.valid := !empty && !firstRead
   io.enq.ready := !full
 
-  when (do_enq) {
+  when(do_enq) {
     enq_ptr.inc()
   }
 
   val memAddr = Wire(chiselTypeOf(enq_ptr.value))
   memAddr := enq_ptr.value
   when(!do_enq) {
-    when(firstRead) {// output the 1st written data
+    when(firstRead) { // output the 1st written data
       memAddr := deq_ptr.value
-    }.elsewhen (do_deq) {
+    }.elsewhen(do_deq) {
       val wrap = deq_ptr.value === (entries - 1).U
-      when (wrap) {
+      when(wrap) {
         memAddr := 0.U // initiate read of the next entry
       }.otherwise {
         memAddr := (deq_ptr.value + 1.U) // initiate read of the next entry
@@ -341,13 +337,11 @@ class TwoCycleQueue[T <: Data](
       memAddr := deq_ptr.value
     }
   }
-  ram0.io.wr_en  := do_enq
+  ram0.io.wr_en := do_enq
   ram0.io.wr_data := io.enq.bits.asUInt
   ram0.io.ch_en := do_deq || firstRead || do_enq
   io.deq.bits := ram0.io.rd_data
-  ram0.io.addr :=  memAddr
-
-
+  ram0.io.addr := memAddr
 
   val ptr_diff = enq_ptr.value - deq_ptr.value
   if (isPow2(entries)) {
@@ -355,19 +349,13 @@ class TwoCycleQueue[T <: Data](
   } else {
     io.count := Mux(
       ptr_match,
-      Mux(
-        maybe_full,
-        entries.asUInt, 0.U),
-        Mux(
-          deq_ptr.value > enq_ptr.value,
-          entries.asUInt + ptr_diff, ptr_diff))
+      Mux(maybe_full, entries.asUInt, 0.U),
+      Mux(deq_ptr.value > enq_ptr.value, entries.asUInt + ptr_diff, ptr_diff)
+    )
   }
 }
 
-class OneCycleQueue[T <: Data](
-    gen: T,
-    val entries: Int,
-    val qname: String)
+class OneCycleQueue[T <: Data](gen: T, val entries: Int, val qname: String)
     extends Module() {
 
   val genType = gen
@@ -379,14 +367,12 @@ class OneCycleQueue[T <: Data](
   val deq_ptr = Counter(entries)
   val maybe_full = RegInit(false.B)
 
-
   val ptr_match = enq_ptr.value === deq_ptr.value
   val empty = ptr_match && !maybe_full
   val full = ptr_match && maybe_full
 
   val do_enq = WireInit(io.enq.fire)
   val do_deq = WireInit(io.deq.fire)
-
 
   when(do_deq) {
     deq_ptr.inc()
@@ -396,21 +382,24 @@ class OneCycleQueue[T <: Data](
     maybe_full := do_enq
   }
 
-  when (do_enq) {
+  when(do_enq) {
     enq_ptr.inc()
   }
 
   val firstRead = RegEnable(do_enq && io.count === 0.U, false.B, true.B)
   io.deq.valid := !empty && !firstRead
   io.enq.ready := !full
-  assert(!firstRead || !do_deq, "-F- Cannot have deq with first read as queue output is not valid yet")
+  assert(
+    !firstRead || !do_deq,
+    "-F- Cannot have deq with first read as queue output is not valid yet"
+  )
 
   val rdAddr = Wire(chiselTypeOf(enq_ptr.value))
-  when(firstRead) {// output the 1st written data
+  when(firstRead) { // output the 1st written data
     rdAddr := deq_ptr.value
-  }.elsewhen (do_deq) {
+  }.elsewhen(do_deq) {
     val wrap = deq_ptr.value === (entries - 1).U
-    when (wrap) {
+    when(wrap) {
       rdAddr := 0.U // initiate read of the next entry
     }.otherwise {
       rdAddr := (deq_ptr.value + 1.U) // initiate read of the next entry
@@ -418,14 +407,12 @@ class OneCycleQueue[T <: Data](
   }.otherwise {
     rdAddr := deq_ptr.value
   }
-  ram0.io.wr_en  := do_enq
+  ram0.io.wr_en := do_enq
   ram0.io.wr_data := io.enq.bits.asUInt
   ram0.io.wr_addr := enq_ptr.value
   ram0.io.rd_en := do_deq || firstRead
   ram0.io.rd_addr := rdAddr
   io.deq.bits := ram0.io.rd_data
-
-
 
   val ptr_diff = enq_ptr.value - deq_ptr.value
   if (isPow2(entries)) {
@@ -433,28 +420,21 @@ class OneCycleQueue[T <: Data](
   } else {
     io.count := Mux(
       ptr_match,
-      Mux(
-        maybe_full,
-        entries.asUInt, 0.U),
-        Mux(
-          deq_ptr.value > enq_ptr.value,
-          entries.asUInt + ptr_diff, ptr_diff))
+      Mux(maybe_full, entries.asUInt, 0.U),
+      Mux(deq_ptr.value > enq_ptr.value, entries.asUInt + ptr_diff, ptr_diff)
+    )
   }
 }
 
 // one-port memory implementation
-class MemIO[T <: Data](gen: T, entries: Int) extends Bundle
-{
-  val wr_en   = Input(Bool())
+class MemIO[T <: Data](gen: T, entries: Int) extends Bundle {
+  val wr_en = Input(Bool())
   val wr_data = Input(gen)
-  val ch_en   = Input(Bool())
+  val ch_en = Input(Bool())
   val rd_data = Output(gen)
-  val addr    = Input(UInt(16.W)) // i dont care
+  val addr = Input(UInt(16.W)) // i dont care
 }
-class OnePortMem[T <: Data](
-    gen: T,
-    val entries: Int,
-    val qname: String)
+class OnePortMem[T <: Data](gen: T, val entries: Int, val qname: String)
     extends Module() {
 
   val genType = gen
@@ -467,26 +447,22 @@ class OnePortMem[T <: Data](
   io.rd_data := DontCare
   when(io.ch_en) {
     val rdwrPort = mem(io.addr)
-    when (io.wr_en) { rdwrPort := io.wr_data }
-      .otherwise    { io.rd_data := rdwrPort }
+    when(io.wr_en) { rdwrPort := io.wr_data }
+      .otherwise { io.rd_data := rdwrPort }
   }
 }
 
 // two-port memory implementation
-class MemIO2P[T <: Data](gen: T, entries: Int) extends Bundle
-{
-  val wr_en   = Input(Bool())
+class MemIO2P[T <: Data](gen: T, entries: Int) extends Bundle {
+  val wr_en = Input(Bool())
   val wr_addr = Input(UInt(16.W)) // i dont care
   val wr_data = Input(gen)
-  val rd_en   = Input(Bool())
+  val rd_en = Input(Bool())
   val rd_addr = Input(UInt(16.W)) // i dont care
   val rd_data = Output(gen)
 }
 
-class TwoPortMem[T <: Data](
-    gen: T,
-    val entries: Int,
-    val qname: String)
+class TwoPortMem[T <: Data](gen: T, val entries: Int, val qname: String)
     extends Module() {
 
   val genType = gen
@@ -495,11 +471,11 @@ class TwoPortMem[T <: Data](
 
   val mem = SyncReadMem(entries, genType.asUInt)
 
-  when (io.wr_en ) {
+  when(io.wr_en) {
     mem.write(io.wr_addr, io.wr_data.asUInt)
   }
   io.rd_data := DontCare
-  when (io.rd_en)  {
+  when(io.rd_en) {
     io.rd_data := mem.read(io.rd_addr, io.rd_en)
   }
 

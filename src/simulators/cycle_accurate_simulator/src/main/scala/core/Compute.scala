@@ -27,6 +27,7 @@ import chisel3.util._
 import vta.util.config._
 import vta.util._
 import vta.shell._
+import chisel3.layer.block
 
 /** Compute.
   *
@@ -296,6 +297,8 @@ class Compute(debug: Boolean = false)(implicit
 
   // debug
   if (debug) {
+
+    // block(DebugLayer) {
     // start
     when(state === sIdle && start) {
       when(dec.io.isSync) {
@@ -306,8 +309,10 @@ class Compute(debug: Boolean = false)(implicit
         printf("[Compute] start load acc\n")
       }.elsewhen(dec.io.isGemm) {
         printf("[Compute] start gemm\n")
+        printf(cf"[Compute] Gemm Instr: ${tensorGemm.io.dec}\n")
       }.elsewhen(dec.io.isAlu) {
         printf("[Compute] start alu\n")
+        printf(cf"[Compute] Alu decoded : ${tensorAlu.io.dec}\n")
       }.elsewhen(dec.io.isFinish) {
         printf("[Compute] start finish\n")
       }
