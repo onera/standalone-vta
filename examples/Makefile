@@ -182,7 +182,7 @@ test:
 	@make fsim_single_layer
 
 custom_insn:
-	@python $(COMPILER_DIR)/utils/tests_instructions.py
+	@python $(COMPILER_DIR)/utils/tests_instructions.py > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
 
 
 ############################################################
