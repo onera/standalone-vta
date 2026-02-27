@@ -26,6 +26,30 @@ import svsim.BackendSettingsModifications
 import svsim.CommonSettingsModifications
 import svsim.CommonCompilationSettings
 
+class SyncAxiDram(memoryFile: String = "", size: Int, width: Int)(implicit
+    p: Parameters
+) extends Module
+    with AxiClientWrapper {
+  val io = IO(new Bundle {
+    val axis = new AXIClient(p(ShellKey).memParams)
+  })
+
+  val mem = SyncReadMem(size, UInt(width.W))
+  // Initialize memory
+  if (memoryFile.trim().nonEmpty) {
+    loadMemoryFromFileInline(mem, memoryFile)
+  }
+  val readHandle = readHandler(io.axis, true.B)
+  val writeHandle = writeHandler(io.axis, true.B)
+  io.axis.r.bits.data := mem.read(readHandle)
+  when(io.axis.w.fire) {
+    mem.write(writeHandle, io.axis.r.bits.data)
+    io.axis.b.valid := true.B
+  }
+
+  io.axis.b.bits.user := DontCare
+  io.axis.r.bits.user := DontCare
+}
 class SyncAxiDramSpec extends AnyFlatSpec with ChiselSim with AxiFullSimUtils {
 
   class InitMemInline(memoryFile: String = "", size: Int, width: Int)

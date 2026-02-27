@@ -260,6 +260,45 @@ class VTAShellSpec
     io.r.bits.user := DontCare
   }
 
+  class VTAShellTestbenchFileInit(
+      content: Map[String, (Int, Seq[UInt], String)]
+  )(implicit
+      param: Parameters
+  ) extends Module {
+    val io = IO(new Bundle {
+      val host = new AXILiteClient(param(ShellKey).hostParams)
+    })
+    val vta = Module(new VTAShell(true))
+
+    val axiClientSwitch = Module(
+      new AxiClientSwitch(
+        content.toSeq.map(_._2._1),
+        content
+          .maxBy(_._2._1)
+          ._2
+          ._2
+          .size + content
+          .maxBy(
+            _._2._1
+          )
+          ._2
+          ._1 // TODO: this is quick and dirty to be changed
+      )
+    )
+    val memories = content.map(p =>
+      Module(new SyncAxiDram(p._2._3, p._2._2.size, p._2._2.head.getWidth))
+    )
+    val stop_read = dontTouch(
+      WireInit(BoringUtils.tapAndRead(vta.vcr.io.vcr.finish))
+    )
+    when(stop_read) {
+      stop()
+    }
+    vta.io.host <> io.host
+    axiClientSwitch.io.axim <> VecInit(memories.map(_.io.axis).toSeq)
+    vta.io.mem <> axiClientSwitch.io.axis
+  }
+
   class VTAShellTestbench(content: Map[String, (Int, Seq[UInt])])(implicit
       p: Parameters
   ) extends Module {
@@ -319,10 +358,41 @@ class VTAShellSpec
       launchVTA()
 
       // step clock until the computation is over
-      // FIXME: for now uses a number of cycles => use finish()
-      clock.step(timeout)
       RunUntilFinished(timeout)
-      // clock.stepUntil(vta.vta.vcr.io.vcr.finish, 1, timeout)
+    }
+  }
+  def runVtaTestWithInitializedMem(
+      content: Map[String, (Int, Seq[UInt], String)],
+      timeout: Int = 100,
+      waves: Boolean = false
+  ) = {
+    implicit val parameters: Parameters = new DefaultPynqConfig
+
+    // val content = parseMemorySections(dramInitJson)
+    simulate(new VTAShellTestbenchFileInit(content)) { vta =>
+      implicit val clock = vta.clock
+      implicit val axiLiteClient = vta.io.host
+      vta.io.host.b.ready.poke(true.B)
+
+      if (waves) {
+        enableWaves()
+      }
+
+      writeInstructionBaseAddress(content("INSN")._1)
+      writeUopBaseAddress(0)
+      writeInputBaseAddress(0)
+      writeWeightBaseAddress(0)
+      writeAccBaseAddress(0)
+      writeOutBaseAddress(0)
+      // Configure instruction size
+
+      writeInstructionCount(content("INSN")._2.size)
+
+      // launch the processing of VTA
+      launchVTA()
+
+      // step clock until the computation is over
+      RunUntilFinished(timeout)
     }
   }
 
@@ -342,6 +412,20 @@ class VTAShellSpec
       timeout = 10000,
       waves = true
     )
+  }
+
+  it should "run with initialization from Hex files" in {
+    implicit val parameters: Parameters = new DefaultPynqConfig
+
+    val content = parseMemorySections(dramInitJson).map { case (a, (b, c)) =>
+      (a, (b, c, (os.pwd / "examples_shell" / (a + ".mem")).toString))
+    }
+    runVtaTestWithInitializedMem(
+      content,
+      timeout = 10000,
+      waves = true
+    )
+
   }
 
   it should "print the sizes of content" in {
@@ -375,7 +459,7 @@ class VTAShellSpec
     ChiselStage.emitCHIRRTLFile(new VTAShell, Array(""))
   }
 
-  it should "initialize a DRam with a file" ignore {
+  it should "initialize a Dram with a file" ignore {
 
     implicit val parameters = new DefaultPynqConfig
     val file =
@@ -392,5 +476,14 @@ class VTAShellSpec
       val data = readAxiBurst(0, 10)
       println(data)
     }
+  }
+
+  it should "export the content in hex files" in {
+    val content = parseMemorySections(dramInitJson)
+
+    MemoryInitializer.exportHexFiles(
+      content,
+      os.pwd / "examples_shell"
+    )
   }
 }
