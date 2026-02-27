@@ -11,6 +11,7 @@ COMPILER_DIR := $(SRC_DIR)/compiler
 VTA_COMPILER_DIR := $(COMPILER_DIR)/vta_compiler
 NN_COMPILER_DIR := $(COMPILER_DIR)/nn_compiler
 FSIM_DIR := $(SRC_DIR)/simulators/functional_simulator
+TSIM_DIR := $(SRC_DIR)/simulators/cycle_accurate_simulator
 CONFIG := $(PROJECT_DIR)/config
 
 
@@ -117,6 +118,15 @@ fsim_inference: ## Infer FSIM with random values
 	@echo ""
 	@echo "FINAL_OUTPUT.BIN generated!"
 
+fsim_single_layer:
+	@echo ""
+	@echo "RUN functional simulation (for single layer)..."
+	@date
+	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
+	@date
+	@echo ""
+	@echo "FSIM DONE!"
+
 
 # EXECUTION
 ###########
@@ -139,25 +149,37 @@ compile_and_run: ## Compile and run
 	@make fsim_compile
 	@make run
 
+# CYCLE ACCURATE TSIM
+#####################
+tsim:
+	@echo ""
+	@echo "RUN TSIM..."
+	@date
+	cd $(TSIM_DIR) && sbt "runMain org.scalatest.run cli.ComputeApp" > $(SIMULATOR_OUTPUT_DIR)/tsim_report.txt
+	@date
+	@echo ""
+	@echo "TSIM DONE!"
+	
+
 ############################################################
 ############################################################
 
 test:
+	@make clean
+	@echo "Copy VTA IR in compiler/output"
+	@cp ./vta_ir/matmul_16x16.json $(COMPILER_OUTPUT_DIR)
+	@echo "Generate random data"
 	@python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 input int32
 	@python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 weight int32
 	@echo ""
-	$(PYTHON_CMD) \
-	$(VTA_COMPILER_DIR)/main_vta_compiler.py \
-	$(DEBUG) \
-	$(COMPILE_SUMMARY) \
-	$(DRAM_JSON) \
-	$(CONFIG)/vta_config.json \
-	./vta_ir/matmul_16x16.json > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
+	@echo "Compile VTA IR"
+	@make vta_compiler
 	@echo ""
+	@echo "Compile FSIM"
 	@make fsim_compile_single_layer
 	@echo ""
-	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt 
-
+	@echo "Execute FSIM"
+	@make fsim_single_layer
 
 
 ############################################################
