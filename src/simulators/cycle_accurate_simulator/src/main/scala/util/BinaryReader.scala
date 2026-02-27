@@ -1,7 +1,6 @@
 package util
 
 import java.io.{File, FileInputStream, InputStream}
-import scala.collection.convert.ImplicitConversions.`map AsJavaMap`
 import scala.language.postfixOps
 import scala.math.pow
 import scala.util.{Failure, Success, Try}
@@ -201,7 +200,7 @@ object BinaryReader {
               .replaceAll("0x", "0000"))
           // Raises an error if there is a duplicate of a key in the CSV file
           }.foldLeft(Map.empty[String, String]) { (acc, pair) =>
-            if (acc.containsKey(pair._1)) {
+            if (acc.contains(pair._1)) {
               throw new Exception(s"Duplicated key : ${pair._1}")
             } else {
               acc + pair
@@ -210,14 +209,19 @@ object BinaryReader {
         // Remove the following lines if you load INP, WGT, OUT from DRAM
         val updatedBaseAddr = {
           if (isBaseAddr) {
+            // Force base addresses to 0
+            val forcedBase = baseAddr
+              .updated("INP", "00000000")
+              .updated("WGT", "00000000")
+              .updated("OUT", "00000000")
+            
             if (baseAddr.size <= 5) {
-              baseAddr.updated("inp", "00000000").updated("wgt", "00000000").updated("out", "00000000")
+              forcedBase
             }
             else {
-              (0 until 5).foldLeft(baseAddr) { case (acc, i) =>
-                acc.updated(s"inp$i", "00000000")
-                  .updated(s"wgt$i", "00000000")
-                  .updated("out", "00000000")
+              (0 until 5).foldLeft(forcedBase) { case (acc, i) =>
+                acc.updated(s"INP$i", "00000000")
+                   .updated(s"WGT$i", "00000000")
               }
             }
           }

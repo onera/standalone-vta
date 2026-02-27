@@ -37,7 +37,7 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
   def this(c: Compute, insn: String, uop: String, input: String, weight: String, out: String, acc: String, expected_out: String,
            base_addresses: String, doCompare: Boolean, debug: Boolean, fromResources: Boolean) = {
     this(c, insn, uop,
-      ComputeSimulator.build_scratchpad_binary(input, DataType.INP, ComputeSimulator.getBaseAddr(base_addresses, fromResources)("inp"), isDRAM = false, fromResources),
+      ComputeSimulator.build_scratchpad_binary(input, DataType.INP, ComputeSimulator.getBaseAddr(base_addresses, fromResources)("INP"), isDRAM = false, fromResources),
       weight, out, acc, expected_out, base_addresses, doCompare, debug, fromResources)
   }
 
@@ -427,14 +427,14 @@ class ComputeSimulator(c: Compute, insn: String, uop: String, input: Map[BigInt,
   val base_addr = computeCSVFile(base_addresses, fromResources)
 
   val dram_scratchpad =
-    ComputeSimulator.build_scratchpad_binary(acc, DataType.ACC, base_addr("acc"), isDRAM = true, fromResources) ++
-      ComputeSimulator.build_scratchpad_binary(uop, DataType.UOP, base_addr("uop"), isDRAM = true, fromResources)
+    ComputeSimulator.build_scratchpad_binary(acc, DataType.ACC, base_addr("ACC"), isDRAM = true, fromResources) ++
+      ComputeSimulator.build_scratchpad_binary(uop, DataType.UOP, base_addr("UOP"), isDRAM = true, fromResources)
   // base address is zero because we are storing the values directly in the INP buffer
   val inp_scratchpad = input
-  //val inp_scratchpad = build_scratchpad_binary(input, DataType.INP, base_addr("inp"), isDRAM = false)
-  val wgt_scratchpad = ComputeSimulator.build_scratchpad_binary(weight, DataType.WGT, base_addr("wgt"), isDRAM = false, fromResources)
-  val out_scratchpad = ComputeSimulator.build_scratchpad_binary(out, DataType.OUT, base_addr("out"), isDRAM = false, fromResources)
-  val out_expect_scratchpad = ComputeSimulator.build_scratchpad_binary(expected_out, DataType.OUT, base_addr("out"), isDRAM = false, fromResources)
+  //val inp_scratchpad = build_scratchpad_binary(input, DataType.INP, base_addr("INP"), isDRAM = false)
+  val wgt_scratchpad = ComputeSimulator.build_scratchpad_binary(weight, DataType.WGT, base_addr("WGT"), isDRAM = false, fromResources)
+  val out_scratchpad = ComputeSimulator.build_scratchpad_binary(out, DataType.OUT, base_addr("OUT"), isDRAM = false, fromResources)
+  val out_expect_scratchpad = ComputeSimulator.build_scratchpad_binary(expected_out, DataType.OUT, base_addr("OUT"), isDRAM = false, fromResources)
 
   // Create the mocks
   val mocks = new Mocks
@@ -514,7 +514,7 @@ object ISAHelper { // Or place inside ISA object if preferred
 
 
 class ComputeApp extends GenericSim("ComputeApp", (p:Parameters) =>
-  new Compute(false)(p), (c: Compute) => new ComputeSimulator(c,
+  new Compute(true)(p), (c: Compute) => new ComputeSimulator(c,
   "instructions.bin",
   "uop.bin",
   "input.bin",
@@ -523,7 +523,7 @@ class ComputeApp extends GenericSim("ComputeApp", (p:Parameters) =>
   "accumulator.bin",
   "expected_out_sram.bin",
   "memory_addresses.csv",
-  doCompare = true, debug = true, fromResources = false))
+  doCompare = false, debug = true, fromResources = false))
 
 
 
