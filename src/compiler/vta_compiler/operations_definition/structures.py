@@ -131,10 +131,24 @@ def decode_vta_insn(hex_string):
         raise ValueError("Unknown opcode")
     
     # Print each field with its value
-    print(f"Instruction type: {insn_type}")
+    print(f"Instruction type: {insn_type} \n\t {hex_string}")
     for field in insn._fields_:
         field_name = field[0]
         field_value = getattr(insn, field_name)
+        if (field_name == "opcode"):
+            if (field_value == 0): field_value = f"{getattr(insn, field_name)} - LOAD"
+            elif (field_value == 1): field_value = f"{getattr(insn, field_name)} - STORE"
+            elif (field_value == 2): field_value = f"{getattr(insn, field_name)} - GEMM"
+            elif (field_value == 3): field_value = f"{getattr(insn, field_name)} - FINISH"
+            elif (field_value == 4): field_value = f"{getattr(insn, field_name)} - ALU"
+        elif (field_name == "buffer_id"):
+            if (field_value == 0): field_value = f"{getattr(insn, field_name)} - UOP"
+            elif (field_value == 1): field_value = f"{getattr(insn, field_name)} - WGT"
+            elif (field_value == 2): field_value = f"{getattr(insn, field_name)} - INP"
+            elif (field_value == 3): field_value = f"{getattr(insn, field_name)} - ACC"
+            elif (field_value == 4): field_value = f"{getattr(insn, field_name)} - OUT"
+        elif (field_name == "sram_base" or field_name == "dram_base"):
+            field_value = f"{getattr(insn, field_name)} - {hex(getattr(insn, field_name))}"
         print(f"{field_name}: {field_value}")
 
 
