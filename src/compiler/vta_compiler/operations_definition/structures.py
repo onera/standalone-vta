@@ -93,7 +93,7 @@ class VTAAluInsn(LittleEndianStructure):
 # FUNCTION TO PRINT INSTRUCTION IN HEXADECIMAL
 # --------------------------------------------
 # Print function
-def print_hex_128bit(insn):
+def hex_128bit(insn, debug=False):
     """Print the instruction in hexadecimal (to be used in CHISEL simulation)."""
     # Convert structure in Bytes
     raw_bytes = ctypes.string_at(ctypes.byref(insn), ctypes.sizeof(insn))
@@ -102,7 +102,11 @@ def print_hex_128bit(insn):
     hex_string = raw_bytes[::-1].hex().upper()
 
     # Print group of 8 characters (4 Bytes = 32 bits)
-    print("0x" + " ".join([hex_string[i:i+8] for i in range(0, 32, 8)]))
+    if (debug):
+        print("0x" + " ".join([hex_string[i:i+8] for i in range(0, 32, 8)]))
+    
+    # Return
+    return raw_bytes, hex_string
 
 
 # INSTRUCTION DECODER
