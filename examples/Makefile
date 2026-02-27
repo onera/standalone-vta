@@ -181,6 +181,9 @@ test:
 	@echo "Execute FSIM"
 	@make fsim_single_layer
 
+custom_insn:
+	@python $(COMPILER_DIR)/utils/tests_instructions.py
+
 
 ############################################################
 ############################################################

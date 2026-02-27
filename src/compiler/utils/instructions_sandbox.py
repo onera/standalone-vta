@@ -160,7 +160,7 @@ def instructions_sandbox(instruction=None, uop=None,
             with open(insn_filepath, param) as f:
                 f.write(instruction)
             
-            print(f"\nFile: {insn_filepath}\n")
+            print(f"\nFile ({param}): {insn_filepath}\n")
         
         elif (doUopBinary):
             if (isinstance(uop, str)):
@@ -170,7 +170,7 @@ def instructions_sandbox(instruction=None, uop=None,
             with open(uop_filepath, param) as f:
                 f.write(uop)
             
-            print(f"\nFile: {uop_filepath}\n")
+            print(f"\nFile ({param}): {uop_filepath}\n")
         
         else:
             pass
