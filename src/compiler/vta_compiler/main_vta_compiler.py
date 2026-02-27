@@ -4,7 +4,9 @@ import os
 import sys
 
 import numpy as np
+import ctypes
 import csv
+import json
 
 import toolbox.alu_operations as ALU
 import toolbox.matrix_to_block_index as MTB
@@ -27,6 +29,7 @@ import utils.configuration as conf
 # MAIN FUNCTION
 # -------------
 def main(vta_config_dict, operations_dict, base_address, dram_offset,
+         dram_state_dictionary={},
          debug=True, summary=True):
     
     if (debug):
@@ -319,15 +322,6 @@ def main(vta_config_dict, operations_dict, base_address, dram_offset,
             f.write(uop)
 
 
-    # DRAM ALLOCATION
-    # ---
-    base_addresses_file_path = filepath_definition(output_dir, 'memory_addresses'+name+'.csv')
-    with open(base_addresses_file_path, 'w', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        for obj_addr in base_addresses_list:
-            writer.writerow([obj_addr['type'], obj_addr['physical_base_address'], obj_addr['logical_base_address']])
-
-
     # META INFORMATION
     # ---
     metadata_file_path = filepath_definition(output_dir, 'metadata'+name+'.csv')
@@ -335,7 +329,98 @@ def main(vta_config_dict, operations_dict, base_address, dram_offset,
         writer = csv.writer(csvfile)
         for data in metadata:
             writer.writerow([data['type'], data['rows'], data['columns']])
-    
+
+
+
+
+    # TODO: FOR CHISEL
+    # Dram allocation
+    base_addresses_file_path = filepath_definition(output_dir, 'memory_addresses'+name+'.csv')
+    with open(base_addresses_file_path, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        for obj_addr in base_addresses_list:
+            writer.writerow([obj_addr['type'], obj_addr['physical_base_address'], obj_addr['logical_base_address']])
+
+    # Binaries
+    A_blocks_file_path = filepath_definition(output_dir, 'input'+name+'.bin')
+    C_blocks_file_path = filepath_definition(output_dir, 'out_init.bin')
+    tempo_file_path = filepath_definition(output_dir, 'expected_out_sram.bin')
+    with open(A_blocks_file_path, 'wb') as f:
+        for block in A_blocks:
+            block.tofile(f)
+    with open(C_blocks_file_path, 'wb') as f:
+        for block in C_blocks:
+            block.tofile(f)
+    with open(tempo_file_path, 'wb') as f:
+        for block in C_blocks:
+            block.tofile(f)
+
+
+    # Dictionary for CHISEL
+    if (dram_state_dictionary != False):
+        dram_state_dictionary[name] = {}
+        def get_hex_value_from_blocks(blocks, type_input):
+            values_list = []
+            dt = np.dtype(type_input)
+            n_bits = dt.itemsize * 8
+            mask = (1 << n_bits) - 1
+            hex_width = n_bits // 4
+            
+            fmt = f"{{:0{hex_width}X}}"
+
+            for block in blocks:
+                # Flat the block
+                flat_data = block.flatten() if isinstance(block, np.ndarray) else block
+                
+                for value in flat_data:
+                    # Mask to handle negative numbers (two's complement)
+                    val_int = int(value) & mask
+                    values_list.append(fmt.format(val_int))
+                    
+            return values_list
+
+        def get_hex_value_from_ctype(insn):
+            # Convert structure in Bytes
+            raw_bytes = ctypes.string_at(ctypes.byref(insn), ctypes.sizeof(insn))
+
+            # Convert Bytes in hexadecimal chain
+            hex_string = raw_bytes[::-1].hex().upper()
+
+            return hex_string
+
+        for i, mem in enumerate(base_addresses_list):
+            # Get the type
+            mem_type = mem['type']
+
+            # Get the values
+            if (mem_type == "INP"):
+                values_list = get_hex_value_from_blocks(A_blocks, inp_dtype)
+            elif (mem_type == "WGT"):
+                values_list = get_hex_value_from_blocks(B_blocks, wgt_dtype)
+            elif (mem_type == "ACC"):
+                values_list = get_hex_value_from_blocks(X_blocks, acc_dtype)
+            elif (mem_type == "ACC_BIS"):
+                values_list = get_hex_value_from_blocks(Y_blocks, acc_dtype)
+            elif (mem_type == "OUT"):
+                values_list = get_hex_value_from_blocks(C_blocks, inp_dtype)
+            elif (mem_type == "INSN"):
+                values_list = []
+                for value in insn_buffer:
+                    values_list.append( get_hex_value_from_ctype(value) )
+            elif (mem_type == "UOP"):
+                values_list = []
+                for value in uop_buffer:
+                    values_list.append( get_hex_value_from_ctype(value) )
+
+            else: # UOP 
+                values_list = []
+
+            # Update the dictionary
+            dram_state_dictionary[name][mem_type] = {
+                "PhysicalAddr": mem['physical_base_address'].removeprefix("0x"),
+                "values": values_list
+            }
+
  
     # ---------------------------------------------
     # DEBUG
@@ -364,7 +449,7 @@ def main(vta_config_dict, operations_dict, base_address, dram_offset,
     # ---------------------------------------------
     
     # RETURN new base_address
-    return updated_base_address, name, nb_steps, nb_uop, nb_insn
+    return updated_base_address, name, nb_steps, nb_uop, nb_insn, dram_state_dictionary
 
 
 ###############################################
@@ -378,6 +463,7 @@ if __name__ == "__main__":
         > python main_vta_compiler.py 
             <debug>
             <summary>
+            <dram_json>
             <config_file> 
             [json_file] ...
     """
@@ -387,22 +473,28 @@ if __name__ == "__main__":
     layer_addr_name = []
     
     # Need at least: script_name, debug, summary, config_file, vta_ir
-    if len(sys.argv) < 5:
-        raise Exception(f"ERROR: There are {len(sys.argv)} arguments when 5 are expected (at least)! \n\n")
+    if len(sys.argv) < 6:
+        raise Exception(f"ERROR: There are {len(sys.argv)} arguments when 6 are expected (at least)! \n\n")
 
     # Debug settings
     debug = True if (sys.argv[1] == 'True' or sys.argv[1] == 'true') else False
     summary = True if (sys.argv[2] == 'True' or sys.argv[2] == 'true') else False
+    # CHISEL
+    dram_json = True if (sys.argv[3] == 'True' or sys.argv[3] == 'true') else False
     # Config file
-    vta_config_file = sys.argv[3]
+    vta_config_file = sys.argv[4]
     vta_config_dict = parse_json_to_dict(vta_config_file)
-    
+
     # DEBUG
     nb_steps = 0
     nb_uop = 0
     nb_insn = 0
+    if (dram_json == True):
+        dram_state_dictionary = {} # {} or False
+    else:
+        dram_state_dictionary = False
 
-    for i, vta_ir in enumerate(sys.argv[4:]):
+    for i, vta_ir in enumerate(sys.argv[5:]):
         if (debug or summary):
             print(f"-"*50)
             print(f"COMPILATION of VTA IR: {i}")
@@ -411,8 +503,9 @@ if __name__ == "__main__":
         operations_dict = parse_json_to_dict(vta_ir)
 
         # Execute the main function
-        base_address, name, steps, uop, insn = \
+        base_address, name, steps, uop, insn, dram_state_dictionary = \
             main(vta_config_dict, operations_dict, base_address, dram_offset,
+                 dram_state_dictionary=dram_state_dictionary,
                  debug=debug, summary=summary)
         
         # Append layer_addr_name
@@ -437,5 +530,11 @@ if __name__ == "__main__":
         # Write the information
         for i, (add, n) in enumerate(layer_addr_name):
             writer.writerow([i, n, hex(add)])
+    
+    # Generate a JSON
+    if (dram_state_dictionary != False):
+        file_dram_state_path = filepath_definition(output_dir, 'dram_state.json')
+        with open(file_dram_state_path, 'w') as f:
+            json.dump(dram_state_dictionary, f, indent=2) # indent=2 for better readibility
 
     # END!

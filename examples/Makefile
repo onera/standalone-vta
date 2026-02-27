@@ -24,6 +24,7 @@ JSON_FILES := $(COMPILER_OUTPUT_DIR)/*.json
 DEBUG ?= False
 DEBUG_PARSE ?= True
 COMPILE_SUMMARY ?= True
+DRAM_JSON ?= True
 # ort, numpy, compare
 REF_MODE ?= numpy
 
@@ -70,6 +71,7 @@ vta_compiler: ## VTA compilation: VTA IRs -> VTA code
 	$(VTA_COMPILER_DIR)/main_vta_compiler.py \
 	$(DEBUG) \
 	$(COMPILE_SUMMARY) \
+	$(DRAM_JSON) \
 	$(CONFIG)/vta_config.json \
 	$(JSON_FILES) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
 	@date
@@ -82,6 +84,9 @@ fsim_clean: ## Clean FSIM repository
 
 fsim_compile: ## Compile FSIM
 	cd $(FSIM_DIR) && make build/fsim_nn
+
+fsim_compile_single_layer:
+	cd $(FSIM_DIR) && make build/fsim_single_layer
 
 
 # REFERENCE EXECUTION
@@ -133,6 +138,27 @@ compile_and_run: ## Compile and run
 	@make fsim_clean
 	@make fsim_compile
 	@make run
+
+############################################################
+############################################################
+
+test:
+	@python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 input int32
+	@python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 weight int32
+	@echo ""
+	$(PYTHON_CMD) \
+	$(VTA_COMPILER_DIR)/main_vta_compiler.py \
+	$(DEBUG) \
+	$(COMPILE_SUMMARY) \
+	$(DRAM_JSON) \
+	$(CONFIG)/vta_config.json \
+	./vta_ir/matmul_16x16.json > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
+	@echo ""
+	@make fsim_compile_single_layer
+	@echo ""
+	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt 
+
+
 
 ############################################################
 ############################################################

@@ -1,5 +1,5 @@
 {
-  "NAME": "_T1",
+  "NAME": "",
   "MATRICES" : {
     "A": [16, 16, "../compiler_output/input_16x16.bin"],
     "B": [16, 16, "../compiler_output/weight_16x16.bin"],
@@ -10,11 +10,6 @@
     "WGT": ["B"]
   },
   "GEMM": ["C", "A", "B"],
-  "ALU" : {
-    "C": [
-      ["MAX_IMM", [[0,1], 0, 16]]
-    ]
-  },
   "STORE": {
     "C": ["C"]
   }

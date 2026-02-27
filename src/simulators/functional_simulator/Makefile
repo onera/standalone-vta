@@ -63,8 +63,8 @@ compile_only: $(OBJS)
 # Dependencies: device_api -> runtime -> sim_driver -> sim_tlpp & virtual_memory
 
 # Link the standalone VTA simulator executable
-build/functional_simulator: build/vta_config_def.txt $(OBJS) lib_tvm
-	$(CC) $(CFLAGS) build/functional_simulator.o build/simulator_functions.o \
+build/fsim_single_layer: build/vta_config_def.txt $(OBJS) lib_tvm
+	$(CC) $(CFLAGS) build/fsim_single_layer.o build/simulator_functions.o \
 	build/virtual_memory.o build/sim_tlpp.o \
 	build/sim_driver.o \
 	$(OBJ_LIB_TVM) -o $@
@@ -83,8 +83,8 @@ build/fsim_nn: build/vta_config_def.txt $(OBJS) lib_tvm
 # COMPILING SIMULATOR AND MAIN FILES (without linking: -c)
 # ----------------------------------
 # Compile the main file:
-build/functional_simulator.o: src/functional_simulator.cc include/simulator_header.h
-	$(CC) $(VTA_DEFS) $(DEBUGFLAG) $(CFLAGS) -o build/functional_simulator.o -c src/functional_simulator.cc
+build/fsim_single_layer.o: src/fsim_single_layer.cc include/simulator_header.h
+	$(CC) $(VTA_DEFS) $(DEBUGFLAG) $(CFLAGS) -o build/fsim_single_layer.o -c src/fsim_single_layer.cc
 
 build/fsim_nn.o: src/fsim_nn.cc include/simulator_header.h
 	$(CC) $(VTA_DEFS) $(DEBUGFLAG) $(CFLAGS) -o build/fsim_nn.o -c src/fsim_nn.cc
@@ -133,7 +133,7 @@ lib_tvm: $(OBJ_LIB_TVM)
 # EXECUTION AREA
 # --------------
 execute: 
-	build/functional_simulator
+	build/fsim_single_layer
 
 
 nn_execute: 

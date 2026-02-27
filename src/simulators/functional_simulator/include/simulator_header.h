@@ -34,6 +34,7 @@
   /******************************
     Execute simulator's prototype
   *******************************/
+  int fsim_single_layer();
   int fsim_nn();
 
   /********************
