@@ -5,12 +5,12 @@ import chisel3._
 object MemoryInitializer {
   def exportHexFiles(
       content: Map[String, (Int, List[UInt])],
-      file: os.Path
+      file: os.Path,
+      targetBytes: Int = 16
   ): Unit = {
     content.foreach { case (name, (_, values)) =>
 
-      os.write.over(
-        file / (name + ".hex"),
+      val hexStrings =
         values
           .map(uint => {
             val bits = uint.getWidth
@@ -21,7 +21,30 @@ object MemoryInitializer {
             // val s = f"$v%0x"
             str
           })
-          .mkString("\n"),
+
+      require(hexStrings.forall { l =>
+        !hexStrings.exists(s => s.size != l.size)
+      })
+      val groupSize = targetBytes / (hexStrings.head.size)
+
+      val reshapedHex = if (groupSize > 1) {
+        hexStrings
+          .grouped(groupSize)
+          .map {
+            case ls: List[String] if ls.size == groupSize =>
+              ls.reduceLeft { _ + _ }
+            case ls: List[String] if ls.size == 1 =>
+              ls.head + Array.fill(targetBytes - ls.head.size)("0").mkString
+          }
+          .toList
+      } else if (groupSize < 1) {
+        hexStrings.flatMap(s => s.grouped(targetBytes).toList.reverse)
+      } else {
+        hexStrings
+      }
+      os.write.over(
+        file / (name + ".mem"),
+        reshapedHex.mkString("\n"),
         createFolders = true
       )
     }

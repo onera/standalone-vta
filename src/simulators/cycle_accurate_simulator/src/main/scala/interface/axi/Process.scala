@@ -48,14 +48,15 @@ trait AxiClientWrapper extends Module {
     switch(writeState) {
       is(WriteState.idle) {
         awReady := true.B
-        wReady := true.B
+        wReady := false.B
         writeState := WriteState.waddr
       }
       is(WriteState.waddr) {
         when(axi.aw.fire) {
-          when(axi.w.valid && axi.w.bits.last) {
+          when(axi.w.fire && axi.w.bits.last) {
             bValid := true.B
             awReady := true.B
+            wReady := false.B
             writeState := WriteState.waddr
           }.otherwise({
             when(axi.b.fire) {
@@ -63,6 +64,7 @@ trait AxiClientWrapper extends Module {
             }
             writeState := WriteState.wdata
             awReady := false.B
+            wReady := true.B
 
           })
           awBurst := axi.aw.bits.burst
@@ -77,12 +79,14 @@ trait AxiClientWrapper extends Module {
       }
 
       is(WriteState.wdata) {
-        when(axi.w.valid && axi.w.bits.last) {
+        when(axi.w.fire && axi.w.bits.last) {
           writeState := WriteState.waddr
           bValid := true.B
           awReady := true.B
+          wReady := false.B
         }.otherwise({
           writeState := writeState
+          wReady := true.B
         })
       }
     }

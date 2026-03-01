@@ -49,6 +49,9 @@ import chisel3.util.HasExtModuleResource
 import chisel3.util.HasBlackBoxResource
 import vta.shell.InstructionGen.Load
 import vta.shell.InstructionGen.Gemm
+import svsim.CommonCompilationSettings
+import svsim.CommonSettingsModifications
+import _root_.util.SimulationUtils.EnableMemInitVerilog
 
 class VTAShellSpec
     extends AnyFlatSpec
@@ -261,7 +264,7 @@ class VTAShellSpec
   }
 
   class VTAShellTestbenchFileInit(
-      content: Map[String, (Int, Seq[UInt], String)]
+      content: Seq[MemoryConfig]
   )(implicit
       param: Parameters
   ) extends Module {
@@ -270,23 +273,8 @@ class VTAShellSpec
     })
     val vta = Module(new VTAShell(true))
 
-    val axiClientSwitch = Module(
-      new AxiClientSwitch(
-        content.toSeq.map(_._2._1),
-        content
-          .maxBy(_._2._1)
-          ._2
-          ._2
-          .size + content
-          .maxBy(
-            _._2._1
-          )
-          ._2
-          ._1 // TODO: this is quick and dirty to be changed
-      )
-    )
-    val memories = content.map(p =>
-      Module(new SyncAxiDram(p._2._3, p._2._2.size, p._2._2.head.getWidth))
+    val dramMock = Module(
+      new MultiMemAxiClient(content)(param(ShellKey).memParams)
     )
     val stop_read = dontTouch(
       WireInit(BoringUtils.tapAndRead(vta.vcr.io.vcr.finish))
@@ -295,8 +283,7 @@ class VTAShellSpec
       stop()
     }
     vta.io.host <> io.host
-    axiClientSwitch.io.axim <> VecInit(memories.map(_.io.axis).toSeq)
-    vta.io.mem <> axiClientSwitch.io.axis
+    vta.io.mem <> dramMock.io
   }
 
   class VTAShellTestbench(content: Map[String, (Int, Seq[UInt])])(implicit
@@ -336,14 +323,7 @@ class VTAShellSpec
         enableWaves()
       }
 
-      // Configure memory pointers
-      // writeInstructionBaseAddress(content("INSN")._1)
-      // writeUopBaseAddress(content("UOP")._1)
-      // writeInputBaseAddress(content("INP")._1)
-      // writeWeightBaseAddress(content("WGT")._1)
-      // writeAccBaseAddress(content("ACC")._1)
-      // writeOutBaseAddress(content("OUT")._1)
-
+      // Configure memory physical addresses
       writeInstructionBaseAddress(content("INSN")._1)
       writeUopBaseAddress(0)
       writeInputBaseAddress(0)
@@ -357,19 +337,26 @@ class VTAShellSpec
       // launch the processing of VTA
       launchVTA()
 
+      clock.step(timeout)
       // step clock until the computation is over
       RunUntilFinished(timeout)
     }
   }
   def runVtaTestWithInitializedMem(
-      content: Map[String, (Int, Seq[UInt], String)],
+      content: Seq[MemoryConfig],
       timeout: Int = 100,
       waves: Boolean = false
   ) = {
     implicit val parameters: Parameters = new DefaultPynqConfig
 
+    val compilationSettings = svsim.CommonCompilationSettings.default
+
+    implicit val enableMemoryInit = EnableMemInitVerilog
     // val content = parseMemorySections(dramInitJson)
-    simulate(new VTAShellTestbenchFileInit(content)) { vta =>
+    simulate(
+      new VTAShellTestbenchFileInit(content),
+      firtoolOpts = Array("--disable-all-randomization")
+    ) { vta =>
       implicit val clock = vta.clock
       implicit val axiLiteClient = vta.io.host
       vta.io.host.b.ready.poke(true.B)
@@ -378,7 +365,9 @@ class VTAShellSpec
         enableWaves()
       }
 
-      writeInstructionBaseAddress(content("INSN")._1)
+      writeInstructionBaseAddress(
+        content.find(_.name.matches("INSN")).get.baseAddress
+      )
       writeUopBaseAddress(0)
       writeInputBaseAddress(0)
       writeWeightBaseAddress(0)
@@ -386,12 +375,15 @@ class VTAShellSpec
       writeOutBaseAddress(0)
       // Configure instruction size
 
-      writeInstructionCount(content("INSN")._2.size)
+      writeInstructionCount(
+        content.find(_.name.matches("INSN")).get.initialSize
+      )
 
       // launch the processing of VTA
       launchVTA()
 
       // step clock until the computation is over
+      clock.step(timeout)
       RunUntilFinished(timeout)
     }
   }
@@ -415,11 +407,29 @@ class VTAShellSpec
   }
 
   it should "run with initialization from Hex files" in {
+
     implicit val parameters: Parameters = new DefaultPynqConfig
 
-    val content = parseMemorySections(dramInitJson).map { case (a, (b, c)) =>
-      (a, (b, c, (os.pwd / "examples_shell" / (a + ".mem")).toString))
-    }
+    val content = parseMemorySections(dramInitJson)
+      .map { case (a, (b, c)) =>
+        MemoryConfig(
+          name = a,
+          path = (os.pwd / "generatedResources" / (a + ".mem")).toString,
+          baseAddress = b,
+          initialSize = c.size,
+          words64 = {
+            val n = c.map(_.getWidth).sum
+            if (n % 64 == 0) n / 64 else (n / 64) + 1
+          }
+        )
+      }
+      .toSeq
+      .map {
+        case m: MemoryConfig if m.name.matches("OUT") =>
+          m.copy(logging = true)
+        case m: MemoryConfig => m
+      }
+
     runVtaTestWithInitializedMem(
       content,
       timeout = 10000,
@@ -438,6 +448,7 @@ class VTAShellSpec
     println(countInp)
 
   }
+
   it should "write a burst in Mock Dram and read" in {
     implicit val parameters: Parameters = new DefaultPynqConfig
     val content = parseMemorySections(dramInitJson)
@@ -453,29 +464,10 @@ class VTAShellSpec
     }
   }
 
-  it should "export VTA" ignore {
+  it should "export VTA" in {
     implicit val parameters: Parameters = new DefaultPynqConfig
 
     ChiselStage.emitCHIRRTLFile(new VTAShell, Array(""))
-  }
-
-  it should "initialize a Dram with a file" ignore {
-
-    implicit val parameters = new DefaultPynqConfig
-    val file =
-      new File(
-        getClass.getClassLoader
-          .getResource("examples_core/simple.mem")
-          .getPath()
-      )
-
-    simulate(new DramWithInit(file.getAbsolutePath(), 10)) { dut =>
-      implicit val axi = dut.io
-      implicit val clock = dut.clock
-
-      val data = readAxiBurst(0, 10)
-      println(data)
-    }
   }
 
   it should "export the content in hex files" in {
@@ -483,7 +475,7 @@ class VTAShellSpec
 
     MemoryInitializer.exportHexFiles(
       content,
-      os.pwd / "examples_shell"
+      os.pwd / "generatedResources"
     )
   }
 }

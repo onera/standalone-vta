@@ -1,6 +1,8 @@
 package util
 import chisel3._
 import chisel3.simulator.HasSimulator
+import svsim.CommonCompilationSettings
+import svsim.CommonSettingsModifications
 
 object SimulationUtils {
 
@@ -19,4 +21,19 @@ object SimulationUtils {
         )
       )
     )
+
+  val compilationSettings = svsim.CommonCompilationSettings.default
+
+  object EnableMemInitVerilog extends CommonSettingsModifications {
+
+    override def apply(
+        v1: CommonCompilationSettings
+    ): CommonCompilationSettings = {
+      v1.copy(verilogPreprocessorDefines =
+        compilationSettings.verilogPreprocessorDefines :+ CommonCompilationSettings
+          .VerilogPreprocessorDefine("ENABLE_INITIAL_MEM_")
+      )
+    }
+
+  }
 }
