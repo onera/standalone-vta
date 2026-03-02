@@ -22,7 +22,8 @@ object `package` extends SbtModule with PublishModule {
     "-feature",
     "-Xcheckinit",
     "-language:reflectiveCalls",
-    "-Ymacro-annotations"
+    "-Ymacro-annotations",
+    "-Wunused"
   )
 
   def repositories = Seq(
@@ -38,6 +39,8 @@ object `package` extends SbtModule with PublishModule {
     mvn"com.fasterxml.jackson.module::jackson-module-scala:2.21.0",
     mvn"net.java.dev.jna:jna:5.18.0",
     mvn"org.chipsalliance::chisel:${chiselVersion}",
+    mvn"edu.berkeley.cs::chiseltest:6.0.0",
+    // mvn"edu.berkeley.cs::firrtl2:6.0-SNAPSHOT",
     mvn"org.scalatest::scalatest:3.2.19"
   )
   override def scalacPluginMvnDeps: Simple[Seq[Dep]] = Seq(

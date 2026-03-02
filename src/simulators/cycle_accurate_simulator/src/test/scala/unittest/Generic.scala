@@ -27,7 +27,8 @@ import vta.util.config._
 import org.scalatest.flatspec.AnyFlatSpec
 import vta.DefaultPynqConfig
 import chisel3.simulator.scalatest.ChiselSim
-import _root_.util.SimulationUtils.verilatorWithWaveDump
+import vta.util.SimulationUtils.verilatorWithWaveDump
+import vta.util.SimulationUtils
 
 object UnitTests extends Tag("UnitTests")
 object LongTests extends Tag("LongTests")

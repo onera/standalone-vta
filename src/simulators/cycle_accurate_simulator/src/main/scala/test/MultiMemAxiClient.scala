@@ -1,41 +1,18 @@
-package vta.shell
+package vta.test
 
 import chisel3._
-import vta.interface.axi.AxiClientWrapper
 import vta.util.config.Parameters
 import vta.interface.axi.AXIClient
 import chisel3.util.experimental.loadMemoryFromFileInline
 import org.scalatest.flatspec.AnyFlatSpec
 import chisel3.simulator.scalatest.ChiselSim
 import vta.DefaultPynqConfig
-import _root_.util.SimulationUtils.EnableMemInitVerilog
-import _root_.util.SimulationUtils.verilatorWithWaveDump
+import vta.util.SimulationUtils.EnableMemInitVerilog
+import vta.util.SimulationUtils.verilatorWithWaveDump
 import chisel3.util.MuxCase
 import vta.interface.axi.AXIParams
-
-/** Utility case class for defining mock memories for simulation
-  *
-  * @param name
-  *   the name of the memory
-  * @param path
-  *   initialization file
-  * @param baseAddress
-  *   base address of the memory
-  * @param initialSize
-  *   number of data (before resizing in 64 bits)
-  * @param words64
-  *   number of 64bits words
-  * @param logfile
-  *   an optional logfile to store the memory (written during simulation)
-  */
-case class MemoryConfig(
-    name: String,
-    path: String,
-    baseAddress: Int,
-    initialSize: Int,
-    words64: Int,
-    logging: Boolean = false
-)
+import vta.util.MemoryConfig
+import vta.interface.axi.AxiLike._
 
 /** A simulation utility module to connect several memories (sync write async
   * read)
@@ -47,14 +24,13 @@ case class MemoryConfig(
   */
 class MultiMemAxiClient(memoryConfigs: Seq[MemoryConfig])(implicit
     val param: AXIParams
-) extends Module
-    with AxiClientWrapper {
+) extends Module {
   val io = IO(new AXIClient(param))
 
   val readEnable = RegInit(true.B)
   val writeEnable = RegInit(true.B)
-  val readHandle = readHandler(io, readEnable)
-  val writeHandle = writeHandler(io, writeEnable)
+  val readHandle = io.readHandler(readEnable)
+  val writeHandle = io.writeHandler(writeEnable)
 
   def enCondition(bAddr: BigInt, hAddr: BigInt, addressW: UInt) =
     bAddr.U <= addressW && addressW < (hAddr).U
@@ -73,22 +49,25 @@ class MultiMemAxiClient(memoryConfigs: Seq[MemoryConfig])(implicit
       p
     )
   }
-  val logfile = SimLog.file("logfile.log")
+
+  val log = SimLog.file("output.log")
   val rdata = for {
     (isSelForWrite, isSelForRead, mem, p) <- memories
   } yield {
 
-    when(io.w.fire && isSelForWrite) {
-      mem(writeHandle - p.baseAddress.U) := io.w.bits.data
-    }
     if (p.logging) {
-
+      // Log any written data in a logfile for the current memory
       when(io.w.fire) {
-        logfile.printf(cf"@${writeHandle}: ${io.w.bits.data}\n")
+        log.printf(cf"@${writeHandle}%0d: ${io.w.bits.data}%0x\n")
 
       }
     }
+
+    when(io.w.fire && isSelForWrite) {
+      mem(writeHandle - p.baseAddress.U) := io.w.bits.data
+    }
     (isSelForRead, Mux(isSelForRead, mem(readHandle - p.baseAddress.U), 0.U))
+
   }
 
   io.r.bits.data := MuxCase(0.U, rdata)

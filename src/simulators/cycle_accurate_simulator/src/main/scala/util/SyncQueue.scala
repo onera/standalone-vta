@@ -337,10 +337,10 @@ class TwoCycleQueue[T <: Data](gen: T, val entries: Int, val qname: String)
       memAddr := deq_ptr.value
     }
   }
-  ram0.io.wr_en := do_enq
-  ram0.io.wr_data := io.enq.bits.asUInt
-  ram0.io.ch_en := do_deq || firstRead || do_enq
-  io.deq.bits := ram0.io.rd_data
+  ram0.io.wrEn := do_enq
+  ram0.io.wrData := io.enq.bits.asUInt
+  ram0.io.chEn := do_deq || firstRead || do_enq
+  io.deq.bits := ram0.io.rdData
   ram0.io.addr := memAddr
 
   val ptr_diff = enq_ptr.value - deq_ptr.value
@@ -428,10 +428,10 @@ class OneCycleQueue[T <: Data](gen: T, val entries: Int, val qname: String)
 
 // one-port memory implementation
 class MemIO[T <: Data](gen: T, entries: Int) extends Bundle {
-  val wr_en = Input(Bool())
-  val wr_data = Input(gen)
-  val ch_en = Input(Bool())
-  val rd_data = Output(gen)
+  val wrEn = Input(Bool())
+  val wrData = Input(gen)
+  val chEn = Input(Bool())
+  val rdData = Output(gen)
   val addr = Input(UInt(16.W)) // i dont care
 }
 class OnePortMem[T <: Data](gen: T, val entries: Int, val qname: String)
@@ -444,11 +444,11 @@ class OnePortMem[T <: Data](gen: T, val entries: Int, val qname: String)
   val mem = SyncReadMem(entries, genType.asUInt)
 
   // detected as one-port sync mem interface
-  io.rd_data := DontCare
-  when(io.ch_en) {
+  io.rdData := DontCare
+  when(io.chEn) {
     val rdwrPort = mem(io.addr)
-    when(io.wr_en) { rdwrPort := io.wr_data }
-      .otherwise { io.rd_data := rdwrPort }
+    when(io.wrEn) { rdwrPort := io.wrData }
+      .otherwise { io.rdData := rdwrPort }
   }
 }
 

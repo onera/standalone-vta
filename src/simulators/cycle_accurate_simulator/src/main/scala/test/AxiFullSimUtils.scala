@@ -1,11 +1,11 @@
-package vta.shell
+package vta.test
 import chisel3._
 import org.scalatest.flatspec.AnyFlatSpec
-import chisel3.simulator.scalatest.ChiselSim
+import chisel3.simulator.ChiselSim
 import vta.interface.axi.AXILiteClient
 import vta.interface.axi.AXIClient
 
-trait AxiFullSimUtils extends AnyFlatSpec with ChiselSim {
+trait AxiFullSimUtils extends ChiselSim {
 
   def writeAxiData(
       data: BigInt,

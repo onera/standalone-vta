@@ -1,4 +1,4 @@
-package util
+package vta.util
 import chisel3._
 import chisel3.simulator.HasSimulator
 import svsim.CommonCompilationSettings

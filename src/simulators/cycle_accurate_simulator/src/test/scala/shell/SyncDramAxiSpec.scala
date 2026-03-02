@@ -1,35 +1,19 @@
 package vta.shell
-import chisel3._
-import org.scalatest.flatspec.AnyFlatSpec
-import chisel3.simulator.scalatest.ChiselSim
-import vta.core.CoreConfig
-import vta.util.config.Parameters
-import vta.interface.axi.AXILiteClient
-import vta.interface.axi.AXILiteAddress
-import vta.interface.axi.AXILiteMaster
-import vta.util.config.Config
-import vta.DefaultPynqConfig
-import org.scalatest.matchers.should.Matchers
-import chisel3.simulator.scalatest.HasCliOptions
-import chisel3.simulator.scalatest.Cli
-import chisel3.simulator.HasSimulator
-import _root_.util.SimulationUtils.verilatorWithWaveDump
-import vta.interface.axi.AXIMaster
-import vta.interface.axi.AXIClient
-import chisel3.util.experimental.loadMemoryFromFileInline
-import firrtl.annotations.MemoryLoadFileType
-import vta.interface.axi.AxiClientWrapper
 import _root_.util.BinaryReader
-import circt.stage.ChiselStage
-import svsim.verilator.Backend.CompilationSettings
-import svsim.BackendSettingsModifications
-import svsim.CommonSettingsModifications
+import chisel3._
+import chisel3.simulator.scalatest.ChiselSim
+import chisel3.util.experimental.loadMemoryFromFileInline
+import org.scalatest.flatspec.AnyFlatSpec
 import svsim.CommonCompilationSettings
+import svsim.CommonSettingsModifications
+import vta.interface.axi.AXIClient
+import vta.interface.axi.AxiLike._
+import vta.util.SimulationUtils._
+import vta.util.config.Parameters
 
 class SyncAxiDram(memoryFile: String = "", size: Int, width: Int)(implicit
     p: Parameters
-) extends Module
-    with AxiClientWrapper {
+) extends Module {
   val io = IO(new Bundle {
     val axis = new AXIClient(p(ShellKey).memParams)
   })
@@ -39,8 +23,8 @@ class SyncAxiDram(memoryFile: String = "", size: Int, width: Int)(implicit
   if (memoryFile.trim().nonEmpty) {
     loadMemoryFromFileInline(mem, memoryFile)
   }
-  val readHandle = readHandler(io.axis, true.B)
-  val writeHandle = writeHandler(io.axis, true.B)
+  val readHandle = io.axis.readHandler(true.B)
+  val writeHandle = io.axis.writeHandler(true.B)
   io.axis.r.bits.data := mem(readHandle)
   when(io.axis.w.fire) {
     mem.write(writeHandle, io.axis.w.bits.data)
@@ -51,7 +35,10 @@ class SyncAxiDram(memoryFile: String = "", size: Int, width: Int)(implicit
   io.axis.r.bits.user := DontCare
 }
 
-class SyncAxiDramSpec extends AnyFlatSpec with ChiselSim with AxiFullSimUtils {
+class SyncAxiDramSpec
+    extends AnyFlatSpec
+    with ChiselSim
+    with vta.test.AxiFullSimUtils {
 
   class InitMemInline(memoryFile: String = "", size: Int, width: Int)
       extends Module {

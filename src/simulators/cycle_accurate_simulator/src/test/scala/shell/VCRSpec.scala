@@ -8,14 +8,15 @@ import vta.DefaultPynqConfig
 
 import vta.interface.axi.AXILiteClient
 import vta.shell.VCRParams
-import _root_.util.SimulationUtils.verilatorWithWaveDump
+import vta.util.SimulationUtils.verilatorWithWaveDump
 import chisel3.simulator.HasSimulator
+import vta.util.SimulationUtils._
 
 class VCRSpec
     extends AnyFlatSpec
     with Matchers
     with ChiselSim
-    with AxiLiteSimUtils {
+    with vta.test.AxiLiteSimUtils {
   behavior of "VCR"
   implicit val verilator: HasSimulator = verilatorWithWaveDump
   "Control registers" should "be writable from the host" in {

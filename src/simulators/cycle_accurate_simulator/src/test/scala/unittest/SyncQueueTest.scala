@@ -35,9 +35,9 @@ class TestOnePortMem(c: OnePortMem[UInt], debug: Boolean = false)
     println("-----------------------------")
     println("Cycle 0 write 24 to address 0")
   }
-  c.io.wr_en.poke(true)
-  c.io.wr_data.poke(24)
-  c.io.ch_en.poke(true)
+  c.io.wrEn.poke(true)
+  c.io.wrData.poke(24)
+  c.io.chEn.poke(true)
   c.io.addr.poke(0)
   c.clock.step()
   // read a:0
@@ -45,24 +45,24 @@ class TestOnePortMem(c: OnePortMem[UInt], debug: Boolean = false)
     println("-----------------------------")
     println("Cycle 1 read address 0")
   }
-  c.io.wr_en.poke(false)
+  c.io.wrEn.poke(false)
   c.io.addr.poke(0)
-  c.io.ch_en.poke(1)
+  c.io.chEn.poke(1)
   c.clock.step()
   // write a:1 d:99
   if (debug) {
     println("-----------------------------")
     println("Cycle 2 write 99 to address 1")
   }
-  c.io.wr_en.poke(true)
-  c.io.wr_data.poke(99)
-  c.io.ch_en.poke(true)
+  c.io.wrEn.poke(true)
+  c.io.wrData.poke(99)
+  c.io.chEn.poke(true)
   c.io.addr.poke(1)
   // read d:24
   if (debug) {
     println("Cycle 2 read expect data 24")
   }
-  c.io.rd_data.expect(24)
+  c.io.rdData.expect(24)
   c.clock.step()
   if (debug) {
     println("-----------------------------")
@@ -70,30 +70,30 @@ class TestOnePortMem(c: OnePortMem[UInt], debug: Boolean = false)
   }
   c.io.addr.poke(0)
   // read d:24
-  c.io.rd_data.expect(24)
-  c.io.wr_en.poke(false)
+  c.io.rdData.expect(24)
+  c.io.wrEn.poke(false)
   c.clock.step()
   if (debug) {
     println("-----------------------------")
     println("Cycle 4 read address 0")
   }
-  c.io.wr_en.poke(0)
+  c.io.wrEn.poke(0)
   c.io.addr.poke(0)
-  c.io.ch_en.poke(1)
+  c.io.chEn.poke(1)
   c.clock.step()
   if (debug) {
     println("-----------------------------")
   }
   // write a:1 d:99
-  c.io.wr_en.poke(0)
-  c.io.wr_data.poke(99)
-  c.io.ch_en.poke(0)
+  c.io.wrEn.poke(0)
+  c.io.wrData.poke(99)
+  c.io.chEn.poke(0)
   c.io.addr.poke(1)
   // read d:24
   if (debug) {
     println("Cycle 5 read expect data 24")
   }
-  c.io.rd_data.expect(24)
+  c.io.rdData.expect(24)
   c.clock.step()
 }
 class Checker(c: SyncQueueTestWrapper[UInt]) extends ChiselSim {
