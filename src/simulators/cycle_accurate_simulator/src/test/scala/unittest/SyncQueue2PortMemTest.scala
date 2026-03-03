@@ -22,33 +22,36 @@ package unittest
 import chisel3._
 import chisel3.util._
 import vta.util._
-import vta.util.config._
-import chisel3.simulator.ChiselSim
+import chisel3.simulator
+import org.scalatest.flatspec.AnyFlatSpec
+import chisel3.simulator.scalatest.ChiselSim
+import vta.util.SimulationUtils.verilatorWithWaveDump
+import unittest.UnitTests
 
-class Checker2P(c: SyncQueue2PTestWrapper[UInt]) extends ChiselSim {
-  def bits (bits: Int) = {
+class Checker2P(c: SyncQueue2PTestWrapper[UInt]) extends simulator.ChiselSim {
+  def bits(bits: Int) = {
     c.io.tq.deq.bits.expect(bits)
     c.io.rq.deq.bits.expect(bits)
 
   }
-  def ready (bits: Int) = {
+  def ready(bits: Int) = {
     c.io.tq.enq.ready.expect(bits)
     c.io.rq.enq.ready.expect(bits)
 
   }
-  def valid (bits: Int) = {
+  def valid(bits: Int) = {
     c.io.tq.deq.valid.expect(bits)
     c.io.rq.deq.valid.expect(bits)
 
   }
-  def status () = {
+  def status() = {
     val rv = c.io.rq.enq.ready.peek()
     c.io.tq.enq.ready.expect(rv)
     val rc = c.io.rq.count.peek()
     c.io.tq.count.expect(rc)
     val vv = c.io.rq.deq.valid.peek()
     c.io.tq.deq.valid.expect(vv)
-    if (vv != 0) {
+    if (vv != false.B) {
       val bv = c.io.rq.deq.bits.peek()
       c.io.tq.deq.bits.expect(bv)
     }
@@ -56,9 +59,10 @@ class Checker2P(c: SyncQueue2PTestWrapper[UInt]) extends ChiselSim {
     c.io.tq.count.peek()
   }
 }
-class TestSyncQueue2PLongRead(c: SyncQueue2PTestWrapper[UInt]) extends ChiselSim {
+class TestSyncQueue2PLongRead(c: SyncQueue2PTestWrapper[UInt])
+    extends simulator.ChiselSim {
 
-  val chr = new Checker2P (c)
+  val chr = new Checker2P(c)
 
   def testFillRW(depth: Int) = {
     val qsize = c.io.tq.count.peek()
@@ -86,7 +90,7 @@ class TestSyncQueue2PLongRead(c: SyncQueue2PTestWrapper[UInt]) extends ChiselSim
       c.clock.step()
     }
     // read out
-    for (i <- 0 until depth + 1) {
+    for (_ <- 0 until depth + 1) {
       c.io.tq.enq.valid.poke(0)
       c.io.tq.deq.ready.poke(1)
       c.io.tq.enq.bits.poke(99)
@@ -98,9 +102,10 @@ class TestSyncQueue2PLongRead(c: SyncQueue2PTestWrapper[UInt]) extends ChiselSim
     testFillRW(i)
   }
 }
-class TestSyncQueue2PWaveRead(c: SyncQueue2PTestWrapper[UInt]) extends ChiselSim {
+class TestSyncQueue2PWaveRead(c: SyncQueue2PTestWrapper[UInt])
+    extends simulator.ChiselSim {
 
-  val chr = new Checker2P (c)
+  val chr = new Checker2P(c)
 
   def testFillRW(depth: Int) = {
     val qsize = c.io.tq.count.peek()
@@ -147,11 +152,8 @@ class TestSyncQueue2PWaveRead(c: SyncQueue2PTestWrapper[UInt]) extends ChiselSim
     testFillRW(i)
   }
 }
-class SyncQueue2PTestWrapper[T <: Data](
-    gen: T,
-    val entries: Int)
-    extends Module() {
-
+class SyncQueue2PTestWrapper[T <: Data](gen: T, val entries: Int)
+    extends Module {
 
   val genType = gen
 
@@ -159,7 +161,7 @@ class SyncQueue2PTestWrapper[T <: Data](
     val tq = new QueueIO(genType, entries)
     val rq = new QueueIO(genType, entries)
 
-    })
+  })
 
   val tq = Module(new SyncQueue2PortMem(genType, entries))
   val rq = Module(new Queue(genType, entries))
@@ -168,37 +170,68 @@ class SyncQueue2PTestWrapper[T <: Data](
   tq.io.enq.valid := RegNext(io.tq.enq.valid)
   tq.io.enq.bits := RegNext(io.tq.enq.bits)
   tq.io.deq.ready := RegNext(io.tq.deq.ready)
-  //connect reference queue inport to test input
+  // connect reference queue inport to test input
   rq.io.enq.valid := RegNext(io.tq.enq.valid)
   rq.io.enq.bits := RegNext(io.tq.enq.bits)
   rq.io.deq.ready := RegNext(io.tq.deq.ready)
 }
 
-class SyncQueue2PTestLongRead24 extends GenericTest(
-  "Queue",
-  (p:Parameters) => new SyncQueue2PTestWrapper(UInt(16.W), 24),
-  (c:SyncQueue2PTestWrapper[UInt]) => new TestSyncQueue2PLongRead(c))
-class SyncQueue2PTestLongRead13 extends GenericTest(
-  "Queue",
-  (p:Parameters) => new SyncQueue2PTestWrapper(UInt(16.W), 13),
-  (c:SyncQueue2PTestWrapper[UInt]) => new TestSyncQueue2PLongRead(c))
-class SyncQueue2PTestWaveRead24 extends GenericTest(
-  "Queue",
-  (p:Parameters) => new SyncQueue2PTestWrapper(UInt(16.W), 24),
-  (c:SyncQueue2PTestWrapper[UInt]) => new TestSyncQueue2PWaveRead(c))
-class SyncQueue2PTestWaveRead1 extends GenericTest(
-  "Queue",
-  (p:Parameters) => new SyncQueue2PTestWrapper(UInt(16.W), 1),
-  (c:SyncQueue2PTestWrapper[UInt]) => new TestSyncQueue2PWaveRead(c))
-class SyncQueue2PTestWaveRead2 extends GenericTest(
-  "Queue",
-  (p:Parameters) => new SyncQueue2PTestWrapper(UInt(16.W), 2),
-  (c:SyncQueue2PTestWrapper[UInt]) => new TestSyncQueue2PWaveRead(c))
-class SyncQueue2PTestWaveRead3 extends GenericTest(
-  "Queue",
-  (p:Parameters) => new SyncQueue2PTestWrapper(UInt(16.W), 3),
-  (c:SyncQueue2PTestWrapper[UInt]) => new TestSyncQueue2PWaveRead(c))
-class SyncQueue2PTestWaveRead4 extends GenericTest(
-  "Queue",
-  (p:Parameters) => new SyncQueue2PTestWrapper(UInt(16.W), 4),
-  (c:SyncQueue2PTestWrapper[UInt]) => new TestSyncQueue2PWaveRead(c))
+class SyncQueue2PortMemTest extends AnyFlatSpec with ChiselSim {
+  behavior of "SyncQueue2PortMem"
+
+  implicit val verilatorFst: simulator.HasSimulator = verilatorWithWaveDump
+
+  "queue 24" should "run for depth 24" taggedAs (UnitTests) in {
+    simulate(new SyncQueue2PTestWrapper(UInt(24.W), 24)) {
+      enableWaves()
+      new TestSyncQueue2PLongRead(_)
+    }
+  }
+
+  "long read test" should "run for depth 13" taggedAs (UnitTests) in {
+    simulate(new SyncQueue2PTestWrapper(UInt(13.W), 13)) {
+      new TestSyncQueue2PLongRead(_)
+    }
+  }
+
+  "wave read test" should "run for depth 1" taggedAs (UnitTests) in {
+
+    simulate(new SyncQueue2PTestWrapper(UInt(16.W), 1))(
+      new TestSyncQueue2PWaveRead(_)
+    )
+  }
+
+  "wave read test" should "run for depth 2" taggedAs (UnitTests) in {
+
+    simulate(new SyncQueue2PTestWrapper(UInt(16.W), 2))(
+      new TestSyncQueue2PWaveRead(_)
+    )
+  }
+  "wave read test" should "run for depth 3" taggedAs (UnitTests) in {
+
+    simulate(new SyncQueue2PTestWrapper(UInt(16.W), 3))(
+      new TestSyncQueue2PWaveRead(_)
+    )
+  }
+  "wave read test" should "run for depth 4" taggedAs (UnitTests) in {
+
+    simulate(new SyncQueue2PTestWrapper(UInt(16.W), 4))(
+      new TestSyncQueue2PWaveRead(_)
+    )
+  }
+
+  "wave read test" should "run for depth 24" taggedAs (UnitTests) in {
+
+    simulate(new SyncQueue2PTestWrapper(UInt(16.W), 24))(
+      new TestSyncQueue2PWaveRead(_)
+    )
+  }
+
+  "wave read test" should "run for depth 13" taggedAs (UnitTests) in {
+
+    simulate(new SyncQueue2PTestWrapper(UInt(16.W), 13))(
+      new TestSyncQueue2PWaveRead(_)
+    )
+  }
+
+}

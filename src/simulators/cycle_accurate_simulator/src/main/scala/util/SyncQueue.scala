@@ -30,7 +30,7 @@ class SyncQueue[T <: Data](
     val entries: Int,
     pipe: Boolean = false,
     flow: Boolean = false
-) extends Module() {
+) extends Module {
 
   val genType = gen
   val forceSimpleQueue = true // Force usage of Queue
@@ -59,7 +59,7 @@ class SyncQueue1PortMem[T <: Data](
     val entries: Int,
     pipe: Boolean = false,
     flow: Boolean = false
-) extends Module() {
+) extends Module {
 
   val genType = gen
 
@@ -136,7 +136,7 @@ class SyncQueue2PortMem[T <: Data](
     val entries: Int,
     pipe: Boolean = false,
     flow: Boolean = false
-) extends Module() {
+) extends Module {
 
   val genType = gen
 
@@ -356,7 +356,7 @@ class TwoCycleQueue[T <: Data](gen: T, val entries: Int, val qname: String)
 }
 
 class OneCycleQueue[T <: Data](gen: T, val entries: Int, val qname: String)
-    extends Module() {
+    extends Module {
 
   val genType = gen
 
@@ -463,7 +463,7 @@ class MemIO2P[T <: Data](gen: T, entries: Int) extends Bundle {
 }
 
 class TwoPortMem[T <: Data](gen: T, val entries: Int, val qname: String)
-    extends Module() {
+    extends Module {
 
   val genType = gen
 

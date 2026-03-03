@@ -26,6 +26,8 @@ import unittest.util._
 import vta.util._
 import vta.util.config._
 import chisel3.simulator.ChiselSim
+import chisel3.simulator.scalatest
+import org.scalatest.flatspec.AnyFlatSpec
 
 class TestOnePortMem(c: OnePortMem[UInt], debug: Boolean = false)
     extends ChiselSim {
@@ -244,6 +246,27 @@ class SyncQueueTestWrapper[T <: Data](gen: T, val entries: Int)
   rq.io.deq.ready := RegNext(io.tq.deq.ready)
 }
 
+class SyncQueueTest extends AnyFlatSpec with scalatest.ChiselSim {
+  behavior of "SyncQueue"
+
+  import chisel3.simulator.stimulus.ResetProcedure
+  it should "run for 24 depth" in {
+    simulate(new SyncQueueTestWrapper(UInt(16.W), 24)) { c =>
+      new TestSyncQueueLongRead(c)
+      ResetProcedure
+      new TestSyncQueueWaveRead(c)
+    }
+  }
+
+  it should "run for 13 depth" in {
+    simulate(new SyncQueueTestWrapper(UInt(16.W), 13)) { c =>
+      new TestSyncQueueLongRead(c)
+      ResetProcedure
+      new TestSyncQueueWaveRead(c)
+    }
+  }
+
+}
 class SyncQueueTestLongRead24
     extends GenericTest(
       "Queue",

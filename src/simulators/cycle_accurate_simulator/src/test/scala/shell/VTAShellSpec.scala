@@ -24,6 +24,7 @@ import vta.util.SimulationUtils._
 import vta.util.SimulationUtils.verilatorWithWaveDump
 import vta.util.config.Parameters
 import vta.test.VTAShellTest
+import unittest.LongTests
 
 class VTAShellSpec
     extends AnyFlatSpec
@@ -34,7 +35,7 @@ class VTAShellSpec
 
   implicit val hasWaveDumpVerilator: HasSimulator = verilatorWithWaveDump
 
-  it should "run the full vta on a sample operation from resources" in {
+  it should "run the full vta on a sample operation from resources" taggedAs (LongTests) in {
 
     val dramInitJson =
       parseJsonMemoryInitFile(
@@ -78,7 +79,7 @@ class VTAShellSpec
     )
 
   }
-  it should "run the full vta on gemm_16x16 operation" in {
+  it should "run the full vta on gemm_16x16 operation" taggedAs (LongTests) in {
 
     val dramInitJson =
       parseJsonMemoryInitFile(
