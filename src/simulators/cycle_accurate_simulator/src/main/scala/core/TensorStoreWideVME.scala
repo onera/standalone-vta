@@ -156,15 +156,14 @@ class TensorStoreWideVME(tensorType: String = "none", debug: Boolean = false)(
     val directWrTensorIdx =
       if (tp.clSizeRatio == 1) 0.U
       else io.tensor.wr(grpIdx).bits.idx(log2Ceil(tp.clSizeRatio) - 1, 0)
+    val fireWrite = ShiftRegister(
+      io.tensor.wr(grpIdx).valid,
+      writePipeLatency,
+      false.B,
+      true.B
+    )
     for (i <- 0 until tp.clSizeRatio) {
-      when(
-        ShiftRegister(
-          io.tensor.wr(grpIdx).valid && directWrTensorIdx === i.U,
-          writePipeLatency,
-          false.B,
-          true.B
-        )
-      ) {
+      when(fireWrite && directWrTensorIdx === i.U) {
 
         tensorFile(i * splitDataFactor + grpIdx).write(
           ShiftRegister(directWrIdx, writePipeLatency),

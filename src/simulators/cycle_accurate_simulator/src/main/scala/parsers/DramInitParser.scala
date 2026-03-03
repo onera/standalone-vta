@@ -5,8 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import scala.io.Source
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import vta.util.MemoryConfig
+import _root_.util.BinaryReader.readBinaryFile
+import chisel3.util.Cat
 
-object DramJsonParser {
+object DramInitParser {
 
   def parseJsonMemoryInitFile(
       file: String
@@ -71,5 +73,23 @@ object DramJsonParser {
         }
       )
     }.toSeq
+  }
+
+  def getHexFromBinary(file: String) = {
+    for {
+      bytes <- readBinaryFile(file, false)
+    } yield {
+      val uint8 = bytes.map(_.asSInt(8.W))
+      val hex = uint8.map(_.asUInt.litValue.toString(16))
+      println(hex.mkString("\n"))
+      val words = uint8
+        .grouped(8)
+        .map(p => {
+          p.foldLeft("x")((acc, r) => acc + r.asUInt.litValue.toString(16))
+        })
+
+      words
+
+    }
   }
 }

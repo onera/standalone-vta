@@ -4,8 +4,10 @@ import org.scalatest.flatspec.AnyFlatSpec
 import chisel3.simulator.ChiselSim
 import vta.interface.axi.AXILiteClient
 import vta.interface.axi.AXIClient
+import chisel3.simulator.PeekPokeAPI
+import chiseltest.testableData
 
-trait AxiFullSimUtils extends ChiselSim {
+trait AxiFullSimUtils extends PeekPokeAPI {
 
   def writeAxiData(
       data: BigInt,

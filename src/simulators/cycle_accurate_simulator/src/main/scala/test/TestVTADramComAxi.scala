@@ -12,42 +12,44 @@ import vta.util.SimulationUtils.EnableMemInitVerilog
 import vta.DefaultPynqConfig
 import chisel3.simulator.stimulus.RunUntilFinished
 import vta.util.SimulationUtils
+import chisel3.testing.HasTestingDirectory
+import java.nio.file.Path
+import java.nio.file.Paths
+import chisel3.simulator.HasSimulator
+
+class VTAShellTestFull(
+    content: Seq[MemoryConfig]
+)(implicit
+    param: Parameters
+) extends Module {
+  val io = IO(new Bundle {
+    val host = new AXILiteClient(param(ShellKey).hostParams)
+  })
+  val vta = Module(new VTAShell(true))
+
+  val dramMock = Module(
+    new MultiMemAxiClient(content)(param(ShellKey).memParams)
+  )
+  val finish = dontTouch(
+    WireInit(BoringUtils.tapAndRead(vta.vcr.io.vcr.finish))
+  )
+  when(finish) {
+    stop()
+  }
+  vta.io.host <> io.host
+  vta.io.mem <> dramMock.io
+}
 
 trait VTAShellTest extends ChiselSim with AxiFullSimUtils with AxiLiteSimUtils {
 
-  class VTAShellTestFull(
-      content: Seq[MemoryConfig]
-  )(implicit
-      param: Parameters
-  ) extends Module {
-    val io = IO(new Bundle {
-      val host = new AXILiteClient(param(ShellKey).hostParams)
-    })
-    val vta = Module(new VTAShell(true))
-
-    val dramMock = Module(
-      new MultiMemAxiClient(content)(param(ShellKey).memParams)
-    )
-    val finish = dontTouch(
-      WireInit(BoringUtils.tapAndRead(vta.vcr.io.vcr.finish))
-    )
-    when(finish) {
-      stop()
-    }
-    vta.io.host <> io.host
-    vta.io.mem <> dramMock.io
-  }
   def runVtaTestWithInitializedMem(
       content: Seq[MemoryConfig],
       timeout: Int = 100,
       waves: Boolean = false
-  ) = {
+  )(implicit testingDirectory: HasTestingDirectory, simulator: HasSimulator) = {
     implicit val parameters: Parameters = new DefaultPynqConfig
 
     implicit val enableMemoryInit = EnableMemInitVerilog
-    implicit val verilatorWithWaveDump =
-      SimulationUtils.verilatorWithWaveDump // TODO: remove it once debugged, cli flags should suffice
-    // val content = parseMemorySections(dramInitJson)
     simulate(
       new VTAShellTestFull(content),
       firtoolOpts = Array("--disable-all-randomization")
@@ -78,7 +80,7 @@ trait VTAShellTest extends ChiselSim with AxiFullSimUtils with AxiLiteSimUtils {
       launchVTA()
 
       // step clock until the computation is over
-      // clock.step(timeout)
+      clock.step(timeout)
       RunUntilFinished(timeout)
     }
   }

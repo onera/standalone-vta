@@ -25,11 +25,11 @@ import vta.util.config._
 import vta.shell._
 
 /** Store.
- *
- * Store results back to memory (DRAM) from scratchpads (SRAMs).
- * This module instantiate the TensorStore unit which is in charge
- * of storing 1D and 2D tensors to main memory.
- */
+  *
+  * Store results back to memory (DRAM) from scratchpads (SRAMs). This module
+  * instantiate the TensorStore unit which is in charge of storing 1D and 2D
+  * tensors to main memory.
+  */
 class Store(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val mp = p(ShellKey).memParams
   val io = IO(new Bundle {
@@ -49,7 +49,7 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val dec = Module(new StoreDecode)
   dec.io.inst := inst_q.io.deq.bits
 
-  val tensorStore = Module(new TensorStore(tensorType = "out"))
+  val tensorStore = Module(new TensorStore(tensorType = "out", debug))
 
   val start = inst_q.io.deq.valid & Mux(dec.io.pop_prev, s.io.sready, true.B)
   val done = tensorStore.io.done
