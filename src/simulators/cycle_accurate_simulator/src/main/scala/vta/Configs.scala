@@ -81,8 +81,3 @@ object TestDefaultDe10Config extends App {
   implicit val p: Parameters = new DefaultDe10Config
   ChiselStage.emitSystemVerilog(new Test, args)
 }
-
-object TestSimulationFullVTA extends App {
-  implicit val p: Parameters = new DefaultPynqConfig
-
-}

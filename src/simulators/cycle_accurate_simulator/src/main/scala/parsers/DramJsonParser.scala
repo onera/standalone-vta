@@ -4,6 +4,7 @@ import chisel3._
 import com.fasterxml.jackson.databind.ObjectMapper
 import scala.io.Source
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
+import vta.util.MemoryConfig
 
 object DramJsonParser {
 
@@ -52,5 +53,23 @@ object DramJsonParser {
         }
     }
     (p._1 -> (address, values))
+  }
+
+  def getMemoryConfigurations(file: String) = {
+    val json = parseJsonMemoryInitFile(file)
+    val content = parseMemorySections(json)
+    content.map { case (a, (b, c)) =>
+      MemoryConfig(
+        name = a,
+        path =
+          (os.pwd / "generatedResources" / "sample" / (a + ".mem")).toString,
+        baseAddress = b,
+        initialSize = c.size,
+        words64 = {
+          val n = c.map(_.getWidth).sum
+          if (n % 64 == 0) n / 64 else (n / 64) + 1
+        }
+      )
+    }.toSeq
   }
 }
