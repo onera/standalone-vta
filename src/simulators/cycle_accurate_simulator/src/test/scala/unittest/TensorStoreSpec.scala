@@ -11,8 +11,8 @@ class TensorStoreSpec extends AnyFlatSpec with ChiselSim {
   it should "properly run" in {
     implicit val parameter = new DefaultPynqConfig
     implicit val veril = verilatorWithWaveDump
-    simulate(new TensorStore("out")) { dut =>
-      enableWaves()
+    simulate(TensorStore("out")) { dut =>
+      ()
       dut.io.start.poke(false)
       dut.io.baddr.poke("x1000".asUInt)
       dut.io.start.poke(true)

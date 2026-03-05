@@ -34,18 +34,17 @@ class VTAShellSpec
 
     MemoryInitializer.exportHexFiles(
       content,
-      os.pwd / "generatedResources" / "sample"
+      os.pwd / "build" / "mem"
     )
     val memoryConfigs = parseMemorySections(dramInitJson)
-      .map { case (a, (b, c)) =>
+      .map { case (name, (addr, values)) =>
         MemoryConfig(
-          name = a,
-          path =
-            (os.pwd / "generatedResources" / "sample" / (a + ".mem")).toString,
-          baseAddress = b,
-          initialSize = c.size,
+          name = name,
+          path = (os.pwd / "build" / "mem" / (name + ".mem")).toString,
+          baseAddress = addr,
+          initialSize = values.size,
           words64 = {
-            val n = c.map(_.getWidth).sum
+            val n = values.map(_.getWidth).sum
             if (n % 64 == 0) n / 64 else (n / 64) + 1
           }
         )
@@ -70,7 +69,10 @@ class VTAShellSpec
   it should "export VTA in CHIRRTL" in {
     implicit val parameters: Parameters = new DefaultPynqConfig
 
-    ChiselStage.emitCHIRRTLFile(new VTAShell, Array(""))
+    ChiselStage.emitCHIRRTLFile(
+      new VTAShell,
+      Array("-td", "build/circt/vta/")
+    )
   }
 
 }

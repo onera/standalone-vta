@@ -1,5 +1,5 @@
 package vta.shell
-import _root_.util.BinaryReader
+import vta.util.BinaryReader
 import chisel3._
 import chisel3.simulator.scalatest.ChiselSim
 import chisel3.util.experimental.loadMemoryFromFileInline
@@ -89,7 +89,7 @@ class SyncAxiDramSpec
       // Array("--verilator-cflags", "-DENABLE_MEM_INIT=1"),
       firtoolOpts = Array("--disable-all-randomization")
     ) { mem =>
-      enableWaves()
+      ()
       mem.io.enable.poke(true)
       for (i <- 1 until 10) {
         mem.io.dataIn.poke(i)

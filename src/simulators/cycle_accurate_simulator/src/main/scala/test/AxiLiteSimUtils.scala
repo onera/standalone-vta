@@ -1,10 +1,10 @@
 package vta.test
 import chisel3._
-import chisel3.simulator.ChiselSim
 import vta.interface.axi.AXILiteClient
 import vta.shell.VCRParams
+import chisel3.simulator.PeekPokeAPI
 
-trait AxiLiteSimUtils extends ChiselSim {
+trait AxiLiteSimUtils extends PeekPokeAPI {
 
   def writeAxiLiteData(
       data: BigInt

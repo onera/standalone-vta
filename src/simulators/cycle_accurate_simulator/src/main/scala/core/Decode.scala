@@ -45,7 +45,7 @@ class MemDecode extends Bundle {
   val ysize = UInt(M_SIZE_BITS.W)
   val empty_0 = UInt(6.W) // derive this
   val dram_offset = UInt(M_DRAM_OFFSET_BITS.W)
-  val sram_offset = UInt(M_SRAM_OFFSET_BITS.W)
+  val sramOffset = UInt(M_SRAM_OFFSET_BITS.W)
   val id = UInt(M_ID_BITS.W)
   val push_next = Bool()
   val push_prev = Bool()

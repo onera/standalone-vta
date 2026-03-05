@@ -31,10 +31,10 @@ object Alu_ref {
    *
    * This is a software function used as a reference for the hardware
    */
-  def alu(opcode: Int, a: Array[Int], b: Array[Int], width: Int) : Array[Int] = {
+  def alu(opcode: Int, a: Array[Int], b: Array[Int], width: Int): Array[Int] = {
     val size = a.length
     val mask = Helper.getMask(log2Ceil(width))
-    val res = Array.fill(size) {0}
+    val res = Array.fill(size) { 0 }
 
     if (opcode == 0) {
       for (i <- 0 until size) { // min
@@ -56,7 +56,7 @@ object Alu_ref {
       // HLS shift left by >> negative number
       // b always < 0 when opcode == 4
       for (i <- 0 until size) {
-        res(i) = a(i) << ((-1*b(i)) & mask).toInt
+        res(i) = a(i) << ((-1 * b(i)) & mask).toInt
       }
     } else { // default
       for (i <- 0 until size) {
@@ -67,44 +67,48 @@ object Alu_ref {
   }
 }
 
-class AluVectorTester(c: AluVector, seed: Int = 47) extends ChiselSim {
-  val r = new Random(seed)
+class AluTest extends GenericSim {
+  behavior of "AluVector"
 
-  val num_ops = ALU_OP_NUM
-  for (op <- 0 until num_ops) {
-    // generate data based on bits
-    val bits = c.io.acc_a.tensorElemBits
-    val dataGen = new RandomArray(c.blockOut, bits, r)
-    val in_a = dataGen.any
-    val in_b = if (op != 4) dataGen.any else dataGen.negative
-    val mask = Helper.getMask(bits)
-    val res = Alu_ref.alu(op, in_a, in_b, bits)
+  it should "be consistent with AluRef for all opcodes on random data" in {
+    val seed = 48
+    simulate(new AluVector()) { c =>
+      val r = new Random(seed)
 
-    for (i <- 0 until c.blockOut) {
-      c.io.acc_a.data.bits(0)(i).poke(in_a(i) & mask)
-      c.io.acc_b.data.bits(0)(i).poke(in_b(i) & mask)
-    }
-    c.io.opcode.poke( op)
+      val num_ops = ALU_OP_NUM
+      for (op <- 0 until num_ops) {
+        // generate data based on bits
+        val bits = c.io.acc_a.tensorElemBits
+        val dataGen = new RandomArray(c.blockOut, bits, r)
+        val in_a = dataGen.any
+        val in_b = if (op != 4) dataGen.any else dataGen.negative
+        val mask = Helper.getMask(bits)
+        val res = Alu_ref.alu(op, in_a, in_b, bits)
 
-    c.io.acc_a.data.valid.poke(true)
-    c.io.acc_b.data.valid.poke(true)
+        for (i <- 0 until c.blockOut) {
+          c.io.acc_a.data.bits(0)(i).poke(in_a(i) & mask)
+          c.io.acc_b.data.bits(0)(i).poke(in_b(i) & mask)
+        }
+        c.io.opcode.poke(op)
 
-    c.clock.step(1)
+        c.io.acc_a.data.valid.poke(true)
+        c.io.acc_b.data.valid.poke(true)
 
-    c.io.acc_a.data.valid.poke(false)
-    c.io.acc_b.data.valid.poke(false)
+        c.clock.step(1)
 
-    // wait for valid signal
-    while (!c.io.acc_y.data.valid.peekBoolean()) {
-      c.clock.step(1) // advance clock
-    }
-    if (c.io.acc_y.data.valid.peekBoolean()) {
-      for (i <- 0 until c.blockOut) {
-        c.io.acc_y.data.bits(0)(i).expect(res(i) & mask)
+        c.io.acc_a.data.valid.poke(false)
+        c.io.acc_b.data.valid.poke(false)
+
+        // wait for valid signal
+        while (!c.io.acc_y.data.valid.peekBoolean()) {
+          c.clock.step(1) // advance clock
+        }
+        if (c.io.acc_y.data.valid.peekBoolean()) {
+          for (i <- 0 until c.blockOut) {
+            c.io.acc_y.data.bits(0)(i).expect(res(i) & mask)
+          }
+        }
       }
     }
   }
 }
-
-class AluTest extends GenericTest("AluTest", (p:Parameters) =>
-  new AluVector()(p), (c:AluVector) => new AluVectorTester(c, 48))

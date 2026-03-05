@@ -1,10 +1,10 @@
 package cli
 
-import chisel3.assert
+import chisel3._
 import chisel3.simulator.ChiselSim
 // import chiseltest.iotesters.PeekPokeTester
-import util.BinaryReader.{DataType, computeAddresses, computeCSVFile}
-import util.BinaryReader.DataType.{DataTypeValue, INP}
+import vta.util.BinaryReader.{DataType, computeAddresses, computeCSVFile}
+import vta.util.BinaryReader.DataType.{DataTypeValue, INP}
 // import util.GenericSim
 import vta.core.{Compute, TensorMaster}
 import vta.core.ISA.{
@@ -24,7 +24,7 @@ import vta.shell.VMEReadMaster
 import vta.util.config.Parameters
 
 import scala.util.{Failure, Success}
-import util.GenericSim
+import vta.util.GenericSim
 
 object ComputeSimulator {
   /* COMMON PART - MANAGE VIRTUAL MEMORIES */
@@ -233,9 +233,9 @@ class ComputeSimulator(
     c.io.i_post(0).poke(prev_signal)
     c.io.i_post(1).poke(next_signal)
     // Loop (step + 1)
-    while (c.io.finish.peek() == 0 && count < end) {
+    while (!c.io.finish.peekBoolean() && count < end) {
       mocks.logical_step()
-      c.io.inst.valid.poke(0)
+      c.io.inst.valid.poke(true)
       count += 1
     }
     // Check if operation is done or if it is a timeout
@@ -254,14 +254,14 @@ class ComputeSimulator(
     tm.rd(0).data.valid.poke(0)
 
     // Check the index validity
-    var valid = tm.rd(0).idx.valid.peek()
+    var valid = tm.rd(0).idx.valid.peekBoolean()
     var idx: Int = 0
 
     def logical_step(): Unit = {
       // If index is valid
-      if (valid == 1) {
+      if (valid) {
         // Set the data validity signal
-        tm.rd(0).data.valid.poke(1)
+        tm.rd(0).data.valid.poke(true)
 
         if (debug) {
           print(
@@ -281,7 +281,7 @@ class ComputeSimulator(
         tm.rd(0).data.valid.poke(0)
       }
       // Update the values
-      valid = tm.rd(0).idx.valid.peek()
+      valid = tm.rd(0).idx.valid.peekBoolean()
       idx = tm.rd(0).idx.bits.peek().litValue.toInt
     }
   }
@@ -331,22 +331,22 @@ class ComputeSimulator(
       //  Data is not valid yet
       dm.data.valid.poke(0)
       // Check if command is ready
-      var valid = dm.cmd.valid.peek()
+      val valid = dm.cmd.valid.peekBoolean()
 
       // Configure if DRAM is ready to receive the command
       if (!uop_exchange) { // No exchange in progress, DRAM is ready
-        dm.cmd.ready.poke(1)
+        dm.cmd.ready.poke(true)
       } else { // Exchange in progress, DRAM not ready
-        dm.cmd.ready.poke(0)
+        dm.cmd.ready.poke(false)
       }
       // Check if command is ready to receive the data
-      var ready = dm.data.ready.peek()
+      val ready = dm.data.ready.peekBoolean()
 
       //      print(s"\n\nDEBUG: (UOP) CMD VALID: ${valid}, DATA READY: ${ready}")
       //      print(s"\nDEBUG: tag: ${dm.cmd.bits.tag.peek()}, len: ${dm.cmd.bits.len.peek()}, addr: ${dm.cmd.bits.addr.peek()}\n\n")
 
       // Read the command if command is valid and DRAM ready to receive (no exchange in progress)
-      if (valid == 1 && !uop_exchange) {
+      if (valid && !uop_exchange) {
         // Store the command
         tag = dm.cmd.bits.tag.peek().litValue
         len = dm.cmd.bits.len.peek().litValue
@@ -359,7 +359,7 @@ class ComputeSimulator(
       }
 
       // Send data if command is ready to receive and exchange is started
-      if (ready == 1 && uop_exchange) {
+      if (ready && uop_exchange) {
         // Return the tag to link the data to the command
         dm.data.bits.tag.poke(tag)
 
@@ -440,9 +440,9 @@ class ComputeSimulator(
     // Exchange between DRAM (slave) and TensorAcc (master)
     def logical_step(): Unit = {
       // Data is not valid yet
-      dm.data.valid.poke(0)
+      dm.data.valid.poke(true)
       // Check if command is ready
-      var valid = dm.cmd.valid.peek()
+      val valid = dm.cmd.valid.peekBoolean()
 
       // Configure if DRAM is ready to receive the command
       if (!acc_exchange) { // No exchange in progress, DRAM is ready
@@ -451,13 +451,13 @@ class ComputeSimulator(
         dm.cmd.ready.poke(0)
       }
       // Check if command is ready to receive the data
-      var ready = dm.data.ready.peek()
+      val ready = dm.data.ready.peekBoolean()
 
       //      print(s"\n\nDEBUG: (ACC) CMD VALID: ${valid}, DATA READY: ${ready}")
       //      print(s"\nDEBUG: tag: ${dm.cmd.bits.tag.peek()}, len: ${dm.cmd.bits.len.peek()}, addr: ${dm.cmd.bits.addr.peek()}\n\n")
 
       // Read the command if command is valid and DRAM ready to receive (no exchange in progress)
-      if (valid == 1 && !acc_exchange) {
+      if (valid && !acc_exchange) {
         // Store the command
         tag = dm.cmd.bits.tag.peek().litValue
         len = dm.cmd.bits.len.peek().litValue
@@ -470,7 +470,7 @@ class ComputeSimulator(
       }
 
       // Send data if command is ready to receive and exchange is started
-      if (ready == 1 && acc_exchange) {
+      if (ready && acc_exchange) {
         // Return the tag to link the data to the command
         dm.data.bits.tag.poke(tag)
 
@@ -589,6 +589,10 @@ class ComputeSimulator(
     fromResources
   )
 
+  if (debug) {
+    println("WGT:")
+    println(wgt_scratchpad.view.mapValues(_.map(_.U(32.W))))
+  }
   // Create the mocks
   val mocks = new Mocks
 

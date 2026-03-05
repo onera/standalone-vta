@@ -28,11 +28,17 @@ import org.scalatest.flatspec.AnyFlatSpec
 import vta.DefaultPynqConfig
 import chisel3.simulator.scalatest.ChiselSim
 import vta.util.SimulationUtils.verilatorWithWaveDump
-import vta.util.SimulationUtils
+import chisel3.simulator.HasSimulator
 
 object UnitTests extends Tag("UnitTests")
 object LongTests extends Tag("LongTests")
 
+trait GenericSim extends AnyFlatSpec with ChiselSim {
+
+  implicit val p: Parameters = new DefaultPynqConfig
+
+  implicit val verilatorWithVcd: HasSimulator = verilatorWithWaveDump
+}
 class GenericTest[T <: Module, C <: Parameters](
     tag: String,
     dutFactory: (Parameters) => T,
@@ -43,11 +49,14 @@ class GenericTest[T <: Module, C <: Parameters](
 
   implicit val p: Parameters = new DefaultPynqConfig
 
-  implicit val verilatorWithVcd = verilatorWithWaveDump
+  implicit val verilatorWithVcd: HasSimulator = verilatorWithWaveDump
   behavior of tag
   if (isLongTest) {
     it should "not have expect violations" taggedAs (LongTests) in {
-      simulate(dutFactory(p), additionalResetCycles = 2)(testerFactory)
+      simulate(dutFactory(p), additionalResetCycles = 2) { c =>
+        enableWaves()
+        testerFactory(c)
+      }
     }
   } else {
     it should "not have expect violations" taggedAs (UnitTests) in {

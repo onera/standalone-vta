@@ -84,7 +84,7 @@ class MultiMemAxiClientSpec
   behavior of "MultiMemAxiClient"
 
   it should "read a burst to the first memory and second memory" in {
-    val path = os.pwd / "generatedResources"
+    val path = os.pwd / "build" / "mem"
     implicit val param = AXIParams()
     implicit val withWaves = verilatorWithWaveDump
     implicit val enableMemoryInit = EnableMemInitVerilog
@@ -97,7 +97,7 @@ class MultiMemAxiClientSpec
       ),
       firtoolOpts = Array("--disable-all-randomization")
     ) { dut =>
-      enableWaves()
+      ()
       implicit val axi = dut.io
       implicit val clock = dut.clock
 

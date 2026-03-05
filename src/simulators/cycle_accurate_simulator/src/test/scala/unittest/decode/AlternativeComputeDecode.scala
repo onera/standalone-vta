@@ -4,7 +4,6 @@ import chisel3._
 import vta.core._
 import chisel3.util._
 
-
 class AlternativeComputeMemDecode extends Module {
   val io = IO(new Bundle {
     val inst = Input(UInt(INST_BITS.W))
@@ -32,7 +31,7 @@ class AlternativeComputeMemDecode extends Module {
   io.push_prev := dec.push_prev
   io.push_next := dec.push_next
   io.id := dec.id
-  io.sram_offset := dec.sram_offset
+  io.sram_offset := dec.sramOffset
   io.dram_offset := dec.dram_offset
   io.empty_0 := dec.empty_0
   io.ysize := dec.ysize
@@ -43,7 +42,6 @@ class AlternativeComputeMemDecode extends Module {
   io.xpad_0 := dec.xpad_0
   io.xpad_1 := dec.xpad_1
 }
-
 
 class AlternativeComputeGemmDecode extends Module {
   val io = IO(new Bundle {
@@ -85,3 +83,4 @@ class AlternativeComputeGemmDecode extends Module {
   io.wgt_0 := dec.wgt_0
   io.wgt_1 := dec.wgt_1
 }
+

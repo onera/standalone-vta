@@ -4,7 +4,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import vta.util.MemoryInitializer.getHexFromBinaryFiles
 import vta.parsers.DramInitParser.getHexFromBinary
-import util.BinaryReader
+import vta.util.BinaryReader
 
 class DramInitParserTest extends AnyFlatSpec with Matchers {
   it should "read binary file and convert to hex 64" in {

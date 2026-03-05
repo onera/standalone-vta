@@ -70,7 +70,7 @@ class Compute(debug: Boolean = false)(implicit
   val topAccGrpIdx = tensorGemm.io.acc.closestIOGrpIdx
 
   val inst_q = Module(
-    new SyncQueue(UInt(INST_BITS.W), p(CoreKey).instQueueEntries)
+    SyncQueue(UInt(INST_BITS.W), p(CoreKey).instQueueEntries)
   )
 
   // decode

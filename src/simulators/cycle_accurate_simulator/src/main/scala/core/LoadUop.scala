@@ -23,7 +23,7 @@ import chisel3._
 import chisel3.util._
 import vta.util.config._
 import vta.shell._
-import vta.util.DebugLayer
+import vta.util.UserDefined.Debug
 import chisel3.layer.block
 
 /** UopMaster.
@@ -104,7 +104,7 @@ class LoadUopTop(debug: Boolean = false)(implicit val p: Parameters)
     loadUop.io.tensor.rd(0).idx <> io.uop.idx
     io.uop.data.valid := loadUop.io.tensor.rd(0).data.valid
 
-    block(DebugLayer) {
+    block(Debug) {
       withDisable(Disable.BeforeReset) {
         when(loadUop.io.tensor.rd(0).data.valid) {
           printf(

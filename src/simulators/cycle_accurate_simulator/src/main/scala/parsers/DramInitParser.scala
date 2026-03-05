@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import scala.io.Source
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import vta.util.MemoryConfig
-import _root_.util.BinaryReader.readBinaryFile
+import vta.util.BinaryReader.readBinaryFile
 import chisel3.util.Cat
 
 object DramInitParser {
@@ -63,8 +63,7 @@ object DramInitParser {
     content.map { case (a, (b, c)) =>
       MemoryConfig(
         name = a,
-        path =
-          (os.pwd / "generatedResources" / "sample" / (a + ".mem")).toString,
+        path = (os.pwd / "build" / "mem" / (a + ".mem")).toString,
         baseAddress = b,
         initialSize = c.size,
         words64 = {

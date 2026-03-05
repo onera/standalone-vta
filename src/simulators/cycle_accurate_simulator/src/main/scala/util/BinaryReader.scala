@@ -1,4 +1,4 @@
-package util
+package vta.util
 
 import java.io.{File, FileInputStream, InputStream}
 import scala.language.postfixOps

@@ -27,7 +27,7 @@ class TensorGemmTest(
   if (debug) {
     print("TEST NAME: \n\t TensorGemmTester (take a JSON in input)\n")
     print(s"\tJSON: ${fn} \n\n")
-    enableWaves()
+    ()
   }
 
   // Read the JSON file

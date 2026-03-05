@@ -21,8 +21,10 @@ package vta.core
 
 import chisel3._
 import chisel3.util._
+import chisel3.layer._
 import vta.util.config._
 import vta.shell._
+import vta.util.UserDefined.Debug
 
 /** Store.
   *
@@ -49,7 +51,7 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val dec = Module(new StoreDecode)
   dec.io.inst := inst_q.io.deq.bits
 
-  val tensorStore = Module(new TensorStore(tensorType = "out", debug))
+  val tensorStore = Module(TensorStore(tensorType = "out", debug))
 
   val start = inst_q.io.deq.valid & Mux(dec.io.pop_prev, s.io.sready, true.B)
   val done = tensorStore.io.done
@@ -83,7 +85,7 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module {
   tensorStore.io.start := state === sIdle & start & dec.io.isStore
   tensorStore.io.inst := inst_q.io.deq.bits
   tensorStore.io.baddr := io.out_baddr
-  io.vme_wr <> tensorStore.io.vme_wr
+  io.vme_wr <> tensorStore.io.vmeWr
   tensorStore.io.tensor <> io.out
 
   // semaphore
@@ -92,22 +94,24 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module {
   io.o_post := dec.io.push_prev & ((state === sExe & done) | (state === sSync))
 
   // debug
-  if (debug) {
-    // start
-    when(state === sIdle && start) {
-      when(dec.io.isSync) {
-        printf("[Store] start sync\n")
-      }.elsewhen(dec.io.isStore) {
-        printf("[Store] start\n")
+  block(Debug) {
+    if (debug) {
+      // start
+      when(state === sIdle && start) {
+        when(dec.io.isSync) {
+          printf("[Store] start sync\n")
+        }.elsewhen(dec.io.isStore) {
+          printf("[Store] start\n")
+        }
       }
-    }
-    // done
-    when(state === sSync) {
-      printf("[Store] done sync\n")
-    }
-    when(state === sExe) {
-      when(done) {
-        printf("[Store] done\n")
+      // done
+      when(state === sSync) {
+        printf("[Store] done sync\n")
+      }
+      when(state === sExe) {
+        when(done) {
+          printf("[Store] done\n")
+        }
       }
     }
   }

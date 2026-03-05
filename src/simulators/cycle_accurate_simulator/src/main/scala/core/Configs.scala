@@ -19,7 +19,7 @@
 
 package vta.core
 
-import util.BinaryReader.computeJSONFile
+import vta.util.BinaryReader.computeJSONFile
 import vta.util.config._
 
 import scala.math.Fractional.Implicits.infixFractionalOps

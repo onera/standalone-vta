@@ -404,7 +404,7 @@ class ZeroPadding(tensorType: String = "none", debug: Boolean = false)(implicit
   val isZeroPadWrite = Wire(
     Bool()
   ) // Store zero filled tensor, zpDestIdx is valid
-  val zpDestIdx = Wire(chiselTypeOf(dec.sram_offset)) // Tensor index
+  val zpDestIdx = Wire(chiselTypeOf(dec.sramOffset)) // Tensor index
   val sZpIdle :: sZpTop :: sZpSideLeft :: sZpSideRight :: sZpSideBoth :: sZpSideSkip :: sZpBot :: Nil =
     Enum(7)
   val zpState = RegInit(sZpIdle)
@@ -422,7 +422,7 @@ class ZeroPadding(tensorType: String = "none", debug: Boolean = false)(implicit
   // current padding column
   val zpDestRowOffset = Reg(
     chiselTypeOf(
-      dec.sram_offset
+      dec.sramOffset
     )
   ) // one-dimentional offset for zpRowIdx
   zpRowIdx := zpRowIdx
@@ -441,7 +441,7 @@ class ZeroPadding(tensorType: String = "none", debug: Boolean = false)(implicit
 
   when(io.start) {
     zpRowIdx := 0.U
-    zpDestRowOffset := dec.sram_offset
+    zpDestRowOffset := dec.sramOffset
 
     zpColIdx := 0.U
     when(dec.xpad_0 === 0.U && dec.xpad_1 =/= 0.U && dec.ypad_0 === 0.U) {
@@ -779,7 +779,7 @@ class GenVMECmd(tensorType: String = "none", debug: Boolean = false)(implicit
     !commandsDone
   when(io.start) {
     currentRowIdx := 0.U
-    rdCmdStartIdx := dec.sram_offset + dec.xpad_0 // this index is in tensors
+    rdCmdStartIdx := dec.sramOffset + dec.xpad_0 // this index is in tensors
   }.elsewhen(io.isBusy && (currentRowIdx < dec.ypad_0 || stride)) {
     rdCmdStartIdx := rdCmdStartIdx + totalWidth
     currentRowIdx := currentRowIdx + 1.U

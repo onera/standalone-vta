@@ -17,7 +17,7 @@ object VTAShellSimulator extends App with VTAShellTest {
   require(args.size >= 1)
   val dramInit = parseJsonMemoryInitFile(args.head)
 
-  exportHexFiles(parseMemorySections(dramInit), os.pwd / "generatedResources")
+  exportHexFiles(parseMemorySections(dramInit), os.pwd / "build" / "mem")
 
   implicit val simulator = verilatorWithWaveDump
 

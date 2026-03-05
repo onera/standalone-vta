@@ -22,82 +22,13 @@ package unittest
 import chisel3._
 import chisel3.util._
 import scala.util.Random
-import unittest.util._
+import unittest.GenericSim
 import vta.util._
 import vta.util.config._
 import chisel3.simulator.ChiselSim
 import chisel3.simulator.scalatest
 import org.scalatest.flatspec.AnyFlatSpec
 
-class TestOnePortMem(c: OnePortMem[UInt], debug: Boolean = false)
-    extends ChiselSim {
-
-  // write a:0 d:24
-  if (debug) {
-    println("-----------------------------")
-    println("Cycle 0 write 24 to address 0")
-  }
-  c.io.wrEn.poke(true)
-  c.io.wrData.poke(24)
-  c.io.chEn.poke(true)
-  c.io.addr.poke(0)
-  c.clock.step()
-  // read a:0
-  if (debug) {
-    println("-----------------------------")
-    println("Cycle 1 read address 0")
-  }
-  c.io.wrEn.poke(false)
-  c.io.addr.poke(0)
-  c.io.chEn.poke(1)
-  c.clock.step()
-  // write a:1 d:99
-  if (debug) {
-    println("-----------------------------")
-    println("Cycle 2 write 99 to address 1")
-  }
-  c.io.wrEn.poke(true)
-  c.io.wrData.poke(99)
-  c.io.chEn.poke(true)
-  c.io.addr.poke(1)
-  // read d:24
-  if (debug) {
-    println("Cycle 2 read expect data 24")
-  }
-  c.io.rdData.expect(24)
-  c.clock.step()
-  if (debug) {
-    println("-----------------------------")
-    println("Cycle 3 should still read data 24")
-  }
-  c.io.addr.poke(0)
-  // read d:24
-  c.io.rdData.expect(24)
-  c.io.wrEn.poke(false)
-  c.clock.step()
-  if (debug) {
-    println("-----------------------------")
-    println("Cycle 4 read address 0")
-  }
-  c.io.wrEn.poke(0)
-  c.io.addr.poke(0)
-  c.io.chEn.poke(1)
-  c.clock.step()
-  if (debug) {
-    println("-----------------------------")
-  }
-  // write a:1 d:99
-  c.io.wrEn.poke(0)
-  c.io.wrData.poke(99)
-  c.io.chEn.poke(0)
-  c.io.addr.poke(1)
-  // read d:24
-  if (debug) {
-    println("Cycle 5 read expect data 24")
-  }
-  c.io.rdData.expect(24)
-  c.clock.step()
-}
 class Checker(c: SyncQueueTestWrapper[UInt]) extends ChiselSim {
 
   def bits(bits: Int) = {
@@ -233,7 +164,7 @@ class SyncQueueTestWrapper[T <: Data](gen: T, val entries: Int)
 
   })
 
-  val tq = Module(new SyncQueue1PortMem(genType.asUInt, entries))
+  val tq = Module(SyncQueue(genType.asUInt, entries))
   val rq = Module(new Queue(genType.asUInt, entries))
   io.tq <> tq.io
   io.rq <> rq.io
@@ -246,75 +177,20 @@ class SyncQueueTestWrapper[T <: Data](gen: T, val entries: Int)
   rq.io.deq.ready := RegNext(io.tq.deq.ready)
 }
 
-class SyncQueueTest extends AnyFlatSpec with scalatest.ChiselSim {
+class SyncQueueTest extends GenericSim {
   behavior of "SyncQueue"
 
   import chisel3.simulator.stimulus.ResetProcedure
-  it should "run for 24 depth" in {
-    simulate(new SyncQueueTestWrapper(UInt(16.W), 24)) { c =>
-      new TestSyncQueueLongRead(c)
-      ResetProcedure
-      new TestSyncQueueWaveRead(c)
-    }
-  }
+  for (i <- Seq(1, 2, 3, 4, 13, 24)) {
 
-  it should "run for 13 depth" in {
-    simulate(new SyncQueueTestWrapper(UInt(16.W), 13)) { c =>
-      new TestSyncQueueLongRead(c)
-      ResetProcedure
-      new TestSyncQueueWaveRead(c)
+    s"of depth ${i}" should "run correctly in long and wave read tests" taggedAs (unittest.UnitTests) in {
+      simulate(new SyncQueueTestWrapper(UInt(16.W), i)) { c =>
+        // run both tests for a single compilation to save time
+        new TestSyncQueueLongRead(c)
+        ResetProcedure
+        new TestSyncQueueWaveRead(c)
+      }
     }
   }
 
 }
-class SyncQueueTestLongRead24
-    extends GenericTest(
-      "Queue",
-      (p: Parameters) => new SyncQueueTestWrapper(UInt(16.W), 24),
-      (c: SyncQueueTestWrapper[UInt]) => new TestSyncQueueLongRead(c)
-    )
-
-class SyncQueueTestLongRead13
-    extends GenericTest(
-      "Queue",
-      (p: Parameters) => new SyncQueueTestWrapper(UInt(16.W), 13),
-      (c: SyncQueueTestWrapper[UInt]) => new TestSyncQueueLongRead(c)
-    )
-
-class SyncQueueTestWaveRead24
-    extends GenericTest(
-      "Queue",
-      (p: Parameters) => new SyncQueueTestWrapper(UInt(16.W), 24),
-      (c: SyncQueueTestWrapper[UInt]) => new TestSyncQueueWaveRead(c)
-    )
-
-class OnePorMemTest
-    extends GenericTest(
-      "Queue",
-      (p: Parameters) => new OnePortMem(UInt(16.W), 16, ""),
-      (c: OnePortMem[UInt]) => new TestOnePortMem(c)
-    )
-class SyncQueueTestWaveRead1
-    extends GenericTest(
-      "Queue",
-      (p: Parameters) => new SyncQueueTestWrapper(UInt(16.W), 1),
-      (c: SyncQueueTestWrapper[UInt]) => new TestSyncQueueWaveRead(c)
-    )
-class SyncQueueTestWaveRead2
-    extends GenericTest(
-      "Queue",
-      (p: Parameters) => new SyncQueueTestWrapper(UInt(16.W), 2),
-      (c: SyncQueueTestWrapper[UInt]) => new TestSyncQueueWaveRead(c)
-    )
-class SyncQueueTestWaveRead3
-    extends GenericTest(
-      "Queue",
-      (p: Parameters) => new SyncQueueTestWrapper(UInt(16.W), 3),
-      (c: SyncQueueTestWrapper[UInt]) => new TestSyncQueueWaveRead(c)
-    )
-class SyncQueueTestWaveRead4
-    extends GenericTest(
-      "Queue",
-      (p: Parameters) => new SyncQueueTestWrapper(UInt(16.W), 4),
-      (c: SyncQueueTestWrapper[UInt]) => new TestSyncQueueWaveRead(c)
-    )

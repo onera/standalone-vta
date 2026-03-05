@@ -879,7 +879,7 @@ class GenVMECmdWideTL(tensorType: String = "none", debug: Boolean = false)(
   cmdGen.io.xsize := dec.xsize
   cmdGen.io.xstride := dec.xstride
   cmdGen.io.dram_offset := dec.dram_offset
-  cmdGen.io.sram_offset := dec.sram_offset
+  cmdGen.io.sram_offset := dec.sramOffset
   cmdGen.io.xpad_0 := dec.xpad_0
   cmdGen.io.xpad_1 := dec.xpad_1
   cmdGen.io.ypad_0 := dec.ypad_0

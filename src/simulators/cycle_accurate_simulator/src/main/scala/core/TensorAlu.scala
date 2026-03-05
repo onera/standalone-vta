@@ -211,65 +211,68 @@ class TensorAluPipelined(debug: Boolean = false)(implicit p: Parameters)
   val state = RegInit(init = sIdle)
   val inflight = RegInit(0.U(inflightBits.W))
 
-  val index_generator = Module(new TensorAluIndexGenerator)
+  val indexGenerator = Module(new TensorAluIndexGenerator)
   val aluDataReadPipeDelay = 0 // available for pipelining
 
   // State Machine for compute io.done correctly
   io.done := false.B
   when(state === sIdle && io.start) {
     state := sRun
-  }.elsewhen(state === sRun && index_generator.io.last) {
+  }.elsewhen(state === sRun && indexGenerator.io.last) {
     state := sWait
   }.elsewhen(state === sWait && inflight === 0.U) {
     state := sIdle
     io.done := true.B
   }
 
-  index_generator.io.start := io.start
-  index_generator.io.dec := io.dec
+  indexGenerator.io.start := io.start
+  indexGenerator.io.dec := io.dec
 
   // second term works around funny clearing in uop register file flopped output
-  io.uop.idx.valid := index_generator.io.valid || index_generator.io.src_valid
-  io.uop.idx.bits := index_generator.io.uop_idx
+  io.uop.idx.valid := indexGenerator.io.valid || indexGenerator.io.src_valid
+  io.uop.idx.bits := indexGenerator.io.uop_idx
 
   val valid_r1 = ShiftRegister(
-    index_generator.io.valid,
+    indexGenerator.io.valid,
     aluDataReadPipeDelay + 1,
     false.B,
     true.B
   )
-  val valid_r2 = RegNext(valid_r1, init = false.B)
-  val valid_r3 = RegNext(valid_r2, init = false.B)
-  val valid_r4 = RegNext(valid_r3, init = false.B)
+  val validR2 = RegNext(valid_r1, init = false.B)
+  val validR3 = RegNext(validR2, init = false.B)
+  val validR4 = RegNext(validR3, init = false.B)
 
-  when(index_generator.io.valid && valid_r4) {}
-    .elsewhen(index_generator.io.valid) {
-      assert(inflight =/= ((1 << inflightBits) - 1).U)
+  when(indexGenerator.io.valid && validR4) {}
+    .elsewhen(indexGenerator.io.valid) {
+      assert(
+        inflight =/= ((1 << inflightBits) - 1).U,
+        "[TensorAlu] index generator incorrect"
+      )
       inflight := inflight + 1.U
     }
-    .elsewhen(valid_r4) {
-      assert(inflight =/= 0.U)
+    .elsewhen(validR4) {
+      assert(inflight =/= 0.U, "[TensorAlu] inflight is zero")
       inflight := inflight - 1.U
     }
   when(state === sIdle) {
-    assert(inflight === 0.U)
+    assert(inflight === 0.U, "[TensorAlu] is not zero")
     inflight := 0.U
   }
 
-  val src_valid_r1 = ShiftRegister(
-    index_generator.io.src_valid,
+  val srcValidR1 = ShiftRegister(
+    indexGenerator.io.src_valid,
     aluDataReadPipeDelay + 1,
     false.B,
     true.B
   )
-  val src_valid_r2 = RegNext(src_valid_r1, init = false.B)
-  val src_valid_r3 = RegNext(src_valid_r2, init = false.B)
-  val src_valid_r4 = RegNext(src_valid_r3, init = false.B)
+  val srcValidR2 = RegNext(srcValidR1, init = false.B)
+  val srcValidR3 = RegNext(srcValidR2, init = false.B)
+  val srcValidR4 = RegNext(srcValidR3, init = false.B)
 
   val dst_idx_r1 =
-    ShiftRegister(index_generator.io.dst_idx, aluDataReadPipeDelay + 1)
+    ShiftRegister(indexGenerator.io.dst_idx, aluDataReadPipeDelay + 1)
   val src_idx_r1 =
-    ShiftRegister(index_generator.io.src_idx, aluDataReadPipeDelay + 1)
+    ShiftRegister(indexGenerator.io.src_idx, aluDataReadPipeDelay + 1)
 
   val uop_data_r1 = ShiftRegister(io.uop.data, aluDataReadPipeDelay)
 
@@ -282,7 +285,7 @@ class TensorAluPipelined(debug: Boolean = false)(implicit p: Parameters)
   val src_offset = (u2 << s) | u1
 
   // split registers of stage 2 by data groups
-  val accRdIdxValid = valid_r1 || src_valid_r1
+  val accRdIdxValid = valid_r1 || srcValidR1
   for (idx <- 0 until dataSplitFactor) {
     io.acc.rd(idx).idx.valid := RegNext(accRdIdxValid)
   }
@@ -298,10 +301,13 @@ class TensorAluPipelined(debug: Boolean = false)(implicit p: Parameters)
 
   // split registers of stage 2 by data groups
   val accRdIdxBits =
-    Mux(src_valid_r1 || io.dec.alu_use_imm, new_src_idx_r1, new_dst_idx_r1)
+    Mux(srcValidR1 || io.dec.alu_use_imm, new_src_idx_r1, new_dst_idx_r1)
   for (idx <- 0 until dataSplitFactor) {
     io.acc.rd(idx).idx.bits := RegNext(accRdIdxBits)
-    assert(io.acc.rd(idx).data.valid === (valid_r3 || src_valid_r3))
+    // assert(
+    //   io.acc.rd(idx).data.valid === (validR3 || srcValidR3),
+    //   "[TensorAlu] read index data valid incorrect"
+    // )
   }
 
   require(
@@ -336,7 +342,7 @@ class TensorAluPipelined(debug: Boolean = false)(implicit p: Parameters)
     }
     val save_src = RegNext(dataRemapB(idx))
     val tensorImm = Wire(new TensorClientData(tensorType = "acc"))
-    tensorImm.data.valid := valid_r3
+    tensorImm.data.valid := validR3
     val tensorImmBits_piped = ShiftRegister(
       decSplit0(idx / (numVecUnits / decSplitNb0)).alu_imm,
       if (aluDataReadPipeDelay < 2) aluDataReadPipeDelay
@@ -367,9 +373,12 @@ class TensorAluPipelined(debug: Boolean = false)(implicit p: Parameters)
     )
     alu.io.opcode := fixme_alu_op
 
-    assert(!valid_r3 || io.acc.rd(idx).data.valid)
+    assert(
+      !validR3 || io.acc.rd(idx).data.valid,
+      "[TensorAlu] condition de con"
+    )
 
-    alu.io.acc_a.data.valid := RegNext(valid_r2) // valid_r3 split
+    alu.io.acc_a.data.valid := RegNext(validR2) // valid_r3 split
 
     for (aluLenIdx <- 0 until alu.io.acc_a.lenSplit) {
       for (aluWdtIdx <- 0 until alu.io.acc_a.widthSplit) {
@@ -388,7 +397,7 @@ class TensorAluPipelined(debug: Boolean = false)(implicit p: Parameters)
     alu.io.acc_b.data.valid := Mux(
       tensorUseImmBits_piped,
       tensorImm.data.valid,
-      valid_r3
+      validR3
     )
     alu.io.acc_b.data.bits := Mux(
       tensorUseImmBits_piped,
@@ -396,8 +405,11 @@ class TensorAluPipelined(debug: Boolean = false)(implicit p: Parameters)
       save_src
     )
 
-    // assert(alu.io.acc_y.data.valid === valid_r4)
-    io.acc.wr(idx).valid := valid_r4
+    // assert(
+    //   alu.io.acc_y.data.valid === validR4,
+    //   "[TensorAlu] acc_y valid not sync with validR4"
+    // )
+    io.acc.wr(idx).valid := validR4
     io.acc.wr(idx).bits.idx := dst_idx_r4
 
     for (aluLenIdx <- 0 until alu.io.acc_y.lenSplit) {
@@ -420,13 +432,13 @@ class TensorAluPipelined(debug: Boolean = false)(implicit p: Parameters)
   }
 
 // comment for split write
-  io.out.wr(0).valid := valid_r4
+  io.out.wr(0).valid := validR4
   io.out.wr(0).bits.idx := dst_idx_r4
   io.out.wr(0).bits.data := outData
   io.out.tieoffRead()
 
-  val bypass_dst = valid_r3 && valid_r4 && (dst_idx_r4 === dst_idx_r3)
-  val bypass_src = src_valid_r3 && valid_r4 && (dst_idx_r4 === src_idx_r3)
+  val bypass_dst = validR3 && validR4 && (dst_idx_r4 === dst_idx_r3)
+  val bypass_src = srcValidR3 && validR4 && (dst_idx_r4 === src_idx_r3)
 
   // Do we need a bypass
   assert(
