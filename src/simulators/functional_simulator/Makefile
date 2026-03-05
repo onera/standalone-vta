@@ -75,6 +75,7 @@ verilated: config build/functional_simulator_rtl
 verilate_vtashell:
 	mkdir -p $(VERILATED_OBJ_DIR)
 	$(VERILATOR) --cc \
+	  --trace-fst \
 	  -f $(VTASHELL_DIR)/filelist.f \
 	  --top-module VTAShell \
 	  +incdir+$(VTASHELL_DIR) \
@@ -115,8 +116,9 @@ build/functional_simulator_rtl: build/vta_config_def.txt \
 	  $(VVTASHELL_ARCHIVE) \
 	  $(VERILATOR_INC)/verilated.cpp \
 	  $(VERILATOR_INC)/verilated_threads.cpp \
+	  $(VERILATOR_INC)/verilated_fst_c.cpp \
 	  $(OBJ_LIB_TVM) \
-	  -o $@
+	  -lz -o $@
 
 # Generate the configuration file log 
 config: build/vta_config_def.txt

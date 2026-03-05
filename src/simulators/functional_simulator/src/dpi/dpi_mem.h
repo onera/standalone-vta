@@ -17,6 +17,10 @@
  *
  * Data bus width: 64 bits (8 bytes per beat).
  * Address / length encoding: AXI4 (len = number_of_beats - 1).
+ *
+ * Supports multiple outstanding read transactions (different IDs) via an
+ * internal FIFO queue so the master can pipeline AR requests while beats from
+ * a previous burst are still being returned.
  */
 
 class DPIMem {
@@ -55,17 +59,21 @@ class DPIMem {
     uint8_t   b_ready);
 
  private:
-  enum RState { R_IDLE, R_DATA };
+  static const int kMaxOutstandingReads = 8;
+
+  struct RdTxn {
+    uint32_t addr;  ///< current byte address for next beat
+    uint8_t  len;   ///< beats remaining (0 = last beat not yet sent)
+    uint8_t  id;
+  };
+
   enum WState { W_IDLE, W_DATA, W_RESP };
 
-  RState   rstate_;
-  uint32_t r_addr_;    ///< current read base byte address
-  uint8_t  r_len_;     ///< remaining beats (0 = last)
-  uint8_t  r_id_;
+  std::deque<RdTxn> rq_;   ///< FIFO of pending / in-progress read transactions
 
   WState   wstate_;
-  uint32_t w_addr_;    ///< current write base byte address
-  uint8_t  w_len_;     ///< remaining beats
+  uint32_t w_addr_;
+  uint8_t  w_len_;
 };
 
 #endif  // DPI_MEM_H_

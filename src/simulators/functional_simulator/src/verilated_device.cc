@@ -28,6 +28,7 @@
 // Verilator-generated header — produced by `make verilated` after
 // `verilator --cc VTAShell.sv ...`
 #include "VVTAShell.h"
+#include "verilated_fst_c.h"
 #include "verilated.h"
 
 #include <cstdio>
@@ -48,11 +49,28 @@ static constexpr uint16_t VCR_PTR_ACC  = 0x1C;  // ptrs[4]
 static constexpr uint16_t VCR_PTR_OUT  = 0x20;  // ptrs[5]
 
 static constexpr uint32_t RESET_CYCLES   = 10;
-static constexpr uint32_t TIMEOUT_CYCLES = 10000000u;
+static constexpr uint32_t TIMEOUT_CYCLES = 500000u;
 
 class VerilatedDevice : public VTADeviceBackend {
  public:
-  VerilatedDevice() : dut_(std::make_unique<VVTAShell>()) {}
+  VerilatedDevice() : dut_(std::make_unique<VVTAShell>()), bufAddrs_{},
+                      tfp_(nullptr), cycle_(0) {
+    Verilated::traceEverOn(true);
+    tfp_ = new VerilatedFstC;
+    dut_->trace(tfp_, 99);
+    tfp_->open("vtashell.fst");
+  }
+
+  ~VerilatedDevice() override {
+    if (tfp_) {
+      tfp_->close();
+      delete tfp_;
+    }
+  }
+
+  void SetBufferAddresses(const VTABufferAddrs& addrs) override {
+    bufAddrs_ = addrs;
+  }
 
   int Run(vta_phy_addr_t insn_phy_addr,
           uint32_t insn_count,
@@ -72,33 +90,17 @@ class VerilatedDevice : public VTADeviceBackend {
     // -----------------------------------------------------------------------
     // 2. Enqueue VCR register writes via dpi_host
     // -----------------------------------------------------------------------
-    // Compute sibling buffer physical addresses by looking at the DRAM
-    // virtual memory layout.  The caller (functional_simulator.cc) has
-    // already placed all buffers in the shared VirtualMemoryManager, so we
-    // just need insn_phy_addr.  For the remaining buffers the functional
-    // simulator relies on the DRAM manager's sequential allocation, but the
-    // VerilatedDevice receives only insn_phy_addr.
-    //
-    // For a correct multi-buffer run the caller should pass a struct with all
-    // base addresses; for now we set uop/inp/wgt/acc/out to 0 and let the
-    // instruction stream encode any non-zero offsets (relative to the ptr
-    // base, as the VTA fetch unit uses absolute DRAM addresses from VCR ptrs).
-    //
-    // NOTE: In the functional model those buffers are set by the driver before
-    // calling VTADeviceRun.  For the RTL path the Fetch unit reads the insn
-    // stream from insn_baddr and each instruction contains the SRAM indices.
-    // The Load/Store units use wgt_baddr/inp_baddr/out_baddr as base addrs
-    // added to the DRAM offset field in the instruction.  Supply 0 here; the
-    // compiler emits absolute DRAM addresses in the instructions anyway for
-    // the default VTA configuration.
-
+    // Use physical addresses supplied by SetBufferAddresses() (called by
+    // functional_simulator.cc before Run()).  The VTA hardware adds the
+    // per-buffer base address (VCR ptr) to each instruction's dram_offset
+    // field to form the absolute DRAM address.
     host_.Write(VCR_VALS0,    insn_count);
-    host_.Write(VCR_PTR_INSN, static_cast<uint32_t>(insn_phy_addr));
-    host_.Write(VCR_PTR_UOP,  0);
-    host_.Write(VCR_PTR_INP,  0);
-    host_.Write(VCR_PTR_WGT,  0);
-    host_.Write(VCR_PTR_ACC,  0);
-    host_.Write(VCR_PTR_OUT,  0);
+    host_.Write(VCR_PTR_INSN, static_cast<uint32_t>(bufAddrs_.insn));
+    host_.Write(VCR_PTR_UOP,  0u);
+    host_.Write(VCR_PTR_INP,  0u);
+    host_.Write(VCR_PTR_WGT,  0u);
+    host_.Write(VCR_PTR_ACC,  0u);
+    host_.Write(VCR_PTR_OUT,  0u);
 
     // -----------------------------------------------------------------------
     // 3. Drain the write queue (clock cycles until host SM is idle)
@@ -145,7 +147,12 @@ class VerilatedDevice : public VTADeviceBackend {
       }
     }
 
-    fprintf(stderr, "[VerilatedDevice] Timeout waiting for finish.\n");
+    // Debug: print last ctrl register value
+    host_.Read(VCR_CTRL);
+    ClockEdge();
+    while (!host_.Idle()) ClockEdge();
+    fprintf(stderr, "[VerilatedDevice] Timeout waiting for finish (ctrl=0x%08X).\n",
+            host_.LastReadValue());
     VTASimDPI_SetExit();
     return 1;
   }
@@ -163,6 +170,7 @@ class VerilatedDevice : public VTADeviceBackend {
     // --- Rising edge: DUT captures inputs from previous cycle ---
     dut_->clock = 1;
     dut_->eval();
+    if (tfp_) tfp_->dump(2 * cycle_ + 1);
 
     // --- Sample outputs, advance state machines, drive new inputs ---
     DriveMemSlave();
@@ -171,6 +179,9 @@ class VerilatedDevice : public VTADeviceBackend {
     // --- Falling edge: propagate combinatorial with new inputs ---
     dut_->clock = 0;
     dut_->eval();
+    if (tfp_) tfp_->dump(2 * cycle_ + 2);
+
+    ++cycle_;
   }
 
   /** Drive the AXI-Lite host signals (we are master). */
@@ -246,6 +257,9 @@ class VerilatedDevice : public VTADeviceBackend {
   std::unique_ptr<VVTAShell> dut_;
   DPIHost host_;
   DPIMem  mem_;
+  VTABufferAddrs bufAddrs_;
+  VerilatedFstC* tfp_;
+  uint64_t cycle_;
 };
 
 VTADeviceBackend* CreateVerilatedDevice() {

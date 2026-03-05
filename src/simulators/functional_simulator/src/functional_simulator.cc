@@ -101,27 +101,38 @@ int main(int argc, char** argv) {
       ? insn_count_override
       : static_cast<uint32_t>(insn_buf.size() / 16);  // 128-bit per insn
 
-  // Allocate VTA virtual DRAM and copy data
-  void* mem_insn = VTAMemAlloc(insn_buf.size() + 1, 1);
-  void* mem_uop  = uop_buf.empty()  ? VTAMemAlloc(4, 1) : VTAMemAlloc(uop_buf.size()  + 1, 1);
-  void* mem_inp  = inp_buf.empty()  ? VTAMemAlloc(4, 1) : VTAMemAlloc(inp_buf.size()  + 1, 1);
-  void* mem_wgt  = wgt_buf.empty()  ? VTAMemAlloc(4, 1) : VTAMemAlloc(wgt_buf.size()  + 1, 1);
-  void* mem_acc  = acc_buf.empty()  ? VTAMemAlloc(4, 1) : VTAMemAlloc(acc_buf.size()  + 1, 1);
-  // Output buffer: same size as acc or inp
+  // Allocate VTA virtual DRAM in the order the standalone compiler expects:
+  //   INP(0x1000), WGT(0x2000), ACC(0x3000), OUT(0x4000), UOP(0x5000), INSN(0x6000)
+  // Each VTAMemAlloc advances the VirtualMemoryManager by one 4 KB page, so
+  // this order matches the absolute DRAM addresses the compiler encoded in the
+  // instructions (see compiler_output/memory_addresses.csv).
   size_t out_size = acc_buf.empty() ? (inp_buf.empty() ? 64 : inp_buf.size()) : acc_buf.size();
-  void* mem_out  = VTAMemAlloc(out_size + 1, 1);
 
+  void* mem_inp  = VTAMemAlloc(inp_buf.empty() ? 4 : inp_buf.size(), 1);
+  void* mem_wgt  = VTAMemAlloc(wgt_buf.empty() ? 4 : wgt_buf.size(), 1);
+  void* mem_acc  = VTAMemAlloc(acc_buf.empty() ? 4 : acc_buf.size(), 1);
+  void* mem_out  = VTAMemAlloc(out_size, 1);
+  void* mem_uop  = VTAMemAlloc(uop_buf.empty() ? 4 : uop_buf.size(), 1);
+  void* mem_insn = VTAMemAlloc(insn_buf.size(), 1);
+
+  if (!inp_buf.empty())  VTAMemCopyFromHost(mem_inp,  inp_buf.data(),  inp_buf.size());
+  if (!wgt_buf.empty())  VTAMemCopyFromHost(mem_wgt,  wgt_buf.data(),  wgt_buf.size());
+  if (!acc_buf.empty())  VTAMemCopyFromHost(mem_acc,  acc_buf.data(),  acc_buf.size());
+  if (!uop_buf.empty())  VTAMemCopyFromHost(mem_uop,  uop_buf.data(),  uop_buf.size());
   VTAMemCopyFromHost(mem_insn, insn_buf.data(), insn_buf.size());
-  if (!uop_buf.empty()) VTAMemCopyFromHost(mem_uop, uop_buf.data(), uop_buf.size());
-  if (!inp_buf.empty()) VTAMemCopyFromHost(mem_inp, inp_buf.data(), inp_buf.size());
-  if (!wgt_buf.empty()) VTAMemCopyFromHost(mem_wgt, wgt_buf.data(), wgt_buf.size());
-  if (!acc_buf.empty()) VTAMemCopyFromHost(mem_acc, acc_buf.data(), acc_buf.size());
 
-  vta_phy_addr_t phy_insn = VTAMemGetPhyAddr(mem_insn);
+  VTABufferAddrs addrs;
+  addrs.insn = VTAMemGetPhyAddr(mem_insn);
+  addrs.uop  = VTAMemGetPhyAddr(mem_uop);
+  addrs.inp  = VTAMemGetPhyAddr(mem_inp);
+  addrs.wgt  = VTAMemGetPhyAddr(mem_wgt);
+  addrs.acc  = VTAMemGetPhyAddr(mem_acc);
+  addrs.out  = VTAMemGetPhyAddr(mem_out);
 
   // Run simulator
   VTADeviceHandle dev = VTADeviceAlloc();
-  int ret = VTADeviceRun(dev, phy_insn, insn_count, 0);
+  static_cast<VTADeviceBackend*>(dev)->SetBufferAddresses(addrs);
+  int ret = VTADeviceRun(dev, addrs.insn, insn_count, 0);
   VTADeviceFree(dev);
 
   if (ret != 0) {
@@ -140,12 +151,12 @@ int main(int argc, char** argv) {
     }
   }
 
-  VTAMemFree(mem_insn);
-  VTAMemFree(mem_uop);
   VTAMemFree(mem_inp);
   VTAMemFree(mem_wgt);
   VTAMemFree(mem_acc);
   VTAMemFree(mem_out);
+  VTAMemFree(mem_uop);
+  VTAMemFree(mem_insn);
 
   return ret;
 }

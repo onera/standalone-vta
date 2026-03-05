@@ -10,14 +10,14 @@
 #include "../../include/virtual_memory.h"
 
 #include <cstring>
+#include <cstdio>
 
 using DRAM = vta::vmem::VirtualMemoryManager;
 
 static const int kBytesPerBeat = 8;  // 64-bit data bus
 
 DPIMem::DPIMem()
-    : rstate_(R_IDLE), r_addr_(0), r_len_(0), r_id_(0),
-      wstate_(W_IDLE), w_addr_(0), w_len_(0) {}
+    : wstate_(W_IDLE), w_addr_(0), w_len_(0) {}
 
 void DPIMem::Tick(
     uint8_t   ar_valid, uint32_t  ar_addr, uint8_t  ar_len, uint8_t ar_id,
@@ -31,47 +31,48 @@ void DPIMem::Tick(
     uint8_t&  b_valid,  uint8_t   b_ready)
 {
   // Defaults
-  ar_ready = 0;
   r_valid  = 0; r_data = 0; r_last = 0; r_id = 0;
   aw_ready = 0;
   w_ready  = 0;
   b_valid  = 0;
 
   // -----------------------------------------------------------------------
-  // Read channel state machine
+  // Read address channel — accept new ARs whenever the FIFO has room.
   // -----------------------------------------------------------------------
-  switch (rstate_) {
-    case R_IDLE:
-      ar_ready = 1;
-      if (ar_valid) {
-        r_addr_ = ar_addr;
-        r_len_  = ar_len;   // number of remaining beats - 1 (AXI: len+1 beats)
-        r_id_   = ar_id;    // echo back the AR transaction ID
-        rstate_ = R_DATA;
+  ar_ready = (static_cast<int>(rq_.size()) < kMaxOutstandingReads) ? 1 : 0;
+  if (ar_valid && ar_ready) {
+    fprintf(stderr, "[DPIMem] AR: addr=0x%08X len=%d id=%d\n",
+            ar_addr, ar_len, ar_id);
+    RdTxn txn;
+    txn.addr = ar_addr;
+    txn.len  = ar_len;
+    txn.id   = ar_id;
+    rq_.push_back(txn);
+  }
+
+  // -----------------------------------------------------------------------
+  // Read data channel — serve beats from the front of the FIFO.
+  // -----------------------------------------------------------------------
+  if (!rq_.empty()) {
+    RdTxn& front = rq_.front();
+
+    uint8_t* ptr = static_cast<uint8_t*>(
+        DRAM::Global()->GetAddr(static_cast<uint64_t>(front.addr)));
+    uint64_t beat = 0;
+    memcpy(&beat, ptr, kBytesPerBeat);
+
+    r_valid = 1;
+    r_data  = beat;
+    r_id    = front.id;
+    r_last  = (front.len == 0) ? 1 : 0;
+
+    if (r_ready) {
+      front.addr += kBytesPerBeat;
+      if (front.len == 0) {
+        rq_.pop_front();   // burst complete, move to next transaction
+      } else {
+        --front.len;
       }
-      break;
-
-    case R_DATA: {
-      // Serve one beat per cycle when r_ready is high
-      uint8_t* ptr = static_cast<uint8_t*>(
-          DRAM::Global()->GetAddr(static_cast<uint64_t>(r_addr_)));
-      uint64_t beat = 0;
-      memcpy(&beat, ptr, kBytesPerBeat);
-
-      r_valid = 1;
-      r_data  = beat;
-      r_id    = r_id_;
-      r_last  = (r_len_ == 0) ? 1 : 0;
-
-      if (r_ready) {
-        r_addr_ += kBytesPerBeat;
-        if (r_len_ == 0) {
-          rstate_ = R_IDLE;
-        } else {
-          --r_len_;
-        }
-      }
-      break;
     }
   }
 
