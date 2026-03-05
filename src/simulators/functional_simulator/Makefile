@@ -32,9 +32,22 @@ CONFIG_PY := python config/vta_config.py --defs # The command to execute the pyt
 VTA_DEFS := $(shell $(CONFIG_PY)) # To store the output of running CONFIG_PY
 VTA_DEF_FLAGS := $(patsubst -D%,%,$(filter -D%,$(VTA_DEFS))) # To extract the "-D" flags from VTA_DEFS
 
-# Define the main files
-SRCS = $(wildcard src/*.cc)
+# Define the main files (exclude verilated_device.cc — only used in verilated target)
+SRCS = $(filter-out src/verilated_device.cc, $(wildcard src/*.cc))
 OBJS = $(patsubst src/%.cc, build/%.o, $(SRCS))
+
+# Verilated RTL build settings
+# Path to the generated VTAShell sources (produced by ./mill emitVerilog)
+VTASHELL_DIR ?= ../cycle_accurate_simulator/generatedResources
+# Path to Verilator install (override if not in PATH)
+VERILATOR      ?= verilator
+VERILATOR_ROOT := $(shell $(VERILATOR) --getenv VERILATOR_ROOT 2>/dev/null)
+VERILATOR_INC  := $(VERILATOR_ROOT)/include
+
+VERILATED_OBJ_DIR = build/verilated
+VERILATED_SRCS = src/dpi/dpi_host.cc src/dpi/dpi_mem.cc src/dpi/dpi_sim.cc \
+                 src/verilated_device.cc
+VERILATED_OBJS = $(patsubst src/%.cc, $(VERILATED_OBJ_DIR)/%.o, $(VERILATED_SRCS))
 
 # Configuration files
 CONFIG_FILES := $(wildcard ../config/*)
@@ -50,6 +63,60 @@ CONFIG_FILES := $(wildcard ../config/*)
 all: config build/functional_simulator
 
 nn_fsim: build/fsim_nn
+
+# Build the Verilated RTL executable (requires Verilator + VTAShell.sv)
+# Prerequisites:
+#   1. cd ../cycle_accurate_simulator && ./mill emitVerilog
+#   2. cd src/simulators/functional_simulator && make verilate_vtashell
+#   3. make verilated
+verilated: config build/functional_simulator_rtl
+
+# Step 2: Run Verilator to generate C++ from VTAShell.sv (uses filelist.f for all sub-modules)
+verilate_vtashell:
+	mkdir -p $(VERILATED_OBJ_DIR)
+	$(VERILATOR) --cc \
+	  -f $(VTASHELL_DIR)/filelist.f \
+	  --top-module VTAShell \
+	  +incdir+$(VTASHELL_DIR) \
+	  --Mdir $(VERILATED_OBJ_DIR)/VVTAShell \
+	  --build -j 0
+
+# Step 3: Link the RTL simulator executable.
+# sim_driver.o and functional_simulator.o must be recompiled with
+# -DSTANDALONE_BUILD so the VerilatedDevice dispatch is active.
+$(VERILATED_OBJ_DIR)/sim_driver.o: src/sim_driver.cc include/driver.h \
+    include/vta_device_backend.h build/vta_config_def.txt \
+    | $(VERILATED_OBJ_DIR)/
+	$(CC) $(VTA_DEFS) $(DEBUGFLAG) $(CFLAGS) -DSTANDALONE_BUILD \
+	  -I$(VERILATOR_INC) -I$(VERILATED_OBJ_DIR)/VVTAShell \
+	  -c $< -o $@
+
+$(VERILATED_OBJ_DIR)/functional_simulator.o: src/functional_simulator.cc \
+    include/simulator_header.h include/vta_device_backend.h \
+    | $(VERILATED_OBJ_DIR)/
+	$(CC) $(VTA_DEFS) $(DEBUGFLAG) $(CFLAGS) -DSTANDALONE_BUILD \
+	  -I$(VERILATOR_INC) -I$(VERILATED_OBJ_DIR)/VVTAShell \
+	  -c $< -o $@
+
+VVTASHELL_ARCHIVE = $(VERILATED_OBJ_DIR)/VVTAShell/VVTAShell__ALL.a
+
+build/functional_simulator_rtl: build/vta_config_def.txt \
+    lib_tvm verilate_vtashell \
+    $(VERILATED_OBJ_DIR)/functional_simulator.o \
+    $(VERILATED_OBJ_DIR)/sim_driver.o \
+    $(VERILATED_OBJS) \
+    build/simulator_functions.o build/virtual_memory.o build/sim_tlpp.o
+	$(CC) $(CFLAGS) \
+	  $(VERILATED_OBJ_DIR)/functional_simulator.o \
+	  build/simulator_functions.o \
+	  build/virtual_memory.o build/sim_tlpp.o \
+	  $(VERILATED_OBJ_DIR)/sim_driver.o \
+	  $(VERILATED_OBJS) \
+	  $(VVTASHELL_ARCHIVE) \
+	  $(VERILATOR_INC)/verilated.cpp \
+	  $(VERILATOR_INC)/verilated_threads.cpp \
+	  $(OBJ_LIB_TVM) \
+	  -o $@
 
 # Generate the configuration file log 
 config: build/vta_config_def.txt
@@ -113,6 +180,23 @@ build/cpu_functions.o: src/cpu_functions.cc include/cpu_functions.h
 #build/%.o: src/%.cc build/vta_config_def.txt
 #	$(CC) $(VTA_DEFS) $(CFLAGS) -o $@ -c $<
 
+
+# COMPILING VERILATED DEVICE SOURCES
+# ------------------------------------
+$(VERILATED_OBJ_DIR)/dpi/%.o: src/dpi/%.cc | $(VERILATED_OBJ_DIR)/dpi/
+	$(CC) $(VTA_DEFS) $(CFLAGS) -DSTANDALONE_BUILD \
+	  -I$(VERILATOR_INC) -I$(VERILATED_OBJ_DIR)/VVTAShell \
+	  -c $< -o $@
+
+$(VERILATED_OBJ_DIR)/verilated_device.o: src/verilated_device.cc | $(VERILATED_OBJ_DIR)/
+	$(CC) $(VTA_DEFS) $(CFLAGS) -DSTANDALONE_BUILD \
+	  -I$(VERILATOR_INC) -I$(VERILATED_OBJ_DIR)/VVTAShell \
+	  -c $< -o $@
+
+$(VERILATED_OBJ_DIR)/:
+	mkdir -p $(VERILATED_OBJ_DIR)
+$(VERILATED_OBJ_DIR)/dpi/: | $(VERILATED_OBJ_DIR)/
+	mkdir -p $(VERILATED_OBJ_DIR)/dpi
 
 # COMPILING EXTERNAL LIBRARIES
 # ----------------------------

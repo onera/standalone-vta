@@ -8,6 +8,7 @@ import mill.javalib.publish._
 import mill.scalalib.SbtModule
 import mill.javalib.TestModule.ScalaTest
 import mill.api.Task.Simple
+import mill.api.BuildCtx
 
 object `package` extends SbtModule with PublishModule {
 
@@ -62,6 +63,21 @@ object `package` extends SbtModule with PublishModule {
   )
 
   def publishVersion = "6.0-SNAPSHOT"
+
+  /** Emit VTAShell.sv for Verilator using `vta.EmitVTAShell` main class.
+    *
+    * Usage: ./mill emitVerilog Output: generatedResources/VTAShell.sv (relative
+    * to build root)
+    */
+  def emitVerilog() = Task.Command {
+    val outDir = BuildCtx.workspaceRoot / "generatedResources"
+    os.makeDir.all(outDir)
+    runner().run(
+      args = Seq(outDir.toString),
+      mainClass = "vta.EmitVTAShell",
+      workingDir = BuildCtx.workspaceRoot
+    )
+  }
 
   object test extends SbtTests with ScalaTest {
     override def scalaTestVersion: Simple[String] = "3.2.19"
