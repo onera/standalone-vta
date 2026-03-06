@@ -25,7 +25,7 @@ JSON_FILES := $(COMPILER_OUTPUT_DIR)/*.json
 DEBUG ?= False
 DEBUG_PARSE ?= True
 COMPILE_SUMMARY ?= True
-DRAM_JSON ?= True
+DRAM_JSON ?= False
 # ort, numpy, compare
 REF_MODE ?= numpy
 
