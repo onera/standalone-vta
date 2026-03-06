@@ -164,13 +164,29 @@ tsim:
 ############################################################
 ############################################################
 
-test:
+test_gemm:
 	@make clean
 	@echo "Copy VTA IR in compiler/output"
 	@cp ./vta_ir/matmul_16x16.json $(COMPILER_OUTPUT_DIR)
 	@echo "Generate random data"
 	@python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 input int32
 	@python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 weight int32
+	@echo ""
+	@echo "Compile VTA IR"
+	@make vta_compiler
+	@echo ""
+	@echo "Compile FSIM"
+	@make fsim_compile_single_layer
+	@echo ""
+	@echo "Execute FSIM"
+	@make fsim_single_layer
+
+test_alu:
+	@make clean
+	@echo "Copy VTA IR in compiler/output"
+	@cp ./vta_ir/alu_16x16.json $(COMPILER_OUTPUT_DIR)
+	@echo "Generate random data"
+	@python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 accumulator int32
 	@echo ""
 	@echo "Compile VTA IR"
 	@make vta_compiler
