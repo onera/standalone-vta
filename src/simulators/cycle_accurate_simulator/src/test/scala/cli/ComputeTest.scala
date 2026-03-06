@@ -51,19 +51,6 @@ class ComputeApp_16x16 extends GenericTest("ComputeApp_16x16", (p:Parameters) =>
   true,
   true))
 
-///* Matrix 16x16 multiply with matrix 16x16 (WGT and INP are int16) */
-//class ComputeApp_16x16_int16 extends GenericTest("ComputeApp_16x16_int16", (p:Parameters) =>
-//  new Compute(false)(p), (c: Compute) => new ComputeTest(c,
-//  "examples_compute/16x16_int16/instructions.bin",
-//  "examples_compute/16x16_int16/uop.bin",
-//  "examples_compute/16x16_int16/input.bin",
-//  "examples_compute/16x16_int16/weight.bin",
-//  "examples_compute/16x16_int16/out_init.bin",
-//  "examples_compute/16x16_int16/accumulator.bin",
-//  "examples_compute/16x16_int16/expected_out_sram.bin",
-//  "examples_compute/16x16_int16/memory_addresses.csv",
-//  true, debug = true))
-
 /* Matrix 32x32 multiply with matrix 32x32 */
 class ComputeApp_32x32 extends GenericTest("ComputeApp_32x32", (p:Parameters) =>
   new Compute(false)(p), (c: Compute) => new ComputeTest(c,
@@ -77,8 +64,6 @@ class ComputeApp_32x32 extends GenericTest("ComputeApp_32x32", (p:Parameters) =>
   "examples_compute/32x32/memory_addresses.csv",
   true, debug = false, fromResources = true))
 
-
-//* ALU
 /* ReLU */
 class ComputeApp_relu extends GenericTest("ComputeApp_relu", (p:Parameters) =>
   new Compute(false)(p), (c: Compute) => new ComputeTest(c,
@@ -116,8 +101,8 @@ class ComputeApp_32x32_relu extends GenericTest("ComputeApp_32x32_relu", (p:Para
   "examples_compute/32x32_relu/accumulator.bin",
   "examples_compute/32x32_relu/expected_out.bin",
   "examples_compute/32x32_relu/memory_addresses.csv",
-  true))
-
+  true),
+  true)
 
 /* Average pooling (full - add + division), the division round down */
 class ComputeApp_average_pooling extends GenericTest("ComputeApp_average_pooling", (p:Parameters) =>
@@ -130,9 +115,11 @@ class ComputeApp_average_pooling extends GenericTest("ComputeApp_average_pooling
   "examples_compute/average_pooling/accumulator.bin",
   "examples_compute/average_pooling/expected_out_sram.bin",
   "examples_compute/average_pooling/memory_addresses.csv",
-  true))
+  true),
+  true)
 
-//* CONVOLUTIONAL NEURAL NETWORK:
+
+// LENET-5
 /* LeNet-5: Convolution 1 */
 class ComputeApp_lenet5_conv1 extends GenericTest("ComputeApp_lenet5_conv1", (p:Parameters) =>
   new Compute(true)(p), (c: Compute) => new ComputeTest(c,
@@ -176,7 +163,7 @@ class ComputeApp_lenet5_layer1 extends GenericTest("ComputeApp_lenet5_layer1", (
   true)
 
 
-//* PERFORMANCE TESTS: 16x16 GeMM
+// PERFORMANCE TESTS: 16x16 GeMM
 /* Binaries from VTA compiler */
 class PerfCompute0 extends GenericTest("PerfCompute0_gemm_16x16_vta_compiler", (p:Parameters) =>
   new Compute(true)(p), (c: Compute) => new ComputeTest(c,
