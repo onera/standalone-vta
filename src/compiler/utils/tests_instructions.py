@@ -123,6 +123,33 @@ def test_gemm(doLoop=False, loadAllUop=False, doReset=False, doPrint=False):
         )
     insn_buffer.append(I2)
 
+    # x - RESET
+    if (doReset == True):
+        Ireset = VTAGemInsn( 
+            opcode=2, # 2-GEMM
+            # DEP FLAG (0:False, 1: True)
+            pop_prev_dep=0,
+            pop_next_dep=0,
+            push_prev_dep=0,
+            push_next_dep=0,
+            # Operations
+            reset=1, # 0-no, 1-reset
+            uop_bgn=0,
+            uop_end=1,
+            loop_out=1,
+            loop_in=16, 
+            # UNUSED
+            unused=0, # UNUSED
+            # Index factors
+            dst_factor_out=0, 
+            dst_factor_in=1, 
+            src_factor_out=0,
+            src_factor_in=1,
+            wgt_factor_out=0,
+            wgt_factor_in=0
+        )
+        insn_buffer.append(Ireset)
+
     # 3 - GEMM
     if (doLoop == True):
         I3 = VTAGemInsn( 
@@ -287,6 +314,8 @@ def test_gemm(doLoop=False, loadAllUop=False, doReset=False, doPrint=False):
     return 0
 
 
+###
+
 def test_alu(doLoop=False, loadAllUop=False, doReset=False, doPrint=False):
     # Init buffer
     uop_buffer = []
@@ -373,10 +402,10 @@ def test_alu(doLoop=False, loadAllUop=False, doReset=False, doPrint=False):
     )
     insn_buffer.append(I1)
 
-    # x - RESET
+    # x - RESET (reset ALU does not work)
     if (doReset == True):
-        Ireset = VTAAluInsn( 
-            opcode=4, # 4-ALU
+        Ireset = VTAGemInsn( 
+            opcode=2, # 2-GEMM
             # DEP FLAG (0:False, 1: True)
             pop_prev_dep=0,
             pop_next_dep=0,
@@ -387,20 +416,18 @@ def test_alu(doLoop=False, loadAllUop=False, doReset=False, doPrint=False):
             uop_bgn=0,
             uop_end=1,
             loop_out=1,
-            loop_in=16,
+            loop_in=16, 
             # UNUSED
             unused=0, # UNUSED
             # Index factors
-            dst_factor_out=0,
+            dst_factor_out=0, 
             dst_factor_in=1, 
             src_factor_out=0,
-            src_factor_in=0, 
-            alu_opcode=0, # 0-MIN, 1-MAX, 2-ADD, 3-SHR, 4-MUL
-            use_imm=0, # 0-no, 1-yes
-            imm=0
+            src_factor_in=1,
+            wgt_factor_out=0,
+            wgt_factor_in=0
         )
         insn_buffer.append(Ireset)
-
 
     # 2 - ALU
     if (doLoop == True):
@@ -576,7 +603,7 @@ def test_alu(doLoop=False, loadAllUop=False, doReset=False, doPrint=False):
 if __name__ == "__main__": 
     # User settings
     doLoop=False
-    loadAllUop=False
+    loadAllUop=True
     doReset=True
     doPrint=True
 
