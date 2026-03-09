@@ -24,32 +24,30 @@ import circt.stage.ChiselStage
 import vta.util.config._
 import vta.shell._
 
-/**
- * Emit VTAShell as SystemVerilog for Verilator.
- *
- * Usage (from cycle_accurate_simulator/):
- *   ./mill emitVerilog
- *
- * Or directly:
- *   java -cp <classpath> vta.EmitVTAShell [output-dir]
- *
- * The default output directory is generatedResources/ (one level above the
- * mill build root, i.e., next to the cycle_accurate_simulator/ directory).
- */
+/** Emit VTAShell as SystemVerilog for Verilator.
+  *
+  * Usage (from cycle_accurate_simulator/): ./mill emitVerilog
+  *
+  * Or directly: java -cp <classpath> vta.EmitVTAShell [output-dir]
+  *
+  * The default output directory is build/emitted/vta-shell (one level above the
+  * mill build root, i.e., next to the cycle_accurate_simulator/ directory).
+  */
 object EmitVTAShell extends App {
-  val outDir = if (args.nonEmpty) args(0) else "generatedResources"
+  val outDir = if (args.nonEmpty) args(0) else "build/emitted/vta-shell"
 
   implicit val p: Parameters = new DefaultPynqConfig
 
   ChiselStage.emitSystemVerilogFile(
     new VTAShell(),
     args = Array(
-      "--target-dir", outDir
-    ),
-    firtoolOpts = Array(
-      "-disable-all-randomization",
-      "-strip-debug-info"
+      "--target-dir",
+      outDir
     )
+    // firtoolOpts = Array(
+    //   "-disable-all-randomization",
+    //   "-strip-debug-info"
+    // )
   )
 
   println(s"[EmitVTAShell] VTAShell.sv written to $outDir/")

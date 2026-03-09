@@ -69,8 +69,8 @@ object `package` extends SbtModule with PublishModule {
     * Usage: ./mill emitVerilog Output: generatedResources/VTAShell.sv (relative
     * to build root)
     */
-  def emitVerilog() = Task.Command {
-    val outDir = BuildCtx.workspaceRoot / "generatedResources"
+  def emitVTAShell() = Task.Command {
+    val outDir = BuildCtx.workspaceRoot / "build" / "emitted" / "vta-shell"
     os.makeDir.all(outDir)
     runner().run(
       args = Seq(outDir.toString),

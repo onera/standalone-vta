@@ -38,7 +38,7 @@ OBJS = $(patsubst src/%.cc, build/%.o, $(SRCS))
 
 # Verilated RTL build settings
 # Path to the generated VTAShell sources (produced by ./mill emitVerilog)
-VTASHELL_DIR ?= ../cycle_accurate_simulator/generatedResources
+VTASHELL_DIR ?= ../cycle_accurate_simulator/build/emitted/vta-shell
 # Path to Verilator install (override if not in PATH)
 VERILATOR      ?= verilator
 VERILATOR_ROOT := $(shell $(VERILATOR) --getenv VERILATOR_ROOT 2>/dev/null)
@@ -48,10 +48,13 @@ VERILATED_OBJ_DIR = build/verilated
 VERILATED_SRCS = src/dpi/dpi_host.cc src/dpi/dpi_mem.cc src/dpi/dpi_sim.cc \
                  src/verilated_device.cc
 VERILATED_OBJS = $(patsubst src/%.cc, $(VERILATED_OBJ_DIR)/%.o, $(VERILATED_SRCS))
-
+VERILATOR_DEBUG_FLAGS = --assert \
++incdir+$(VTASHELL_DIR)/verification/assume \
++incdir+$(VTASHELL_DIR)/verification/assert \
++incdir+$(VTASHELL_DIR)/verification/cover \
++incdir+$(VTASHELL_DIR)/verification \
 # Configuration files
 CONFIG_FILES := $(wildcard ../config/*)
-
 
 # ---------------------
 # COMPILATION & LINKING 
@@ -79,6 +82,7 @@ verilate_vtashell:
 	  -f $(VTASHELL_DIR)/filelist.f \
 	  --top-module VTAShell \
 	  +incdir+$(VTASHELL_DIR) \
+		$(VERILATOR_DEBUG_FLAGS) \
 	  --Mdir $(VERILATED_OBJ_DIR)/VVTAShell \
 	  --build -j 0
 
