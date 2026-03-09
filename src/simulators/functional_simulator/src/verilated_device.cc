@@ -28,12 +28,22 @@
 // Verilator-generated header — produced by `make verilated` after
 // `verilator --cc VTAShell.sv ...`
 #include "VVTAShell.h"
-#include "verilated_fst_c.h"
 #include "verilated.h"
+
+#ifdef TRACE_FORMAT_VCD
+#include "verilated_vcd_c.h"
+using TraceType = VerilatedVcdC;
+static constexpr const char* DEFAULT_TRACE_FILE = "vtashell.vcd";
+#else
+#include "verilated_fst_c.h"
+using TraceType = VerilatedFstC;
+static constexpr const char* DEFAULT_TRACE_FILE = "vtashell.fst";
+#endif
 
 #include <cstdio>
 #include <cstdint>
 #include <memory>
+#include <unistd.h>
 
 using DRAM = vta::vmem::VirtualMemoryManager;
 
@@ -54,17 +64,42 @@ static constexpr uint32_t TIMEOUT_CYCLES = 500000u;
 class VerilatedDevice : public VTADeviceBackend {
  public:
   VerilatedDevice() : dut_(std::make_unique<VVTAShell>()), bufAddrs_{},
-                      tfp_(nullptr), cycle_(0) {
-    Verilated::traceEverOn(true);
-    tfp_ = new VerilatedFstC;
-    dut_->trace(tfp_, 99);
-    tfp_->open("vtashell.fst");
+                      tfp_(nullptr), cycle_(0), sv_log_stdout_backup_(-1) {
+    // Redirect SV $display (stdout) before tracing setup so any init
+    // $display messages are also captured.
+    if (!g_verilator_config.sv_log_file.empty()) {
+      sv_log_stdout_backup_ = dup(STDOUT_FILENO);
+      if (freopen(g_verilator_config.sv_log_file.c_str(), "w", stdout) == nullptr) {
+        fprintf(stderr, "[VerilatedDevice] Warning: could not open sv-log '%s'\n",
+                g_verilator_config.sv_log_file.c_str());
+        sv_log_stdout_backup_ = -1;
+      }
+    }
+
+    if (g_verilator_config.trace_enabled) {
+      Verilated::traceEverOn(true);
+      tfp_ = new TraceType();
+      dut_->trace(tfp_, 99);
+      const std::string& path = g_verilator_config.trace_file.empty()
+          ? DEFAULT_TRACE_FILE : g_verilator_config.trace_file;
+      tfp_->open(path.c_str());
+      fprintf(stderr, "[VerilatedDevice] Trace: %s\n", path.c_str());
+    }
+    if (sv_log_stdout_backup_ >= 0)
+      fprintf(stderr, "[VerilatedDevice] SV log: %s\n",
+              g_verilator_config.sv_log_file.c_str());
   }
 
   ~VerilatedDevice() override {
     if (tfp_) {
       tfp_->close();
       delete tfp_;
+    }
+    // Restore stdout if we redirected it
+    if (sv_log_stdout_backup_ >= 0) {
+      fflush(stdout);
+      dup2(sv_log_stdout_backup_, STDOUT_FILENO);
+      close(sv_log_stdout_backup_);
     }
   }
 
@@ -258,8 +293,9 @@ class VerilatedDevice : public VTADeviceBackend {
   DPIHost host_;
   DPIMem  mem_;
   VTABufferAddrs bufAddrs_;
-  VerilatedFstC* tfp_;
+  TraceType* tfp_;
   uint64_t cycle_;
+  int sv_log_stdout_backup_;
 };
 
 VTADeviceBackend* CreateVerilatedDevice() {

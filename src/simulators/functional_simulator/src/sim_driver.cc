@@ -599,6 +599,11 @@ bool g_use_verilator = false;
 // Forward declaration — defined in verilated_device.cc
 class VerilatedDevice;
 extern VTADeviceBackend* CreateVerilatedDevice();
+
+// Definition of the global Verilator run-time configuration.
+// Declared in vta_device_backend.h; populated by functional_simulator.cc
+// before VTADeviceAlloc() is called.
+VerilatorRunConfig g_verilator_config;
 #endif
 
 VTADeviceHandle VTADeviceAlloc() {

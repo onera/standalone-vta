@@ -39,7 +39,7 @@ object EmitVTAShell extends App {
   implicit val p: Parameters = new DefaultPynqConfig
 
   ChiselStage.emitSystemVerilogFile(
-    new VTAShell(),
+    new VTAShell(debug = true),
     args = Array(
       "--target-dir",
       outDir

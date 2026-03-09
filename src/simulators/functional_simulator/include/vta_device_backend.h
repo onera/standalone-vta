@@ -36,4 +36,14 @@ class VTADeviceBackend {
 /** Global flag set by functional_simulator.cc before VTADeviceAlloc(). */
 extern bool g_use_verilator;
 
+#ifdef VERILATOR_BUILD_ENABLED
+#include <string>
+struct VerilatorRunConfig {
+    bool        trace_enabled = false;
+    std::string trace_file    = "";  // empty → default: "vtashell.fst" or "vtashell.vcd"
+    std::string sv_log_file   = "";  // empty → no redirect
+};
+extern VerilatorRunConfig g_verilator_config;
+#endif  // VERILATOR_BUILD_ENABLED
+
 #endif  // VTA_DEVICE_BACKEND_H_

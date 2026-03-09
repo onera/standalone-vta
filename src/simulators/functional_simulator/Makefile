@@ -48,6 +48,20 @@ VERILATED_OBJ_DIR = build/verilated
 VERILATED_SRCS = src/dpi/dpi_host.cc src/dpi/dpi_mem.cc src/dpi/dpi_sim.cc \
                  src/verilated_device.cc
 VERILATED_OBJS = $(patsubst src/%.cc, $(VERILATED_OBJ_DIR)/%.o, $(VERILATED_SRCS))
+
+# Trace format selection: fst (default) or vcd
+# Override at build time: TRACE_FORMAT=vcd make verilate_vtashell && make verilated
+TRACE_FORMAT ?= fst
+ifeq ($(TRACE_FORMAT),vcd)
+  VERILATOR_TRACE_FLAG = --trace-vcd
+  TRACE_DEFINE         = -DTRACE_FORMAT_VCD=1
+  TRACE_RUNTIME_LIB    = $(VERILATOR_INC)/verilated_vcd_c.cpp
+else
+  VERILATOR_TRACE_FLAG = --trace-fst
+  TRACE_DEFINE         =
+  TRACE_RUNTIME_LIB    = $(VERILATOR_INC)/verilated_fst_c.cpp
+endif
+
 VERILATOR_DEBUG_FLAGS = --assert \
 +incdir+$(VTASHELL_DIR)/verification/assume \
 +incdir+$(VTASHELL_DIR)/verification/assert \
@@ -78,11 +92,13 @@ verilated: config build/functional_simulator_rtl
 verilate_vtashell:
 	mkdir -p $(VERILATED_OBJ_DIR)
 	$(VERILATOR) --cc \
-	  --trace-fst \
+	  $(VERILATOR_TRACE_FLAG) \
 	  -f $(VTASHELL_DIR)/filelist.f \
+	  $(VTASHELL_DIR)/verification/layers-VTAShell-Verification.sv \
 	  --top-module VTAShell \
 	  +incdir+$(VTASHELL_DIR) \
-		$(VERILATOR_DEBUG_FLAGS) \
+	  $(VERILATOR_DEBUG_FLAGS) \
+	  +define+layer\$$Verification\$$Debug \
 	  --Mdir $(VERILATED_OBJ_DIR)/VVTAShell \
 	  --build -j 0
 
@@ -120,7 +136,7 @@ build/functional_simulator_rtl: build/vta_config_def.txt \
 	  $(VVTASHELL_ARCHIVE) \
 	  $(VERILATOR_INC)/verilated.cpp \
 	  $(VERILATOR_INC)/verilated_threads.cpp \
-	  $(VERILATOR_INC)/verilated_fst_c.cpp \
+	  $(TRACE_RUNTIME_LIB) \
 	  $(OBJ_LIB_TVM) \
 	  -lz -o $@
 
@@ -195,7 +211,7 @@ $(VERILATED_OBJ_DIR)/dpi/%.o: src/dpi/%.cc | $(VERILATED_OBJ_DIR)/dpi/
 	  -c $< -o $@
 
 $(VERILATED_OBJ_DIR)/verilated_device.o: src/verilated_device.cc | $(VERILATED_OBJ_DIR)/
-	$(CC) $(VTA_DEFS) $(CFLAGS) -DVERILATOR_BUILD_ENABLED \
+	$(CC) $(VTA_DEFS) $(CFLAGS) -DVERILATOR_BUILD_ENABLED $(TRACE_DEFINE) \
 	  -I$(VERILATOR_INC) -I$(VERILATED_OBJ_DIR)/VVTAShell \
 	  -c $< -o $@
 

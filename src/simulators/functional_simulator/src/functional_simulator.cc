@@ -26,11 +26,18 @@
 
 // Defined in sim_driver.cc, exposed via vta_device_backend.h
 extern bool g_use_verilator;
+#ifdef VERILATOR_BUILD_ENABLED
+extern VerilatorRunConfig g_verilator_config;
+#endif
 
 static void print_usage(const char *prog) {
   fprintf(stderr,
           "Usage: %s [--verilator] [--insn PATH] [--uop PATH] [--inp PATH]\n"
-          "          [--wgt PATH] [--acc PATH] [--out PATH] [--insn-count N]\n",
+          "          [--wgt PATH] [--acc PATH] [--out PATH] [--insn-count N]\n"
+          "  Verilator-only flags:\n"
+          "          [--trace]              Enable waveform tracing (format set at compile time)\n"
+          "          [--trace-file PATH]    Waveform output file (default: vtashell.fst/.vcd)\n"
+          "          [--sv-log PATH]        Redirect SV $display output to PATH\n",
           prog);
 }
 
@@ -46,6 +53,11 @@ int main(int argc, char **argv) {
   std::string acc_path = (base / "accumulator.bin").string();
   std::string out_path = (base / "output.bin").string();
   uint32_t insn_count_override = 0; // 0 = use file size
+
+  // Verilator-only config values (populated below, applied after parsing)
+  bool        parsed_trace   = false;
+  std::string trace_file_arg = "";
+  std::string sv_log_arg     = "";
 
   // Parse arguments
   for (int i = 1; i < argc; ++i) {
@@ -65,6 +77,12 @@ int main(int argc, char **argv) {
       out_path = argv[++i];
     } else if (strcmp(argv[i], "--insn-count") == 0 && i + 1 < argc) {
       insn_count_override = static_cast<uint32_t>(atoi(argv[++i]));
+    } else if (strcmp(argv[i], "--trace") == 0) {
+      parsed_trace = true;
+    } else if (strcmp(argv[i], "--trace-file") == 0 && i + 1 < argc) {
+      trace_file_arg = argv[++i];
+    } else if (strcmp(argv[i], "--sv-log") == 0 && i + 1 < argc) {
+      sv_log_arg = argv[++i];
     } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
       print_usage(argv[0]);
       return 0;
@@ -74,6 +92,12 @@ int main(int argc, char **argv) {
       return 1;
     }
   }
+
+#ifdef VERILATOR_BUILD_ENABLED
+  g_verilator_config.trace_enabled = parsed_trace;
+  g_verilator_config.trace_file    = trace_file_arg;
+  g_verilator_config.sv_log_file   = sv_log_arg;
+#endif
 
   if (g_use_verilator) {
     printf("[functional_simulator] Backend: Verilated RTL (VTAShell)\n");
