@@ -24,7 +24,7 @@
 #include "../include/driver.h" //<vta/driver.h>
 #include "../include/vta_device_backend.h"
 #include "../config/hw_spec.h" //<vta/hw_spec.h>
-#ifndef STANDALONE_BUILD
+#ifndef VERILATOR_BUILD_ENABLED
 #include "../external_lib/tvm/registry.h" //<tvm/runtime/registry.h>
 #else
 #include "../external_lib/dmlc/logging.h"
@@ -547,7 +547,7 @@ class FunctionalDevice : public VTADeviceBackend {
   SRAM<VTA_UOP_WIDTH, 1, VTA_UOP_BUFF_DEPTH> uop_;
 };
 
-#ifndef STANDALONE_BUILD
+#ifndef VERILATOR_BUILD_ENABLED
 using tvm::runtime::TVMRetValue;
 using tvm::runtime::TVMArgs;
 
@@ -563,7 +563,7 @@ TVM_REGISTER_GLOBAL("vta.simulator.profiler_debug_mode")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     Profiler::ThreadLocal()->debug_flag = args[0];
   });
-#endif  // STANDALONE_BUILD
+#endif  // VERILATOR_BUILD_ENABLED
 }  // namespace sim
 }  // namespace vta
 
@@ -595,14 +595,14 @@ void VTAInvalidateCache(void* vir_addr, vta_phy_addr_t phy_addr, int size) {
 
 bool g_use_verilator = false;
 
-#ifdef STANDALONE_BUILD
+#ifdef VERILATOR_BUILD_ENABLED
 // Forward declaration — defined in verilated_device.cc
 class VerilatedDevice;
 extern VTADeviceBackend* CreateVerilatedDevice();
 #endif
 
 VTADeviceHandle VTADeviceAlloc() {
-#ifdef STANDALONE_BUILD
+#ifdef VERILATOR_BUILD_ENABLED
   if (g_use_verilator) {
     return CreateVerilatedDevice();
   }

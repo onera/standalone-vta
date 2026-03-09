@@ -88,18 +88,18 @@ verilate_vtashell:
 
 # Step 3: Link the RTL simulator executable.
 # sim_driver.o and functional_simulator.o must be recompiled with
-# -DSTANDALONE_BUILD so the VerilatedDevice dispatch is active.
+# -DVERILATOR_BUILD_ENABLED so the VerilatedDevice dispatch is active.
 $(VERILATED_OBJ_DIR)/sim_driver.o: src/sim_driver.cc include/driver.h \
     include/vta_device_backend.h build/vta_config_def.txt \
     | $(VERILATED_OBJ_DIR)/
-	$(CC) $(VTA_DEFS) $(DEBUGFLAG) $(CFLAGS) -DSTANDALONE_BUILD \
+	$(CC) $(VTA_DEFS) $(DEBUGFLAG) $(CFLAGS) -DVERILATOR_BUILD_ENABLED \
 	  -I$(VERILATOR_INC) -I$(VERILATED_OBJ_DIR)/VVTAShell \
 	  -c $< -o $@
 
 $(VERILATED_OBJ_DIR)/functional_simulator.o: src/functional_simulator.cc \
     include/simulator_header.h include/vta_device_backend.h \
     | $(VERILATED_OBJ_DIR)/
-	$(CC) $(VTA_DEFS) $(DEBUGFLAG) $(CFLAGS) -DSTANDALONE_BUILD \
+	$(CC) $(VTA_DEFS) $(DEBUGFLAG) $(CFLAGS) -DVERILATOR_BUILD_ENABLED \
 	  -I$(VERILATOR_INC) -I$(VERILATED_OBJ_DIR)/VVTAShell \
 	  -c $< -o $@
 
@@ -190,12 +190,12 @@ build/cpu_functions.o: src/cpu_functions.cc include/cpu_functions.h
 # COMPILING VERILATED DEVICE SOURCES
 # ------------------------------------
 $(VERILATED_OBJ_DIR)/dpi/%.o: src/dpi/%.cc | $(VERILATED_OBJ_DIR)/dpi/
-	$(CC) $(VTA_DEFS) $(CFLAGS) -DSTANDALONE_BUILD \
+	$(CC) $(VTA_DEFS) $(CFLAGS) -DVERILATOR_BUILD_ENABLED \
 	  -I$(VERILATOR_INC) -I$(VERILATED_OBJ_DIR)/VVTAShell \
 	  -c $< -o $@
 
 $(VERILATED_OBJ_DIR)/verilated_device.o: src/verilated_device.cc | $(VERILATED_OBJ_DIR)/
-	$(CC) $(VTA_DEFS) $(CFLAGS) -DSTANDALONE_BUILD \
+	$(CC) $(VTA_DEFS) $(CFLAGS) -DVERILATOR_BUILD_ENABLED \
 	  -I$(VERILATOR_INC) -I$(VERILATED_OBJ_DIR)/VVTAShell \
 	  -c $< -o $@
 

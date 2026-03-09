@@ -2,7 +2,7 @@
  * \file verilated_device.cc
  * \brief VTADeviceBackend implementation that drives Verilated VTAShell RTL.
  *
- * Only compiled when STANDALONE_BUILD is defined (make verilated target).
+ * Only compiled when VERILATOR_BUILD_ENABLED is defined (make verilated target).
  * Requires Verilator >= 5.x and a generated VVTAShell.h / libVVTAShell.a.
  *
  * VCR register map (32-bit regs, 4-byte stride, PynqConfig / 32-bit ptrs):
@@ -17,7 +17,7 @@
  *   0x20 : ptrs[5] = out_baddr
  */
 
-#ifdef STANDALONE_BUILD
+#ifdef VERILATOR_BUILD_ENABLED
 
 #include "../include/vta_device_backend.h"
 #include "../include/virtual_memory.h"
@@ -266,4 +266,4 @@ VTADeviceBackend* CreateVerilatedDevice() {
   return new VerilatedDevice();
 }
 
-#endif  // STANDALONE_BUILD
+#endif  // VERILATOR_BUILD_ENABLED
