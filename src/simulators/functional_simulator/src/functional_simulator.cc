@@ -31,14 +31,26 @@ extern VerilatorRunConfig g_verilator_config;
 #endif
 
 static void print_usage(const char *prog) {
+#ifdef VERILATOR_BUILD_ENABLED
+
+  fprintf(
+      stderr,
+      "Usage: %s [--verilator] [--insn PATH] [--uop PATH] [--inp PATH]\n"
+      "          [--wgt PATH] [--acc PATH] [--out PATH] [--insn-count N]\n"
+      "  Verilator-only flags:\n"
+      "          [--trace]              Enable waveform tracing (format set at "
+      "compile time)\n"
+      "          [--trace-file PATH]    Waveform output file (default: "
+      "vtashell.fst/.vcd)\n"
+      "          [--sv-log PATH]        Redirect SV $display output to PATH\n",
+      prog);
+#else
+
   fprintf(stderr,
-          "Usage: %s [--verilator] [--insn PATH] [--uop PATH] [--inp PATH]\n"
-          "          [--wgt PATH] [--acc PATH] [--out PATH] [--insn-count N]\n"
-          "  Verilator-only flags:\n"
-          "          [--trace]              Enable waveform tracing (format set at compile time)\n"
-          "          [--trace-file PATH]    Waveform output file (default: vtashell.fst/.vcd)\n"
-          "          [--sv-log PATH]        Redirect SV $display output to PATH\n",
+          "Usage: %s [--insn PATH] [--uop PATH] [--inp PATH]\n"
+          "          [--wgt PATH] [--acc PATH] [--out PATH] [--insn-count N]\n",
           prog);
+#endif
 }
 
 int main(int argc, char **argv) {
@@ -55,9 +67,9 @@ int main(int argc, char **argv) {
   uint32_t insn_count_override = 0; // 0 = use file size
 
   // Verilator-only config values (populated below, applied after parsing)
-  bool        parsed_trace   = false;
+  bool parsed_trace = false;
   std::string trace_file_arg = "";
-  std::string sv_log_arg     = "";
+  std::string sv_log_arg = "";
 
   // Parse arguments
   for (int i = 1; i < argc; ++i) {
@@ -95,8 +107,8 @@ int main(int argc, char **argv) {
 
 #ifdef VERILATOR_BUILD_ENABLED
   g_verilator_config.trace_enabled = parsed_trace;
-  g_verilator_config.trace_file    = trace_file_arg;
-  g_verilator_config.sv_log_file   = sv_log_arg;
+  g_verilator_config.trace_file = trace_file_arg;
+  g_verilator_config.sv_log_file = sv_log_arg;
 #endif
 
   if (g_use_verilator) {

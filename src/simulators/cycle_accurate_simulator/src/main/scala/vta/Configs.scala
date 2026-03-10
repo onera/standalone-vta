@@ -25,6 +25,7 @@ import vta.shell._
 import vta.core._
 import vta.test._
 import circt.stage.ChiselStage // CIRCT = Circuit IR Compilers and Tools
+import os.Path
 
 /** VTA.
   *
@@ -36,39 +37,46 @@ class DefaultPynqConfig extends Config(new CoreConfig ++ new PynqConfig)
 class DefaultF1Config extends Config(new CoreConfig ++ new F1Config)
 class DefaultDe10Config extends Config(new CoreConfig ++ new De10Config)
 
-object DefaultPynqConfig extends App {
+trait EmitterApp extends App {
+  val defaultDir: String = "build/emitted/default"
+  def outputDir: String = if (args.nonEmpty) args(0) else defaultDir.toString()
+}
+
+object DefaultPynqConfig extends EmitterApp {
+  override val defaultDir = "build/emitted/vta-xilinx-shell"
   implicit val p: Parameters = new DefaultPynqConfig
   val inpBits = p(CoreKey).inpBits
   ChiselStage.emitSystemVerilogFile(
     new XilinxShell,
     args = Array(
       "--target-dir",
-      s"build/emitted/vta-pynq",
+      outputDir,
       "--split-verilog"
     ),
     firtoolOpts = Array(
-      "-disable-all-randomization",
-      "-strip-debug-info",
       "--lowering-options=disallowLocalVariables,disallowPackedArrays"
     )
   )
 }
 
-object DefaultZusysConfig extends App {
-  implicit val p: Parameters = new ZusysConfig
+object StandaloneSimConfig extends EmitterApp {
+  override val defaultDir = "build/emitted/vta-sim-shell"
+
+  implicit val p: Parameters = new DefaultPynqConfig
+
   ChiselStage.emitSystemVerilogFile(
-    new XilinxShell,
+    new VTAShell(debug = true),
     args = Array(
       "--target-dir",
-      s"build/emitted/vta-zusys",
-      "--split-verilog"
-    ),
-    firtoolOpts = Array(
-      "-disable-all-randomization",
-      "-strip-debug-info",
-      "--lowering-options=disallowLocalVariables,disallowPackedArrays"
+      outputDir
     )
+    // firtoolOpts = Array(
+    //   "-disable-all-randomization",
+    //   "-strip-debug-info"
+    // )
   )
+
+  println(s"[EmitVTAShell] VTAShell.sv written to $outputDir/")
 }
 
 object DefaultF1Config extends App {

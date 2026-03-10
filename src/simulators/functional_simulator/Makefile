@@ -38,7 +38,7 @@ OBJS = $(patsubst src/%.cc, build/%.o, $(SRCS))
 
 # Verilated RTL build settings
 # Path to the generated VTAShell sources (produced by ./mill emitVerilog)
-VTASHELL_DIR ?= ../cycle_accurate_simulator/build/emitted/vta-shell
+VTASHELL_DIR ?= ../cycle_accurate_simulator/build/emitted/vta-sim-shell
 # Path to Verilator install (override if not in PATH)
 VERILATOR      ?= verilator
 VERILATOR_ROOT := $(shell $(VERILATOR) --getenv VERILATOR_ROOT 2>/dev/null)

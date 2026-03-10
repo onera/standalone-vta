@@ -69,12 +69,22 @@ object `package` extends SbtModule with PublishModule {
     * Usage: ./mill emitVerilog Output: generatedResources/VTAShell.sv (relative
     * to build root)
     */
-  def emitVTAShell() = Task.Command {
+  def emitVtaSimConfig() = Task.Command {
     val outDir = BuildCtx.workspaceRoot / "build" / "emitted" / "vta-shell"
     os.makeDir.all(outDir)
     runner().run(
       args = Seq(outDir.toString),
-      mainClass = "vta.EmitVTAShell",
+      mainClass = "vta.StandaloneSimConfig",
+      workingDir = BuildCtx.workspaceRoot
+    )
+  }
+
+  def emitVtaFpgaConfig() = Task.Command {
+    val outDir = BuildCtx.workspaceRoot / "build" / "emitted" / "vta-shell"
+    os.makeDir.all(outDir)
+    runner().run(
+      args = Seq(outDir.toString),
+      mainClass = "vta.DefaultPynqConfig",
       workingDir = BuildCtx.workspaceRoot
     )
   }
