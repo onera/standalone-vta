@@ -26,12 +26,12 @@ object `package` extends SbtModule with PublishModule {
     "-Wunused"
   )
 
-  def repositories = Seq(
-    "https://oss.sonatype.org/content/repositories/snapshots",
-    "https://s01.oss.sonatype.org/content/repositories/snapshots",
-    "https://oss.sonatype.org/service/local/repositories/releases/content/",
-    "https://s01.oss.sonatype.org/content/repositories/releases"
-  )
+  // def repositories = Seq(
+  //   "https://oss.sonatype.org/content/repositories/snapshots",
+  //   "https://s01.oss.sonatype.org/content/repositories/snapshots",
+  //   "https://oss.sonatype.org/service/local/repositories/releases/content/",
+  //   "https://s01.oss.sonatype.org/content/repositories/releases"
+  // )
   def chiselVersion = "7.9.0"
 
   def mvnDeps = Seq(

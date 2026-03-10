@@ -15,9 +15,9 @@ val chiselVersion = "7.9.0"
 val firrtlVersion = "6.0.0"
 
 lazy val chiseltestSettings = Seq(
-  name := "vta_chiseltest",
+  name := "vta_chisel",
   // we keep in sync with chisel version names
-  version := "6.0.0",
+  version := "7.0.9",
   scalacOptions := Seq(
     "-deprecation",
     "-feature",
@@ -44,8 +44,6 @@ lazy val chiseltestSettings = Seq(
       )
     )
   ),
-  resolvers ++= Resolver.sonatypeOssRepos("snapshots"),
-  resolvers ++= Resolver.sonatypeOssRepos("releases"),
 
   Test / fork := true,
   Test / javaOptions ++= Seq(
@@ -57,4 +55,3 @@ lazy val chiseltestSettings = Seq(
 lazy val chiseltest = (project in file("."))
   .settings(commonSettings)
   .settings(chiseltestSettings)
-

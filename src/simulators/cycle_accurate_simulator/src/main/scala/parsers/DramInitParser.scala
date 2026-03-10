@@ -7,6 +7,7 @@ import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import vta.util.MemoryConfig
 import vta.util.BinaryReader.readBinaryFile
 import chisel3.util.Cat
+import vta.util.BinaryReader
 
 object DramInitParser {
 
@@ -74,21 +75,29 @@ object DramInitParser {
     }.toSeq
   }
 
-  def getHexFromBinary(file: String) = {
-    for {
-      bytes <- readBinaryFile(file, false)
-    } yield {
-      val uint8 = bytes.map(_.asSInt(8.W))
-      val hex = uint8.map(_.asUInt.litValue.toString(16))
-      println(hex.mkString("\n"))
-      val words = uint8
-        .grouped(8)
-        .map(p => {
-          p.foldLeft("x")((acc, r) => acc + r.asUInt.litValue.toString(16))
-        })
+  def getHexFromBinaryFiles(
+      files: Map[String, String],
+      fromResources: Boolean = true
+  ) = {
+    files.map { s =>
+      val bytes = BinaryReader.readBinaryFile(s._2, fromResources).get
+      s._1 -> bin2hex(bytes)
+    }.toMap
+  }
 
-      words
+  def bin2hex(bytes: Array[Byte], targetBytes: Int = 8) = {
+    val hex = bytes.grouped(targetBytes).map { g =>
+      val string = (if (g.size == targetBytes) g
+                    else g ++ Array.fill[Byte](targetBytes - g.size)(0))
+        .map(b => String.format("%02x", b).toString)
+        .reduce(_ ++ _)
+
+      if (g.size == targetBytes) string
+      else
+        string.padTo(targetBytes, '0')
+      string
 
     }
+    hex.toArray
   }
 }

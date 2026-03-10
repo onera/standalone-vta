@@ -77,26 +77,21 @@ object MemoryInitializer {
       )
     }
   }
-  def getHexFromBinaryFiles(files: Map[String, String]) = {
-    files.map { s =>
-      val bytes = Files.readAllBytes(Path.of(s._2))
-      s._1 -> bin2hex(bytes)
-    }.toMap
-  }
-  def bin2hex(bytes: Array[Byte], targetBytes: Int = 8) = {
-    val hex = bytes.grouped(targetBytes).map { g =>
-      val sb = new StringBuilder
 
-      val string = (if (g.size == targetBytes) g
-                    else g ++ Array.fill[Byte](targetBytes - g.size)(0))
-        .map(b => String.format("%x", Byte.box(b)))
-        .reduce(_.toString() + _.toString())
+  def exportHexToMemFiles(
+      content: Map[String, Array[String]],
+      file: os.Path
+  ): Unit = {
+    content.foreach { case (name, values) =>
 
-      if (g.size == targetBytes) string
-      else
-        string.padTo(targetBytes, '0')
-
+      require(values.forall { l =>
+        !values.exists(s => s.size != l.size)
+      })
+      os.write.over(
+        file / (name + ".mem"),
+        values.mkString("\n"),
+        createFolders = true
+      )
     }
-    hex.toSeq
   }
 }
