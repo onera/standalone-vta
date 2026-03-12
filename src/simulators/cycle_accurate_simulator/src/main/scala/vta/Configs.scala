@@ -38,11 +38,29 @@ class DefaultDe10Config extends Config(new CoreConfig ++ new De10Config)
 
 object DefaultPynqConfig extends App {
   implicit val p: Parameters = new DefaultPynqConfig
+  val inpBits = p(CoreKey).inpBits
   ChiselStage.emitSystemVerilogFile(
     new XilinxShell,
     args = Array(
       "--target-dir",
       s"chisel-outputs/genRTL/vta-pynq",
+      "--split-verilog"
+    ),
+    firtoolOpts = Array(
+      "-disable-all-randomization",
+      "-strip-debug-info",
+      "--lowering-options=disallowLocalVariables,disallowPackedArrays"
+    )
+  )
+}
+
+object DefaultZusysConfig extends App {
+  implicit val p: Parameters = new ZusysConfig
+  ChiselStage.emitSystemVerilogFile(
+    new XilinxShell,
+    args = Array(
+      "--target-dir",
+      s"build/emitted/vta-zusys",
       "--split-verilog"
     ),
     firtoolOpts = Array(
