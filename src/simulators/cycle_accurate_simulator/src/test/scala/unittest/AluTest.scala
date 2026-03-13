@@ -67,7 +67,7 @@ object Alu_ref {
   }
 }
 
-class AluTest extends GenericSim {
+class AluTest extends AnyFlatSpecSim {
   behavior of "AluVector"
 
   it should "be consistent with AluRef for all opcodes on random data" in {

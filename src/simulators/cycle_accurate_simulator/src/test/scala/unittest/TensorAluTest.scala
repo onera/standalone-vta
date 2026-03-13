@@ -23,7 +23,7 @@ import chisel3._
 import vta.core._
 import chisel3.simulator.ChiselSim
 
-class TensorAluIndexGeneratorTest extends GenericSim {
+class TensorAluIndexGeneratorTest extends AnyFlatSpecSim {
   behavior of "TensorAluIndexGenerator"
 
   class Mocks(c: TensorAluIndexGenerator, debug: Boolean = false) {
@@ -123,7 +123,7 @@ class TensorAluIndexGeneratorTest extends GenericSim {
 
 }
 
-class TensorAluPipelinedTest extends GenericSim {
+class TensorAluPipelinedTest extends AnyFlatSpecSim {
   behavior of "TensorAluPipelined"
 
   val debug = false

@@ -29,9 +29,12 @@ object SimulationUtils {
     override def apply(
         v1: CommonCompilationSettings
     ): CommonCompilationSettings = {
-      v1.copy(verilogPreprocessorDefines =
-        compilationSettings.verilogPreprocessorDefines :+ CommonCompilationSettings
-          .VerilogPreprocessorDefine("ENABLE_INITIAL_MEM_")
+      v1.copy(
+        verilogPreprocessorDefines =
+          compilationSettings.verilogPreprocessorDefines.appended(
+            CommonCompilationSettings
+              .VerilogPreprocessorDefine("ENABLE_INITIAL_MEM_")
+          )
       )
     }
 

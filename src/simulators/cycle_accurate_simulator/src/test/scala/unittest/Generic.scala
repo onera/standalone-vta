@@ -33,7 +33,7 @@ import chisel3.simulator.HasSimulator
 object UnitTests extends Tag("UnitTests")
 object LongTests extends Tag("LongTests")
 
-trait GenericSim extends AnyFlatSpec with ChiselSim {
+trait AnyFlatSpecSim extends AnyFlatSpec with ChiselSim {
 
   implicit val p: Parameters = new DefaultPynqConfig
 

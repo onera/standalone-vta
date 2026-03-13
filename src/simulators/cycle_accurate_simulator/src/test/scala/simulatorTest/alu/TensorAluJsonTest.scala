@@ -10,7 +10,7 @@ import vta.util.config._
 import unittest.GenericTest
 import chisel3.simulator.ChiselSim
 import chisel3.simulator.PeekPokeAPI
-import unittest.GenericSim
+import unittest.AnyFlatSpecSim
 import chisel3.simulator.stimulus.ResetProcedure
 import chisel3.experimental.inlinetest.TestHarness
 import chisel3.experimental.inlinetest.TestHarnessGenerator
@@ -430,7 +430,7 @@ class TensorAluJsonTest(
 
 /** Execute the tests
   */
-class TensorAluJsonTester extends GenericSim {
+class TensorAluJsonTester extends AnyFlatSpecSim {
   behavior of "TensorAlu"
 
   it should "run correctly instructions described in Json files" in {
@@ -449,8 +449,8 @@ class TensorAluJsonTester extends GenericSim {
         "/examples_alu/shift_right.json",
         "/examples_alu/shift_right_imm.json"
       ).foreach { file =>
-        ResetProcedure
         new TensorAluJsonTest(c, file)
+        ResetProcedure.module()(c)
       }
 
     }

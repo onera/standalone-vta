@@ -26,7 +26,7 @@ import scala.math.pow
 import unittest.util._
 import vta.core._
 
-class MatrixVectorMultiplicationTest extends GenericSim {
+class MatrixVectorMultiplicationTest extends AnyFlatSpecSim {
 
   behavior of "MatrixVectorMultiplication"
 

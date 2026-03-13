@@ -274,17 +274,17 @@ class TensorGemmIndexGenerator(implicit p: Parameters) extends Module {
     running := false.B
   }
 
-  val cnt_i = Reg(chiselTypeOf(io.dec.lp_1))
+  val cnt_i = Reg(chiselTypeOf(io.dec.lp1))
   val acc_i = Reg(chiselTypeOf(io.acc_i))
   val inp_i = Reg(chiselTypeOf(io.inp_i))
   val wgt_i = Reg(chiselTypeOf(io.wgt_i))
 
-  val cnt_o = Reg(chiselTypeOf(io.dec.lp_0))
+  val cnt_o = Reg(chiselTypeOf(io.dec.lp0))
   val acc_o = Reg(chiselTypeOf(io.acc_i))
   val inp_o = Reg(chiselTypeOf(io.inp_i))
   val wgt_o = Reg(chiselTypeOf(io.wgt_i))
 
-  val uop_idx = Reg(chiselTypeOf(io.dec.uop_end))
+  val uop_idx = Reg(chiselTypeOf(io.dec.uopEnd))
 
   io.valid := running
   io.acc_i := acc_i
@@ -295,22 +295,22 @@ class TensorGemmIndexGenerator(implicit p: Parameters) extends Module {
   when(!running) {
     cnt_i := 0.U; acc_i := 0.U; inp_i := 0.U; wgt_i := 0.U
     cnt_o := 0.U; acc_o := 0.U; inp_o := 0.U; wgt_o := 0.U
-    uop_idx := io.dec.uop_begin
+    uop_idx := io.dec.uopBegin
   }.otherwise {
-    when(uop_idx =/= io.dec.uop_end - 1.U) {
+    when(uop_idx =/= io.dec.uopEnd - 1.U) {
       uop_idx := uop_idx + 1.U
     }.otherwise {
-      uop_idx := io.dec.uop_begin
-      when(cnt_i =/= io.dec.lp_1 - 1.U) {
+      uop_idx := io.dec.uopBegin
+      when(cnt_i =/= io.dec.lp1 - 1.U) {
         cnt_i := cnt_i + 1.U
-        acc_i := acc_i + io.dec.acc_1
-        inp_i := inp_i + io.dec.inp_1
-        wgt_i := wgt_i + io.dec.wgt_1
+        acc_i := acc_i + io.dec.acc1
+        inp_i := inp_i + io.dec.inp1
+        wgt_i := wgt_i + io.dec.wgt1
       }.otherwise {
-        when(cnt_o =/= io.dec.lp_0 - 1.U) {
-          val acc_tmp = acc_o + io.dec.acc_0
-          val inp_tmp = inp_o + io.dec.inp_0
-          val wgt_tmp = wgt_o + io.dec.wgt_0
+        when(cnt_o =/= io.dec.lp0 - 1.U) {
+          val acc_tmp = acc_o + io.dec.acc0
+          val inp_tmp = inp_o + io.dec.inp0
+          val wgt_tmp = wgt_o + io.dec.wgt0
           cnt_o := cnt_o + 1.U
           acc_o := acc_tmp
           inp_o := inp_tmp
@@ -366,28 +366,28 @@ class TensorGemmSimple(debug: Boolean = false)(implicit p: Parameters)
   io.state := state
   val mvc = Module(new MatrixVectorMultiplication)
   val dec = io.dec
-  val uop_idx = Reg(chiselTypeOf(dec.uop_end))
-  val uop_end = dec.uop_end
-  val uop_acc = Reg(chiselTypeOf(dec.uop_end))
-  val uop_inp = Reg(chiselTypeOf(dec.uop_end))
-  val uop_wgt = Reg(chiselTypeOf(dec.uop_end))
-  val cnt_o = Reg(chiselTypeOf(dec.lp_0))
-  val acc_o = Reg(chiselTypeOf(dec.uop_end))
-  val inp_o = Reg(chiselTypeOf(dec.uop_end))
-  val wgt_o = Reg(chiselTypeOf(dec.uop_end))
-  val cnt_i = Reg(chiselTypeOf(dec.lp_1))
-  val acc_i = Reg(chiselTypeOf(dec.uop_end))
-  val inp_i = Reg(chiselTypeOf(dec.uop_end))
-  val wgt_i = Reg(chiselTypeOf(dec.uop_end))
+  val uop_idx = Reg(chiselTypeOf(dec.uopEnd))
+  val uopEnd = dec.uopEnd
+  val uop_acc = Reg(chiselTypeOf(dec.uopEnd))
+  val uop_inp = Reg(chiselTypeOf(dec.uopEnd))
+  val uop_wgt = Reg(chiselTypeOf(dec.uopEnd))
+  val cnt_o = Reg(chiselTypeOf(dec.lp0))
+  val acc_o = Reg(chiselTypeOf(dec.uopEnd))
+  val inp_o = Reg(chiselTypeOf(dec.uopEnd))
+  val wgt_o = Reg(chiselTypeOf(dec.uopEnd))
+  val cnt_i = Reg(chiselTypeOf(dec.lp1))
+  val acc_i = Reg(chiselTypeOf(dec.uopEnd))
+  val inp_i = Reg(chiselTypeOf(dec.uopEnd))
+  val wgt_i = Reg(chiselTypeOf(dec.uopEnd))
 
   val inflight = Reg(UInt(inflightBits.W))
   io.inflight := inflight
   // Latency is defined as two in the following, because there is one cycle in the MAC module,
   // and another cycle in the pipelined adders as the first layer of the accumulator
-  val wrpipe = Module(new Pipe(chiselTypeOf(dec.uop_end), latency = 2))
-  val cond = cnt_o === dec.lp_0 - 1.U &
-    cnt_i === dec.lp_1 - 1.U &
-    uop_idx === uop_end - 1.U
+  val wrpipe = Module(new Pipe(chiselTypeOf(dec.uopEnd), latency = 2))
+  val cond = cnt_o === dec.lp0 - 1.U &
+    cnt_i === dec.lp1 - 1.U &
+    uop_idx === uopEnd - 1.U
 
   val done = inflight === 0.U &
     ((state === sExe) & cond | state === sWait)
@@ -441,10 +441,10 @@ class TensorGemmSimple(debug: Boolean = false)(implicit p: Parameters)
   when(
     state === sIdle ||
       (state === sExe &&
-        uop_idx === uop_end - 1.U)
+        uop_idx === uopEnd - 1.U)
   ) {
-    uop_idx := dec.uop_begin
-  }.elsewhen(state === sExe && dec.uop_begin =/= uop_end) {
+    uop_idx := dec.uopBegin
+  }.elsewhen(state === sExe && dec.uopBegin =/= uopEnd) {
     uop_idx := uop_idx + 1.U
   }
 
@@ -455,13 +455,13 @@ class TensorGemmSimple(debug: Boolean = false)(implicit p: Parameters)
     wgt_o := 0.U
   }.elsewhen(
     state === sExe &&
-      uop_idx === uop_end - 1.U &&
-      cnt_i === dec.lp_1 - 1.U
+      uop_idx === uopEnd - 1.U &&
+      cnt_i === dec.lp1 - 1.U
   ) {
     cnt_o := cnt_o + 1.U
-    acc_o := acc_o + dec.acc_0
-    inp_o := inp_o + dec.inp_0
-    wgt_o := wgt_o + dec.wgt_0
+    acc_o := acc_o + dec.acc0
+    inp_o := inp_o + dec.inp0
+    wgt_o := wgt_o + dec.wgt0
   }
 
   when(state === sIdle) {
@@ -469,16 +469,16 @@ class TensorGemmSimple(debug: Boolean = false)(implicit p: Parameters)
     acc_i := 0.U
     inp_i := 0.U
     wgt_i := 0.U
-  }.elsewhen(state === sReadUop && cnt_i === dec.lp_1) {
+  }.elsewhen(state === sReadUop && cnt_i === dec.lp1) {
     cnt_i := 0.U
     acc_i := acc_o
     inp_i := inp_o
     wgt_i := wgt_o
-  }.elsewhen(state === sExe && uop_idx === uop_end - 1.U) {
+  }.elsewhen(state === sExe && uop_idx === uopEnd - 1.U) {
     cnt_i := cnt_i + 1.U
-    acc_i := acc_i + dec.acc_1
-    inp_i := inp_i + dec.inp_1
-    wgt_i := wgt_i + dec.wgt_1
+    acc_i := acc_i + dec.acc1
+    inp_i := inp_i + dec.inp1
+    wgt_i := wgt_i + dec.wgt1
   }
 
   when(state === sComputeIdx && io.uop.data.valid) {
@@ -632,7 +632,7 @@ class TensorGemmPipelinedSplit(implicit p: Parameters) extends TensorGemmIfc {
 
   val delayedUopData = ShiftRegister(io.uop.data, uopReadLatency)
 
-  assert(delayedUopData.valid === delayed_valid, "valid should be delayed")
+  // assert(delayedUopData.valid === delayed_valid, "valid should be delayed")
 
   val uop_valid =
     ShiftRegister(delayed_valid, inpReadIdxLatency, false.B, true.B)

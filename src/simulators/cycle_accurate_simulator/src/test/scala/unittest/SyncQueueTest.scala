@@ -22,7 +22,7 @@ package unittest
 import chisel3._
 import chisel3.util._
 import scala.util.Random
-import unittest.GenericSim
+import unittest.AnyFlatSpecSim
 import vta.util._
 import vta.util.config._
 import chisel3.simulator.ChiselSim
@@ -177,7 +177,7 @@ class SyncQueueTestWrapper[T <: Data](gen: T, val entries: Int)
   rq.io.deq.ready := RegNext(io.tq.deq.ready)
 }
 
-class SyncQueueTest extends GenericSim {
+class SyncQueueTest extends AnyFlatSpecSim {
   behavior of "SyncQueue"
 
   import chisel3.simulator.stimulus.ResetProcedure
@@ -185,9 +185,8 @@ class SyncQueueTest extends GenericSim {
 
     s"of depth ${i}" should "run correctly in long and wave read tests" taggedAs (unittest.UnitTests) in {
       simulate(new SyncQueueTestWrapper(UInt(16.W), i)) { c =>
-        // run both tests for a single compilation to save time
         new TestSyncQueueLongRead(c)
-        ResetProcedure
+        ResetProcedure.module()(c)
         new TestSyncQueueWaveRead(c)
       }
     }

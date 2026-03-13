@@ -59,7 +59,7 @@ trait VTAShellTest extends ChiselSim with AxiFullSimUtils with AxiLiteSimUtils {
       vta.io.host.b.ready.poke(true.B)
 
       if (waves) {
-        ()
+        enableWaves()
       }
 
       writeInstructionBaseAddress(
@@ -84,4 +84,5 @@ trait VTAShellTest extends ChiselSim with AxiFullSimUtils with AxiLiteSimUtils {
       RunUntilFinished(timeout)
     }
   }
+
 }
