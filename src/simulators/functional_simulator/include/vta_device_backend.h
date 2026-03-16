@@ -39,9 +39,10 @@ extern bool g_use_verilator;
 #ifdef VERILATOR_BUILD_ENABLED
 #include <string>
 struct VerilatorRunConfig {
-    bool        trace_enabled = false;
-    std::string trace_file    = "";  // empty → default: "vtashell.fst" or "vtashell.vcd"
-    std::string sv_log_file   = "";  // empty → no redirect
+    bool        trace_enabled  = false;
+    std::string trace_file     = "";      // empty → default: "vtashell.fst" or "vtashell.vcd"
+    std::string sv_log_file    = "";      // empty → no redirect
+    uint32_t    timeout_cycles = 500000;  // max RTL clock cycles before abort
 };
 extern VerilatorRunConfig g_verilator_config;
 #endif  // VERILATOR_BUILD_ENABLED

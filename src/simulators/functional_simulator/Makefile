@@ -37,8 +37,8 @@ SRCS = $(filter-out src/verilated_device.cc, $(wildcard src/*.cc))
 OBJS = $(patsubst src/%.cc, build/%.o, $(SRCS))
 
 # Verilated RTL build settings
-# Path to the generated VTAShell sources (produced by ./mill emitVerilog)
-VTASHELL_DIR ?= ../cycle_accurate_simulator/build/emitted/vta-sim-shell
+# Path to the generated VTAShell sources (produced by chisel code)
+VTASHELL_DIR ?= ../cycle_accurate_simulator/build/emitted/vta-sim
 # Path to Verilator install (override if not in PATH)
 VERILATOR      ?= verilator
 VERILATOR_ROOT := $(shell $(VERILATOR) --getenv VERILATOR_ROOT 2>/dev/null)
@@ -67,6 +67,8 @@ VERILATOR_DEBUG_FLAGS = --assert \
 +incdir+$(VTASHELL_DIR)/verification/assert \
 +incdir+$(VTASHELL_DIR)/verification/cover \
 +incdir+$(VTASHELL_DIR)/verification \
+$(VTASHELL_DIR)/verification/layers-VTAShell-Verification.sv \
++define+layer\$$Verification\$$Debug \
 # Configuration files
 CONFIG_FILES := $(wildcard ../config/*)
 
@@ -83,7 +85,7 @@ nn_fsim: build/fsim_nn
 
 # Build the Verilated RTL executable (requires Verilator + VTAShell.sv)
 # Prerequisites:
-#   1. cd ../cycle_accurate_simulator && ./mill emitVerilog
+#   1. cd ../cycle_accurate_simulator && sbt runMain "vta.StandaloneSimConfig" or ./mill emitVtaSimConfig
 #   2. cd src/simulators/functional_simulator && make verilate_vtashell
 #   3. make verilated
 verilated: config build/functional_simulator_rtl
@@ -94,11 +96,9 @@ verilate_vtashell:
 	$(VERILATOR) --cc \
 	  $(VERILATOR_TRACE_FLAG) \
 	  -f $(VTASHELL_DIR)/filelist.f \
-	  $(VTASHELL_DIR)/verification/layers-VTAShell-Verification.sv \
 	  --top-module VTAShell \
 	  +incdir+$(VTASHELL_DIR) \
 	  $(VERILATOR_DEBUG_FLAGS) \
-	  +define+layer\$$Verification\$$Debug \
 	  --Mdir $(VERILATED_OBJ_DIR)/VVTAShell \
 	  --build -j 0
 
@@ -241,6 +241,8 @@ lib_tvm: $(OBJ_LIB_TVM)
 execute: 
 	build/fsim_single_layer
 
+execute-rtl: build/functional_simulator_rtl
+	build/functional_simulator_rtl
 
 nn_execute: 
 	build/fsim_nn

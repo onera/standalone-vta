@@ -58,8 +58,7 @@ static constexpr uint16_t VCR_PTR_WGT  = 0x18;  // ptrs[3]
 static constexpr uint16_t VCR_PTR_ACC  = 0x1C;  // ptrs[4]
 static constexpr uint16_t VCR_PTR_OUT  = 0x20;  // ptrs[5]
 
-static constexpr uint32_t RESET_CYCLES   = 10;
-static constexpr uint32_t TIMEOUT_CYCLES = 500000u;
+static constexpr uint32_t RESET_CYCLES = 10;
 
 class VerilatedDevice : public VTADeviceBackend {
  public:
@@ -140,7 +139,7 @@ class VerilatedDevice : public VTADeviceBackend {
     // -----------------------------------------------------------------------
     // 3. Drain the write queue (clock cycles until host SM is idle)
     // -----------------------------------------------------------------------
-    for (uint32_t c = 0; c < TIMEOUT_CYCLES && !host_.Idle(); ++c) {
+    for (uint32_t c = 0; c < g_verilator_config.timeout_cycles && !host_.Idle(); ++c) {
       ClockEdge();
     }
     if (!host_.Idle()) {
@@ -159,7 +158,7 @@ class VerilatedDevice : public VTADeviceBackend {
     // -----------------------------------------------------------------------
     // 5. Clock loop — run until finish or timeout
     // -----------------------------------------------------------------------
-    for (uint32_t cycle = 0; cycle < TIMEOUT_CYCLES; ++cycle) {
+    for (uint32_t cycle = 0; cycle < g_verilator_config.timeout_cycles; ++cycle) {
       ClockEdge();
 
       // Poll ctrl register for finish bit
