@@ -10,7 +10,7 @@ import vta.core.TensorMaster
 import vta.core.UopMaster
 import vta.core.TensorGemmIfc
 
-object MyMocks extends PeekPokeAPI {
+object TensorGemmMocks extends PeekPokeAPI {
 
   class TensorMasterMock(tm: TensorMaster) {
     tm.rd(0).data.valid.poke(0)
@@ -149,7 +149,7 @@ class TensorGemmGenericTester[T <: TensorGemmIfc](c: T) extends PeekPokeAPI {
       lhs.zip(acc.reverse).foreach { case (p, s) => p.poke(s) }
     }
   }
-  val mocks = new MyMocks.Mocks(c)
+  val mocks = new TensorGemmMocks.Mocks(c)
 }
 class TensorGemmTester(c: TensorGemmSimple) extends TensorGemmGenericTester(c) {
   initialProcedure(
@@ -369,7 +369,7 @@ class TensorGemmPipelinedTester(
     lhs.zip(acc.reverse).foreach { case (p, s) => p.poke(s) }
   }
 
-  val mocks = new MyMocks.Mocks(c)
+  val mocks = new TensorGemmMocks.Mocks(c)
   for {
     cnt_o <- 0 until lp0
     cnt_i <- 0 until lp1
