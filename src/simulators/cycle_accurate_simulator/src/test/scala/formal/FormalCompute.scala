@@ -12,15 +12,10 @@ import vta.util.config._
 
 import vta.core.Compute
 
-<<<<<<< HEAD
 
 /**
  * Formal verification
  */
-=======
-/** Formal verification
-  */
->>>>>>> 29f3bd6 (refactor tests into main sources for simulation VTA full)
 class ComputeFormalSpec(makeDut: => Compute) extends Module {
   // Create an instance of our DUT and expose its I/O
   val dut = Module(makeDut)
@@ -34,20 +29,11 @@ class ComputeFormalSpec(makeDut: => Compute) extends Module {
   assert(io.inp === io.inp)
 }
 
-<<<<<<< HEAD
 
 /**
  * Execute Formal test
  */
 class ComputeFormalTester extends AnyFlatSpec with ChiselScalatestTester with Formal {
-=======
-/** Execute Formal test
-  */
-class ComputeFormalTester
-    extends AnyFlatSpec
-    with ChiselScalatestTester
-    with Formal {
->>>>>>> 29f3bd6 (refactor tests into main sources for simulation VTA full)
   val SimParam = new SimConfig
   implicit val p: Parameters = SimParam.config
 
@@ -57,17 +43,11 @@ class ComputeFormalTester
 //  }
 }
 
-<<<<<<< HEAD
 
 /**
  * Emit SystemVerilog design
  * Generate System Verilog sources and save it in file .sv
  */
-=======
-/** Emit SystemVerilog design Generate System Verilog sources and save it in
-  * file .sv
-  */
->>>>>>> 29f3bd6 (refactor tests into main sources for simulation VTA full)
 object ComputeEmitter extends App {
   val SimParam = new SimConfig
   implicit val p: Parameters = SimParam.config
@@ -75,18 +55,7 @@ object ComputeEmitter extends App {
   // Emit circuit
   ChiselStage.emitSystemVerilogFile(
     new Compute()(p),
-<<<<<<< HEAD
     firtoolOpts = Array("-disable-all-randomization", "-strip-debug-info",  "-o", "test_run_dir/output/Compute.sv")
   )
 }
 
-=======
-    firtoolOpts = Array(
-      "-disable-all-randomization",
-      "-strip-debug-info",
-      "-o",
-      "test_run_dir/output/Compute.sv"
-    )
-  )
-}
->>>>>>> 29f3bd6 (refactor tests into main sources for simulation VTA full)
