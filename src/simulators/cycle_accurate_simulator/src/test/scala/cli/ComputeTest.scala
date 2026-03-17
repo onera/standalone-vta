@@ -177,7 +177,7 @@ class PerfCompute0 extends GenericTest("PerfCompute0_gemm_16x16_vta_compiler", (
   "examples_compute/performance_tests/memory_addresses.csv",
   false,
   true),
-  false)
+  true)
 
 /* No reset, No loadAcc, 16 loadUop, 1 loop, 16 UOP */
 class PerfCompute1 extends GenericTest("PerfCompute1_gemm_16x16_with_1loop_16uop_16loaduop", (p:Parameters) =>
