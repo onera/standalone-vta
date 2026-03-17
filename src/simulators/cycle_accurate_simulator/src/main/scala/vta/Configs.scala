@@ -43,7 +43,7 @@ object DefaultPynqConfig extends App {
     new XilinxShell,
     args = Array(
       "--target-dir",
-      s"chisel-outputs/genRTL/vta-pynq",
+      s"build/emitted/vta-pynq",
       "--split-verilog"
     ),
     firtoolOpts = Array(
@@ -86,7 +86,7 @@ object TestDefaultPynqConfig extends App {
   // ChiselStage.emitSystemVerilog(new Test, args)
   ChiselStage.emitSystemVerilogFile(
     new Test,
-    args = Array("--target-dir", s"chisel-outputs/genRTL/test-vta-pynq")
+    args = Array("--target-dir", s"build/emitted/test-vta-pynq")
   )
 }
 
