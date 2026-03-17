@@ -45,6 +45,8 @@ jobs:
       - name: Setup Z3
         id: z3
         uses: cda-tum/setup-z3@v1
+      - name: Install Verilator
+        run: sudo apt-get update && sudo apt-get install -y verilator
       - name: Run tests
         run: |
           cd src/simulators/cycle_accurate_simulator
