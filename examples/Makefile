@@ -144,7 +144,7 @@ execute: ## Execute: only inference and check
 	@make check
 
 
-compile_and_run: ## Compile and run
+compile_and_run: ## Compile FSIM and run
 	@make fsim_clean
 	@make fsim_compile
 	@make run
