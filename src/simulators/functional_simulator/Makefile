@@ -118,6 +118,13 @@ $(VERILATED_OBJ_DIR)/fsim_nn.o: src/fsim_nn.cc \
 	  -I$(VERILATOR_INC) -I$(VERILATED_OBJ_DIR)/VVTAShell \
 	  -c $< -o $@
 
+$(VERILATED_OBJ_DIR)/fsim_single_layer.o: src/fsim_single_layer.cc \
+    include/simulator_header.h include/vta_device_backend.h \
+    | $(VERILATED_OBJ_DIR)/
+	$(CC) $(VTA_DEFS) $(DEBUGFLAG) $(CFLAGS) -DVERILATOR_BUILD_ENABLED \
+	  -I$(VERILATOR_INC) -I$(VERILATED_OBJ_DIR)/VVTAShell \
+	  -c $< -o $@
+
 $(VERILATED_OBJ_DIR)/functional_simulator.o: src/functional_simulator.cc \
     include/simulator_header.h include/vta_device_backend.h \
     | $(VERILATED_OBJ_DIR)/
@@ -165,6 +172,26 @@ build/fsim_nn_rtl: build/vta_config_def.txt $(OBJS) \
     build/simulator_functions.o build/virtual_memory.o build/sim_tlpp.o
 	$(CC) $(CFLAGS) \
 	  $(VERILATED_OBJ_DIR)/fsim_nn.o \
+	  build/simulator_functions.o \
+	  build/virtual_memory.o build/sim_tlpp.o \
+	  $(VERILATED_OBJ_DIR)/sim_driver.o \
+	  $(VERILATED_OBJS) \
+	  $(VVTASHELL_ARCHIVE) \
+	  $(VERILATOR_INC)/verilated.cpp \
+	  $(VERILATOR_INC)/verilated_threads.cpp \
+	  $(TRACE_RUNTIME_LIB) \
+	  $(OBJ_LIB_TVM) \
+	  -lz -o $@
+
+
+build/fsim_single_layer_rtl: build/vta_config_def.txt $(OBJS) \
+    lib_tvm verilate_vtashell \
+    $(VERILATED_OBJ_DIR)/fsim_single_layer.o \
+    $(VERILATED_OBJ_DIR)/sim_driver.o \
+    $(VERILATED_OBJS) \
+    build/simulator_functions.o build/virtual_memory.o build/sim_tlpp.o
+	$(CC) $(CFLAGS) \
+	  $(VERILATED_OBJ_DIR)/fsim_single_layer.o \
 	  build/simulator_functions.o \
 	  build/virtual_memory.o build/sim_tlpp.o \
 	  $(VERILATED_OBJ_DIR)/sim_driver.o \
