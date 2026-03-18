@@ -88,7 +88,6 @@ nn_fsim: build/fsim_nn
 #   1. cd ../cycle_accurate_simulator && sbt runMain "vta.StandaloneSimConfig" or ./mill emitVtaSimConfig
 #   2. cd src/simulators/functional_simulator && make verilate_vtashell
 #   3. make verilated
-verilated: config build/functional_simulator_rtl
 
 # Step 2: Run Verilator to generate C++ from VTAShell.sv (uses filelist.f for all sub-modules)
 verilate_vtashell:
@@ -112,6 +111,13 @@ $(VERILATED_OBJ_DIR)/sim_driver.o: src/sim_driver.cc include/driver.h \
 	  -I$(VERILATOR_INC) -I$(VERILATED_OBJ_DIR)/VVTAShell \
 	  -c $< -o $@
 
+$(VERILATED_OBJ_DIR)/fsim_nn.o: src/fsim_nn.cc \
+    include/simulator_header.h include/vta_device_backend.h \
+    | $(VERILATED_OBJ_DIR)/
+	$(CC) $(VTA_DEFS) $(DEBUGFLAG) $(CFLAGS) -DVERILATOR_BUILD_ENABLED \
+	  -I$(VERILATOR_INC) -I$(VERILATED_OBJ_DIR)/VVTAShell \
+	  -c $< -o $@
+
 $(VERILATED_OBJ_DIR)/functional_simulator.o: src/functional_simulator.cc \
     include/simulator_header.h include/vta_device_backend.h \
     | $(VERILATED_OBJ_DIR)/
@@ -121,24 +127,6 @@ $(VERILATED_OBJ_DIR)/functional_simulator.o: src/functional_simulator.cc \
 
 VVTASHELL_ARCHIVE = $(VERILATED_OBJ_DIR)/VVTAShell/VVTAShell__ALL.a
 
-build/functional_simulator_rtl: build/vta_config_def.txt \
-    lib_tvm verilate_vtashell \
-    $(VERILATED_OBJ_DIR)/functional_simulator.o \
-    $(VERILATED_OBJ_DIR)/sim_driver.o \
-    $(VERILATED_OBJS) \
-    build/simulator_functions.o build/virtual_memory.o build/sim_tlpp.o
-	$(CC) $(CFLAGS) \
-	  $(VERILATED_OBJ_DIR)/functional_simulator.o \
-	  build/simulator_functions.o \
-	  build/virtual_memory.o build/sim_tlpp.o \
-	  $(VERILATED_OBJ_DIR)/sim_driver.o \
-	  $(VERILATED_OBJS) \
-	  $(VVTASHELL_ARCHIVE) \
-	  $(VERILATOR_INC)/verilated.cpp \
-	  $(VERILATOR_INC)/verilated_threads.cpp \
-	  $(TRACE_RUNTIME_LIB) \
-	  $(OBJ_LIB_TVM) \
-	  -lz -o $@
 
 # Generate the configuration file log 
 config: build/vta_config_def.txt
@@ -169,6 +157,24 @@ build/fsim_nn: build/vta_config_def.txt $(OBJS) lib_tvm
 	$(OBJ_LIB_TVM) -o $@
 
 
+build/fsim_nn_rtl: build/vta_config_def.txt $(OBJS) \
+    lib_tvm verilate_vtashell \
+    $(VERILATED_OBJ_DIR)/fsim_nn.o \
+    $(VERILATED_OBJ_DIR)/sim_driver.o \
+    $(VERILATED_OBJS) \
+    build/simulator_functions.o build/virtual_memory.o build/sim_tlpp.o
+	$(CC) $(CFLAGS) \
+	  $(VERILATED_OBJ_DIR)/fsim_nn.o \
+	  build/simulator_functions.o \
+	  build/virtual_memory.o build/sim_tlpp.o \
+	  $(VERILATED_OBJ_DIR)/sim_driver.o \
+	  $(VERILATED_OBJS) \
+	  $(VVTASHELL_ARCHIVE) \
+	  $(VERILATOR_INC)/verilated.cpp \
+	  $(VERILATOR_INC)/verilated_threads.cpp \
+	  $(TRACE_RUNTIME_LIB) \
+	  $(OBJ_LIB_TVM) \
+	  -lz -o $@
 # COMPILING SIMULATOR AND MAIN FILES (without linking: -c)
 # ----------------------------------
 # Compile the main file:
