@@ -289,6 +289,18 @@ private:
     dut_->io_mem_aw_ready = aw_ready;
     dut_->io_mem_w_ready = w_ready;
     dut_->io_mem_b_valid = b_valid;
+
+    // Debug: sample AR/AW valid signals periodically
+    if (cycle_ % 50000 == 0) {
+      fprintf(stderr,
+              "[DriveMemSlave] cycle=%lu  ar_valid=%u ar_addr=0x%08X  "
+              "aw_valid=%u aw_addr=0x%08X\n",
+              (unsigned long)cycle_,
+              (unsigned)dut_->io_mem_ar_valid,
+              (unsigned)dut_->io_mem_ar_bits_addr,
+              (unsigned)dut_->io_mem_aw_valid,
+              (unsigned)dut_->io_mem_aw_bits_addr);
+    }
   }
 
   std::unique_ptr<VVTAShell> dut_;

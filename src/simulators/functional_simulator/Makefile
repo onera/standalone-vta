@@ -125,12 +125,6 @@ $(VERILATED_OBJ_DIR)/fsim_single_layer.o: src/fsim_single_layer.cc \
 	  -I$(VERILATOR_INC) -I$(VERILATED_OBJ_DIR)/VVTAShell \
 	  -c $< -o $@
 
-$(VERILATED_OBJ_DIR)/functional_simulator.o: src/functional_simulator.cc \
-    include/simulator_header.h include/vta_device_backend.h \
-    | $(VERILATED_OBJ_DIR)/
-	$(CC) $(VTA_DEFS) $(DEBUGFLAG) $(CFLAGS) -DVERILATOR_BUILD_ENABLED \
-	  -I$(VERILATOR_INC) -I$(VERILATED_OBJ_DIR)/VVTAShell \
-	  -c $< -o $@
 
 VVTASHELL_ARCHIVE = $(VERILATED_OBJ_DIR)/VVTAShell/VVTAShell__ALL.a
 
