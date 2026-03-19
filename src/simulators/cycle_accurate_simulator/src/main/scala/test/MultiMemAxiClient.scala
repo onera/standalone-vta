@@ -97,7 +97,7 @@ class MultiMemAxiClientSpec
       ),
       firtoolOpts = Array("--disable-all-randomization")
     ) { dut =>
-      ()
+
       implicit val axi = dut.io
       implicit val clock = dut.clock
 

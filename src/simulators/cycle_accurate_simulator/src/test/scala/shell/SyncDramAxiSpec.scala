@@ -89,7 +89,6 @@ class SyncAxiDramSpec
       // Array("--verilator-cflags", "-DENABLE_MEM_INIT=1"),
       firtoolOpts = Array("--disable-all-randomization")
     ) { mem =>
-      ()
       mem.io.enable.poke(true)
       for (i <- 1 until 10) {
         mem.io.dataIn.poke(i)

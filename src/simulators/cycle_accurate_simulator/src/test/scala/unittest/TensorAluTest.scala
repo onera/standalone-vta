@@ -110,7 +110,7 @@ class TensorAluIndexGeneratorTest extends AnyFlatSpecSim {
   }
   it should "run with loaded accumulation values" in {
     simulate(new TensorAluIndexGenerator) { c =>
-      ()
+
       tensorAluIndexGeneratorTester(c, false)
     }
   }
