@@ -7,7 +7,7 @@ dram_base = 0
 # Parameters
 x_stride = 3
 x_size = 2
-x_pad_right = 1
+x_pad_right = 2
 y_size = 2
 
 
