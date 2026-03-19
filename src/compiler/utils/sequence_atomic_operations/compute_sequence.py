@@ -8,15 +8,15 @@ print(f"\nThe base addresses are: {BADDR} \n")
 
 # Base addresses (range)
 baddStart = 0
-baddEnd = 2
+baddEnd = 1
 
 # Number of laddr per baddr
 x = 2
-y = 3
+y = 2
 
 # Strides
-delta_dst_x = 1
-delta_dst_y = 2
+delta_dst_x = 2
+delta_dst_y = 3
 delta_src_x = 2
 delta_src_y = 1
 delta_wgt_x = 3
