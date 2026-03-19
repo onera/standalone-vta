@@ -249,23 +249,23 @@ int fsim_nn() {
 
 // 3. PROFILER SETUP
 // -----------------
-#ifndef VERILATOR_BUILD_ENABLED
+  const tvm::runtime::PackedFunc *profiler_clear   = nullptr;
+  const tvm::runtime::PackedFunc *profiler_status  = nullptr;
+  const tvm::runtime::PackedFunc *profiler_debug_mode = nullptr;
 
-  const tvm::runtime::PackedFunc *profiler_clear =
-      tvm::runtime::Registry::Get("vta.simulator.profiler_clear");
-  const tvm::runtime::PackedFunc *profiler_status =
-      tvm::runtime::Registry::Get("vta.simulator.profiler_status");
-  const tvm::runtime::PackedFunc *profiler_debug_mode =
-      tvm::runtime::Registry::Get("vta.simulator.profiler_debug_mode");
+  if (!g_use_verilator) {
+    profiler_clear       = tvm::runtime::Registry::Get("vta.simulator.profiler_clear");
+    profiler_status      = tvm::runtime::Registry::Get("vta.simulator.profiler_status");
+    profiler_debug_mode  = tvm::runtime::Registry::Get("vta.simulator.profiler_debug_mode");
 
-  if (!profiler_clear || !profiler_status || !profiler_debug_mode) {
-    std::cerr << "ERROR: Profiler functions not found." << std::endl;
-    return -1;
+    if (!profiler_clear || !profiler_status || !profiler_debug_mode) {
+      std::cerr << "ERROR: Profiler functions not found." << std::endl;
+      return -1;
+    }
+    (*profiler_clear)();
+    int debug_flag = 0;
+    (*profiler_debug_mode)(debug_flag);
   }
-  (*profiler_clear)();
-  int debug_flag = 0;
-  (*profiler_debug_mode)(debug_flag);
-#endif // VERILATOR_BUILD_ENABLE
 
   // 4. DEFINE THE EXECUTION ORDER AND LAYER INFO
   // --------------------------------------------
@@ -814,13 +814,11 @@ int fsim_nn() {
 
 // 6. FREE ALL LAYERS
 // ------------------
-#ifndef VERILATOR_BUILD_ENABLED
-  if (debug) {
+  if (!g_use_verilator && debug) {
     std::string profile_json = (*profiler_status)();
     std::cout << "\n--- Profiler Status ---" << std::endl
               << profile_json << std::endl;
   }
-#endif // VERILATOR_BUILD_ENABLED
 
   for (const std::string &layer_name : loaded_layer_names) {
     LayerContext &ctx = layers_map[layer_name];

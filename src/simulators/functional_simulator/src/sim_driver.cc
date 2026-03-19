@@ -24,9 +24,8 @@
 #include "../include/driver.h" //<vta/driver.h>
 #include "../include/vta_device_backend.h"
 #include "../config/hw_spec.h" //<vta/hw_spec.h>
-#ifndef VERILATOR_BUILD_ENABLED
 #include "../external_lib/tvm/registry.h" //<tvm/runtime/registry.h>
-#else
+#ifdef VERILATOR_BUILD_ENABLED
 #include "../external_lib/dmlc/logging.h"
 #endif
 #include "../include/sim_tlpp.h" //<vta/sim_tlpp.h>
@@ -547,7 +546,6 @@ class FunctionalDevice : public VTADeviceBackend {
   SRAM<VTA_UOP_WIDTH, 1, VTA_UOP_BUFF_DEPTH> uop_;
 };
 
-#ifndef VERILATOR_BUILD_ENABLED
 using tvm::runtime::TVMRetValue;
 using tvm::runtime::TVMArgs;
 
@@ -563,7 +561,6 @@ TVM_REGISTER_GLOBAL("vta.simulator.profiler_debug_mode")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     Profiler::ThreadLocal()->debug_flag = args[0];
   });
-#endif  // VERILATOR_BUILD_ENABLED
 }  // namespace sim
 }  // namespace vta
 
