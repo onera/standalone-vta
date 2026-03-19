@@ -292,21 +292,20 @@ int fsim_single_layer() {
 #ifdef VERILATOR_BUILD_ENABLED
 static void print_usage(const char *prog) {
 
-  fprintf(
-      stderr,
-      "Usage: %s [OPTIONS]"
-      "--verilator: toggle verilator backend simulation"
-      "  Verilator-only flags:\n"
-      "          [--trace]              Enable waveform tracing (format set at "
-      "compile time)\n"
-      "          [--trace-file PATH]    Waveform output file (default: "
-      "vtashell.fst/.vcd)\n"
-      "          [--sv-log PATH]        Redirect SV $display output to PATH\n"
-      "          [--timeout-cycles N]   Max RTL clock cycles before abort "
-      "(default: 500000)\n"
-      "          [--no-timeout]         Disable cycle timeout (run until "
-      "finish)\n",
-      prog);
+  fprintf(stderr,
+          "Usage: %s [OPTIONS]\n"
+          "--verilator: toggle verilator backend simulation\n"
+          "\tVerilator-only flags:\n"
+          "\t\t[--trace]              Enable waveform tracing (format set at "
+          "compile time)\n"
+          "\t\t[--trace-file PATH]    Waveform output file (default: "
+          "vtashell.fst/.vcd)\n"
+          "\t\t[--sv-log PATH]        Redirect SV $display output to PATH\n"
+          "\t\t[--timeout-cycles N]   Max RTL clock cycles before abort "
+          "(default: 500000)\n"
+          "\t\t[--no-timeout]         Disable cycle timeout (run until "
+          "finish)\n",
+          prog);
 }
 int main(int argc, char **argv) {
   // Verilator-only config values (populated below, applied after parsing)

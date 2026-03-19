@@ -300,8 +300,6 @@ lib_tvm: $(OBJ_LIB_TVM)
 execute: 
 	build/fsim_single_layer
 
-execute-rtl: build/fsim_single_layer_rtl
-	build/fsim_single_layer_rtl --verilator
 
 nn_execute: 
 	build/fsim_nn

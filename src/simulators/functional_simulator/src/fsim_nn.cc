@@ -247,16 +247,19 @@ int fsim_nn() {
   input_nn = data_formatting(input_nn, input_nn_height, input_nn_width,
                              block_size, true);
 
-// 3. PROFILER SETUP
-// -----------------
-  const tvm::runtime::PackedFunc *profiler_clear   = nullptr;
-  const tvm::runtime::PackedFunc *profiler_status  = nullptr;
+  // 3. PROFILER SETUP
+  // -----------------
+  const tvm::runtime::PackedFunc *profiler_clear = nullptr;
+  const tvm::runtime::PackedFunc *profiler_status = nullptr;
   const tvm::runtime::PackedFunc *profiler_debug_mode = nullptr;
 
   if (!g_use_verilator) {
-    profiler_clear       = tvm::runtime::Registry::Get("vta.simulator.profiler_clear");
-    profiler_status      = tvm::runtime::Registry::Get("vta.simulator.profiler_status");
-    profiler_debug_mode  = tvm::runtime::Registry::Get("vta.simulator.profiler_debug_mode");
+    profiler_clear =
+        tvm::runtime::Registry::Get("vta.simulator.profiler_clear");
+    profiler_status =
+        tvm::runtime::Registry::Get("vta.simulator.profiler_status");
+    profiler_debug_mode =
+        tvm::runtime::Registry::Get("vta.simulator.profiler_debug_mode");
 
     if (!profiler_clear || !profiler_status || !profiler_debug_mode) {
       std::cerr << "ERROR: Profiler functions not found." << std::endl;
@@ -812,8 +815,8 @@ int fsim_nn() {
     }
   }
 
-// 6. FREE ALL LAYERS
-// ------------------
+  // 6. FREE ALL LAYERS
+  // ------------------
   if (!g_use_verilator && debug) {
     std::string profile_json = (*profiler_status)();
     std::cout << "\n--- Profiler Status ---" << std::endl
@@ -877,21 +880,20 @@ int fsim_nn() {
 #ifdef VERILATOR_BUILD_ENABLED
 static void print_usage(const char *prog) {
 
-  fprintf(
-      stderr,
-      "Usage: %s [OPTIONS]"
-      "--verilator: toggle verilator backend simulation"
-      "  Verilator-only flags:\n"
-      "          [--trace]              Enable waveform tracing (format set at "
-      "compile time)\n"
-      "          [--trace-file PATH]    Waveform output file (default: "
-      "vtashell.fst/.vcd)\n"
-      "          [--sv-log PATH]        Redirect SV $display output to PATH\n"
-      "          [--timeout-cycles N]   Max RTL clock cycles before abort "
-      "(default: 500000)\n"
-      "          [--no-timeout]         Disable cycle timeout (run until "
-      "finish)\n",
-      prog);
+  fprintf(stderr,
+          "Usage: %s [OPTIONS]\n"
+          "--verilator: toggle verilator backend simulation\n"
+          "\tVerilator-only flags:\n"
+          "\t\t[--trace]              Enable waveform tracing (format set at "
+          "compile time)\n"
+          "\t\t[--trace-file PATH]    Waveform output file (default: "
+          "vtashell.fst/.vcd)\n"
+          "\t\t[--sv-log PATH]        Redirect SV $display output to PATH\n"
+          "\t\t[--timeout-cycles N]   Max RTL clock cycles before abort "
+          "(default: 500000)\n"
+          "\t\t[--no-timeout]         Disable cycle timeout (run until "
+          "finish)\n",
+          prog);
 }
 int main(int argc, char **argv) {
   // Verilator-only config values (populated below, applied after parsing)
