@@ -91,9 +91,18 @@ object `package` extends SbtModule with PublishModule with ScalafixModule {
     )
   }
 
+  def cleanOutputs() = Task.Command {
+    val outputDir = BuildCtx.workspaceRoot / "build"
+    println(s"[Clean] removing all outputs")
+    os.remove.all(target = outputDir)
+    println(s"[Clean] removed ${outputDir} directory")
+
+  }
   object test extends SbtTests with ScalaTest {
     override def scalaTestVersion: Simple[String] = "3.2.19"
 
+    override def testArgsDefault: Simple[Seq[String]] =
+      Seq("-n", "unittest.UnitTests")
     def testSandboxWorkingDir = false
     def testParallelism = false
     override def forkArgs: Simple[Seq[String]] = Seq(
