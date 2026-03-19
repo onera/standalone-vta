@@ -19,12 +19,12 @@
 
 package vta.core
 
-import scala.math.pow
-
 import chisel3._
 import chisel3.util._
-import vta.util.config._
 import vta.shell._
+import vta.util.config._
+
+import scala.math.pow
 
 /** TensorLoad.
   *

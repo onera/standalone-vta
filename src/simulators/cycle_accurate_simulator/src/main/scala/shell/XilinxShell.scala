@@ -20,8 +20,8 @@
 package vta.shell
 
 import chisel3._
-import vta.util.config._
 import vta.interface.axi._
+import vta.util.config._
 
 /** XilinxShell.
   *

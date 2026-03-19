@@ -1,7 +1,6 @@
 package vta.util
 
 import java.io.{File, FileInputStream, InputStream}
-import scala.language.postfixOps
 import scala.math.pow
 import scala.util.{Failure, Success, Try}
 

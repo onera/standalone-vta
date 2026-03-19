@@ -111,17 +111,17 @@ class TensorGemmTest(
 
   // Instruction fields with base conversion (hexadecimal)
   val dec_reset = BigInt(inst("reset"), 16)
-  val uopBegin = BigInt(inst("uopBegin"), 16)
-  val uopEnd = BigInt(inst("uopEnd"), 16)
+  val uopBegin = BigInt(inst("uop_begin"), 16)
+  val uopEnd = BigInt(inst("uop_end"), 16)
   assert(uopBegin < uopEnd)
-  val lp0 = BigInt(inst("lp0"), 16)
-  val lp1 = BigInt(inst("lp1"), 16)
-  val acc0 = BigInt(inst("acc0"), 16)
-  val inp0 = BigInt(inst("inp0"), 16)
-  val wgt0 = BigInt(inst("wgt0"), 16)
-  val acc1 = BigInt(inst("acc1"), 16)
-  val inp1 = BigInt(inst("inp1"), 16)
-  val wgt1 = BigInt(inst("wgt1"), 16)
+  val lp0 = BigInt(inst("lp_0"), 16)
+  val lp1 = BigInt(inst("lp_1"), 16)
+  val acc0 = BigInt(inst("acc_0"), 16)
+  val inp0 = BigInt(inst("inp_0"), 16)
+  val wgt0 = BigInt(inst("wgt_0"), 16)
+  val acc1 = BigInt(inst("acc_1"), 16)
+  val inp1 = BigInt(inst("inp_1"), 16)
+  val wgt1 = BigInt(inst("wgt_1"), 16)
 
   // Read instructions
   // Reset signal

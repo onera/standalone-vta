@@ -50,8 +50,8 @@ class TensorGemmJsonTester(
   c.io.start.poke(0)
 
   val dec_reset = BigInt(inst("reset"), 16)
-  val uopBegin = BigInt(inst("uopBegin"), 16)
-  val uopEnd = BigInt(inst("uopEnd"), 16)
+  val uopBegin = BigInt(inst("uop_begin"), 16)
+  val uopEnd = BigInt(inst("uop_end"), 16)
   assert(uopBegin < uopEnd)
   val lp_0 = BigInt(inst("lp_0"), 16)
   val lp_1 = BigInt(inst("lp_1"), 16)

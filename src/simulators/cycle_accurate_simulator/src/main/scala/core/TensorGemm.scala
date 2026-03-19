@@ -22,6 +22,7 @@ package vta.core
 import chisel3._
 import chisel3.util._
 import vta.util.config._
+
 import scala.math.pow
 
 /** Pipelined multiply and accumulate */

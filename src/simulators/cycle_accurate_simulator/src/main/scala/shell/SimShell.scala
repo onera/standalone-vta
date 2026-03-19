@@ -20,10 +20,10 @@
 package vta.shell
 
 import chisel3._
-import vta.util.config._
+import vta.dpi._
 import vta.interface.axi._
 import vta.shell._
-import vta.dpi._
+import vta.util.config._
 
 /** VTAHost.
   *

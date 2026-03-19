@@ -1,11 +1,7 @@
 package vta.test
 import chisel3._
-import org.scalatest.flatspec.AnyFlatSpec
-import chisel3.simulator.ChiselSim
-import vta.interface.axi.AXILiteClient
-import vta.interface.axi.AXIClient
 import chisel3.simulator.PeekPokeAPI
-import chiseltest.testableData
+import vta.interface.axi.AXIClient
 
 trait AxiFullSimUtils extends PeekPokeAPI {
 

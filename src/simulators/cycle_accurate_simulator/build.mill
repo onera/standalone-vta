@@ -1,5 +1,6 @@
 //| mill-version: 1.1.2
 //| mill-jvm-opts: ["-Dchisel.project.root=${PWD}"]
+//| mvnDeps: ["com.goyeau::mill-scalafix_mill1:0.6.0"]
 package build
 
 import mill._
@@ -9,8 +10,9 @@ import mill.scalalib.SbtModule
 import mill.javalib.TestModule.ScalaTest
 import mill.api.Task.Simple
 import mill.api.BuildCtx
+import com.goyeau.mill.scalafix.ScalafixModule
 
-object `package` extends SbtModule with PublishModule {
+object `package` extends SbtModule with PublishModule with ScalafixModule {
 
   def artifactName = "vta-standalone"
 

@@ -1,8 +1,6 @@
 package vta.util
 
 import chisel3._
-// import chiseltest._
-// import chiseltest.iotesters._
 import chisel3.simulator.scalatest.ChiselSim
 import org.scalatest.flatspec.AnyFlatSpec
 import vta.DefaultPynqConfig

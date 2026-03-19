@@ -20,8 +20,8 @@
 package vta.core
 
 import chisel3._
-import vta.util.config._
 import vta.shell._
+import vta.util.config._
 
 /** Core parameters */
 case class CoreParams(

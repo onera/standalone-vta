@@ -1,18 +1,16 @@
 package vta.test
 
 import chisel3._
-import vta.util.config.Parameters
-import vta.interface.axi.AXIClient
+import chisel3.simulator.scalatest.ChiselSim
+import chisel3.util.MuxCase
 import chisel3.util.experimental.loadMemoryFromFileInline
 import org.scalatest.flatspec.AnyFlatSpec
-import chisel3.simulator.scalatest.ChiselSim
-import vta.DefaultPynqConfig
+import vta.interface.axi.AXIClient
+import vta.interface.axi.AXIParams
+import vta.interface.axi.AxiLike._
+import vta.util.MemoryConfig
 import vta.util.SimulationUtils.EnableMemInitVerilog
 import vta.util.SimulationUtils.verilatorWithWaveDump
-import chisel3.util.MuxCase
-import vta.interface.axi.AXIParams
-import vta.util.MemoryConfig
-import vta.interface.axi.AxiLike._
 
 /** A simulation utility module to connect several memories (sync write async
   * read)

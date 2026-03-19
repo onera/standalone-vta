@@ -1,8 +1,8 @@
 package vta.test
 import chisel3._
+import chisel3.simulator.PeekPokeAPI
 import vta.interface.axi.AXILiteClient
 import vta.shell.VCRParams
-import chisel3.simulator.PeekPokeAPI
 
 trait AxiLiteSimUtils extends PeekPokeAPI {
 

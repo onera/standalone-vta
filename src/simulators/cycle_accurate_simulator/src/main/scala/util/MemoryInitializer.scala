@@ -1,11 +1,6 @@
 package vta.util
 
 import chisel3._
-import scala.io.Source
-import java.io.File
-import java.nio.file.Files
-import java.nio.file.Path
-import chisel3.simulator.PeekPokeAPI.TestableEnum
 
 /** Utility case class for defining mock memories for simulation
   *

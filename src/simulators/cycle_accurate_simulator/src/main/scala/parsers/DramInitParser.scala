@@ -2,12 +2,11 @@ package vta.parsers
 
 import chisel3._
 import com.fasterxml.jackson.databind.ObjectMapper
-import scala.io.Source
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
-import vta.util.MemoryConfig
-import vta.util.BinaryReader.readBinaryFile
-import chisel3.util.Cat
 import vta.util.BinaryReader
+import vta.util.MemoryConfig
+
+import scala.io.Source
 
 object DramInitParser {
 

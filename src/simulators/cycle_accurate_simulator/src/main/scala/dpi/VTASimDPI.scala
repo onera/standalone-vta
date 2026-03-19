@@ -20,10 +20,6 @@
 package vta.dpi
 
 import chisel3._
-import chisel3.util._
-import vta.util.config._
-import vta.interface.axi._
-import vta.shell._
 
 /** Sim DPI module.
   *

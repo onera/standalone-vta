@@ -20,11 +20,11 @@
 package vta.core
 
 import chisel3._
-import chisel3.util._
 import chisel3.layer._
-import vta.util.config._
+import chisel3.util._
 import vta.shell._
 import vta.util.UserDefined.Debug
+import vta.util.config._
 
 /** Store.
   *

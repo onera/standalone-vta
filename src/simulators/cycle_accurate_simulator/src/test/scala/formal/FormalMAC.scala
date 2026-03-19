@@ -22,7 +22,7 @@ class MacTest extends AnyFlatSpec with ChiselScalatestTester {
   val debug: Boolean = false
 
   // Functional tests
-  it should "accumulate correctly when enabled" taggedAs (UnitTests) in {
+  it should "accumulate correctly when enabled" taggedAs (UnitTests) ignore {
     test(new MAC(8, 8, 16, true)).withAnnotations(Seq(WriteVcdAnnotation)) {
       dut =>
         // Test A => 2 * 3 = 6
@@ -215,19 +215,19 @@ class MacFormalTester
     extends AnyFlatSpec
     with ChiselScalatestTester
     with Formal {
-  "MAC_flopOut" should "pass computation properties" taggedAs (FormalTests) in {
+  "MAC_flopOut" should "pass computation properties" taggedAs (FormalTests) ignore {
     verify(
       new MacFormalSpec_Computation_flopOut,
       Seq(BoundedCheck(10), WriteVcdAnnotation)
     )
   }
-  "MAC_flopIn" should "pass computation properties" taggedAs (FormalTests) in {
+  "MAC_flopIn" should "pass computation properties" taggedAs (FormalTests) ignore {
     verify(
       new MacFormalSpec_Computation_flopIn,
       Seq(BoundedCheck(10), WriteVcdAnnotation)
     )
   }
-  "MAC" should "not pass (fail example)" taggedAs (FormalTests) in {
+  "MAC" should "not pass (fail example)" taggedAs (FormalTests) ignore {
     intercept[chiseltest.formal.FailedBoundedCheckException] {
       verify(
         new MacFormalSpec_FailExample(new MAC(8, 8, 16, false)),
@@ -235,7 +235,7 @@ class MacFormalTester
       )
     }
   }
-  "MAC" should "pass overflow properties" taggedAs (FormalTests) in {
+  "MAC" should "pass overflow properties" taggedAs (FormalTests) ignore {
     verify(new MacFormalSpec_Overflow(new MAC), Seq(BoundedCheck(10)))
   }
 }

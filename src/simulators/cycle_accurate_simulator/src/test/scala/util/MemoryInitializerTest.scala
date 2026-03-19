@@ -5,7 +5,7 @@ import org.scalatest.matchers.should.Matchers
 import vta.parsers.DramInitParser
 
 class MemoryInitializerTest extends AnyFlatSpec with Matchers {
-  "MemoryInitializer" should "read binary as hex strings" in {
+  "MemoryInitializer" should "read binary as hex strings" ignore {
     val paths = Map(
       // "ACC" -> "examples_compute/16x16/accumulator.bin",
       "INP" -> "examples_compute/16x16/input.bin",

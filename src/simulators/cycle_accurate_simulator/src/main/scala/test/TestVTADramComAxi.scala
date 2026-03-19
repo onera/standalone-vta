@@ -1,21 +1,18 @@
 package vta.test
 
 import chisel3._
-import vta.util.MemoryConfig
-import vta.util.config.Parameters
-import vta.interface.axi.AXILiteClient
-import vta.shell.VTAShell
-import vta.shell.ShellKey
-import chisel3.util.experimental.BoringUtils
 import chisel3.simulator.ChiselSim
-import vta.util.SimulationUtils.EnableMemInitVerilog
-import vta.DefaultPynqConfig
-import chisel3.simulator.stimulus.RunUntilFinished
-import vta.util.SimulationUtils
-import chisel3.testing.HasTestingDirectory
-import java.nio.file.Path
-import java.nio.file.Paths
 import chisel3.simulator.HasSimulator
+import chisel3.simulator.stimulus.RunUntilFinished
+import chisel3.testing.HasTestingDirectory
+import chisel3.util.experimental.BoringUtils
+import vta.DefaultPynqConfig
+import vta.interface.axi.AXILiteClient
+import vta.shell.ShellKey
+import vta.shell.VTAShell
+import vta.util.MemoryConfig
+import vta.util.SimulationUtils.EnableMemInitVerilog
+import vta.util.config.Parameters
 
 class VTAShellTestFull(
     content: Seq[MemoryConfig]

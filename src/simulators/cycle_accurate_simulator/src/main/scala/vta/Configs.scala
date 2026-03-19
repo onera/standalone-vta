@@ -19,13 +19,11 @@
 
 package vta
 
-import chisel3._
-import vta.util.config._
-import vta.shell._
+import circt.stage.ChiselStage
 import vta.core._
+import vta.shell._
 import vta.test._
-import circt.stage.ChiselStage // CIRCT = Circuit IR Compilers and Tools
-import os.Path
+import vta.util.config._
 
 /** VTA.
   *

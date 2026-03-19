@@ -1,19 +1,19 @@
 package cli
 
-import vta.test.VTAShellTest
+import chisel3.testing.HasTestingDirectory
+import vta.parsers.DramInitParser
+import vta.parsers.DramInitParser.getMemoryConfigurations
 import vta.parsers.DramInitParser.parseJsonMemoryInitFile
 import vta.parsers.DramInitParser.parseMemorySections
-import vta.util.MemoryInitializer.exportHexFiles
-import vta.parsers.DramInitParser.getMemoryConfigurations
+import vta.test.VTAShellTest
+import vta.util.BinaryReader
 import vta.util.MemoryConfig
+import vta.util.MemoryInitializer.exportHexFiles
+import vta.util.MemoryInitializer.exportHexToMemFiles
 import vta.util.SimulationUtils.verilatorWithWaveDump
-import chisel3.testing.HasTestingDirectory
+
 import java.nio.file.Path
 import java.nio.file.Paths
-import vta.util.BinaryReader
-import vta.util.MemoryInitializer.exportHexToMemFiles
-import vta.util.MemoryInitializer
-import vta.parsers.DramInitParser
 
 // FIXME: simple app, needs refinement
 object VTAShellSimulator extends App with VTAShellTest {
