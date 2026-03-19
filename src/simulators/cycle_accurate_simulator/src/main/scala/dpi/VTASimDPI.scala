@@ -30,7 +30,7 @@ import vta.shell._
   * Wrapper for Sim Verilog DPI module.
   */
 class VTASimDPI extends ExtModule {
-  val io = IO(new Bundle {
+  val io = FlatIO(new Bundle {
     val clock = Input(Clock())
     val reset = Input(Reset())
     val dpi_wait = Output(Bool())

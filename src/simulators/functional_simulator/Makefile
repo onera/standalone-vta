@@ -38,7 +38,7 @@ OBJS = $(patsubst src/%.cc, build/%.o, $(SRCS))
 
 # Verilated RTL build settings
 # Path to the generated VTAShell sources (produced by chisel code)
-VTASHELL_DIR ?= ../cycle_accurate_simulator/build/emitted/vta-sim
+VTASHELL_DIR ?= ../cycle_accurate_simulator/build/emitted/test-vta-pynq
 # Path to Verilator install (override if not in PATH)
 VERILATOR      ?= verilator
 VERILATOR_ROOT := $(shell $(VERILATOR) --getenv VERILATOR_ROOT 2>/dev/null)
@@ -95,7 +95,7 @@ verilate_vtashell:
 	$(VERILATOR) --cc \
 	  $(VERILATOR_TRACE_FLAG) \
 	  -f $(VTASHELL_DIR)/filelist.f \
-	  --top-module VTAShell \
+	  --top-module Test \
 	  +incdir+$(VTASHELL_DIR) \
 	  $(VERILATOR_DEBUG_FLAGS) \
 	  --Mdir $(VERILATED_OBJ_DIR)/VVTAShell \
@@ -126,7 +126,8 @@ $(VERILATED_OBJ_DIR)/fsim_single_layer.o: src/fsim_single_layer.cc \
 	  -c $< -o $@
 
 
-VVTASHELL_ARCHIVE = $(VERILATED_OBJ_DIR)/VVTAShell/VVTAShell__ALL.a
+VVTASHELL_ARCHIVE  = $(VERILATED_OBJ_DIR)/VVTAShell/VTest__ALL.a
+VERILATED_RUNTIME  = $(VERILATED_OBJ_DIR)/VVTAShell/libverilated.a
 
 
 # Generate the configuration file log 
@@ -165,6 +166,7 @@ build/fsim_nn_rtl: build/vta_config_def.txt $(OBJS) \
     $(VERILATED_OBJS) \
     build/simulator_functions.o build/virtual_memory.o build/sim_tlpp.o
 	$(CC) $(CFLAGS) \
+	  -DVL_USER_FINISH -I$(VERILATOR_INC) -I$(VERILATOR_INC)/vltstd \
 	  $(VERILATED_OBJ_DIR)/fsim_nn.o \
 	  build/simulator_functions.o \
 	  build/virtual_memory.o build/sim_tlpp.o \
@@ -172,6 +174,7 @@ build/fsim_nn_rtl: build/vta_config_def.txt $(OBJS) \
 	  $(VERILATED_OBJS) \
 	  $(VVTASHELL_ARCHIVE) \
 	  $(VERILATOR_INC)/verilated.cpp \
+	  $(VERILATOR_INC)/verilated_dpi.cpp \
 	  $(VERILATOR_INC)/verilated_threads.cpp \
 	  $(TRACE_RUNTIME_LIB) \
 	  $(OBJ_LIB_TVM) \
@@ -185,6 +188,7 @@ build/fsim_single_layer_rtl: build/vta_config_def.txt $(OBJS) \
     $(VERILATED_OBJS) \
     build/simulator_functions.o build/virtual_memory.o build/sim_tlpp.o
 	$(CC) $(CFLAGS) \
+	  -DVL_USER_FINISH -I$(VERILATOR_INC) -I$(VERILATOR_INC)/vltstd \
 	  $(VERILATED_OBJ_DIR)/fsim_single_layer.o \
 	  build/simulator_functions.o \
 	  build/virtual_memory.o build/sim_tlpp.o \
@@ -192,6 +196,7 @@ build/fsim_single_layer_rtl: build/vta_config_def.txt $(OBJS) \
 	  $(VERILATED_OBJS) \
 	  $(VVTASHELL_ARCHIVE) \
 	  $(VERILATOR_INC)/verilated.cpp \
+	  $(VERILATOR_INC)/verilated_dpi.cpp \
 	  $(VERILATOR_INC)/verilated_threads.cpp \
 	  $(TRACE_RUNTIME_LIB) \
 	  $(OBJ_LIB_TVM) \
@@ -234,12 +239,14 @@ build/cpu_functions.o: src/cpu_functions.cc include/cpu_functions.h
 # ------------------------------------
 $(VERILATED_OBJ_DIR)/dpi/%.o: src/dpi/%.cc | $(VERILATED_OBJ_DIR)/dpi/
 	$(CC) $(VTA_DEFS) $(CFLAGS) -DVERILATOR_BUILD_ENABLED \
-	  -I$(VERILATOR_INC) -I$(VERILATED_OBJ_DIR)/VVTAShell \
+	  -DVL_USER_FINISH \
+	  -I$(VERILATOR_INC) -I$(VERILATOR_INC)/vltstd -I$(VERILATED_OBJ_DIR)/VVTAShell \
 	  -c $< -o $@
 
 $(VERILATED_OBJ_DIR)/verilated_device.o: src/verilated_device.cc | $(VERILATED_OBJ_DIR)/
 	$(CC) $(VTA_DEFS) $(CFLAGS) -DVERILATOR_BUILD_ENABLED $(TRACE_DEFINE) \
-	  -I$(VERILATOR_INC) -I$(VERILATED_OBJ_DIR)/VVTAShell \
+	  -DVL_USER_FINISH \
+	  -I$(VERILATOR_INC) -I$(VERILATOR_INC)/vltstd -I$(VERILATED_OBJ_DIR)/VVTAShell \
 	  -c $< -o $@
 
 $(VERILATED_OBJ_DIR)/:

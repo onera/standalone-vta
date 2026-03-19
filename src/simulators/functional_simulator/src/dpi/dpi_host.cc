@@ -1,95 +1,122 @@
 /*!
  * \file dpi_host.cc
- * \brief AXI-Lite master state machine for VCR register access.
+ * \brief VTAHostDPI DPI-C implementation.
  *
- * Drives the VTAShell `io_host_*` AXI-Lite slave interface.
- * Transactions are enqueued by VerilatedDevice and consumed one per
- * state-machine traversal.
+ * Implements the DPI-C function imported by VTAHostDPI.v.  The SV side
+ * (VTAHostDPIToAXI.sv) translates the DPI request/response protocol into
+ * AXI-Lite transactions to VTAShell's VCR port — no AXI logic is needed here.
+ *
+ * Transaction model:
+ *   - verilated_device.cc calls VTAHostDPI_QueueWrite() to pre-load VCR writes.
+ *   - Once the launch write (ctrl=1) is dequeued, this function auto-inserts a
+ *     VCR_CTRL read every POLL_PERIOD cycles.
+ *   - When the finish bit (bit 1) appears in a ctrl read response, it calls
+ *     VTASimDPI_SetExit(), triggering $finish via VTASimDPI.v.
  */
 
 #include "dpi_host.h"
+#include "dpi_sim.h"
 
-DPIHost::DPIHost()
-    : state_(IDLE), current_{false, 0, 0}, last_read_value_(0) {}
+#include <svdpi.h>
+#include <deque>
+#include <cstdio>
 
-void DPIHost::Write(uint16_t addr, uint32_t value) {
-  queue_.push_back({true, addr, value});
+static constexpr uint8_t  VCR_CTRL_ADDR = 0x00;
+static constexpr uint32_t POLL_PERIOD   = 16;
+
+struct HostTxn {
+  bool     is_write;
+  uint8_t  addr;
+  uint32_t value;
+};
+
+static std::deque<HostTxn> s_queue;
+static bool     s_pending       = false;
+static bool     s_awaiting_resp = false;
+static HostTxn  s_current       = {};
+static bool     s_launched      = false;
+static uint32_t s_poll_counter  = 0;
+
+void VTAHostDPI_Reset() {
+  s_queue.clear();
+  s_pending       = false;
+  s_awaiting_resp = false;
+  s_current       = {};
+  s_launched      = false;
+  s_poll_counter  = 0;
 }
 
-void DPIHost::Read(uint16_t addr) {
-  queue_.push_back({false, addr, 0});
+void VTAHostDPI_QueueWrite(uint8_t addr, uint32_t value) {
+  s_queue.push_back({true, addr, value});
 }
 
-bool DPIHost::Idle() const {
-  return state_ == IDLE && queue_.empty();
-}
-
-void DPIHost::Tick(
-    uint8_t&  aw_valid, uint16_t& aw_addr,
-    uint8_t&  w_valid,  uint32_t& w_data,
-    uint8_t&  b_ready,
-    uint8_t&  ar_valid, uint16_t& ar_addr,
-    uint8_t&  r_ready,
-    uint8_t   aw_ready,
-    uint8_t   w_ready,
-    uint8_t   b_valid,
-    uint8_t   ar_ready,
-    uint8_t   r_valid,
-    uint32_t  r_data)
+// DPI-C function called by VTAHostDPI.v on every rising clock edge.
+extern "C" void VTAHostDPI(
+    dpi8_t  *req_valid,  dpi8_t  *req_opcode,
+    dpi8_t  *req_addr,   dpi32_t *req_value,
+    dpi8_t   req_deq,
+    dpi8_t   resp_valid, dpi32_t  resp_value)
 {
-  // Default: deassert all master outputs
-  aw_valid = 0; aw_addr = 0;
-  w_valid  = 0; w_data  = 0;
-  b_ready  = 0;
-  ar_valid = 0; ar_addr = 0;
-  r_ready  = 0;
+  *req_valid = 0; *req_opcode = 0; *req_addr = 0; *req_value = 0;
 
-  switch (state_) {
-    case IDLE:
-      if (!queue_.empty()) {
-        current_ = queue_.front();
-        queue_.pop_front();
-        state_ = current_.is_write ? WR_ADDR : RD_ADDR;
+  // -----------------------------------------------------------------------
+  // 1. Handle pending read response
+  // -----------------------------------------------------------------------
+  if (s_awaiting_resp) {
+    if (resp_valid) {
+      if (resp_value & 0x2u) {  // finish bit set in ctrl register
+        VTASimDPI_SetExit();
       }
-      break;
+      s_awaiting_resp = false;
+      s_pending       = false;
+    }
+    // Cannot issue a new request until response arrives
+    return;
+  }
 
-    case WR_ADDR:
-      aw_valid = 1;
-      aw_addr  = current_.addr;
-      if (aw_ready) {
-        state_ = WR_DATA;
-      }
-      break;
+  // -----------------------------------------------------------------------
+  // 2. Handle request acknowledgement (address channel accepted by SV)
+  // -----------------------------------------------------------------------
+  if (s_pending && req_deq) {
+    if (s_current.is_write) {
+      // Track when the launch write completes
+      if (s_current.addr == VCR_CTRL_ADDR && s_current.value == 1u)
+        s_launched = true;
+      s_pending = false;
+    } else {
+      // Read address accepted — wait for read data response
+      s_awaiting_resp = true;
+      return;
+    }
+  }
 
-    case WR_DATA:
-      w_valid = 1;
-      w_data  = current_.value;
-      if (w_ready) {
-        state_ = WR_RESP;
-      }
-      break;
+  // -----------------------------------------------------------------------
+  // 3. Auto-poll VCR_CTRL after launch when the explicit queue is drained
+  // -----------------------------------------------------------------------
+  if (s_launched && !s_pending && s_queue.empty()) {
+    ++s_poll_counter;
+    if (s_poll_counter >= POLL_PERIOD) {
+      s_poll_counter = 0;
+      s_queue.push_back({false, VCR_CTRL_ADDR, 0u});
+    }
+  }
 
-    case WR_RESP:
-      b_ready = 1;
-      if (b_valid) {
-        state_ = IDLE;
-      }
-      break;
+  // -----------------------------------------------------------------------
+  // 4. Load next transaction if idle
+  // -----------------------------------------------------------------------
+  if (!s_pending && !s_queue.empty()) {
+    s_current = s_queue.front();
+    s_queue.pop_front();
+    s_pending = true;
+  }
 
-    case RD_ADDR:
-      ar_valid = 1;
-      ar_addr  = current_.addr;
-      if (ar_ready) {
-        state_ = RD_DATA;
-      }
-      break;
-
-    case RD_DATA:
-      r_ready = 1;
-      if (r_valid) {
-        last_read_value_ = r_data;
-        state_ = IDLE;
-      }
-      break;
+  // -----------------------------------------------------------------------
+  // 5. Present current request to SV
+  // -----------------------------------------------------------------------
+  if (s_pending) {
+    *req_valid  = 1;
+    *req_opcode = s_current.is_write ? 1u : 0u;
+    *req_addr   = s_current.addr;
+    *req_value  = s_current.value;
   }
 }

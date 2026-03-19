@@ -1,112 +1,107 @@
 /*!
  * \file dpi_mem.cc
- * \brief AXI memory slave that serves VTAShell DRAM requests.
+ * \brief VTAMemDPI DPI-C implementation.
  *
- * Data comes from / goes to the VirtualMemoryManager (DRAM::Global())
- * that is shared with the functional model.
+ * Implements the DPI-C function imported by VTAMemDPI.v.  The SV side
+ * (VTAMemDPIToAXI.sv) handles the full AXI4 burst protocol and presents
+ * clean per-beat read/write signals here.  We only need to read/write the
+ * VirtualMemoryManager (shared DRAM) beat by beat.
+ *
+ * For the default VTA configuration (DATA_BITS=64), blockNb=1 — each beat
+ * is a single 64-bit word.  The svOpenArrayHandle wr_value / rd_value each
+ * hold one element.
  */
 
 #include "dpi_mem.h"
 #include "../../include/virtual_memory.h"
 
+#include <svdpi.h>
+#include <deque>
 #include <cstring>
 #include <cstdio>
+
+typedef unsigned char       dpi8_t;
+typedef unsigned long long  dpi64_t;
 
 using DRAM = vta::vmem::VirtualMemoryManager;
 
 static const int kBytesPerBeat = 8;  // 64-bit data bus
 
-DPIMem::DPIMem()
-    : wstate_(W_IDLE), w_addr_(0), w_len_(0) {}
+struct RdTxn {
+  uint32_t addr;  // current byte address for the next beat
+  uint8_t  len;   // remaining beats after this one (AXI: len=0 → 1 beat)
+  uint8_t  id;
+};
 
-void DPIMem::Tick(
-    uint8_t   ar_valid, uint32_t  ar_addr, uint8_t  ar_len, uint8_t ar_id,
-    uint8_t&  ar_ready,
-    uint8_t&  r_valid,  uint64_t& r_data,  uint8_t& r_last, uint8_t& r_id,
-    uint8_t   r_ready,
-    uint8_t   aw_valid, uint32_t  aw_addr, uint8_t  aw_len,
-    uint8_t&  aw_ready,
-    uint8_t   w_valid,  uint64_t  w_data,  uint8_t  w_last,
-    uint8_t&  w_ready,
-    uint8_t&  b_valid,  uint8_t   b_ready)
+static std::deque<RdTxn> s_rq;     // pending / in-progress read bursts
+static uint32_t          s_wr_addr = 0;  // write burst current address
+
+// DPI-C function called by VTAMemDPI.v on every rising clock edge.
+extern "C" void VTAMemDPI(
+    dpi8_t  rd_req_valid, dpi8_t rd_req_len, dpi8_t rd_req_id,
+    dpi64_t rd_req_addr,
+    dpi8_t  wr_req_valid, dpi8_t wr_req_len, dpi64_t wr_req_addr,
+    dpi8_t  wr_valid, const svOpenArrayHandle wr_value, dpi64_t wr_strb,
+    dpi8_t  *rd_valid, dpi8_t *rd_id, const svOpenArrayHandle rd_value,
+    dpi8_t  rd_ready)
 {
-  // Defaults
-  r_valid  = 0; r_data = 0; r_last = 0; r_id = 0;
-  aw_ready = 0;
-  w_ready  = 0;
-  b_valid  = 0;
+  *rd_valid = 0;
+  *rd_id    = 0;
+
+  // Zero the output data array (blockNb=1 → single 64-bit element)
+  dpi64_t *rd_ptr = static_cast<dpi64_t *>(svGetArrayPtr(rd_value));
+  if (rd_ptr) *rd_ptr = 0;
 
   // -----------------------------------------------------------------------
-  // Read address channel — accept new ARs whenever the FIFO has room.
+  // 1. Enqueue new read burst request (pulsed for one cycle by SV)
   // -----------------------------------------------------------------------
-  ar_ready = (static_cast<int>(rq_.size()) < kMaxOutstandingReads) ? 1 : 0;
-  if (ar_valid && ar_ready) {
-    fprintf(stderr, "[DPIMem] AR: addr=0x%08X len=%d id=%d\n",
-            ar_addr, ar_len, ar_id);
+  if (rd_req_valid) {
     RdTxn txn;
-    txn.addr = ar_addr;
-    txn.len  = ar_len;
-    txn.id   = ar_id;
-    rq_.push_back(txn);
+    txn.addr = static_cast<uint32_t>(rd_req_addr);
+    txn.len  = rd_req_len;
+    txn.id   = rd_req_id;
+    s_rq.push_back(txn);
   }
 
   // -----------------------------------------------------------------------
-  // Read data channel — serve beats from the front of the FIFO.
+  // 2. Capture write burst base address (pulsed for one cycle by SV)
   // -----------------------------------------------------------------------
-  if (!rq_.empty()) {
-    RdTxn& front = rq_.front();
+  if (wr_req_valid)
+    s_wr_addr = static_cast<uint32_t>(wr_req_addr);
 
-    uint8_t* ptr = static_cast<uint8_t*>(
+  // -----------------------------------------------------------------------
+  // 3. Write data beat to virtual memory
+  // -----------------------------------------------------------------------
+  if (wr_valid) {
+    const dpi64_t *wr_ptr = static_cast<const dpi64_t *>(svGetArrayPtr(wr_value));
+    uint8_t *mem = static_cast<uint8_t *>(
+        DRAM::Global()->GetAddr(static_cast<uint64_t>(s_wr_addr)));
+    memcpy(mem, wr_ptr, kBytesPerBeat);
+    s_wr_addr += kBytesPerBeat;
+  }
+
+  // -----------------------------------------------------------------------
+  // 4. Serve read data from virtual memory (one beat per cycle)
+  // -----------------------------------------------------------------------
+  if (!s_rq.empty()) {
+    RdTxn &front = s_rq.front();
+
+    uint8_t *mem = static_cast<uint8_t *>(
         DRAM::Global()->GetAddr(static_cast<uint64_t>(front.addr)));
-    uint64_t beat = 0;
-    memcpy(&beat, ptr, kBytesPerBeat);
+    dpi64_t beat = 0;
+    memcpy(&beat, mem, kBytesPerBeat);
 
-    r_valid = 1;
-    r_data  = beat;
-    r_id    = front.id;
-    r_last  = (front.len == 0) ? 1 : 0;
+    *rd_valid = 1;
+    *rd_id    = front.id;
+    if (rd_ptr) *rd_ptr = beat;
 
-    if (r_ready) {
+    if (rd_ready) {
       front.addr += kBytesPerBeat;
       if (front.len == 0) {
-        rq_.pop_front();   // burst complete, move to next transaction
+        s_rq.pop_front();  // burst complete
       } else {
         --front.len;
       }
     }
-  }
-
-  // -----------------------------------------------------------------------
-  // Write channel state machine
-  // -----------------------------------------------------------------------
-  switch (wstate_) {
-    case W_IDLE:
-      aw_ready = 1;
-      if (aw_valid) {
-        w_addr_ = aw_addr;
-        w_len_  = aw_len;
-        wstate_ = W_DATA;
-      }
-      break;
-
-    case W_DATA:
-      w_ready = 1;
-      if (w_valid) {
-        uint8_t* ptr = static_cast<uint8_t*>(
-            DRAM::Global()->GetAddr(static_cast<uint64_t>(w_addr_)));
-        memcpy(ptr, &w_data, kBytesPerBeat);
-        w_addr_ += kBytesPerBeat;
-        if (w_last) {
-          wstate_ = W_RESP;
-        }
-      }
-      break;
-
-    case W_RESP:
-      b_valid = 1;
-      if (b_ready) {
-        wstate_ = W_IDLE;
-      }
-      break;
   }
 }
