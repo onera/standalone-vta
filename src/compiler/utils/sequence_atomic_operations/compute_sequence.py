@@ -3,22 +3,23 @@
 # BADDR buffer
 BADDR = []
 for i in range(0,2):
-    BADDR.append( (i*1, i*0, i*2) )
+    BADDR.append( (i, 2*i, 3*i) )
+print(f"\nThe base addresses are: {BADDR} \n")
 
 # Base addresses (range)
 baddStart = 0
-baddEnd = 1
+baddEnd = 2
 
 # Number of laddr per baddr
-x = 1
-y = 1
+x = 2
+y = 3
 
 # Strides
-delta_dst_x = 0
-delta_dst_y = 0
-delta_src_x = 0
-delta_src_y = 0
-delta_wgt_x = 0
+delta_dst_x = 1
+delta_dst_y = 2
+delta_src_x = 2
+delta_src_y = 1
+delta_wgt_x = 3
 delta_wgt_y = 0
 
 
@@ -42,5 +43,7 @@ for i in range(0, y):
 
 # Print information:
 # ------------------
+sequence_length = x * y * (baddEnd - baddStart)
+print(f"\nThe sequence contains {sequence_length} laddr: \n")
 for idx, laddr in enumerate(sequence):
     print(f"\n laddr {idx}: \t DST={laddr[0]} \t SRC={laddr[1]} \t WGT={laddr[2]} ")
