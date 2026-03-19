@@ -1,9 +1,7 @@
 #ifndef DPI_SIM_H_
 #define DPI_SIM_H_
 
-#include <cstdint>
-
-typedef unsigned char dpi8_t;
+#include "dpi_types.h"
 
 /** Signal simulation end — called by dpi_host.cc when finish bit is seen. */
 void VTASimDPI_SetExit();

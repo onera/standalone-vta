@@ -1,10 +1,7 @@
 #ifndef DPI_HOST_H_
 #define DPI_HOST_H_
 
-#include <cstdint>
-
-typedef unsigned char  dpi8_t;
-typedef unsigned int   dpi32_t;
+#include "dpi_types.h"
 
 /**
  * Public C++ API used by verilated_device.cc to enqueue VCR transactions

@@ -13,15 +13,12 @@
  */
 
 #include "dpi_mem.h"
+#include "dpi_types.h"
 #include "../../include/virtual_memory.h"
 
 #include <svdpi.h>
 #include <deque>
 #include <cstring>
-#include <cstdio>
-
-typedef unsigned char       dpi8_t;
-typedef unsigned long long  dpi64_t;
 
 using DRAM = vta::vmem::VirtualMemoryManager;
 
@@ -33,8 +30,16 @@ struct RdTxn {
   uint8_t  id;
 };
 
-static std::deque<RdTxn> s_rq;     // pending / in-progress read bursts
-static uint32_t          s_wr_addr = 0;  // write burst current address
+static std::deque<RdTxn> s_rq;            // pending / in-progress read bursts
+static uint32_t          s_wr_addr = 0;   // write burst current byte address
+// NOTE: we assume VTAMemDPIToAXI.sv serialises AW and W such that a new
+// wr_req_valid pulse never arrives before the previous burst's beats are
+// all delivered.  This matches the current Chisel-generated implementation.
+
+void VTAMemDPI_Reset() {
+  s_rq.clear();
+  s_wr_addr = 0;
+}
 
 // DPI-C function called by VTAMemDPI.v on every rising clock edge.
 extern "C" void VTAMemDPI(

@@ -70,7 +70,7 @@ object `package` extends SbtModule with PublishModule {
     * to build root)
     */
   def emitVtaSimConfig() = Task.Command {
-    val outDir = BuildCtx.workspaceRoot / "build" / "emitted" / "vta-sim"
+    val outDir = BuildCtx.workspaceRoot / "build" / "emitted" / "vta-sim-shell"
     os.makeDir.all(outDir)
     runner().run(
       args = Seq(outDir.toString),

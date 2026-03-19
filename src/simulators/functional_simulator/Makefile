@@ -38,7 +38,7 @@ OBJS = $(patsubst src/%.cc, build/%.o, $(SRCS))
 
 # Verilated RTL build settings
 # Path to the generated VTAShell sources (produced by chisel code)
-VTASHELL_DIR ?= ../cycle_accurate_simulator/build/emitted/test-vta-pynq
+VTASHELL_DIR ?= ../cycle_accurate_simulator/build/emitted/vta-sim-shell
 # Path to Verilator install (override if not in PATH)
 VERILATOR      ?= verilator
 VERILATOR_ROOT := $(shell $(VERILATOR) --getenv VERILATOR_ROOT 2>/dev/null)
@@ -79,7 +79,7 @@ CONFIG_FILES := $(wildcard ../config/*)
 # Generic commands
 # ----------------
 # Build everything
-all: config build/functional_simulator
+all: config build/fsim_single_layer
 
 nn_fsim: build/fsim_nn
 
@@ -126,8 +126,7 @@ $(VERILATED_OBJ_DIR)/fsim_single_layer.o: src/fsim_single_layer.cc \
 	  -c $< -o $@
 
 
-VVTASHELL_ARCHIVE  = $(VERILATED_OBJ_DIR)/VVTAShell/VTest__ALL.a
-VERILATED_RUNTIME  = $(VERILATED_OBJ_DIR)/VVTAShell/libverilated.a
+VVTASHELL_ARCHIVE = $(VERILATED_OBJ_DIR)/VVTAShell/VTest__ALL.a
 
 
 # Generate the configuration file log 
@@ -275,8 +274,8 @@ lib_tvm: $(OBJ_LIB_TVM)
 execute: 
 	build/fsim_single_layer
 
-execute-rtl: build/functional_simulator_rtl
-	build/functional_simulator_rtl
+execute-rtl: build/fsim_single_layer_rtl
+	build/fsim_single_layer_rtl --verilator
 
 nn_execute: 
 	build/fsim_nn

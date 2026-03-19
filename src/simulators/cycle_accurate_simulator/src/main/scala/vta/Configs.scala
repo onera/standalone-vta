@@ -65,18 +65,11 @@ object StandaloneSimConfig extends EmitterApp {
   implicit val p: Parameters = new DefaultPynqConfig
 
   ChiselStage.emitSystemVerilogFile(
-    new VTAShell(debug = true),
-    args = Array(
-      "--target-dir",
-      outputDir
-    )
-    // firtoolOpts = Array(
-    //   "-disable-all-randomization",
-    //   "-strip-debug-info"
-    // )
+    new Test(true),
+    args = Array("--target-dir", outputDir)
   )
 
-  println(s"[EmitVTAShell] VTAShell.sv written to $outputDir/")
+  println(s"[EmitVTAShell] Simulation files written to $outputDir/")
 }
 
 object DefaultF1Config extends App {

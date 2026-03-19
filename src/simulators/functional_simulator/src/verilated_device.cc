@@ -29,6 +29,7 @@
 
 #include "../include/vta_device_backend.h"
 #include "dpi/dpi_host.h"   // VTAHostDPI_Reset / VTAHostDPI_QueueWrite
+#include "dpi/dpi_mem.h"    // VTAMemDPI_Reset
 #include "dpi/dpi_sim.h"    // VTASimDPI_Reset
 
 // Verilator-generated header produced by `make verilate_vtashell`
@@ -129,6 +130,7 @@ class VerilatedDevice : public VTADeviceBackend {
     // Reset DPI state
     VTASimDPI_Reset();
     VTAHostDPI_Reset();
+    VTAMemDPI_Reset();
     Verilated::gotFinish(false);
 
     // Enqueue VCR register writes (processed by VTAHostDPI() during eval())
