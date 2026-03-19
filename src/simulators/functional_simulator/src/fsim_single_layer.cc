@@ -303,7 +303,9 @@ static void print_usage(const char *prog) {
       "vtashell.fst/.vcd)\n"
       "          [--sv-log PATH]        Redirect SV $display output to PATH\n"
       "          [--timeout-cycles N]   Max RTL clock cycles before abort "
-      "(default: 500000)\n",
+      "(default: 500000)\n"
+      "          [--no-timeout]         Disable cycle timeout (run until "
+      "finish)\n",
       prog);
 }
 int main(int argc, char **argv) {
@@ -324,6 +326,8 @@ int main(int argc, char **argv) {
       sv_log_arg = argv[++i];
     } else if (strcmp(argv[i], "--timeout-cycles") == 0 && i + 1 < argc) {
       timeout_cycles = static_cast<uint32_t>(atoi(argv[++i]));
+    } else if (strcmp(argv[i], "--no-timeout") == 0) {
+      timeout_cycles = 0;
     } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
       print_usage(argv[0]);
       return 0;
@@ -338,6 +342,10 @@ int main(int argc, char **argv) {
   g_verilator_config.timeout_cycles = timeout_cycles;
   if (g_use_verilator) {
     printf("[Cycle Accurate Simulation] Backend: Verilated RTL (VTAShell)\n");
+
+    if (parsed_trace) {
+      printf("[Info] tracing is enabled: performance may suffer");
+    }
   } else {
     printf("[Functional Simulation] Backend: C++ functional model\n");
   }

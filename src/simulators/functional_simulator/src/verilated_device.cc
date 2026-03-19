@@ -49,6 +49,7 @@ static constexpr const char *DEFAULT_TRACE_FILE = "vtashell.fst";
 
 #include <cstdint>
 #include <cstdio>
+#include <filesystem>
 #include <memory>
 #include <unistd.h>
 
@@ -92,27 +93,16 @@ class VerilatedDevice : public VTADeviceBackend {
         sv_log_stdout_backup_ = -1;
       }
     }
-
-    if (g_verilator_config.trace_enabled) {
-      Verilated::traceEverOn(true);
-      tfp_ = new TraceType();
-      top_->trace(tfp_, 99);
-      const std::string &path = g_verilator_config.trace_file.empty()
-                                    ? DEFAULT_TRACE_FILE
-                                    : g_verilator_config.trace_file;
-      tfp_->open(path.c_str());
-      fprintf(stderr, "[VerilatedDevice] Trace: %s\n", path.c_str());
-    }
     if (sv_log_stdout_backup_ >= 0)
       fprintf(stderr, "[VerilatedDevice] SV log: %s\n",
               g_verilator_config.sv_log_file.c_str());
+
+    if (g_verilator_config.trace_enabled)
+      Verilated::traceEverOn(true);
   }
 
   ~VerilatedDevice() override {
-    if (tfp_) {
-      tfp_->close();
-      delete tfp_;
-    }
+    CloseTrace();
     if (sv_log_stdout_backup_ >= 0) {
       fflush(stdout);
       dup2(sv_log_stdout_backup_, STDOUT_FILENO);
@@ -127,11 +117,21 @@ class VerilatedDevice : public VTADeviceBackend {
   int Run(vta_phy_addr_t insn_phy_addr, uint32_t insn_count,
           uint32_t /*wait_cycles*/) override {
 
-    // Reset DPI state
+    // Reset per-run state
+    cycle_ = 0;
     VTASimDPI_Reset();
     VTAHostDPI_Reset();
     VTAMemDPI_Reset();
     Verilated::gotFinish(false);
+
+    // Open trace file for this run (read g_verilator_config.trace_file now,
+    // so callers can update it per-run before calling Run())
+    if (g_verilator_config.trace_enabled) {
+      const std::string &path = g_verilator_config.trace_file.empty()
+                                    ? DEFAULT_TRACE_FILE
+                                    : g_verilator_config.trace_file;
+      OpenTrace(path);
+    }
 
     // Enqueue VCR register writes (processed by VTAHostDPI() during eval())
     VTAHostDPI_QueueWrite(VCR_VALS0,    insn_count);
@@ -149,12 +149,15 @@ class VerilatedDevice : public VTADeviceBackend {
       ClockEdge();
     top_->reset = 0;
 
-    // Main simulation loop
-    for (uint32_t c = 0; c < g_verilator_config.timeout_cycles; ++c) {
+    // Main simulation loop (timeout_cycles==0 means run until finish)
+    const bool unlimited = (g_verilator_config.timeout_cycles == 0);
+    for (uint32_t c = 0; unlimited || c < g_verilator_config.timeout_cycles; ++c) {
       ClockEdge();
 
-      if (Verilated::gotFinish())
+      if (Verilated::gotFinish()) {
+        CloseTrace();
         return 0;
+      }
 
       // sim_wait: VTASim requests host to pause the main clock.
       // Tick only sim_clock while holding clock=0 (follows tsim_device.cc).
@@ -163,17 +166,40 @@ class VerilatedDevice : public VTADeviceBackend {
         top_->sim_clock = 0; top_->eval();
         top_->sim_clock = 1; top_->eval();
         ++cycle_;
-        if (Verilated::gotFinish())
+        if (Verilated::gotFinish()) {
+          CloseTrace();
           return 0;
+        }
       }
     }
 
+    CloseTrace();
     fprintf(stderr, "[VerilatedDevice] Timeout after %u cycles.\n",
             g_verilator_config.timeout_cycles);
     return 1;
   }
 
  private:
+  void OpenTrace(const std::string &path) {
+    CloseTrace();
+    // Ensure output directory exists
+    auto parent = std::filesystem::path(path).parent_path();
+    if (!parent.empty())
+      std::filesystem::create_directories(parent);
+    tfp_ = new TraceType();
+    top_->trace(tfp_, 99);
+    tfp_->open(path.c_str());
+    fprintf(stderr, "[VerilatedDevice] Trace: %s\n", path.c_str());
+  }
+
+  void CloseTrace() {
+    if (tfp_) {
+      tfp_->close();
+      delete tfp_;
+      tfp_ = nullptr;
+    }
+  }
+
   /**
    * One clock cycle: both clock and sim_clock rise and fall together.
    * Matches tsim_device.cc's clock scheme.

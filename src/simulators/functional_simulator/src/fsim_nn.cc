@@ -58,6 +58,10 @@ int fsim_nn() {
     return (currentPath / ".." / ".." / ".." / "compiler_output" / filename)
         .string();
   };
+  auto construct_output_path = [&](const std::string &filename) {
+    return (currentPath / ".." / ".." / ".." / "simulators_output" / filename)
+        .string();
+  };
 
   // 0. DEFINE GLOBAL FILE PATHES
   // ----------------------------
@@ -73,7 +77,12 @@ int fsim_nn() {
   std::string fileInputNNPath = construct_path("input_nn.bin");
 
   // Output file
-  std::string fileFinalOutputPath = construct_path("final_output.bin");
+  std::string fileFinalOutputPath = construct_output_path("final_output.bin");
+#ifdef VERILATOR_BUILD_ENABLED
+  if (g_use_verilator) {
+    fileFinalOutputPath = construct_output_path("final_output_rtl.bin");
+  }
+#endif
 
   // 1. GET NUMBER OF LAYERS AND THE DEBUG FLAG
   // ------------------------------------------
@@ -576,6 +585,20 @@ int fsim_nn() {
     // D. EXECUTE THE VTA OR THE CPU
     // ---
     if (processor == "vta") {
+#ifdef VERILATOR_BUILD_ENABLED
+      // Per-layer trace: update trace_file before Run() reads it.
+      if (g_use_verilator && g_verilator_config.trace_enabled) {
+#ifdef TRACE_FORMAT_VCD
+        const std::string trace_ext = ".vcd";
+#else
+        const std::string trace_ext = ".fst";
+#endif
+        g_verilator_config.trace_file =
+            (currentPath / ".." / ".." / ".." / "simulators_output" /
+             ("trace_" + ctx.suffix + trace_ext))
+                .string();
+      }
+#endif
       // Execute the layer
       int flag =
           VTADeviceRun(vta_device, ctx.phy_add_insn, ctx.insn_buffer.size(), 0);
@@ -867,7 +890,9 @@ static void print_usage(const char *prog) {
       "vtashell.fst/.vcd)\n"
       "          [--sv-log PATH]        Redirect SV $display output to PATH\n"
       "          [--timeout-cycles N]   Max RTL clock cycles before abort "
-      "(default: 500000)\n",
+      "(default: 500000)\n"
+      "          [--no-timeout]         Disable cycle timeout (run until "
+      "finish)\n",
       prog);
 }
 int main(int argc, char **argv) {
@@ -888,6 +913,8 @@ int main(int argc, char **argv) {
       sv_log_arg = argv[++i];
     } else if (strcmp(argv[i], "--timeout-cycles") == 0 && i + 1 < argc) {
       timeout_cycles = static_cast<uint32_t>(atoi(argv[++i]));
+    } else if (strcmp(argv[i], "--no-timeout") == 0) {
+      timeout_cycles = 0;
     } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
       print_usage(argv[0]);
       return 0;
@@ -901,7 +928,10 @@ int main(int argc, char **argv) {
   g_verilator_config.trace_file = trace_file_arg;
   g_verilator_config.timeout_cycles = timeout_cycles;
   if (g_use_verilator) {
-    printf("[Cycle Accurate Simulation] Backend: Verilated RTL (VTAShell)\n");
+    printf("[Cycle Accurate Simulation] Backend: Verilated RTL\n");
+    if (parsed_trace) {
+      printf("[Info] tracing is enabled: performance may suffer");
+    }
   } else {
     printf("[Functional Simulation] Backend: C++ functional model\n");
   }

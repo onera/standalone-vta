@@ -10,8 +10,8 @@
 #ifndef VTA_DEVICE_BACKEND_H_
 #define VTA_DEVICE_BACKEND_H_
 
-#include <cstdint>
 #include "./driver.h"
+#include <cstdint>
 
 /** Physical addresses of all VTA buffers (set by functional_simulator.cc). */
 struct VTABufferAddrs {
@@ -24,12 +24,11 @@ struct VTABufferAddrs {
 };
 
 class VTADeviceBackend {
- public:
-  virtual int Run(vta_phy_addr_t insn_phy_addr,
-                  uint32_t insn_count,
+public:
+  virtual int Run(vta_phy_addr_t insn_phy_addr, uint32_t insn_count,
                   uint32_t wait_cycles) = 0;
   /** Optionally called before Run() to supply all buffer physical addresses. */
-  virtual void SetBufferAddresses(const VTABufferAddrs& /*addrs*/) {}
+  virtual void SetBufferAddresses(const VTABufferAddrs & /*addrs*/) {}
   virtual ~VTADeviceBackend() = default;
 };
 
@@ -39,12 +38,14 @@ extern bool g_use_verilator;
 #ifdef VERILATOR_BUILD_ENABLED
 #include <string>
 struct VerilatorRunConfig {
-    bool        trace_enabled  = false;
-    std::string trace_file     = "";      // empty → default: "vtashell.fst" or "vtashell.vcd"
-    std::string sv_log_file    = "";      // empty → no redirect
-    uint32_t    timeout_cycles = 500000;  // max RTL clock cycles before abort
+  bool trace_enabled = false;
+  std::string trace_file =
+      ""; // empty → default: "vtashell.fst" or "vtashell.vcd"
+  std::string sv_log_file = ""; // empty → no redirect
+  uint32_t timeout_cycles =
+      500000; // max RTL clock cycles before abort; 0 = no timeout
 };
 extern VerilatorRunConfig g_verilator_config;
-#endif  // VERILATOR_BUILD_ENABLED
+#endif // VERILATOR_BUILD_ENABLED
 
-#endif  // VTA_DEVICE_BACKEND_H_
+#endif // VTA_DEVICE_BACKEND_H_
