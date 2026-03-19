@@ -54,7 +54,6 @@ class GenericTest[T <: Module, C <: Parameters](
   if (isLongTest) {
     it should "not have expect violations" taggedAs (LongTests) in {
       simulate(dutFactory(p), additionalResetCycles = 2) { c =>
-        enableWaves()
         testerFactory(c)
       }
     }

@@ -439,7 +439,7 @@ class TensorGemmTest(
 class TensorGemmJsonTestSuite extends AnyFlatSpecSim {
   behavior of "TensorGemmPipelinedSplit"
 
-  val debug = true
+  val debug = false
   def runSim(file: String) = {
     simulate(new TensorGemmPipelinedSplit) { c =>
       if (debug) enableWaves()

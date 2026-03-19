@@ -94,8 +94,8 @@ object `package` extends SbtModule with PublishModule with ScalafixModule {
   object test extends SbtTests with ScalaTest {
     override def scalaTestVersion: Simple[String] = "3.2.19"
 
-    // def testSandboxWorkingDir = false
-    // def testParallelism = false
+    def testSandboxWorkingDir = false
+    def testParallelism = false
     override def forkArgs: Simple[Seq[String]] = Seq(
       "-Dvta.config.file=vta_config_test.json",
       "-Dvta.config.fromResources=true"
