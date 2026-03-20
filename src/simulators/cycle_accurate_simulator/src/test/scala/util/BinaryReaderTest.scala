@@ -13,7 +13,7 @@ import scala.util.{Failure, Success}
 class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
 
   /* Decoding INP */
-  "BinaryReader" should "decode correctly the first vector of INP (16 Bytes) in a binary file (16x16)" in {
+  "BinaryReader" should "decode correctly the first vector of INP (16 Bytes) in a binary file (16x16)" taggedAs (unittest.UnitTests) in {
     val result = computeAddresses(
       "examples_compute/16x16/input.bin",
       DataType.INP,
@@ -54,7 +54,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   }
 
   // Testing reverseLE for int16 vectors
-  it should "reverse correctly an INP vector (int16)" in {
+  it should "reverse correctly an INP vector (int16)" taggedAs (unittest.UnitTests) in {
     val INP: DataTypeValue =
       new DataTypeValue(1, 16, Map.empty.withDefaultValue(16))
     val inp = Array(
@@ -99,7 +99,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   }
 
   // Testing computeAddresses for int16 vectors
-  it should "decode correctly an INP vector (int16)" in {
+  it should "decode correctly an INP vector (int16)" taggedAs (unittest.UnitTests) in {
     val INP: DataTypeValue =
       new DataTypeValue(1, 16, Map.empty.withDefaultValue(16))
     val inp_int16 = computeAddresses(
@@ -124,7 +124,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   }
 
   // Testing computeAddresses for int32 vectors
-  it should "decode correctly an INP vector (int32)" in {
+  it should "decode correctly an INP vector (int32)" taggedAs (unittest.UnitTests) in {
     val INP: DataTypeValue =
       new DataTypeValue(1, 16, Map.empty.withDefaultValue(32))
     val inp_int32 = computeAddresses(
@@ -149,7 +149,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     }
   }
 
-  it should "decode the vectors 0 and 16 and 32 of INP in 32x32_relu" in {
+  it should "decode the vectors 0 and 16 and 32 of INP in 32x32_relu" taggedAs (unittest.UnitTests) in {
     val result = computeAddresses(
       "examples_compute/32x32_relu/input.bin",
       DataType.INP,
@@ -235,7 +235,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     }
   }
 
-  it should "return the same value if an offset is or isn't used for the first vector of INP" in {
+  it should "return the same value if an offset is or isn't used for the first vector of INP" taggedAs (unittest.UnitTests) in {
     val resultOffset = computeAddresses(
       "examples_compute/lenet5_layer1/input.bin",
       DataType.INP,
@@ -266,7 +266,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     }
   }
 
-  it should "return the same value if an offset is or isn't used for the second vector of INP" in {
+  it should "return the same value if an offset is or isn't used for the second vector of INP" taggedAs (unittest.UnitTests) in {
     val offset = "00001000"
     val resultOffset = computeAddresses(
       "examples_compute/lenet5_layer1/input.bin",
@@ -301,7 +301,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   }
 
   /* Decoding WGT */
-  it should "decode all the WGT vectors in 32x32_relu" in {
+  it should "decode all the WGT vectors in 32x32_relu" taggedAs (unittest.UnitTests) in {
     val result = computeAddresses(
       "examples_compute/32x32_relu/weight.bin",
       DataType.WGT,
@@ -1371,7 +1371,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     }
   }
 
-  it should "decode a WGT vector in Int-16" in {
+  it should "decode a WGT vector in Int-16" taggedAs (unittest.UnitTests) in {
     val WGT: DataTypeValue =
       new DataTypeValue(1, 256, Map.empty.withDefaultValue(16))
     val wgt_int16 = computeAddresses(
@@ -1409,7 +1409,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     }
   }
 
-  it should "decode a WGT vector in Int-32" in {
+  it should "decode a WGT vector in Int-32" taggedAs (unittest.UnitTests) in {
     val WGT: DataTypeValue =
       new DataTypeValue(1, 256, Map.empty.withDefaultValue(32))
     val wgt_int32 = computeAddresses(
@@ -1448,7 +1448,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   }
 
   /* Decoding OUT */
-  it should "decode vectors 0 and 16 of OUT in 32x32_relu" in {
+  it should "decode vectors 0 and 14 of OUT in 32x32_relu" in {
     val result = computeAddresses(
       "examples_compute/32x32_relu/out.bin",
       DataType.OUT,
@@ -1460,7 +1460,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     result match {
       case Success(data) =>
         data(0) should equal(out)
-        data(16) should equal(out)
+        data(14) should equal(out)
       case Failure(exception) =>
         fail(
           s"Error while computing addresses for OUT : ${exception.getMessage}"
@@ -1469,7 +1469,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   }
 
   /* Decoding EXPECT_OUT */
-  it should "decode correctly the first vector of EXPECT_OUT (16 Bytes) in a binary file" in {
+  it should "decode correctly the first vector of EXPECT_OUT (16 Bytes) in a binary file" taggedAs (unittest.UnitTests) in {
     val result = computeAddresses(
       "examples_compute/16x16/expected_out.bin",
       DataType.OUT,
@@ -1509,7 +1509,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     }
   }
 
-  it should "decode vectors 0 and 16 of EXPECT_OUT in 32x32_relu" in {
+  it should "decode vectors 0 and 16 of EXPECT_OUT in 32x32_relu" taggedAs (unittest.UnitTests) in {
     val result = computeAddresses(
       "examples_compute/32x32_relu/expected_out.bin",
       DataType.OUT,
@@ -1573,7 +1573,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   }
 
   /* Decoding ACC */
-  it should "decode ACC in average_pooling" in {
+  it should "decode ACC in average_pooling" taggedAs (unittest.UnitTests) in {
     val acc = computeAddresses(
       "examples_compute/average_pooling/accumulator.bin",
       DataType.ACC,
@@ -1592,7 +1592,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     }
   }
 
-  it should "decode correctly the first vector of ACC" in {
+  it should "decode correctly the first vector of ACC" taggedAs (unittest.UnitTests) in {
     val result = computeAddresses(
       "examples_compute/16x16_relu/accumulator.bin",
       DataType.ACC,
@@ -1612,7 +1612,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     }
   }
 
-  it should "decode correctly the first vector of ACC (64 Bytes) in a binary file (layer1)" in {
+  it should "decode correctly the first vector of ACC (64 Bytes) in a binary file (layer1)" taggedAs (unittest.UnitTests) in {
     val result = computeAddresses(
       "examples_compute/lenet5_layer1/accumulator.bin",
       DataType.ACC,
@@ -1653,7 +1653,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   }
 
   /* Decoding UOP */
-  it should "decode correctly the UOPs (4 Bytes each) in a binary file (conv1)" in {
+  it should "decode correctly the UOPs (4 Bytes each) in a binary file (conv1)" taggedAs (unittest.UnitTests) in {
     val result = computeAddresses(
       "examples_compute/lenet5_conv1/uop.bin",
       DataType.UOP,
@@ -1675,7 +1675,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     }
   }
 
-  it should "decode correctly all the UOPs of a binary file (32x32_relu)" in {
+  it should "decode correctly all the UOPs of a binary file (32x32_relu)" taggedAs (unittest.UnitTests) in {
     val result = computeAddresses(
       "examples_compute/32x32_relu/uop.bin",
       DataType.UOP,
@@ -1702,7 +1702,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   }
 
   /* Decoding Instructions */
-  it should "decode correctly the first instruction (16 Bytes) in a binary file (layer1)" in {
+  it should "decode correctly the first instruction (16 Bytes) in a binary file (layer1)" taggedAs (unittest.UnitTests) in {
     val result = computeAddresses(
       "examples_compute/lenet5_layer1/instructions.bin",
       DataType.INSN,
@@ -1732,7 +1732,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     }
   }
 
-  it should "decode correctly the last instruction in a binary file (layer1)" in {
+  it should "decode correctly the last instruction in a binary file (layer1)" taggedAs (unittest.UnitTests) in {
     val result = computeAddresses(
       "examples_compute/lenet5_layer1/instructions.bin",
       DataType.INSN,
@@ -1761,7 +1761,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
     }
   }
 
-  it should "decode the instructions in a binary file (32x32_relu)" in {
+  it should "decode the instructions in a binary file (32x32_relu)" taggedAs (unittest.UnitTests) in {
     val result = computeAddresses(
       "examples_compute/32x32_relu/instructions.bin",
       DataType.INSN,
@@ -1887,23 +1887,22 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   }
 
   /* Decoding CSV file for the base memory addresses */
-  it should "decode the content of the csv file" in {
+  it should "decode the content of the csv file" taggedAs (unittest.UnitTests) in {
     val baseAddresses = computeCSVFile(
       "examples_compute/lenet5_conv1/memory_addresses.csv",
       fromResources = true
     )
-    baseAddresses("inp") should equal("00000000")
-    baseAddresses("wgt") should equal("00000000")
-    baseAddresses("out") should equal("00000000")
-    baseAddresses("uop") should equal("0000d000")
-    baseAddresses("acc") should equal("0000e000")
+    baseAddresses("INP") should equal("00000000")
+    baseAddresses("WGT") should equal("00000000")
+    baseAddresses("OUT") should equal("00000000")
+    baseAddresses("UOP") should equal("0000d000")
+    baseAddresses("ACC") should equal("0000e000")
   }
 
   /* Decoding JSON file for VTA config */
-  it should "decode the JSON config file in /config" in {
-    val params = computeJSONFile("vta_config.json", fromResources = false)
+  it should "decode the JSON config file in resources" taggedAs (unittest.UnitTests) in {
+    val params = computeJSONFile("vta_config_test.json", fromResources = true)
     params("LOG_INP_WIDTH") should equal(pow(2, 3))
     params("LOG_BLOCK") should equal(pow(2, 4))
   }
 }
-

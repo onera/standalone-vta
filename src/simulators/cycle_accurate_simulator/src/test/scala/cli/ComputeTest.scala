@@ -7,6 +7,8 @@ import vta.core.ISA._
 import vta.core._
 import vta.shell.VMEReadMaster
 import vta.util.config.Parameters
+import unittest.AnyFlatSpecSim
+import unittest.LongTests
 
 class ComputeTest(
     c: Compute,
@@ -37,6 +39,30 @@ class ComputeTest(
     debug,
     fromResources = fromResources
   )
+}
+
+class ComputeSpec extends AnyFlatSpecSim {
+  behavior of "Compute"
+
+  it should "execute a simple vector matrix multiplication" taggedAs (LongTests) in simulate(
+    new Compute(false)
+  )(
+    new ComputeTest(
+      _,
+      "examples_compute/smm/instructions.bin",
+      "examples_compute/smm/uop.bin",
+      "examples_compute/smm/input.bin",
+      "examples_compute/smm/weight.bin",
+      "examples_compute/smm/out.bin",
+      "examples_compute/smm/accumulator.bin",
+      "examples_compute/smm/expected_out.bin",
+      "examples_compute/smm/memory_addresses.csv",
+      false,
+      debug = true
+    )
+  )
+
+  it should ""
 }
 
 /** ***********************************************************************************************************

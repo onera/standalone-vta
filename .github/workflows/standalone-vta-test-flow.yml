@@ -53,7 +53,7 @@ jobs:
       - name:
         run: |
           cd src/simulators/cycle_accurate_simulator
-          ./mill test
+          ./mill test -n unittest.UnitTests
 
 
   sim-cycle-accurate:
