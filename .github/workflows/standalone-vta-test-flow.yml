@@ -15,25 +15,27 @@ permissions:
 jobs:
   functional-simutator-test:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: bash -el {0}
     steps:
-      - uses: actions/checkout@v4
-      - uses: conda-incubator/setup-miniconda@v3
+      - uses: actions/checkout@v6
+      - name: Setup python
+        uses: actions/setup-python@v6
+        with: 
+          python-version-file: "src/compiler/.python-version"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
         with:
-          auto-activate: false
-          environment-file: environment_setup/standalone-vta.yml
-          activate-environment: standalone-vta
-          channels: conda-forge,defaults
-          channel-priority: flexible
+          version: "0.10.11"
+      - name: Sync dependencies
+        run: cd src/compiler && uv sync
       - name: Tests VTA compiler and functional simulator
-        run: cd examples && make compile_and_run
+        run: |
+          source src/compiler/.venv/bin/activate
+          cd examples && make compile_and_run
 
   cycle-accurate-simulator-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Cache Scala
         uses: coursier/cache-action@v6
       - name: Setup Scala
@@ -52,3 +54,34 @@ jobs:
         run: |
           cd src/simulators/cycle_accurate_simulator
           ./mill test
+
+    sim-cycle-accurate:
+      needs: [functional-simutator-test, cycle-accurate-simulator-test]
+      runs-on: ubuntu-latest
+      steps:
+        - name: Emit simulation SystemVerilog files
+          run: |
+            cd src/simulators/cycle_accurate_simulator
+            ./mill emitVTASimConfig
+        - name: Build simulator with verilated backend
+          run: |
+            cd src/simulators/functional_simulator
+            make build/fsim_nn_rtl
+            make build/fsim_single_layer_rtl
+        - name: Compile small gemm test
+          run: |
+            cd examples
+            source src/compiler/.venv/bin/activate
+            make test_gemm
+        - name: Test the functional simulation
+          run: |
+            cd src/simulators/functional_simulator
+            ./build/fsim_single_layer_rtl
+        - name: Test the cycle accurate simulation 
+          run: |
+            cd src/simulators/functional_simulator
+            ./build/fsim_single_layer_rtl --verilator --no-timeout
+        # - name: Compare results
+        #   run: |
+        #     cd compiler_output
+        #     cmp -ls final_output.bin final_output_rtl.bin
