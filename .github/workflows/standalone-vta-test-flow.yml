@@ -96,8 +96,8 @@ jobs:
             make build/fsim_single_layer_rtl
         - name: Compile small gemm test
           run: |
-            cd examples
             source src/compiler/.venv/bin/activate
+            cd examples
             make test_gemm
         - name: Test the functional simulation
           run: |
