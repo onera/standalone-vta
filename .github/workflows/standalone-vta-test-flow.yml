@@ -2,6 +2,10 @@
 
 name: Standalone VTA Update CI
 
+on:
+  workflow_dispatch:
+
+
 permissions:
   contents: read
 
@@ -46,4 +50,6 @@ jobs:
           cd src/simulators/cycle_accurate_simulator
           sbt test
       - name: mill tests
-        run: ./mill test
+        run: |
+          cd src/simulators/cycle_accurate_simulator
+          ./mill test
