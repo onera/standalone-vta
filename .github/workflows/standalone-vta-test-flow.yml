@@ -32,7 +32,7 @@ jobs:
           source src/compiler/.venv/bin/activate
           cd examples && make compile_and_run
 
-  build-scala:
+  cycle-accurate-simulator-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -53,25 +53,43 @@ jobs:
       - name:
         run: |
           cd src/simulators/cycle_accurate_simulator
-          ./mill _.compile
-
-  cycle-accurate-simulator-test:
-    needs: [build-scala]
-    runs-on: ubuntu-latest
-    steps:
-      - name: mill tests
-        run: |
-          cd src/simulators/cycle_accurate_simulator
           ./mill test
 
+
   sim-cycle-accurate:
-      needs: [functional-simulator-test, build-scala]
+      needs: [functional-simulator-test, cycle-accurate-simulator-test]
       runs-on: ubuntu-latest
       steps:
-        - name: Emit simulation SystemVerilog files
+        - uses: actions/checkout@v6
+        - name: Cache Scala
+          uses: coursier/cache-action@v6
+        - name: Setup Scala
+          uses: coursier/setup-action@v1
+          with:
+            jvm: adopt:11
+            apps: sbt
+        - name: Setup Z3
+          id: z3
+          uses: cda-tum/setup-z3@v1
+        - name: Install Verilator
           run: |
-            cd src/simulators/cycle_accurate_simulator
-            ./mill emitVTASimConfig
+            sudo apt-get install verilator
+            verilator --version
+        - name: Setup python
+          uses: actions/setup-python@v6
+          with: 
+            python-version-file: "src/compiler/.python-version"
+        - name: Install uv
+          uses: astral-sh/setup-uv@v7
+          with:
+            version: "0.10.11"
+        - name: Sync dependencies
+          run: cd src/compiler && uv sync
+        - name:
+          - name: Emit simulation SystemVerilog files
+            run: |
+              cd src/simulators/cycle_accurate_simulator
+              ./mill emitVTASimConfig
         - name: Build simulator with verilated backend
           run: |
             cd src/simulators/functional_simulator
