@@ -85,9 +85,8 @@ jobs:
             version: "0.10.11"
         - name: Sync dependencies
           run: cd src/compiler && uv sync
-        - name:
-          - name: Emit simulation SystemVerilog files
-            run: |
+        - name: Emit simulation SystemVerilog files
+          run: |
               cd src/simulators/cycle_accurate_simulator
               ./mill emitVTASimConfig
         - name: Build simulator with verilated backend
