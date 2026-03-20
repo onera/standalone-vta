@@ -38,7 +38,7 @@ jobs:
       - name: Setup Scala
         uses: coursier/setup-action@v1
         with:
-          jvm: temurin:8
+          jvm: adopt:11
           apps: sbt
       - name: Setup Z3
         id: z3
