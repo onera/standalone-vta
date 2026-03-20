@@ -59,7 +59,8 @@ int fsim_nn() {
         .string();
   };
   auto construct_output_path = [&](const std::string &filename) {
-    return (currentPath / ".." / ".." / ".." / "simulators_output" / filename)
+    return (currentPath / ".." / ".." / ".." / "compiler_output" /
+            filename) // FIXME: checks from compiler looks in compiler_output
         .string();
   };
 
