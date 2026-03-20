@@ -3,6 +3,8 @@
 name: Standalone VTA Update CI
 
 on:
+  push:
+    branches: [ "sim_verilator_backend" ]
   workflow_dispatch:
 
 
