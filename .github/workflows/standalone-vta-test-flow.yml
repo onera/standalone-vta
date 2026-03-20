@@ -92,13 +92,12 @@ jobs:
         - name: Build simulator with verilated backend
           run: |
             cd src/simulators/functional_simulator
-            make build/fsim_nn_rtl
-            make build/fsim_single_layer_rtl
+            SIM_THREADS=2 make build/fsim_single_layer_rtl
         - name: Compile small gemm test
           run: |
             source src/compiler/.venv/bin/activate
             cd examples
-            make test_gemm
+            make -s test_gemm
         - name: Test the functional simulation
           run: |
             cd src/simulators/functional_simulator
