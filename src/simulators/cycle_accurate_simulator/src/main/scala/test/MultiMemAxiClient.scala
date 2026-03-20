@@ -89,13 +89,12 @@ class MultiMemAxiClientSpec
     simulate(
       new MultiMemAxiClient(
         Seq(
-          MemoryConfig("INSN", path + "/INSN.mem", 0, 12, 24),
-          MemoryConfig("UOP", path + "/UOP.mem", 100, 5, 3)
+          MemoryConfig("INSN", (path / "INSN.mem").toString(), 0, 12, 24),
+          MemoryConfig("UOP", (path / "UOP.mem").toString(), 100, 5, 3)
         )
       ),
       firtoolOpts = Array("--disable-all-randomization")
     ) { dut =>
-
       implicit val axi = dut.io
       implicit val clock = dut.clock
 

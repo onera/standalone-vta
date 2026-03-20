@@ -14,6 +14,7 @@ import vta.util.SimulationUtils.verilatorWithWaveDump
 
 import java.nio.file.Path
 import java.nio.file.Paths
+import chisel3.simulator.HasSimulator
 
 // FIXME: simple app, needs refinement
 object VTAShellSimulator extends App with VTAShellTest {
@@ -23,9 +24,9 @@ object VTAShellSimulator extends App with VTAShellTest {
 
   exportHexFiles(parseMemorySections(dramInit), os.pwd / "build" / "mem")
 
-  implicit val simulator = verilatorWithWaveDump
+  implicit val simulator: HasSimulator = verilatorWithWaveDump
 
-  implicit val hasTestingDirectory = if (args.size >= 2) {
+  implicit val hasTestingDirectory: HasTestingDirectory = if (args.size >= 2) {
     new HasTestingDirectory {
 
       override def getDirectory: Path = {

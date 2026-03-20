@@ -109,8 +109,7 @@ class VTAMemDPI(implicit val p: Parameters)
   addResource("/verilog/VTAMemDPI.v")
 }
 
-class VTAMemDPIToAXI(debug: Boolean = true)(implicit val p: Parameters)
-    extends Module {
+class VTAMemDPIToAXI(implicit val p: Parameters) extends Module {
   val io = IO(new Bundle {
     val dpi = new VTAMemDPIMaster
     val axi = new AXIClient(p(ShellKey).memParams)

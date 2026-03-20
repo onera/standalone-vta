@@ -1,5 +1,4 @@
 package vta.shell
-import vta.util.BinaryReader
 import chisel3._
 import chisel3.simulator.scalatest.ChiselSim
 import chisel3.util.experimental.loadMemoryFromFileInline
@@ -11,7 +10,7 @@ import vta.interface.axi.AxiLike._
 import vta.util.SimulationUtils._
 import vta.util.config.Parameters
 
-class SyncAxiDram(memoryFile: String = "", size: Int, width: Int)(implicit
+class SyncAxiDram(memoryFile: String = "", size: Int)(implicit
     p: Parameters
 ) extends Module {
   val io = IO(new Bundle {
@@ -63,8 +62,8 @@ class SyncAxiDramSpec
     }
   }
 
-  "InitMemInline" should "be simulable" in {
-    val resource = "examples_core/simple.mem"
+  "InitMemInline" should "be simulable" taggedAs (unittest.UnitTests) in {
+    val resource = "examples_shell/simple.mem"
     implicit val simulator = verilatorWithWaveDump
 
     val file = getClass.getClassLoader.getResource(resource).getFile()
@@ -95,8 +94,8 @@ class SyncAxiDramSpec
         mem.io.addr.poke(i)
         mem.io.write.poke(false)
         mem.clock.step()
-        println(mem.io.dataOut.peek())
-        // mem.io.dataOut.expect(i)
+        // println(mem.io.dataOut.peek())
+        mem.io.dataOut.expect(i)
       }
     }
   }

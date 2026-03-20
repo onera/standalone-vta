@@ -47,7 +47,6 @@ trait AxiLiteSimUtils extends PeekPokeAPI {
       timeout: Int = 2
   ): Option[UInt] = {
     axi.r.ready.poke(true.B)
-    var istep = 0
     clock.step()
     clock.stepUntil(axi.r.valid, 1, timeout)
 
@@ -68,7 +67,6 @@ trait AxiLiteSimUtils extends PeekPokeAPI {
   def writeInstructionBaseAddress(
       baseAddress: Int
   )(implicit clock: Clock, axi: AXILiteClient) = {
-    val vcr = VCRParams()
     writeVCRPtrs(0, baseAddress)
   }
 
