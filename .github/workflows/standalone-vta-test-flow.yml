@@ -32,7 +32,7 @@ jobs:
           source src/compiler/.venv/bin/activate
           cd examples && make compile_and_run
 
-  cycle-accurate-simulator-test:
+  build-scala:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -50,13 +50,22 @@ jobs:
         run: |
           sudo apt-get install verilator
           verilator --version
+      - name:
+        run: |
+          cd src/simulators/cycle_accurate_simulator
+          ./mill _.compile
+
+  cycle-accurate-simulator-test:
+    needs: [build-scala]
+    runs-on: ubuntu-latest
+    steps:
       - name: mill tests
         run: |
           cd src/simulators/cycle_accurate_simulator
           ./mill test
 
     sim-cycle-accurate:
-      needs: [functional-simutator-test, cycle-accurate-simulator-test]
+      needs: [functional-simulator-test, build-scala]
       runs-on: ubuntu-latest
       steps:
         - name: Emit simulation SystemVerilog files
@@ -81,7 +90,3 @@ jobs:
           run: |
             cd src/simulators/functional_simulator
             ./build/fsim_single_layer_rtl --verilator --no-timeout
-        # - name: Compare results
-        #   run: |
-        #     cd compiler_output
-        #     cmp -ls final_output.bin final_output_rtl.bin
