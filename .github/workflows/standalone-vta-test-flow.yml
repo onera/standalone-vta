@@ -6,6 +6,7 @@ on:
   push:
     branches: [ "sim_verilator_backend" ]
   workflow_dispatch:
+    branches: [ "sim_verilator_backend" ]
 
 
 permissions:
@@ -47,10 +48,6 @@ jobs:
         run: |
           sudo apt-get install verilator
           verilator --version
-      - name: SBT tests
-        run: |
-          cd src/simulators/cycle_accurate_simulator
-          sbt test
       - name: mill tests
         run: |
           cd src/simulators/cycle_accurate_simulator
