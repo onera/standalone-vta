@@ -6,14 +6,14 @@ on:
   push:
     branches: [ "sim_verilator_backend" ]
   workflow_dispatch:
-    branches: [ "sim_verilator_backend" ]
+    
 
 
 permissions:
   contents: read
 
 jobs:
-  functional-simutator-test:
+  functional-simulator-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -64,7 +64,7 @@ jobs:
           cd src/simulators/cycle_accurate_simulator
           ./mill test
 
-    sim-cycle-accurate:
+  sim-cycle-accurate:
       needs: [functional-simulator-test, build-scala]
       runs-on: ubuntu-latest
       steps:
