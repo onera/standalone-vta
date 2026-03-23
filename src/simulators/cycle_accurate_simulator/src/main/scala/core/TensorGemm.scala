@@ -631,9 +631,10 @@ class TensorGemmPipelinedSplit(implicit p: Parameters) extends TensorGemmIfc {
   io.uop.idx.bits := indexGenerator.io.uop_idx
   io.uop.idx.valid := indexGenerator.io.valid
 
-  val delayedUopData = ShiftRegister(io.uop.data, uopReadLatency)
+  val delayedUopData =
+    ShiftRegister(io.uop.data, uopReadLatency)
 
-  // assert(delayedUopData.valid === delayed_valid, "valid should be delayed")
+  assert(delayedUopData.valid === delayed_valid, "valid should be delayed")
 
   val uop_valid =
     ShiftRegister(delayed_valid, inpReadIdxLatency, false.B, true.B)

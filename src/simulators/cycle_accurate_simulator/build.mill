@@ -11,6 +11,7 @@ import mill.javalib.TestModule.ScalaTest
 import mill.api.Task.Simple
 import mill.api.BuildCtx
 import com.goyeau.mill.scalafix.ScalafixModule
+import mill.javalib.testrunner.TestResult
 
 object `package` extends SbtModule with PublishModule with ScalafixModule {
 
@@ -58,20 +59,20 @@ object `package` extends SbtModule with PublishModule with ScalafixModule {
     Seq(),
     VersionControl(
       Some("https://github.com/onera/standalone-vta"),
-      Some("scm:git:https://github.com/onera/standalone-vta.git"),
-      Some("scm:git:git@github.com:onera/standalone-vta.git"),
-      None
-    ),
-    Seq()
-  )
+        Some("scm:git:https://github.com/onera/standalone-vta.git"),
+          Some("scm:git:git@github.com:onera/standalone-vta.git"),
+          None
+        ),
+      Seq()
+    )
 
   def publishVersion = "6.0-SNAPSHOT"
 
   /** Emit VTAShell.sv for Verilator using `vta.EmitVTAShell` main class.
-    *
-    * Usage: ./mill emitVerilog Output: generatedResources/VTAShell.sv (relative
-    * to build root)
-    */
+   *
+   * Usage: ./mill emitVerilog Output: generatedResources/VTAShell.sv (relative
+   * to build root)
+   */
   def emitVtaSimConfig() = Task.Command {
     val outDir = BuildCtx.workspaceRoot / "build" / "emitted" / "vta-sim-shell"
     os.makeDir.all(outDir)
@@ -103,13 +104,23 @@ object `package` extends SbtModule with PublishModule with ScalafixModule {
     override def scalaTestVersion: Simple[String] = "3.2.19"
 
     // override def testArgsDefault: Simple[Seq[String]] =
-    //   Seq("-n", "unittest.UnitTests")
+    //   Seq("-n", "vta.tags.UnitTests")
     def testSandboxWorkingDir = false
     def testParallelism = false
     override def forkArgs: Simple[Seq[String]] = Seq(
       "-Dvta.config.file=vta_config_test.json",
       "-Dvta.config.fromResources=true"
     )
+
+    def unittest() : Task.Command[(msg: String, results: Seq[TestResult])] = {
+      Task.Command {
+        testForked("-n","vta.tags.UnitTests")()
+      }
+    }
+
+    def testWaves(args: String*) = Task.Command{
+      testOnly(args ++ Seq("--","-DemitVcd=1")*)()
+    }
 
   }
 

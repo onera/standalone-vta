@@ -15,6 +15,7 @@ import chisel3.simulator.scalatest.HasCliOptions
 
 trait ComputeTest extends AnyFlatSpecSim {
 
+  implicit val param: Parameters = new DefaultPynqConfig
   def computeSimulation(
       insn: String,
       uop: String,
@@ -48,7 +49,7 @@ trait ComputeTest extends AnyFlatSpecSim {
   }
 }
 
-class ComputeSpec extends ComputeTest {
+class ComputeTests extends ComputeTest {
   behavior of "Compute"
 
   it should "execute a simple vector matrix multiplication" in computeSimulation(

@@ -21,7 +21,7 @@ package unittest
 
 import vta.core._
 import vta.util.config._
-import vta.testing.tags.UnitTests
+import vta.tags.UnitTests
 
 @UnitTests
 class GemmTest extends AnyFlatSpecSim {

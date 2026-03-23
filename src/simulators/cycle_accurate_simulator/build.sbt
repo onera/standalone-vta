@@ -5,9 +5,9 @@ lazy val commonSettings = Seq(
   Test / testOptions += Tests.Argument(
     TestFrameworks.ScalaTest,
     "-n",
-    "UnitTests"
+    "vta.tags.UnitTests"
     // "-n", // Formal tests are broken
-    // "FormalTests"
+    // "vta.tags.FormalTests"
   )
 )
 

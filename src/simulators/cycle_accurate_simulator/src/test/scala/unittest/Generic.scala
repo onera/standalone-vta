@@ -29,7 +29,7 @@ import vta.DefaultPynqConfig
 import chisel3.simulator.scalatest.ChiselSim
 import vta.util.SimulationUtils.verilatorWithWaveDump
 import chisel3.simulator.HasSimulator
-import vta.testing.tags.tagObjects.{UnitTests, LongTests}
+import vta.tags.tagObjects.{UnitTests, LongTests}
 
 trait AnyFlatSpecSim extends AnyFlatSpec with ChiselSim {
 

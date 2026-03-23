@@ -9,7 +9,7 @@ import vta.interface.axi.AXIClient
 import vta.interface.axi.AxiLike._
 import vta.util.SimulationUtils._
 import vta.util.config.Parameters
-import vta.testing.tags.tagObjects.UnitTests
+import vta.tags.tagObjects.UnitTests
 
 class SyncAxiDram(memoryFile: String = "", size: Int)(implicit
     p: Parameters

@@ -9,7 +9,7 @@ import chiseltest.simulator.WriteVcdAnnotation
 import org.scalatest.flatspec.AnyFlatSpec
 import _root_.circt.stage.ChiselStage
 import vta.util.config._
-import vta.testing.tags.tagObjects.FormalTests
+import vta.tags.tagObjects.FormalTests
 
 import vta.core.MatrixVectorMultiplicationBypass
 

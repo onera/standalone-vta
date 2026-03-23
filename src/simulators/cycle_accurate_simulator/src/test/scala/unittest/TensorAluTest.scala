@@ -22,7 +22,8 @@ package unittest
 import chisel3._
 import vta.core._
 import chisel3.simulator.ChiselSim
-import vta.testing.tags
+import vta.tags
+import tags.tagObjects.UnitTests
 
 @tags.UnitTests
 class TensorAluIndexGeneratorTest extends AnyFlatSpecSim {
@@ -123,7 +124,7 @@ class TensorAluIndexGeneratorTest extends AnyFlatSpecSim {
   }
 
 }
-
+@tags.UnitTests
 class TensorAluPipelinedTest extends AnyFlatSpecSim {
   behavior of "TensorAluPipelined"
 
@@ -263,7 +264,7 @@ class TensorAluPipelinedTest extends AnyFlatSpecSim {
       var count = 0
       val end = (uop_end - uop_begin) * lp_0 * lp_1
 
-      while (c.io.done.peek() == 0 && count < 10 * end + 100) {
+      while (!c.io.done.peekBoolean() && count < 10 * end + 100) {
         mocks.logical_step()
         c.io.start.poke(0)
         count += 1

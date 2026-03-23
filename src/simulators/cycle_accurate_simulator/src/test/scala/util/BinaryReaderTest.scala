@@ -9,7 +9,7 @@ import java.io.File
 import java.math.BigInteger
 import scala.math.pow
 import scala.util.{Failure, Success}
-import vta.testing.tags.UnitTests
+import vta.tags.UnitTests
 
 @UnitTests
 class BinaryReaderTest extends AnyFlatSpec with should.Matchers {

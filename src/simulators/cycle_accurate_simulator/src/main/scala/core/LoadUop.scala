@@ -20,10 +20,8 @@
 package vta.core
 
 import chisel3._
-import chisel3.layer.block
 import chisel3.util._
 import vta.shell._
-import vta.util.UserDefined.Debug
 import vta.util.config._
 
 /** UopMaster.

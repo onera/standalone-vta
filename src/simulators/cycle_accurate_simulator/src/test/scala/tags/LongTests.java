@@ -1,4 +1,4 @@
-package vta.testing.tags;
+package vta.tags;
 
 import java.lang.annotation.*;
 import org.scalatest.TagAnnotation;

@@ -310,7 +310,7 @@ class TensorGemmIndexGeneratorTester(
 
   val end = (uopEnd - uopBegin) * lp0 * lp1
   var count = 0
-  while (c.io.last.peekBoolean() && count < 10 * end + 100) {
+  while (!c.io.last.peekBoolean() && count < 10 * end + 100) {
     mocks.logical_step()
     count += 1
   }
@@ -464,7 +464,7 @@ class TensorGemmResetTester(c: TensorGemm) extends TensorGemmGenericTester(c) {
   c.io.start.poke(1)
 
   while (!c.io.done.peekBoolean()) {
-    mocks.logical_step(Some(0), Some(0))
+    mocks.logical_step(None, None)
     c.io.start.poke(0)
   }
 

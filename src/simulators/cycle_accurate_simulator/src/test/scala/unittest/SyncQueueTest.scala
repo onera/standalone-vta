@@ -28,7 +28,7 @@ import vta.util.config._
 import chisel3.simulator.ChiselSim
 import chisel3.simulator.scalatest
 import org.scalatest.flatspec.AnyFlatSpec
-import vta.testing.tags
+import vta.tags
 
 class Checker(c: SyncQueueTestWrapper[UInt]) extends ChiselSim {
 

@@ -31,20 +31,15 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import chisel3.simulator.ChiselSim
 import unittest.mocks.TensorGemmJsonTester
-import vta.testing.tags
-//import com.fasterxml.jackson.module.scala.experimental.ScalaObjectMapper // No more needed (deprecated)
+import vta.tags
 
-@tags.UnitTests
 class TensorGemmJsonTest extends AnyFlatSpecSim {
 
   behavior of "TensorGemmPipelinedSplit"
 
   it should "run gemm_1uop_overflow_offset.json without errors" in simulate(
     new TensorGemmPipelinedSplit()
-  ) { c =>
-    enableWaves()
-    new TensorGemmJsonTester(c, "/gemm_1uop_overflow_offset.json")
-  }
+  )(new TensorGemmJsonTester(_, "/gemm_1uop_overflow_offset.json"))
 
   it should "run gemm_2uop_overflow_cascaded.json without errors" in simulate(
     new TensorGemmPipelinedSplit()

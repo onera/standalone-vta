@@ -1,5 +1,6 @@
 package cli
 
+import chisel3.simulator.HasSimulator
 import chisel3.testing.HasTestingDirectory
 import vta.parsers.DramInitParser
 import vta.parsers.DramInitParser.getMemoryConfigurations
@@ -14,7 +15,6 @@ import vta.util.SimulationUtils.verilatorWithWaveDump
 
 import java.nio.file.Path
 import java.nio.file.Paths
-import chisel3.simulator.HasSimulator
 
 // FIXME: simple app, needs refinement
 object VTAShellSimulator extends App with VTAShellTest {

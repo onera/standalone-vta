@@ -9,7 +9,7 @@ import chiseltest.simulator.WriteVcdAnnotation
 import org.scalatest.flatspec.AnyFlatSpec
 import _root_.circt.stage.ChiselStage
 
-import vta.testing.tags.tagObjects.{FormalTests, UnitTests}
+import vta.tags.tagObjects.{FormalTests, UnitTests}
 import vta.core.DotProduct
 
 /** Testing MacVTA

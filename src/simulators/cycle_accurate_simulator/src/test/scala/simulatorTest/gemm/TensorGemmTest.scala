@@ -471,14 +471,13 @@ class TensorGemmJsonTestSuite extends AnyFlatSpecSim {
 //  (c: TensorGemmPipelinedSplit) => new TensorGemmTest(c, "/examples_gemm/b1_c1h2w16_c1h2w16_rows.json"))
 
 /* Test for investigation */
-class TensorGemmTester_test
-    extends GenericTest(
-      "Test instructions",
-      (p: Parameters) => new TensorGemmPipelinedSplit()(p),
-      (c: TensorGemmPipelinedSplit) =>
-        new TensorGemmTest(c, "/examples_gemm/test_instructions.json")
+class TensorGemmTester_test extends AnyFlatSpecSim {
+  "Test instructions" should "run without assertions" in
+    simulate(new TensorGemmPipelinedSplit()(p))(
+      new TensorGemmTest(_, "/examples_gemm/test_instructions.json")
     )
 
+}
 /* Tests of performance */
 class TensorGemmPerformanceTests extends AnyFlatSpecSim {
   behavior of "TensorGemmPipelinedSplit"
