@@ -6,7 +6,9 @@ import chisel3.simulator.scalatest.ChiselSim
 import vta.core.TensorStore
 import vta.DefaultPynqConfig
 import vta.util.SimulationUtils.verilatorWithWaveDump
+import vta.testing.tags
 
+@tags.UnitTests
 class TensorStoreSpec extends AnyFlatSpec with ChiselSim {
   it should "properly run" in {
     implicit val parameter = new DefaultPynqConfig

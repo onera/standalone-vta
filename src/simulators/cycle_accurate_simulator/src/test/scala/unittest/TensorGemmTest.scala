@@ -31,7 +31,9 @@ import unittest.mocks.{
   TensorGemmResetTester,
   TensorGemmTester
 }
+import vta.testing.tags
 
+@tags.UnitTests
 class TensorGemmTestSuite extends AnyFlatSpecSim {
   behavior of "TensorGemmSimple"
   it should "compute a simple operation" in

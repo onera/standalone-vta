@@ -9,6 +9,7 @@ import vta.interface.axi.AXIClient
 import vta.interface.axi.AxiLike._
 import vta.util.SimulationUtils._
 import vta.util.config.Parameters
+import vta.testing.tags.tagObjects.UnitTests
 
 class SyncAxiDram(memoryFile: String = "", size: Int)(implicit
     p: Parameters
@@ -62,7 +63,7 @@ class SyncAxiDramSpec
     }
   }
 
-  "InitMemInline" should "be simulable" taggedAs (unittest.UnitTests) in {
+  "InitMemInline" should "be simulable" taggedAs (UnitTests) in {
     val resource = "examples_shell/simple.mem"
     implicit val simulator = verilatorWithWaveDump
 

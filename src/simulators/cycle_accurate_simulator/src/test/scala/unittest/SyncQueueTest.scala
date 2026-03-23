@@ -28,6 +28,7 @@ import vta.util.config._
 import chisel3.simulator.ChiselSim
 import chisel3.simulator.scalatest
 import org.scalatest.flatspec.AnyFlatSpec
+import vta.testing.tags
 
 class Checker(c: SyncQueueTestWrapper[UInt]) extends ChiselSim {
 
@@ -177,13 +178,14 @@ class SyncQueueTestWrapper[T <: Data](gen: T, val entries: Int)
   rq.io.deq.ready := RegNext(io.tq.deq.ready)
 }
 
+@tags.UnitTests
 class SyncQueueTest extends AnyFlatSpecSim {
   behavior of "SyncQueue"
 
   import chisel3.simulator.stimulus.ResetProcedure
   for (i <- Seq(1, 2, 3, 4, 13, 24)) {
 
-    s"of depth ${i}" should "run correctly in long and wave read tests" taggedAs (unittest.UnitTests) in {
+    s"of depth ${i}" should "run correctly in long and wave read tests" in {
       simulate(new SyncQueueTestWrapper(UInt(16.W), i)) { c =>
         new TestSyncQueueLongRead(c)
         ResetProcedure.module()(c)

@@ -22,7 +22,9 @@ package unittest
 import chisel3._
 import vta.core._
 import chisel3.simulator.ChiselSim
+import vta.testing.tags
 
+@tags.UnitTests
 class TensorAluIndexGeneratorTest extends AnyFlatSpecSim {
   behavior of "TensorAluIndexGenerator"
 
@@ -110,7 +112,6 @@ class TensorAluIndexGeneratorTest extends AnyFlatSpecSim {
   }
   it should "run with loaded accumulation values" in {
     simulate(new TensorAluIndexGenerator) { c =>
-
       tensorAluIndexGeneratorTester(c, false)
     }
   }

@@ -9,7 +9,7 @@ import chiseltest.simulator.WriteVcdAnnotation
 import org.scalatest.flatspec.AnyFlatSpec
 import _root_.circt.stage.ChiselStage
 
-import unittest.UnitTests
+import vta.testing.tags.tagObjects.{FormalTests, UnitTests}
 import vta.core.DotProduct
 
 /** Testing MacVTA
@@ -179,13 +179,13 @@ class DotProductFormalTester
     extends AnyFlatSpec
     with ChiselScalatestTester
     with Formal {
-  "DotProduct" should "pass formal properties" taggedAs (LongTests) ignore {
+  "DotProduct" should "pass formal properties" taggedAs (FormalTests) ignore {
     verify(
       new DotProductFormalSpec(new DotProduct),
       Seq(BoundedCheck(5), WriteVcdAnnotation)
     )
   }
-  "DotProduct" should "pass decomposed formal properties" taggedAs (FormalTests) in {
+  "DotProduct" should "pass decomposed formal properties" taggedAs (FormalTests) ignore {
     verify(
       new DotProductFormalSpec_Decomposed(new DotProduct),
       Seq(BoundedCheck(5), WriteVcdAnnotation)

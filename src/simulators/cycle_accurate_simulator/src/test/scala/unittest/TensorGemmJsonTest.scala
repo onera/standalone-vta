@@ -31,20 +31,22 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import chisel3.simulator.ChiselSim
 import unittest.mocks.TensorGemmJsonTester
+import vta.testing.tags
 //import com.fasterxml.jackson.module.scala.experimental.ScalaObjectMapper // No more needed (deprecated)
 
-class TensorGemmJsonTestSingleUopOverflowOffset
-    extends GenericTest(
-      "TensorGemmJson",
-      (p: Parameters) => new TensorGemmPipelinedSplit()(p),
-      (c: TensorGemmPipelinedSplit) =>
-        new TensorGemmJsonTester(c, "/gemm_1uop_overflow_offset.json")
-    )
+@tags.UnitTests
+class TensorGemmJsonTest extends AnyFlatSpecSim {
 
-class TensorGemmJsonTestDoubleUopOverflowCascaded
-    extends GenericTest(
-      "TensorGemmJson",
-      (p: Parameters) => new TensorGemmPipelinedSplit()(p),
-      (c: TensorGemmPipelinedSplit) =>
-        new TensorGemmJsonTester(c, "/gemm_2uop_overflow_cascaded.json")
-    )
+  behavior of "TensorGemmPipelinedSplit"
+
+  it should "run gemm_1uop_overflow_offset.json without errors" in simulate(
+    new TensorGemmPipelinedSplit()
+  ) { c =>
+    enableWaves()
+    new TensorGemmJsonTester(c, "/gemm_1uop_overflow_offset.json")
+  }
+
+  it should "run gemm_2uop_overflow_cascaded.json without errors" in simulate(
+    new TensorGemmPipelinedSplit()
+  )(new TensorGemmJsonTester(_, "/gemm_2uop_overflow_cascaded.json"))
+}

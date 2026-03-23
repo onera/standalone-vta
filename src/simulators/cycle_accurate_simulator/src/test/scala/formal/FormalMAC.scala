@@ -8,8 +8,8 @@ import chiseltest.experimental.observe
 import chiseltest.simulator.WriteVcdAnnotation
 import org.scalatest.flatspec.AnyFlatSpec
 import _root_.circt.stage.ChiselStage
-import unittest.UnitTests
 import vta.core.MAC
+import vta.testing.tags.tagObjects.{UnitTests, FormalTests}
 
 //import org.scalatest.Tag
 //object UnitTests extends Tag("UnitTests")

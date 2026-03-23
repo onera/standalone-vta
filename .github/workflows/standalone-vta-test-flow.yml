@@ -50,11 +50,14 @@ jobs:
         run: |
           sudo apt-get install verilator
           verilator --version
-      - name:
+      - name: Run mill tests
         run: |
           cd src/simulators/cycle_accurate_simulator
-          ./mill test -n unittest.UnitTests
-
+          ./mill test -n UnitTests
+      - name: Run sbt tests
+        run: |
+          cd src/simulators/cycle_accurate_simulator
+          sbt test
 
   sim-cycle-accurate:
       needs: [functional-simulator-test, cycle-accurate-simulator-test]

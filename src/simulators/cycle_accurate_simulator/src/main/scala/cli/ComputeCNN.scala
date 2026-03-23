@@ -57,7 +57,7 @@ class ComputeCNN(
           root + "input.bin",
           DataType.INP,
           ComputeSimulator
-            .getBaseAddr(root + s"base_addr_L$i.csv", fromResources)("inp"),
+            .getBaseAddr(root + s"base_addr_L$i.csv", fromResources)("INP"),
           isDRAM = false,
           fromResources
         )
@@ -132,7 +132,7 @@ class ComputeCNN(
       val j = i + 1
       val base_addr_inp =
         ComputeSimulator.getBaseAddr(root + s"base_addr_L$j.csv", fromResources)
-      vector_to_map(reshaped_out, base_addr_inp("inp"))
+      vector_to_map(reshaped_out, base_addr_inp("INP"))
     } else {
       computeSimulator.getOutScratchpad
     }
