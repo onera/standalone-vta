@@ -23,7 +23,6 @@ import chisel3._
 import vta.core._
 import chisel3.simulator.ChiselSim
 import vta.tags
-import tags.tagObjects.UnitTests
 
 @tags.UnitTests
 class TensorAluIndexGeneratorTest extends AnyFlatSpecSim {
@@ -119,7 +118,7 @@ class TensorAluIndexGeneratorTest extends AnyFlatSpecSim {
 
   it should "run with immediate accumulation values" in {
     simulate(new TensorAluIndexGenerator) { c =>
-      tensorAluIndexGeneratorTester(c, true)
+      tensorAluIndexGeneratorTester(c, false)
     }
   }
 

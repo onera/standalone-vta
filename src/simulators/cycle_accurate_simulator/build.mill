@@ -12,12 +12,13 @@ import mill.api.Task.Simple
 import mill.api.BuildCtx
 import com.goyeau.mill.scalafix.ScalafixModule
 import mill.javalib.testrunner.TestResult
+import mill.javalib.Assembly.Rule
 
 object `package` extends SbtModule with PublishModule with ScalafixModule {
 
   def artifactName = "vta-standalone"
 
-  def javacOptions = Seq("-source", "1.8", "-target", "1.8")
+  def javacOptions = Seq("-release", "1.8")
 
   def scalaVersion = "2.13.18"
 
@@ -28,8 +29,11 @@ object `package` extends SbtModule with PublishModule with ScalafixModule {
     "-language:reflectiveCalls",
     "-Ymacro-annotations",
     "-Wunused",
-    "-target:jvm-1.8"
+    "-target:8",
+    "-release:8"
   )
+
+  override def mainClass: Simple[Option[String]] = Some("cli.VTAShellSimulator")
 
   // def repositories = Seq(
   //   "https://oss.sonatype.org/content/repositories/snapshots",
