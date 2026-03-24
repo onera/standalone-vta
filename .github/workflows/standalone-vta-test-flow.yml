@@ -53,7 +53,7 @@ jobs:
       - name: Run mill tests
         run: |
           cd src/simulators/cycle_accurate_simulator
-          ./mill test.unittests
+          ./mill test.unittest
       - name: Run sbt tests
         run: |
           cd src/simulators/cycle_accurate_simulator
