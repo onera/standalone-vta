@@ -18,7 +18,7 @@ object `package` extends SbtModule with PublishModule with ScalafixModule {
 
   def artifactName = "vta-standalone"
 
-  def javacOptions = Seq("-release", "1.8")
+  def javacOptions = Seq("-source", "1.8","-target","1.8")
 
   def scalaVersion = "2.13.18"
 
@@ -29,8 +29,7 @@ object `package` extends SbtModule with PublishModule with ScalafixModule {
     "-language:reflectiveCalls",
     "-Ymacro-annotations",
     "-Wunused",
-    "-target:1.8",
-    "-release:1.8"
+    "-target:1.8"
   )
 
   override def mainClass: Simple[Option[String]] = Some("cli.VTAShellSimulator")
