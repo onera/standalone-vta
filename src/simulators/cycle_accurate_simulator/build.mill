@@ -29,8 +29,8 @@ object `package` extends SbtModule with PublishModule with ScalafixModule {
     "-language:reflectiveCalls",
     "-Ymacro-annotations",
     "-Wunused",
-    "-target:8",
-    "-release:8"
+    "-target:1.8",
+    "-release:1.8"
   )
 
   override def mainClass: Simple[Option[String]] = Some("cli.VTAShellSimulator")
