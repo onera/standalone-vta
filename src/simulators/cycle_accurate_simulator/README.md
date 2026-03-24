@@ -15,9 +15,7 @@ In order to build with SBT, you need to install:
 
 ### Mill
 
-Alternatively, to use mill, you need to install:
-
-- coursier [https://get-coursier.io/docs/cli-installation]
+Alternatively, to use mill, you don't need to install other dependencies, as the mill script will automatically bootstrap everything (java, mill, dependencies).
 
 ## Directory Structure
 
@@ -33,12 +31,12 @@ Alternatively, to use mill, you need to install:
 1. **Navigate to the `cycle_accurate_simulator` directory.**
 2. **Run SBT or mill**
 
-   ```sh
-   sbt compile
-   ```
+```sh
+sbt compile
+```
 
 ```sh
-mill _.compile
+./mill _.compile
 ```
 
 ## Running Simulations
@@ -51,7 +49,7 @@ mill _.compile
    ```
 
    ```bash
-   mill test.testOnly <test_name>
+   ./mill test.testOnly <test_name>
    ```
 
    Replace `<test_name>` with the fully qualified name of the test you want to run. For example:
@@ -61,17 +59,17 @@ mill _.compile
    ```
 
    ```bash
-   mill test.testOnly simulator.ComputeApp
+   ./mill test.testOnly simulator.ComputeApp
    ```
 
-## Full VTA simulation
+## Chisel VTA simulation
 
 A simulation can be run on the entire VTA (VCR+VME+Core) that initializes an external memory (mocking the external DRAM) by providing a DRAM initialization file in a JSON format (for example [dram_state.json](src/test/resouces/examples_shell/dram_state.json))
 
 To execute this simulation, run:
 
 ```bash
-mill runMain cli.VTAShellSimulator <mem init file> <output dir>
+./mill runMain cli.VTAShellSimulator <mem init file> <output dir>
 ```
 
 ```bash
@@ -79,6 +77,26 @@ sbt "runMain cli.VTAShellSimulator <mem init file> <output dir>"
 ```
 
 The [VTAShellSpec.scala](src/test/scala/shell/VTAShellSpec.scala) file contains a simulation test in `src/resources/examples_shell/dram_state.json`
+
+## VTA configs emission
+
+There are several configurations and shells available for the VTA that you can emit as SystemVerilog for synthesis or simulation.
+
+For DPI simulation (all those are equivalent):
+
+```bash
+./mill emitVtaSimConfig
+./mill run vta.StandaloneSimConfig
+sbt runMain "vta.StandaloneSimConfig"
+```
+
+For FPGA Xilinx IP flow:
+
+```bash
+./mill emitVtaFpgaConfig
+./mill run vta.DefaultPynqConfig
+sbt runMain "vta.DefaultPynqConfig"
+```
 
 ## Example
 

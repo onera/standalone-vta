@@ -71,9 +71,9 @@ object `package` extends SbtModule with PublishModule with ScalafixModule {
 
   def publishVersion = "6.0-SNAPSHOT"
 
-  /** Emit VTAShell.sv for Verilator using `vta.EmitVTAShell` main class.
+  /** Emit VTA for DPI simulation using `vta.StandaloneSimConfig` main class.
    *
-   * Usage: ./mill emitVerilog Output: generatedResources/VTAShell.sv (relative
+   * Usage: ./mill emitVtaSimConfig Output: build/emitted/vta-sim-shell (relative
    * to build root)
    */
   def emitVtaSimConfig() = Task.Command {

@@ -12,6 +12,7 @@ import vta.DefaultPynqConfig
 import org.scalatest.tags.Slow
 import chisel3.test.UnitTest
 import chisel3.simulator.scalatest.HasCliOptions
+import vta.tags
 
 trait ComputeTest extends AnyFlatSpecSim {
 
@@ -49,6 +50,7 @@ trait ComputeTest extends AnyFlatSpecSim {
   }
 }
 
+@tags.UnitTests
 class ComputeTests extends ComputeTest {
   behavior of "Compute"
 
@@ -149,7 +151,7 @@ class ComputeTests extends ComputeTest {
   */
 
 // LENET-5
-@Slow
+@tags.LongTests
 class ComputeTestLeNet5 extends ComputeTest {
   /* LeNet-5: Convolution 1 */
   it should "ComputeApp_lenet5_conv1" in computeSimulation(
@@ -192,7 +194,7 @@ class ComputeTestLeNet5 extends ComputeTest {
 
 // PERFORMANCE TESTS: 16x16 GeMM
 /* Binaries from VTA compiler */
-@Slow
+@tags.LongTests
 class PerformanceComputeTests extends ComputeTest {
   behavior of "ComputePerfo"
 

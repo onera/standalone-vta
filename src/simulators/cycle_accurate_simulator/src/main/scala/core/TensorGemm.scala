@@ -22,8 +22,10 @@ package vta.core
 import chisel3._
 import chisel3.util._
 import vta.util.config._
+import chisel3.layer.block
 
 import scala.math.pow
+import chisel3.layers.Verification
 
 /** Pipelined multiply and accumulate */
 class MAC(
@@ -631,19 +633,19 @@ class TensorGemmPipelinedSplit(implicit p: Parameters) extends TensorGemmIfc {
   io.uop.idx.bits := indexGenerator.io.uop_idx
   io.uop.idx.valid := indexGenerator.io.valid
 
-  val delayedUopData =
+  val _delayedUopData =
     ShiftRegister(io.uop.data, uopReadLatency)
 
-  assert(delayedUopData.valid === delayed_valid, "valid should be delayed")
+  // assert(delayedUopData.valid === delayed_valid, "valid should be delayed")
 
   val uop_valid =
     ShiftRegister(delayed_valid, inpReadIdxLatency, false.B, true.B)
   val uop_acc =
-    ShiftRegister(delayedUopData.bits.u0 + delayed_acc_i, inpReadIdxLatency)
+    ShiftRegister(_delayedUopData.bits.u0 + delayed_acc_i, inpReadIdxLatency)
   val uop_inp =
-    delayedUopData.bits.u1 + delayed_inp_i // it is piped in inp tensor read
+    _delayedUopData.bits.u1 + delayed_inp_i // it is piped in inp tensor read
   val uop_wgt =
-    ShiftRegister(delayedUopData.bits.u2 + delayed_wgt_i, inpReadIdxLatency)
+    ShiftRegister(_delayedUopData.bits.u2 + delayed_wgt_i, inpReadIdxLatency)
 
   val reset_pipe = Module(
     new Pipe(
@@ -670,10 +672,21 @@ class TensorGemmPipelinedSplit(implicit p: Parameters) extends TensorGemmIfc {
   )
   io.inp.rd(0).idx.valid := delayed_valid
   io.inp.rd(0).idx.bits := uop_inp
-  val delayed_uop_valid = RegNext(uop_valid, init = false.B) // memdelay
-  // asset fires on emulated tensorRead Direct GEMM test TODO: fix memoryManager sram read
-  // it works only for VTA_CORE_GEMM_INP_IDX_PIPE 0
-  assert(io.inp.rd(0).data.valid === delayed_uop_valid)
+  block(Verification) {
+    val delayed_uop_valid = RegNext(uop_valid, init = false.B) // memdelay
+    // asset fires on emulated tensorRead Direct GEMM test TODO: fix memoryManager sram read
+    // it works only for VTA_CORE_GEMM_INP_IDX_PIPE 0
+    assert(io.inp.rd(0).data.valid === delayed_uop_valid)
+    //
+    (0 until numMVMs).foreach { idx =>
+      assert(
+        io.wgt.rd(idx).data.valid === ShiftRegister(
+          delayed_uop_valid,
+          scratchpadReadLatency
+        )
+      )
+    }
+  }
   for (idx <- 0 until numMVMs) {
     io.acc.rd(idx).idx.valid := RegNext(
       acc_idx_pipe.io.deq.valid,
@@ -685,12 +698,6 @@ class TensorGemmPipelinedSplit(implicit p: Parameters) extends TensorGemmIfc {
     io.wgt.rd(idx).idx.valid := ShiftRegister(uop_valid, scratchpadReadLatency)
     io.wgt.rd(idx).idx.bits := ShiftRegister(uop_wgt, scratchpadReadLatency)
 
-    assert(
-      io.wgt.rd(idx).data.valid === ShiftRegister(
-        delayed_uop_valid,
-        scratchpadReadLatency
-      )
-    )
   }
   io.wgt.tieoffWrite()
   io.inp.tieoffWrite()

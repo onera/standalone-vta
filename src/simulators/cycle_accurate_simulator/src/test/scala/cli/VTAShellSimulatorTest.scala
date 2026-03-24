@@ -3,7 +3,9 @@ package vta.cli
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import cli.VTAShellSimulator
+import vta.tags.LongTests
 
+@LongTests
 class VTAShellSimulatorTest extends AnyFlatSpec with Matchers {
 
   behavior of "VTAShellSimulator"

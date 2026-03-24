@@ -29,6 +29,7 @@ import chisel3.simulator.ChiselSim
 import chisel3.simulator.scalatest
 import org.scalatest.flatspec.AnyFlatSpec
 import vta.tags
+import chisel3.simulator.PeekPokeAPI
 
 class Checker(c: SyncQueueTestWrapper[UInt]) extends ChiselSim {
 
@@ -62,7 +63,7 @@ class Checker(c: SyncQueueTestWrapper[UInt]) extends ChiselSim {
     c.io.tq.count.peek()
   }
 }
-class TestSyncQueueLongRead(c: SyncQueueTestWrapper[UInt]) extends ChiselSim {
+class TestSyncQueueLongRead(c: SyncQueueTestWrapper[UInt]) extends PeekPokeAPI {
 
   val chr = new Checker(c)
 
@@ -104,7 +105,7 @@ class TestSyncQueueLongRead(c: SyncQueueTestWrapper[UInt]) extends ChiselSim {
     testFillRW(i)
   }
 }
-class TestSyncQueueWaveRead(c: SyncQueueTestWrapper[UInt]) extends ChiselSim {
+class TestSyncQueueWaveRead(c: SyncQueueTestWrapper[UInt]) extends PeekPokeAPI {
 
   val chr = new Checker(c)
 
