@@ -87,11 +87,11 @@ object `package` extends SbtModule with PublishModule with ScalafixModule {
   }
 
   def emitVtaFpgaConfig() = Task.Command {
-    val outDir = BuildCtx.workspaceRoot / "build" / "emitted" / "vta-shell"
+    val outDir = BuildCtx.workspaceRoot / "build" / "emitted" / "vta-xilinx-shell"
     os.makeDir.all(outDir)
     runner().run(
       args = Seq(outDir.toString),
-      mainClass = "vta.DefaultPynqConfig",
+      mainClass = "vta.ZynqUs3Config",
       workingDir = BuildCtx.workspaceRoot
     )
   }

@@ -43,7 +43,22 @@ trait EmitterApp extends App {
 object DefaultPynqConfig extends EmitterApp {
   override val defaultDir = "build/emitted/vta-xilinx-shell"
   implicit val p: Parameters = new DefaultPynqConfig
-  val inpBits = p(CoreKey).inpBits
+  ChiselStage.emitSystemVerilogFile(
+    new XilinxShell,
+    args = Array(
+      "--target-dir",
+      outputDir,
+      "--split-verilog"
+    ),
+    firtoolOpts = Array(
+      "--lowering-options=disallowLocalVariables,disallowPackedArrays"
+    )
+  )
+}
+
+object ZynqUs3Config extends EmitterApp {
+  override val defaultDir = "build/emitted/vta-zusys-shell"
+  implicit val p: Parameters = new ZusysConfig
   ChiselStage.emitSystemVerilogFile(
     new XilinxShell,
     args = Array(
