@@ -24,6 +24,8 @@ import vta.core._
 import vta.shell._
 import vta.test._
 import vta.util.config._
+import vta.util.XilinxIpFlow.exportIpPackageTclScript
+import os.RelPath
 
 /** VTA.
   *
@@ -70,6 +72,15 @@ object ZynqUs3Config extends EmitterApp {
       "--lowering-options=disallowLocalVariables,disallowPackedArrays"
     )
   )
+
+  exportIpPackageTclScript(
+    os.pwd / os.RelPath(outputDir),
+    "onera",
+    "VTA_ZynqUs",
+    "0.2.0",
+    "VTAXilinxShell"
+  )
+
 }
 
 object StandaloneSimConfig extends EmitterApp {

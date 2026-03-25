@@ -1,4 +1,4 @@
-//| mill-version: 1.1.4
+//| mill-version: 1.1.5
 //| mill-jvm-opts: ["-Dchisel.project.root=${PWD}"]
 //| mvnDeps: ["com.goyeau::mill-scalafix_mill1:0.6.0"]
 package build
@@ -87,7 +87,7 @@ object `package` extends SbtModule with PublishModule with ScalafixModule {
   }
 
   def emitVtaFpgaConfig() = Task.Command {
-    val outDir = BuildCtx.workspaceRoot / "build" / "emitted" / "vta-xilinx-shell"
+    val outDir = BuildCtx.workspaceRoot / "build" / "emitted" / "vta-zusys-shell"
     os.makeDir.all(outDir)
     runner().run(
       args = Seq(outDir.toString),
