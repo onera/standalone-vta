@@ -213,10 +213,10 @@ class TensorGemmTest(
   // Write UOP buffer scratchpad
   class UopMasterMock(um: UopMaster, scratchpad: Map[BigInt, Array[BigInt]]) {
     um.data.valid.poke(0)
-    var valid = um.idx.valid.peek()
+    var valid = um.idx.valid.peekBoolean()
     var idx: Int = 0
     def logical_step(): Unit = {
-      if (valid == 1) {
+      if (valid) {
         um.data.valid.poke(1)
         um.data.bits.u0.poke(scratchpad(idx)(0))
         um.data.bits.u1.poke(scratchpad(idx)(1))
@@ -224,7 +224,7 @@ class TensorGemmTest(
       } else {
         um.data.valid.poke(0)
       }
-      valid = um.idx.valid.peek()
+      valid = um.idx.valid.peekBoolean()
       idx = um.idx.bits.peek().litValue.toInt
     }
   }

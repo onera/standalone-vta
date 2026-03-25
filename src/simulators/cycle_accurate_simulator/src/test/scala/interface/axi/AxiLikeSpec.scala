@@ -7,7 +7,9 @@ import vta.interface.axi.AXIClient
 import vta.interface.axi.AxiLike._
 import vta.shell.ShellKey
 import unittest.AnyFlatSpecSim
+import vta.tags.UnitTests
 
+@UnitTests
 class AxiLikeSpec extends AnyFlatSpecSim with AxiFullSimUtils with Matchers {
   behavior of "axi4-full"
 

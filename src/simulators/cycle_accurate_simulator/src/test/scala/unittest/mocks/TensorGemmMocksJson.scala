@@ -78,9 +78,10 @@ class TensorGemmJsonTester(
 
   class TensorMasterMock(tm: TensorMaster, scratchpad: Array[Array[BigInt]]) {
     tm.rd(0).data.valid.poke(0)
+    var valid = false
     var idx: Int = 0
     def logical_step(): Unit = {
-      if (tm.rd(0).idx.valid.peekBoolean()) {
+      if (valid) {
         tm.rd(0).data.valid.poke(1)
         val cols = tm.rd(0).data.bits(0).size
         for {
@@ -92,6 +93,7 @@ class TensorGemmJsonTester(
       } else {
         tm.rd(0).data.valid.poke(0)
       }
+      valid = tm.rd(0).idx.valid.peekBoolean()
       idx = tm.rd(0).idx.bits.peek().litValue.toInt
     }
   }
@@ -114,9 +116,10 @@ class TensorGemmJsonTester(
 
   class UopMasterMock(um: UopMaster, scratchpad: Array[Array[BigInt]]) {
     um.data.valid.poke(0)
+    var valid = false
     var idx: Int = 0
     def logical_step(): Unit = {
-      if (um.idx.valid.peekBoolean()) {
+      if (valid) {
         um.data.valid.poke(1)
         um.data.bits.u0.poke(scratchpad(idx)(0))
         um.data.bits.u1.poke(scratchpad(idx)(1))
@@ -124,6 +127,7 @@ class TensorGemmJsonTester(
       } else {
         um.data.valid.poke(0)
       }
+      valid = um.idx.valid.peekBoolean()
       idx = um.idx.bits.peek().litValue.toInt
     }
   }
