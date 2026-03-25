@@ -38,18 +38,18 @@ class DefaultF1Config extends Config(new CoreConfig ++ new F1Config)
 class DefaultDe10Config extends Config(new CoreConfig ++ new De10Config)
 
 trait EmitterApp extends App {
-  val defaultDir: String = "build/emitted/default"
-  def outputDir: String = if (args.nonEmpty) args(0) else defaultDir.toString()
+  val defaultDir = os.RelPath("build/emitted/default")
+  def outputDir = if (args.nonEmpty) os.Path(args(0)) else os.pwd / defaultDir
 }
 
 object DefaultPynqConfig extends EmitterApp {
-  override val defaultDir = "build/emitted/vta-xilinx-shell"
+  override val defaultDir = os.RelPath("build/emitted/vta-xilinx-shell")
   implicit val p: Parameters = new DefaultPynqConfig
   ChiselStage.emitSystemVerilogFile(
     new XilinxShell,
     args = Array(
       "--target-dir",
-      outputDir,
+      outputDir.toString(),
       "--split-verilog"
     ),
     firtoolOpts = Array(
@@ -59,13 +59,13 @@ object DefaultPynqConfig extends EmitterApp {
 }
 
 object ZynqUs3Config extends EmitterApp {
-  override val defaultDir = "build/emitted/vta-zusys-shell"
+  override val defaultDir = os.RelPath("build") / "emitted" / "vta-zusys-shell"
   implicit val p: Parameters = new ZusysConfig
   ChiselStage.emitSystemVerilogFile(
     new XilinxShell,
     args = Array(
       "--target-dir",
-      outputDir,
+      outputDir.toString(),
       "--split-verilog"
     ),
     firtoolOpts = Array(
@@ -74,7 +74,7 @@ object ZynqUs3Config extends EmitterApp {
   )
 
   exportIpPackageTclScript(
-    os.pwd / os.RelPath(outputDir),
+    outputDir,
     "onera",
     "VTA_ZynqUs",
     "0.2.0",
@@ -84,13 +84,13 @@ object ZynqUs3Config extends EmitterApp {
 }
 
 object StandaloneSimConfig extends EmitterApp {
-  override val defaultDir = "build/emitted/vta-sim-shell"
+  override val defaultDir = os.RelPath("build/emitted/vta-sim-shell")
 
   implicit val p: Parameters = new DefaultPynqConfig
 
   ChiselStage.emitSystemVerilogFile(
     new Test(true),
-    args = Array("--target-dir", outputDir)
+    args = Array("--target-dir", outputDir.toString())
   )
 
   println(s"[EmitVTAShell] Simulation files written to $outputDir/")
