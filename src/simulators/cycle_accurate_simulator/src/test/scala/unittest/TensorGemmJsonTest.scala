@@ -32,7 +32,7 @@ class TensorGemmJsonTest extends AnyFlatSpecSim {
 
   it should "run gemm_1uop_overflow_offset.json without errors" in simulate(
     new TensorGemmPipelinedSplit()
-  )(new TensorGemmJsonTester(_, "/gemm_1uop_overflow_offset.json", true))
+  )(new TensorGemmJsonTester(_, "/gemm_1uop_overflow_offset.json"))
 
   it should "run gemm_2uop_overflow_cascaded.json without errors" in simulate(
     new TensorGemmPipelinedSplit()
