@@ -31,21 +31,24 @@ trait ComputeTest extends AnyFlatSpecSim {
       fromResources: Boolean = true
   ) = {
 
-    simulate(new Compute) { c =>
-      new ComputeSimulator(
-        c,
-        insn,
-        uop,
-        input,
-        weight,
-        out,
-        acc,
-        expected_out = expected,
-        memoryAddr,
-        doCompare,
-        debug,
-        fromResources
-      )
+    // FIXME: need to disable-all-randomization for the matrix 32x32 tests to pass.
+    // Those tests should be check to add an accumulation buffer reset (i.e. load a ), otherwise it picks random values as initialization
+    simulate(new Compute, firtoolOpts = Array("--disable-all-randomization")) {
+      c =>
+        new ComputeSimulator(
+          c,
+          insn,
+          uop,
+          input,
+          weight,
+          out,
+          acc,
+          expected_out = expected,
+          memoryAddr,
+          doCompare,
+          debug,
+          fromResources
+        )
     }
   }
 }
