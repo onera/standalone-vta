@@ -16,7 +16,7 @@ ENV JAVA_TOOL_OPTIONS=${PROXY_JVM_OPTS}
 ENV JAVA_OPTS=${PROXY_JVM_OPTS}
 ENV MILL_JVM_OPTS=${PROXY_JVM_OPTS}
 
-ENV MILL_VERSION=1.1.2-jvm
+ENV MILL_VERSION=1.1.4-jvm
 ENV VERILATOR_VERSION=5.046
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -40,6 +40,9 @@ RUN cd /opt \
     && ./configure \
     && make -j4 \
     && make install
+
+COPY environment_setup/requirements.txt /tmp/requirements.txt
+RUN pip install -r /tmp/requirements.txt
 
 WORKDIR /workspace/standalone-vta
 
