@@ -1,5 +1,4 @@
 package vta.shell
-import vta.util.BinaryReader
 import chisel3._
 import chisel3.simulator.scalatest.ChiselSim
 import chisel3.util.experimental.loadMemoryFromFileInline
@@ -10,8 +9,9 @@ import vta.interface.axi.AXIClient
 import vta.interface.axi.AxiLike._
 import vta.util.SimulationUtils._
 import vta.util.config.Parameters
+import vta.tags.tagObjects.UnitTests
 
-class SyncAxiDram(memoryFile: String = "", size: Int, width: Int)(implicit
+class SyncAxiDram(memoryFile: String = "", size: Int)(implicit
     p: Parameters
 ) extends Module {
   val io = IO(new Bundle {
@@ -63,8 +63,8 @@ class SyncAxiDramSpec
     }
   }
 
-  "InitMemInline" should "be simulable" in {
-    val resource = "examples_core/simple.mem"
+  "InitMemInline" should "be simulable" taggedAs (UnitTests) in {
+    val resource = "examples_shell/simple.mem"
     implicit val simulator = verilatorWithWaveDump
 
     val file = getClass.getClassLoader.getResource(resource).getFile()
@@ -89,87 +89,15 @@ class SyncAxiDramSpec
       // Array("--verilator-cflags", "-DENABLE_MEM_INIT=1"),
       firtoolOpts = Array("--disable-all-randomization")
     ) { mem =>
-      ()
       mem.io.enable.poke(true)
       for (i <- 1 until 10) {
         mem.io.dataIn.poke(i)
         mem.io.addr.poke(i)
         mem.io.write.poke(false)
         mem.clock.step()
-        println(mem.io.dataOut.peek())
-        // mem.io.dataOut.expect(i)
+        // println(mem.io.dataOut.peek())
+        mem.io.dataOut.expect(i)
       }
     }
-  }
-  def mergeMemories(path: String, fromResources: Boolean = true) = {
-    val instrFile = path + "/instructions.bin"
-    val inputFile = path + "/input.bin"
-    val weightFile = path + "/weight.bin"
-    val addrFile = path + "/memory_addresses.csv"
-    val uopFile = path + "/uop.bin"
-    val outFile = path + "/out.bin"
-    val accuFile = path + "/accumulator.bin"
-    val addresses = BinaryReader.computeCSVFile(addrFile, true, true)
-    for {
-      instr <- BinaryReader.computeAddresses(
-        instrFile,
-        BinaryReader.DataType.INSN,
-        "00000000",
-        true,
-        true
-      )
-      inputs <- BinaryReader.computeAddresses(
-        inputFile,
-        BinaryReader.DataType.INP,
-        addresses("inp"),
-        true,
-        true
-      )
-      weights <- BinaryReader.computeAddresses(
-        weightFile,
-        BinaryReader.DataType.WGT,
-        addresses("wgt"),
-        true,
-        true
-      )
-      uop <- BinaryReader.computeAddresses(
-        uopFile,
-        BinaryReader.DataType.UOP,
-        addresses("uop"),
-        true,
-        true
-      )
-      accu <- BinaryReader.computeAddresses(
-        accuFile,
-        BinaryReader.DataType.ACC,
-        addresses("acc"),
-        true,
-        true
-      )
-      out <- BinaryReader.computeAddresses(
-        outFile,
-        BinaryReader.DataType.OUT,
-        addresses("out"),
-        true,
-        true
-      )
-    } yield {
-      instr ++ inputs ++ weights ++ uop ++ accu ++ out
-    }
-  }
-  it should "read a binary instruction file" in {
-    val path = "examples_compute/16x16"
-    for {
-      mem <- mergeMemories(path)
-    } {
-      println(mem)
-    }
-  }
-  it should "read a binary file" in {
-    val path = "examples_compute/16x16/weight.bin"
-    val stream = getClass.getClassLoader.getResourceAsStream(path)
-    val bytes = stream.readAllBytes()
-    stream.close()
-    println(bytes.size)
   }
 }

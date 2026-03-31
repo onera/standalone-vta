@@ -19,12 +19,10 @@
 
 package vta.shell
 
-import chisel3._
-import chisel3.util._
-import vta.util.config._
-import vta.interface.axi._
 import vta.core.CoreKey
 import vta.core.CoreParams
+import vta.interface.axi._
+import vta.util.config._
 
 /** PynqConfig. Shell configuration for Pynq */
 class PynqConfig

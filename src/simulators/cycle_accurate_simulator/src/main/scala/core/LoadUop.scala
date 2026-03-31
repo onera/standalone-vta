@@ -21,10 +21,8 @@ package vta.core
 
 import chisel3._
 import chisel3.util._
-import vta.util.config._
 import vta.shell._
-import vta.util.UserDefined.Debug
-import chisel3.layer.block
+import vta.util.config._
 
 /** UopMaster.
   *
@@ -104,18 +102,20 @@ class LoadUopTop(debug: Boolean = false)(implicit val p: Parameters)
     loadUop.io.tensor.rd(0).idx <> io.uop.idx
     io.uop.data.valid := loadUop.io.tensor.rd(0).data.valid
 
-    block(Debug) {
-      withDisable(Disable.BeforeReset) {
-        when(loadUop.io.tensor.rd(0).data.valid) {
-          printf(
-            cf"[Load uop] UOP ${loadUop.io.tensor.rd(0).data.bits}\n"
-          )
-          printf(
-            cf"[Load uop] Decoded ${loadUop.io.tensor.rd(0).data.bits.asTypeOf(new UopDecode)}\n"
-          )
-        }
-      }
-    }
+    // block(Debug) {
+    //   if (debug) {
+    //     withDisable(Disable.BeforeReset) {
+    //       when(loadUop.io.tensor.rd(0).data.valid) {
+    //         printf(
+    //           cf"[Load uop] UOP ${loadUop.io.tensor.rd(0).data.bits}\n"
+    //         )
+    //         printf(
+    //           cf"[Load uop] Decoded ${loadUop.io.tensor.rd(0).data.bits.asTypeOf(new UopDecode)}\n"
+    //         )
+    //       }
+    //     }
+    //   }
+    // }
     io.uop.data.bits <> loadUop.io.tensor
       .rd(0)
       .data

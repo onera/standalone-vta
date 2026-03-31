@@ -22,8 +22,6 @@ package vta.util
 import chisel3._
 import chisel3.util._
 
-import vta.util.config._
-
 /** Synchronous queue factory object
   */
 object SyncQueue {

@@ -1,5 +1,6 @@
-//| mill-version: 1.1.2
+//| mill-version: 1.1.5
 //| mill-jvm-opts: ["-Dchisel.project.root=${PWD}"]
+//| mvnDeps: ["com.goyeau::mill-scalafix_mill1:0.6.0"]
 package build
 
 import mill._
@@ -8,12 +9,16 @@ import mill.javalib.publish._
 import mill.scalalib.SbtModule
 import mill.javalib.TestModule.ScalaTest
 import mill.api.Task.Simple
+import mill.api.BuildCtx
+import com.goyeau.mill.scalafix.ScalafixModule
+import mill.javalib.testrunner.TestResult
+import mill.javalib.Assembly.Rule
 
-object `package` extends SbtModule with PublishModule {
+object `package` extends SbtModule with PublishModule with ScalafixModule {
 
   def artifactName = "vta-standalone"
 
-  def javacOptions = Seq("-source", "1.8", "-target", "1.8")
+  def javacOptions = Seq("-source", "1.8","-target","1.8")
 
   def scalaVersion = "2.13.18"
 
@@ -23,8 +28,11 @@ object `package` extends SbtModule with PublishModule {
     "-Xcheckinit",
     "-language:reflectiveCalls",
     "-Ymacro-annotations",
-    "-Wunused"
+    "-Wunused",
+    "-target:1.8"
   )
+
+  override def mainClass: Simple[Option[String]] = Some("cli.VTAShellSimulator")
 
   // def repositories = Seq(
   //   "https://oss.sonatype.org/content/repositories/snapshots",
@@ -54,24 +62,68 @@ object `package` extends SbtModule with PublishModule {
     Seq(),
     VersionControl(
       Some("https://github.com/onera/standalone-vta"),
-      Some("scm:git:https://github.com/onera/standalone-vta.git"),
-      Some("scm:git:git@github.com:onera/standalone-vta.git"),
-      None
-    ),
-    Seq()
-  )
+        Some("scm:git:https://github.com/onera/standalone-vta.git"),
+          Some("scm:git:git@github.com:onera/standalone-vta.git"),
+          None
+        ),
+      Seq()
+    )
 
   def publishVersion = "6.0-SNAPSHOT"
 
+  /** Emit VTA for DPI simulation using `vta.StandaloneSimConfig` main class.
+   *
+   * Usage: ./mill emitVtaSimConfig Output: build/emitted/vta-sim-shell (relative
+   * to build root)
+   */
+  def emitVtaSimConfig() = Task.Command {
+    val outDir = BuildCtx.workspaceRoot / "build" / "emitted" / "vta-sim-shell"
+    os.makeDir.all(outDir)
+    runner().run(
+      args = Seq(outDir.toString),
+      mainClass = "vta.StandaloneSimConfig",
+      workingDir = BuildCtx.workspaceRoot
+    )
+  }
+
+  def emitVtaFpgaConfig() = Task.Command {
+    val outDir = BuildCtx.workspaceRoot / "build" / "emitted" / "vta-zusys-shell"
+    os.makeDir.all(outDir)
+    runner().run(
+      args = Seq(outDir.toString),
+      mainClass = "vta.ZynqUs3Config",
+      workingDir = BuildCtx.workspaceRoot
+    )
+  }
+
+  def cleanOutputs() = Task.Command {
+    val outputDir = BuildCtx.workspaceRoot / "build"
+    println(s"[Clean] removing all outputs")
+    os.remove.all(target = outputDir)
+    println(s"[Clean] removed ${outputDir} directory")
+
+  }
   object test extends SbtTests with ScalaTest {
     override def scalaTestVersion: Simple[String] = "3.2.19"
 
-    // def testSandboxWorkingDir = false
-    // def testParallelism = false
+    // override def testArgsDefault: Simple[Seq[String]] =
+    //   Seq("-n", "vta.tags.UnitTests")
+    def testSandboxWorkingDir = false
+    def testParallelism = false
     override def forkArgs: Simple[Seq[String]] = Seq(
       "-Dvta.config.file=vta_config_test.json",
       "-Dvta.config.fromResources=true"
     )
+
+    def unittest() : Task.Command[(msg: String, results: Seq[TestResult])] = {
+      Task.Command {
+        testForked("-n","vta.tags.UnitTests")()
+      }
+    }
+
+    def testWaves(args: String*) = Task.Command{
+      testOnly(args ++ Seq("--","-DemitVcd=1")*)()
+    }
 
   }
 

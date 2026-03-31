@@ -2,29 +2,15 @@ package cli
 
 import chisel3._
 import chisel3.simulator.ChiselSim
-// import chiseltest.iotesters.PeekPokeTester
-import vta.util.BinaryReader.{DataType, computeAddresses, computeCSVFile}
-import vta.util.BinaryReader.DataType.{DataTypeValue, INP}
-// import util.GenericSim
+import vta.core.ISA._
 import vta.core.{Compute, TensorMaster}
-import vta.core.ISA.{
-  FNSH,
-  GEMM,
-  LACC,
-  LINP,
-  LUOP,
-  LWGT,
-  SOUT,
-  VADD,
-  VMAX,
-  VMIN,
-  VSHX
-}
 import vta.shell.VMEReadMaster
+import vta.util.BinaryReader.DataType.DataTypeValue
+import vta.util.BinaryReader.{DataType, computeAddresses, computeCSVFile}
+import vta.util.GenericSim
 import vta.util.config.Parameters
 
 import scala.util.{Failure, Success}
-import vta.util.GenericSim
 
 object ComputeSimulator {
   /* COMMON PART - MANAGE VIRTUAL MEMORIES */

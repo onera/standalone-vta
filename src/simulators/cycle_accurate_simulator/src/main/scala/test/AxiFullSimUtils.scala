@@ -1,11 +1,7 @@
 package vta.test
 import chisel3._
-import org.scalatest.flatspec.AnyFlatSpec
-import chisel3.simulator.ChiselSim
-import vta.interface.axi.AXILiteClient
-import vta.interface.axi.AXIClient
 import chisel3.simulator.PeekPokeAPI
-import chiseltest.testableData
+import vta.interface.axi.AXIClient
 
 trait AxiFullSimUtils extends PeekPokeAPI {
 
@@ -58,7 +54,6 @@ trait AxiFullSimUtils extends PeekPokeAPI {
   def readAxiData()(implicit
       clock: Clock,
       axi: AXIClient,
-      timeout: Int = 2
   ): Option[UInt] = {
     // clock.stepUntil(axi.r.valid, 1, timeout)
     axi.r.ready.poke(true.B)
@@ -73,7 +68,6 @@ trait AxiFullSimUtils extends PeekPokeAPI {
   def writeAxiBurst(baseAddress: Int, data: Seq[Int])(implicit
       clock: Clock,
       axi: AXIClient,
-      timeout: Int = 2
   ): Unit = {
     writeAxiWriteAddress(baseAddress, 1, data.size - 1)
     clock.step()
@@ -85,12 +79,11 @@ trait AxiFullSimUtils extends PeekPokeAPI {
 
   def readAxiBurst(baseAddress: Int, size: Int)(implicit
       clock: Clock,
-      axi: AXIClient,
-      timeout: Int = 2
+      axi: AXIClient
   ) = {
     writeAxiReadAddress(baseAddress, 1, size - 1)
     for {
-      i <- 0 until size
+      _ <- 0 until size
       d <- readAxiData()
     } yield {
       d

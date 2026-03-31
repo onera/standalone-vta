@@ -19,12 +19,13 @@
 
 package vta
 
-import chisel3._
-import vta.util.config._
-import vta.shell._
+import circt.stage.ChiselStage
 import vta.core._
+import vta.shell._
 import vta.test._
-import circt.stage.ChiselStage // CIRCT = Circuit IR Compilers and Tools
+import vta.util.config._
+import vta.util.XilinxIpFlow.exportIpPackageTclScript
+import os.RelPath
 
 /** VTA.
   *
@@ -36,39 +37,63 @@ class DefaultPynqConfig extends Config(new CoreConfig ++ new PynqConfig)
 class DefaultF1Config extends Config(new CoreConfig ++ new F1Config)
 class DefaultDe10Config extends Config(new CoreConfig ++ new De10Config)
 
-object DefaultPynqConfig extends App {
+trait EmitterApp extends App {
+  val defaultDir = os.RelPath("build/emitted/default")
+  def outputDir = if (args.nonEmpty) os.Path(args(0)) else os.pwd / defaultDir
+}
+
+object DefaultPynqConfig extends EmitterApp {
+  override val defaultDir = os.RelPath("build/emitted/vta-xilinx-shell")
   implicit val p: Parameters = new DefaultPynqConfig
-  val inpBits = p(CoreKey).inpBits
   ChiselStage.emitSystemVerilogFile(
     new XilinxShell,
     args = Array(
       "--target-dir",
-      s"build/emitted/vta-pynq",
+      outputDir.toString(),
       "--split-verilog"
     ),
     firtoolOpts = Array(
-      "-disable-all-randomization",
-      "-strip-debug-info",
       "--lowering-options=disallowLocalVariables,disallowPackedArrays"
     )
   )
 }
 
-object DefaultZusysConfig extends App {
+object ZynqUs3Config extends EmitterApp {
+  override val defaultDir = os.RelPath("build") / "emitted" / "vta-zusys-shell"
   implicit val p: Parameters = new ZusysConfig
   ChiselStage.emitSystemVerilogFile(
     new XilinxShell,
     args = Array(
       "--target-dir",
-      s"build/emitted/vta-zusys",
+      outputDir.toString(),
       "--split-verilog"
     ),
     firtoolOpts = Array(
-      "-disable-all-randomization",
-      "-strip-debug-info",
       "--lowering-options=disallowLocalVariables,disallowPackedArrays"
     )
   )
+
+  exportIpPackageTclScript(
+    outputDir,
+    "onera",
+    "VTA_ZynqUs",
+    "0.2.0",
+    "VTAXilinxShell"
+  )
+
+}
+
+object StandaloneSimConfig extends EmitterApp {
+  override val defaultDir = os.RelPath("build/emitted/vta-sim-shell")
+
+  implicit val p: Parameters = new DefaultPynqConfig
+
+  ChiselStage.emitSystemVerilogFile(
+    new Test(true),
+    args = Array("--target-dir", outputDir.toString())
+  )
+
+  println(s"[EmitVTAShell] Simulation files written to $outputDir/")
 }
 
 object DefaultF1Config extends App {

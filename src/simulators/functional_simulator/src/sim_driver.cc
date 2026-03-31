@@ -22,8 +22,12 @@
  * \brief VTA driver for simulated backend.
  */
 #include "../include/driver.h" //<vta/driver.h>
+#include "../include/vta_device_backend.h"
 #include "../config/hw_spec.h" //<vta/hw_spec.h>
 #include "../external_lib/tvm/registry.h" //<tvm/runtime/registry.h>
+#ifdef VERILATOR_BUILD_ENABLED
+#include "../external_lib/dmlc/logging.h"
+#endif
 #include "../include/sim_tlpp.h" //<vta/sim_tlpp.h>
 #include <type_traits>
 #include <mutex>
@@ -318,9 +322,9 @@ class Profiler {
 
 // Simulate device
 // TODO(tqchen,thierry): queue based event driven simulation.
-class Device {
+class FunctionalDevice : public VTADeviceBackend {
  public:
-  Device() {
+  FunctionalDevice() {
     prof_ = Profiler::ThreadLocal();
     dram_ = DRAM::Global();
     ptlpp = TlppVerify::Global();
@@ -328,7 +332,7 @@ class Device {
 
   int Run(vta_phy_addr_t insn_phy_addr,
           uint32_t insn_count,
-          uint32_t wait_cycles) {
+          uint32_t wait_cycles) override {
     VTAGenericInsn* insn = static_cast<VTAGenericInsn*>(
         dram_->GetAddr(insn_phy_addr));
     finish_counter_ = 0;
@@ -342,7 +346,7 @@ class Device {
 
  private:
   static void Run_Insn(const VTAGenericInsn* insn, void * dev) {
-    Device * device = reinterpret_cast<Device *> (dev);
+    FunctionalDevice * device = reinterpret_cast<FunctionalDevice *> (dev);
     const VTAMemInsn* mem = reinterpret_cast<const VTAMemInsn*>(insn);
     const VTAGemInsn* gem = reinterpret_cast<const VTAGemInsn*>(insn);
     const VTAAluInsn* alu = reinterpret_cast<const VTAAluInsn*>(insn);
@@ -586,19 +590,37 @@ void VTAFlushCache(void* vir_addr, vta_phy_addr_t phy_addr, int size) {
 void VTAInvalidateCache(void* vir_addr, vta_phy_addr_t phy_addr, int size) {
 }
 
+bool g_use_verilator = false;
+
+#ifdef VERILATOR_BUILD_ENABLED
+// Forward declaration — defined in verilated_device.cc
+class VerilatedDevice;
+extern VTADeviceBackend* CreateVerilatedDevice();
+
+// Definition of the global Verilator run-time configuration.
+// Declared in vta_device_backend.h; populated by functional_simulator.cc
+// before VTADeviceAlloc() is called.
+VerilatorRunConfig g_verilator_config;
+#endif
+
 VTADeviceHandle VTADeviceAlloc() {
-  return new vta::sim::Device();
+#ifdef VERILATOR_BUILD_ENABLED
+  if (g_use_verilator) {
+    return CreateVerilatedDevice();
+  }
+#endif
+  return new vta::sim::FunctionalDevice();
 }
 
 void VTADeviceFree(VTADeviceHandle handle) {
-  delete static_cast<vta::sim::Device*>(handle);
+  delete static_cast<VTADeviceBackend*>(handle);
 }
 
 int VTADeviceRun(VTADeviceHandle handle,
                  vta_phy_addr_t insn_phy_addr,
                  uint32_t insn_count,
                  uint32_t wait_cycles) {
-  return static_cast<vta::sim::Device*>(handle)->Run(
+  return static_cast<VTADeviceBackend*>(handle)->Run(
       insn_phy_addr, insn_count, wait_cycles);
 }
 

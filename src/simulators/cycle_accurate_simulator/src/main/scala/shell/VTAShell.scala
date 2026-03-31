@@ -20,9 +20,9 @@
 package vta.shell
 
 import chisel3._
-import vta.util.config._
-import vta.interface.axi._
 import vta.core._
+import vta.interface.axi._
+import vta.util.config._
 
 /** Shell parameters. */
 case class ShellParams(

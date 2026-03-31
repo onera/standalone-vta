@@ -21,7 +21,9 @@ package unittest
 
 import vta.core._
 import vta.util.config._
+import vta.tags.UnitTests
 
+@UnitTests
 class GemmTest extends AnyFlatSpecSim {
 
   "MAC" should "compute a multiplication accumulation" in {

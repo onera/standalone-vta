@@ -50,8 +50,8 @@ class TensorGemmJsonTester(
   c.io.start.poke(0)
 
   val dec_reset = BigInt(inst("reset"), 16)
-  val uopBegin = BigInt(inst("uopBegin"), 16)
-  val uopEnd = BigInt(inst("uopEnd"), 16)
+  val uopBegin = BigInt(inst("uop_begin"), 16)
+  val uopEnd = BigInt(inst("uop_end"), 16)
   assert(uopBegin < uopEnd)
   val lp_0 = BigInt(inst("lp_0"), 16)
   val lp_1 = BigInt(inst("lp_1"), 16)
@@ -78,14 +78,14 @@ class TensorGemmJsonTester(
 
   class TensorMasterMock(tm: TensorMaster, scratchpad: Array[Array[BigInt]]) {
     tm.rd(0).data.valid.poke(0)
-    var valid = tm.rd(0).idx.valid.peek()
+    var valid = false
     var idx: Int = 0
     def logical_step(): Unit = {
-      if (valid == 1) {
+      if (valid) {
         tm.rd(0).data.valid.poke(1)
         val cols = tm.rd(0).data.bits(0).size
         for {
-          i <- 0 until tm.rd(0).data.bits.size
+          i <- tm.rd(0).data.bits.indices
           j <- 0 until cols
         } {
           tm.rd(0).data.bits(i)(j).poke(scratchpad(idx)(i * cols + j))
@@ -93,18 +93,18 @@ class TensorGemmJsonTester(
       } else {
         tm.rd(0).data.valid.poke(0)
       }
-      valid = tm.rd(0).idx.valid
+      valid = tm.rd(0).idx.valid.peekBoolean()
       idx = tm.rd(0).idx.bits.peek().litValue.toInt
     }
   }
 
   class TensorMasterMockWr(tm: TensorMaster, scratchpad: Array[Array[BigInt]]) {
     def logical_step(): Unit = {
-      if (tm.wr(0).valid == 1) {
+      if (tm.wr(0).valid.peekBoolean()) {
         val idx = tm.wr(0).bits.idx.peek().litValue.toInt
         val cols = tm.wr(0).bits.data(0).size
         for {
-          i <- 0 until tm.wr(0).bits.data.size
+          i <- tm.wr(0).bits.data.indices
           j <- 0 until cols
         } {
           scratchpad(idx)(i * cols + j) =
@@ -116,10 +116,10 @@ class TensorGemmJsonTester(
 
   class UopMasterMock(um: UopMaster, scratchpad: Array[Array[BigInt]]) {
     um.data.valid.poke(0)
-    var valid = um.idx.valid.peek()
+    var valid = false
     var idx: Int = 0
     def logical_step(): Unit = {
-      if (valid == 1) {
+      if (valid) {
         um.data.valid.poke(1)
         um.data.bits.u0.poke(scratchpad(idx)(0))
         um.data.bits.u1.poke(scratchpad(idx)(1))
@@ -127,7 +127,7 @@ class TensorGemmJsonTester(
       } else {
         um.data.valid.poke(0)
       }
-      valid = um.idx.valid.peek()
+      valid = um.idx.valid.peekBoolean()
       idx = um.idx.bits.peek().litValue.toInt
     }
   }
@@ -160,6 +160,7 @@ class TensorGemmJsonTester(
       if (c.io.acc.rd(0).idx.valid.peekBoolean()) {
         c.io.acc.rd(0).idx.bits.expect(acc_indices.dequeue())
       }
+
       if (c.io.inp.rd(0).idx.valid.peekBoolean()) {
         c.io.inp.rd(0).idx.bits.expect(inp_indices.dequeue())
       }
@@ -234,7 +235,7 @@ class TensorGemmJsonTester(
   val max_count = 100 + 4 * total_steps
   var count = 0
   while (!c.io.done.peekBoolean() && count < max_count) {
-    if (count % 100 == 0 && debug == true) {
+    if (count % 100 == 0 && debug) {
       println(s"logical_step $count")
     }
     mocks.logical_step()

@@ -25,6 +25,7 @@ import unittest.util._
 import vta.core._
 import vta.util.config._
 import chisel3.simulator.ChiselSim
+import vta.tags.UnitTests
 
 object Alu_ref {
   /* alu_ref
@@ -67,6 +68,7 @@ object Alu_ref {
   }
 }
 
+@UnitTests
 class AluTest extends AnyFlatSpecSim {
   behavior of "AluVector"
 

@@ -19,11 +19,7 @@
 
 package unittest
 
-import chisel3._
-import chisel3.util._
-import unittest.util._
 import vta.core._
-import vta.util.config._
 import unittest.mocks.{
   TensorGemmIdxTester,
   TensorGemmIndexGeneratorTester,
@@ -31,11 +27,15 @@ import unittest.mocks.{
   TensorGemmResetTester,
   TensorGemmTester
 }
+import vta.tags
 
+@tags.UnitTests
 class TensorGemmTestSuite extends AnyFlatSpecSim {
   behavior of "TensorGemmSimple"
   it should "compute a simple operation" in
-    simulate(new TensorGemmSimple)(new TensorGemmTester(_))
+    simulate(new TensorGemmSimple)(
+      new TensorGemmTester(_)
+    )
 
   it should "correctly generate indices" in simulate(new TensorGemmSimple)(
     new TensorGemmIdxTester(_)

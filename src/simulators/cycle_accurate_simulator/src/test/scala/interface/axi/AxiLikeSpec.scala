@@ -1,35 +1,24 @@
 package vta.interface
 
 import chisel3._
-import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import chisel3.simulator.scalatest.ChiselSim
 import vta.test.AxiFullSimUtils
-import os.Source.WritableSource
 import vta.interface.axi.AXIClient
 import vta.interface.axi.AxiLike._
-import vta.util.config.Parameters
-import vta.DefaultPynqConfig
 import vta.shell.ShellKey
-import vta.util.SimulationUtils.verilatorWithWaveDump
-import vta.util.SimulationUtils
+import unittest.AnyFlatSpecSim
+import vta.tags.UnitTests
 
-class AxiLikeSpec
-    extends AnyFlatSpec
-    with ChiselSim
-    with AxiFullSimUtils
-    with Matchers {
+@UnitTests
+class AxiLikeSpec extends AnyFlatSpecSim with AxiFullSimUtils with Matchers {
   behavior of "axi4-full"
 
-  implicit val parameters: Parameters = new DefaultPynqConfig
-  implicit val simulWave = verilatorWithWaveDump
-
   class MockMem extends Module {
-    val io = IO(new AXIClient(parameters(ShellKey).memParams))
+    val io = IO(new AXIClient(p(ShellKey).memParams))
     val readAddress = io.readHandler(true.B)
     val writeAddress = io.writeHandler(true.B)
 
-    val mem = Mem(10, UInt(parameters(ShellKey).memParams.dataBits.W))
+    val mem = Mem(10, UInt(p(ShellKey).memParams.dataBits.W))
 
     io.r.data.bits.data := mem(readAddress)
     when(io.w.fire) {

@@ -29,9 +29,7 @@ import vta.DefaultPynqConfig
 import chisel3.simulator.scalatest.ChiselSim
 import vta.util.SimulationUtils.verilatorWithWaveDump
 import chisel3.simulator.HasSimulator
-
-object UnitTests extends Tag("UnitTests")
-object LongTests extends Tag("LongTests")
+import vta.tags.tagObjects.{UnitTests, LongTests}
 
 trait AnyFlatSpecSim extends AnyFlatSpec with ChiselSim {
 
@@ -53,14 +51,13 @@ class GenericTest[T <: Module, C <: Parameters](
   behavior of tag
   if (isLongTest) {
     it should "not have expect violations" taggedAs (LongTests) in {
-      simulate(dutFactory(p), additionalResetCycles = 2) { c =>
-        enableWaves()
+      simulate(dutFactory(p)) { c =>
         testerFactory(c)
       }
     }
   } else {
     it should "not have expect violations" taggedAs (UnitTests) in {
-      simulate(dutFactory(p), additionalResetCycles = 2)(testerFactory)
+      simulate(dutFactory(p))(testerFactory)
     }
   }
 }

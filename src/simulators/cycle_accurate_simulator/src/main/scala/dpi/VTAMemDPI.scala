@@ -21,9 +21,9 @@ package vta.dpi
 
 import chisel3._
 import chisel3.util._
-import vta.util.config._
 import vta.interface.axi._
 import vta.shell._
+import vta.util.config._
 
 /** Memory DPI parameters */
 case class VTAMemDPIParams(
@@ -109,8 +109,7 @@ class VTAMemDPI(implicit val p: Parameters)
   addResource("/verilog/VTAMemDPI.v")
 }
 
-class VTAMemDPIToAXI(debug: Boolean = true)(implicit val p: Parameters)
-    extends Module {
+class VTAMemDPIToAXI(implicit val p: Parameters) extends Module {
   val io = IO(new Bundle {
     val dpi = new VTAMemDPIMaster
     val axi = new AXIClient(p(ShellKey).memParams)

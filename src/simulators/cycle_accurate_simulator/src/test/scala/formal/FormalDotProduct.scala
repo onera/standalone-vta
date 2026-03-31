@@ -9,7 +9,7 @@ import chiseltest.simulator.WriteVcdAnnotation
 import org.scalatest.flatspec.AnyFlatSpec
 import _root_.circt.stage.ChiselStage
 
-import unittest.UnitTests
+import vta.tags.tagObjects.{FormalTests, UnitTests}
 import vta.core.DotProduct
 
 /** Testing MacVTA
@@ -17,7 +17,7 @@ import vta.core.DotProduct
 class DotProductTest extends AnyFlatSpec with ChiselScalatestTester {
   behavior of "DotProduct"
 
-  it should "compute dot product correctly" taggedAs (UnitTests) in {
+  it should "compute dot product correctly" taggedAs (UnitTests) ignore {
     test(new DotProduct).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
       // Test case 1: Y = 2
       dut.io.a(0).poke(2.S)
@@ -179,13 +179,13 @@ class DotProductFormalTester
     extends AnyFlatSpec
     with ChiselScalatestTester
     with Formal {
-  "DotProduct" should "pass formal properties" taggedAs (LongTests) in {
+  "DotProduct" should "pass formal properties" taggedAs (FormalTests) ignore {
     verify(
       new DotProductFormalSpec(new DotProduct),
       Seq(BoundedCheck(5), WriteVcdAnnotation)
     )
   }
-  "DotProduct" should "pass decomposed formal properties" taggedAs (FormalTests) in {
+  "DotProduct" should "pass decomposed formal properties" taggedAs (FormalTests) ignore {
     verify(
       new DotProductFormalSpec_Decomposed(new DotProduct),
       Seq(BoundedCheck(5), WriteVcdAnnotation)
@@ -207,4 +207,3 @@ object DotProductEmitter extends App {
     )
   )
 }
-

@@ -22,7 +22,6 @@ class VCRSpec
   "Control registers" should "be writable from the host" in {
     implicit val parameters: Parameters = new DefaultPynqConfig
     simulate(new VCR) { vcr =>
-      ()
       implicit val axi = vcr.io.host
       implicit val clock = vcr.clock
       vcr.io.host.b.ready.poke(true.B)
@@ -35,7 +34,6 @@ class VCRSpec
   "Launch" should "be configurable from the host" in {
     implicit val parameters: Parameters = new DefaultPynqConfig
     simulate(new VCR) { vcr =>
-      ()
       implicit val axi = vcr.io.host
       implicit val clock = vcr.clock
       vcr.io.host.b.ready.poke(true.B)
@@ -47,7 +45,6 @@ class VCRSpec
   "VCR" should "be configurable from the host" in {
     implicit val parameters: Parameters = new DefaultPynqConfig
     simulate(new VCR) { vcr =>
-      ()
       implicit val axi = vcr.io.host
       implicit val clock = vcr.clock
       vcr.io.host.b.ready.poke(true.B)

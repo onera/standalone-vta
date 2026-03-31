@@ -21,10 +21,8 @@ package vta.core
 
 import chisel3._
 import chisel3.util._
-import vta.util.config._
 import vta.shell._
-import vta.util.UserDefined.Debug
-import chisel3.Disable.Never
+import vta.util.config._
 
 /** Fetch.
   *

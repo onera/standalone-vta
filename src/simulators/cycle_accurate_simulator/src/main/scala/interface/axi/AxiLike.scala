@@ -43,7 +43,7 @@ object AxiLike {
 
       val awBurstWire = axi.aw.bits.burst
       // axi.aw.bits.len := awLen
-      val addrLSB = (dataWidth / 32) + 1
+      // val addrLSB = (dataWidth / 32) + 1
 
       switch(writeState) {
         is(WriteState.idle) {
@@ -186,7 +186,6 @@ object AxiLike {
 
       axi.r.bits.last := (arLenCounter === arLen && axi.r.fire)
       val dataWidth = axi.params.dataBits
-      val addrWidth = axi.params.addrBits
       val arAddr = RegInit(0.U.asTypeOf(axi.ar.bits.addr))
       val arWrapSize = arLen * (dataWidth / 8).U
       val arWrapEn = (arAddr & arWrapSize) === arWrapSize

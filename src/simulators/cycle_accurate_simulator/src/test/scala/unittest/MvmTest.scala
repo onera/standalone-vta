@@ -25,7 +25,9 @@ import chisel3.simulator.ChiselSim
 import scala.math.pow
 import unittest.util._
 import vta.core._
+import vta.tags
 
+@tags.UnitTests
 class MatrixVectorMultiplicationTest extends AnyFlatSpecSim {
 
   behavior of "MatrixVectorMultiplication"

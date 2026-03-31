@@ -14,6 +14,7 @@ import unittest.AnyFlatSpecSim
 import chisel3.simulator.stimulus.ResetProcedure
 import chisel3.experimental.inlinetest.TestHarness
 import chisel3.experimental.inlinetest.TestHarnessGenerator
+import vta.tags
 
 class TensorAluJsonTest(
     c: TensorAlu,
@@ -430,6 +431,7 @@ class TensorAluJsonTest(
 
 /** Execute the tests
   */
+@tags.UnitTests
 class TensorAluJsonTester extends AnyFlatSpecSim {
   behavior of "TensorAlu"
 

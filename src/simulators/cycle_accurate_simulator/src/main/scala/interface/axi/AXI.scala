@@ -22,6 +22,7 @@ package vta.interface.axi
 import chisel3._
 import chisel3.util._
 import vta.util.genericbundle._
+import chisel3.experimental.dataview.DataView
 
 case class AXIParams(
     coherent: Boolean = false,
@@ -55,7 +56,7 @@ case class AXIParams(
 }
 
 abstract class AXIBase(params: AXIParams)
-  extends GenericParameterizedBundle(params)
+    extends GenericParameterizedBundle(params)
 
 // AXILite
 
@@ -84,7 +85,7 @@ class AXILiteMaster(params: AXIParams) extends AXIBase(params) {
   val ar = Decoupled(new AXILiteAddress(params))
   val r = Flipped(Decoupled(new AXILiteReadData(params)))
 
-  def tieoff() : Unit = {
+  def tieoff(): Unit = {
     aw.valid := false.B
     aw.bits.addr := 0.U
     w.valid := false.B
@@ -104,7 +105,7 @@ class AXILiteClient(params: AXIParams) extends AXIBase(params) {
   val ar = Flipped(Decoupled(new AXILiteAddress(params)))
   val r = Decoupled(new AXILiteReadData(params))
 
-  def tieoff() : Unit = {
+  def tieoff(): Unit = {
     aw.ready := false.B
     w.ready := false.B
     b.valid := false.B
@@ -155,7 +156,7 @@ class AXIMaster(params: AXIParams) extends AXIBase(params) {
   val ar = Decoupled(new AXIAddress(params))
   val r = Flipped(Decoupled(new AXIReadData(params)))
 
-  def tieoff() : Unit = {
+  def tieoff(): Unit = {
     aw.valid := false.B
     aw.bits.addr := 0.U
     aw.bits.id := 0.U
@@ -193,7 +194,7 @@ class AXIMaster(params: AXIParams) extends AXIBase(params) {
   // These values are not changed in VTA
   // Usually means that there is no implementation for
   // alternative behavior
-  def setConst() : Unit = {
+  def setConst(): Unit = {
     aw.bits.user := params.userConst.U
     aw.bits.burst := params.burstConst.U
     aw.bits.lock := params.lockConst.U
@@ -221,7 +222,7 @@ class AXIClient(params: AXIParams) extends AXIBase(params) {
   val ar = Flipped(Decoupled(new AXIAddress(params)))
   val r = Decoupled(new AXIReadData(params))
 
-  def tieoff() : Unit = {
+  def tieoff(): Unit = {
     aw.ready := false.B
     w.ready := false.B
     b.valid := false.B
@@ -308,4 +309,77 @@ class XilinxAXIMaster(params: AXIParams) extends AXIBase(params) {
   val RLAST = Input(Bool())
   val RID = Input(UInt(params.idBits.W))
   val RUSER = Input(UInt(params.userBits.W))
+}
+
+object AXIMaster {
+  implicit val axiView: DataView[XilinxAXIMaster, AXIMaster] = DataView(
+    vab => new AXIMaster(vab.params),
+    _.AWVALID -> _.aw.valid,
+    _.AWREADY -> _.aw.ready,
+    _.AWADDR -> _.aw.bits.addr,
+    _.AWID -> _.aw.bits.id,
+    _.AWUSER -> _.aw.bits.user,
+    _.AWLEN -> _.aw.bits.len,
+    _.AWSIZE -> _.aw.bits.size,
+    _.AWBURST -> _.aw.bits.burst,
+    _.AWLOCK -> _.aw.bits.lock,
+    _.AWCACHE -> _.aw.bits.cache,
+    _.AWPROT -> _.aw.bits.prot,
+    _.AWQOS -> _.aw.bits.qos,
+    _.AWREGION -> _.aw.bits.region,
+    _.WVALID -> _.w.valid,
+    _.WREADY -> _.w.ready,
+    _.WDATA -> _.w.bits.data,
+    _.WSTRB -> _.w.bits.strb,
+    _.WLAST -> _.w.bits.last,
+    _.WID -> _.w.bits.id,
+    _.WUSER -> _.w.bits.user,
+    _.BVALID -> _.b.valid,
+    _.BREADY -> _.b.ready,
+    _.BRESP -> _.b.bits.resp,
+    _.BID -> _.b.bits.id,
+    _.BUSER -> _.b.bits.user,
+    _.ARVALID -> _.ar.valid,
+    _.ARREADY -> _.ar.ready,
+    _.ARADDR -> _.ar.bits.addr,
+    _.ARID -> _.ar.bits.id,
+    _.ARUSER -> _.ar.bits.user,
+    _.ARLEN -> _.ar.bits.len,
+    _.ARSIZE -> _.ar.bits.size,
+    _.ARBURST -> _.ar.bits.burst,
+    _.ARLOCK -> _.ar.bits.lock,
+    _.ARCACHE -> _.ar.bits.cache,
+    _.ARPROT -> _.ar.bits.prot,
+    _.ARQOS -> _.ar.bits.qos,
+    _.ARREGION -> _.ar.bits.region,
+    _.RVALID -> _.r.valid,
+    _.RREADY -> _.r.ready,
+    _.RDATA -> _.r.bits.data,
+    _.RRESP -> _.r.bits.resp,
+    _.RLAST -> _.r.bits.last,
+    _.RID -> _.r.bits.id,
+    _.RUSER -> _.r.bits.user
+  )
+}
+object AXILiteClient {
+  implicit val axiView: DataView[XilinxAXILiteClient, AXILiteClient] = DataView(
+    vab => new AXILiteClient(vab.params),
+    _.AWVALID -> _.aw.valid,
+    _.AWREADY -> _.aw.ready,
+    _.AWADDR -> _.aw.bits.addr,
+    _.WVALID -> _.w.valid,
+    _.WREADY -> _.w.ready,
+    _.WDATA -> _.w.bits.data,
+    _.WSTRB -> _.w.bits.strb,
+    _.BVALID -> _.b.valid,
+    _.BREADY -> _.b.ready,
+    _.BRESP -> _.b.bits.resp,
+    _.ARVALID -> _.ar.valid,
+    _.ARREADY -> _.ar.ready,
+    _.ARADDR -> _.ar.bits.addr,
+    _.RVALID -> _.r.valid,
+    _.RREADY -> _.r.ready,
+    _.RDATA -> _.r.bits.data,
+    _.RRESP -> _.r.bits.resp
+  )
 }

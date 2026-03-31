@@ -19,15 +19,13 @@
 
 package vta.core
 
-import scala.math.pow
-import scala.math.sqrt
-
 import chisel3._
 import chisel3.util._
-import vta.util.config._
-import vta.util._
 import vta.shell._
-import chisel3.layer.block
+import vta.util._
+import vta.util.config._
+
+import scala.math.pow
 
 /** Compute.
   *
