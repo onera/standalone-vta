@@ -71,6 +71,11 @@ object `package` extends SbtModule with PublishModule with ScalafixModule {
 
   def publishVersion = "6.0-SNAPSHOT"
 
+  def forkArgs = Seq(s"-Dvta.config.file=${vtaConfigFile()}")
+  def vtaConfigFile = Task.Input{
+    sys.props.getOrElse("vta.config.file","vta_config.json")
+  }
+
   /** Emit VTA for DPI simulation using `vta.StandaloneSimConfig` main class.
    *
    * Usage: ./mill emitVtaSimConfig Output: build/emitted/vta-sim-shell (relative

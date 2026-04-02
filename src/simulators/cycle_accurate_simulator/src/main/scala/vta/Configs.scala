@@ -40,6 +40,47 @@ class DefaultDe10Config extends Config(new CoreConfig ++ new De10Config)
 trait EmitterApp extends App {
   val defaultDir = os.RelPath("build/emitted/default")
   def outputDir = if (args.nonEmpty) os.Path(args(0)) else os.pwd / defaultDir
+  def showConfig(implicit p: Parameters) = {
+    p(CoreKey) match {
+      case CoreParams(
+            batch,
+            blockOut,
+            blockOutFactor,
+            blockIn,
+            inpBits,
+            wgtBits,
+            uopBits,
+            accBits,
+            outBits,
+            uopMemDepth,
+            inpMemDepth,
+            wgtMemDepth,
+            accMemDepth,
+            outMemDepth,
+            instQueueEntries
+          ) =>
+        println(
+          s"""
+          |Using following core config:
+          | -batch=${batch}
+          | -blockOut=${blockOut}
+          | -blockOutFactor=${blockOutFactor}
+          | -blockIn=${blockIn}
+          | -inpBits=${inpBits}
+          | -wgtBits=${wgtBits}
+          | -uopBits=${uopBits}
+          | -accBits=${accBits}
+          | -outBits=${outBits}
+          | -uopMemDepth=${uopMemDepth}
+          | -inpMemDepth=${inpMemDepth}
+          | -wgtMemDepth=${wgtMemDepth}
+          | -accMemDepth=${accMemDepth}
+          | -outMemDepth=${outMemDepth}
+          | -instQueueEntries=${instQueueEntries}
+          """.stripMargin
+        )
+    }
+  }
 }
 
 object DefaultPynqConfig extends EmitterApp {
@@ -60,7 +101,7 @@ object DefaultPynqConfig extends EmitterApp {
 
 object ZynqUs3Config extends EmitterApp {
   override val defaultDir = os.RelPath("build") / "emitted" / "vta-zusys-shell"
-  implicit val p: Parameters = new ZusysConfig
+  implicit val p: Parameters = new DefaultPynqConfig
   ChiselStage.emitSystemVerilogFile(
     new XilinxShell,
     args = Array(
@@ -76,7 +117,7 @@ object ZynqUs3Config extends EmitterApp {
   exportIpPackageTclScript(
     outputDir,
     "onera",
-    "VTA_ZynqUs",
+    "VTA_zcu3eg",
     "0.2.0",
     "VTAXilinxShell"
   )
@@ -93,6 +134,7 @@ object StandaloneSimConfig extends EmitterApp {
     args = Array("--target-dir", outputDir.toString())
   )
 
+  showConfig
   println(s"[EmitVTAShell] Simulation files written to $outputDir/")
 }
 

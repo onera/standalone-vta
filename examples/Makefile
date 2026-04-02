@@ -12,7 +12,9 @@ VTA_COMPILER_DIR := $(COMPILER_DIR)/vta_compiler
 NN_COMPILER_DIR := $(COMPILER_DIR)/nn_compiler
 FSIM_DIR := $(SRC_DIR)/simulators/functional_simulator
 TSIM_DIR := $(SRC_DIR)/simulators/cycle_accurate_simulator
-CONFIG := $(PROJECT_DIR)/config
+CONFIG_DIR := $(PROJECT_DIR)/config
+CONFIG_FILE ?= vta_config.json
+CONFIG = $(CONFIG_DIR)/$(CONFIG_FILE)
 
 
 # VARIABLES
@@ -57,7 +59,7 @@ nn_compiler: ## NN compilation: qONNX -> CPU parameters + VTA IRs
 	python $(NN_COMPILER_DIR)/vta_backend.py \
 	$(DEBUG_PARSE) \
 	True \
-	$(CONFIG)/vta_config.json \
+	$(CONFIG) \
 	$(ONNX_FILE) > $(COMPILER_OUTPUT_DIR)/prompt_vta_backend.txt
 	@date
 
@@ -73,7 +75,7 @@ vta_compiler: ## VTA compilation: VTA IRs -> VTA code
 	$(DEBUG) \
 	$(COMPILE_SUMMARY) \
 	$(DRAM_JSON) \
-	$(CONFIG)/vta_config.json \
+	$(CONFIG) \
 	$(JSON_FILES) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
 	@date
 
@@ -84,10 +86,24 @@ fsim_clean: ## Clean FSIM repository
 	cd $(FSIM_DIR) && make clean
 
 fsim_compile: ## Compile FSIM
-	cd $(FSIM_DIR) && make build/fsim_nn
+	cd $(FSIM_DIR) && CONFIG=$(CONFIG) make build/fsim_nn 
 
 fsim_compile_single_layer:
-	cd $(FSIM_DIR) && make build/fsim_single_layer
+	cd $(FSIM_DIR) && CONFIG=$(CONFIG) make build/fsim_single_layer
+
+
+# COMPILE FSIM WITH VERILATED backend 
+#####################################
+exported_sv: $(CONFIG)
+	cd $(TSIM_DIR) && ./mill -Dvta.config.file=$(CONFIG_FILE) emitVtaSimConfig
+
+vsim_compile: $(CONFIG)
+	@make exported_sv
+	cd $(FSIM_DIR) && CONFIG=$(CONFIG) make build/fsim_nn_rtl
+
+vsim_compile_single_layer: $(CONFIG)
+	@make exported_sv
+	cd $(FSIM_DIR) && CONFIG=$(CONFIG) make build/fsim_single_layer_rtl
 
 
 # REFERENCE EXECUTION
@@ -106,6 +122,12 @@ check:
 	@echo ""
 	@echo "SUCCESS!"
 
+
+check_vsim:
+	python $(COMPILER_DIR)/reference_computation/check_bin.py \
+	$(DEBUG) True > $(COMPILER_OUTPUT_DIR)/prompt_checker.txt
+	@echo ""
+	@echo "SUCCESS!"
 
 # FSIM EXECUTION
 ################
@@ -127,6 +149,19 @@ fsim_single_layer:
 	@echo ""
 	@echo "FSIM DONE!"
 
+# TSIM EXECUTION
+
+vsim_single_layer:
+	cd $(FSIM_DIR) && ./build/fsim_single_layer_rtl --verilator > $(SIMULATOR_OUTPUT_DIR)/tsim_report.txt
+
+vsim_inference: ## Infer TSIM with random values
+	@echo ""
+	@echo "RUN cycle accurate simulation (for NN)..."
+	@date
+	cd $(FSIM_DIR) && ./build/fsim_nn_rtl --verilator --no-timeout > $(SIMULATOR_OUTPUT_DIR)/tsim_report.txt
+	@date
+	@echo ""
+	@echo "FINAL_OUTPUT_RTL.BIN generated!"
 
 # EXECUTION
 ###########
@@ -149,13 +184,24 @@ compile_and_run: ## Compile FSIM and run
 	@make fsim_compile
 	@make run
 
+compile_all:
+	@make fsim_clean
+	@make clean_hw
+	@make fsim_compile
+	@make vsim_compile
+
+run_all: ## Run FSIM and VSIM
+	@make run
+	@make vsim_inference
+	@make check_vsim
+
 # CYCLE ACCURATE TSIM
 #####################
 tsim:
 	@echo ""
 	@echo "RUN TSIM..."
 	@date
-	cd $(TSIM_DIR) && sbt "runMain org.scalatest.run cli.ComputeApp" > $(SIMULATOR_OUTPUT_DIR)/tsim_report.txt
+	cd $(TSIM_DIR) && ./mill -Dvta.config.file=$(CONFIG_FILE) runMain org.scalatest.run cli.ComputeApp > $(SIMULATOR_OUTPUT_DIR)/tsim_report.txt
 	@date
 	@echo ""
 	@echo "TSIM DONE!"
@@ -180,6 +226,12 @@ test_gemm:
 	@echo ""
 	@echo "Execute FSIM"
 	@make fsim_single_layer
+	@echo ""
+	@echo "Compile TSIM"
+	@make vsim_compile_single_layer
+	@echo ""
+	@echo "Execute TSIM"
+	@make vsim_single_layer
 
 test_alu:
 	@make clean
@@ -196,6 +248,12 @@ test_alu:
 	@echo ""
 	@echo "Execute FSIM"
 	@make fsim_single_layer
+	@echo ""
+	@echo "Compile TSIM"
+	@make vsim_compile_single_layer
+	@echo ""
+	@echo "Execute TSIM"
+	@make vsim_single_layer
 
 custom_insn:
 	@python $(COMPILER_DIR)/utils/tests_instructions.py > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
@@ -229,6 +287,9 @@ clean_bin: | $(COMPILER_OUTPUT_DIR)
 clean_csv: | $(COMPILER_OUTPUT_DIR) 
 	-rm $(COMPILER_OUTPUT_DIR)/*.csv
 
+clean_hw: 
+	cd $(TSIM_DIR) && ./mill cleanOutputs
+
 
 # DEBUG
 #######
@@ -240,6 +301,7 @@ debug:
 	@echo "SRC_DIR: $(SRC_DIR)"
 	@echo "COMPILER_DIR: $(COMPILER_DIR)"
 	@echo "VTA_COMPILER_DIR: $(VTA_COMPILER_DIR)"
+	@echo "CONFIG: $(CONFIG)"
 
 
 # HELP

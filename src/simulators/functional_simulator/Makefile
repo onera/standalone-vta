@@ -31,11 +31,17 @@ DEBUGFLAG := -DDEBUG_SIM=false
 # Optimised for simulation throughput: no debug symbols, native tuning.
 # These files sit on the per-cycle hot path so compiler optimisation matters.
 VERILATED_CFLAGS = -std=c++17 -O3 -march=native -fomit-frame-pointer
+# Optional external config path.
+CONFIG ?= 
+USE_CFG_FLAG= $(if $(CONFIG),--use-cfg $(CONFIG),)
 
 # Define the variables for the configuration (vta_config.json)
-CONFIG_PY := python config/vta_config.py --defs # The command to execute the python script
-VTA_DEFS := $(shell $(CONFIG_PY)) # To store the output of running CONFIG_PY
-VTA_DEF_FLAGS := $(patsubst -D%,%,$(filter -D%,$(VTA_DEFS))) # To extract the "-D" flags from VTA_DEFS
+# The command to execute the python script
+CONFIG_PY := python config/vta_config.py --defs $(USE_CFG_FLAG) 
+# To store the output of running CONFIG_PY
+VTA_DEFS := $(shell $(CONFIG_PY))
+# To extract the "-D" flags from VTA_DEFS
+VTA_DEF_FLAGS := $(patsubst -D%,%,$(filter -D%,$(VTA_DEFS))) 
 
 # Define the main files (exclude verilated_device.cc — only used in verilated target)
 SRCS = $(filter-out src/verilated_device.cc, $(wildcard src/*.cc))
@@ -229,14 +235,14 @@ build/fsim_single_layer_rtl: build/vta_config_def.txt $(OBJS) \
 # COMPILING SIMULATOR AND MAIN FILES (without linking: -c)
 # ----------------------------------
 # Compile the main file:
-build/fsim_single_layer.o: src/fsim_single_layer.cc include/simulator_header.h
+build/fsim_single_layer.o: build/vta_config_def.txt src/fsim_single_layer.cc include/simulator_header.h
 	$(CC) $(VTA_DEFS) $(DEBUGFLAG) $(CFLAGS) -o build/fsim_single_layer.o -c src/fsim_single_layer.cc
 
-build/fsim_nn.o: src/fsim_nn.cc include/simulator_header.h
+build/fsim_nn.o: build/vta_config_def.txt src/fsim_nn.cc include/simulator_header.h
 	$(CC) $(VTA_DEFS) $(DEBUGFLAG) $(CFLAGS) -o build/fsim_nn.o -c src/fsim_nn.cc
 
 # Compile the function file (used by main):
-build/simulator_functions.o: src/simulator_functions.cc include/simulator_header.h
+build/simulator_functions.o: build/vta_config_def.txt src/simulator_functions.cc include/simulator_header.h
 	$(CC) $(VTA_DEFS) $(DEBUGFLAG) $(CFLAGS) -o build/simulator_functions.o -c src/simulator_functions.cc
 
 # Compile simulator files
@@ -308,7 +314,7 @@ nn_execute:
 # CONFIGURATION 
 # -------------
 # Run the configuration file (execute build rules if build/ does not exist)
-build/vta_config_def.txt: $(CONFIG_FILES) | build/ build/others/
+build/vta_config_def.txt: $(CONFIG_FILES) $(CONFIG) | build/ build/others/
 	$(CONFIG_PY) > build/vta_config_def.txt
 	$(VTA_DEF_FLAGS)
 
