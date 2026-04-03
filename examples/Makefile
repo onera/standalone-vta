@@ -226,12 +226,6 @@ test_gemm:
 	@echo ""
 	@echo "Execute FSIM"
 	@make fsim_single_layer
-	@echo ""
-	@echo "Compile TSIM"
-	@make vsim_compile_single_layer
-	@echo ""
-	@echo "Execute TSIM"
-	@make vsim_single_layer
 
 test_alu:
 	@make clean
@@ -248,12 +242,6 @@ test_alu:
 	@echo ""
 	@echo "Execute FSIM"
 	@make fsim_single_layer
-	@echo ""
-	@echo "Compile TSIM"
-	@make vsim_compile_single_layer
-	@echo ""
-	@echo "Execute TSIM"
-	@make vsim_single_layer
 
 custom_insn:
 	@python $(COMPILER_DIR)/utils/tests_instructions.py > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt

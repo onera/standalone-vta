@@ -88,8 +88,24 @@ jobs:
             version: "0.10.11"
         - name: Sync dependencies
           run: cd src/compiler && uv sync
+        - name: Emit simulation SystemVerilog files
+          run: |
+              cd src/simulators/cycle_accurate_simulator
+              ./mill emitVtaSimConfig
+        - name: Build simulator with verilated backend
+          run: |
+            cd src/simulators/functional_simulator
+            SIM_THREADS=2 make build/fsim_single_layer_rtl
         - name: Compile small gemm test
           run: |
             source src/compiler/.venv/bin/activate
             cd examples
             make -s test_gemm
+        - name: Test the functional simulation
+          run: |
+            cd src/simulators/functional_simulator
+            ./build/fsim_single_layer_rtl
+        - name: Test the cycle accurate simulation 
+          run: |
+            cd src/simulators/functional_simulator
+            ./build/fsim_single_layer_rtl --verilator
