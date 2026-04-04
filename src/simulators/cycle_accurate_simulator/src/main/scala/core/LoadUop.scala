@@ -86,7 +86,7 @@ class LoadUopTop(debug: Boolean = false)(implicit val p: Parameters)
     io.uop <> loadUop.io.uop
 
   } else {
-    val loadUop = Module(new TensorLoad(tensorType = "uop", debug))
+    val loadUop = Module(TensorLoad(tensorType = "uop", debug))
     loadUop.io.tensor.tieoffWrite()
 
     loadUop.io.start := io.start

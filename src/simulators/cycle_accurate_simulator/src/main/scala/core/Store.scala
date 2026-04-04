@@ -45,15 +45,22 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val sIdle :: sSync :: sExe :: Nil = Enum(3)
   val state = RegInit(sIdle)
 
-  val s = Module(new Semaphore(counterBits = 8, counterInitValue = 0))
-  val inst_q = Module(new Queue(UInt(INST_BITS.W), p(CoreKey).instQueueEntries))
+  val semaphore = Module(new Semaphore(counterBits = 8, counterInitValue = 0))
+  val instructionQueue = Module(
+    new Queue(UInt(INST_BITS.W), p(CoreKey).instQueueEntries)
+  )
 
   val dec = Module(new StoreDecode)
-  dec.io.inst := inst_q.io.deq.bits
+  dec.io.inst := instructionQueue.io.deq.bits
 
   val tensorStore = Module(TensorStore(tensorType = "out", debug))
 
-  val start = inst_q.io.deq.valid & Mux(dec.io.pop_prev, s.io.sready, true.B)
+  val start =
+    instructionQueue.io.deq.valid & Mux(
+      dec.io.pop_prev,
+      semaphore.io.sready,
+      true.B
+    )
   val done = tensorStore.io.done
 
   // control
@@ -78,19 +85,19 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module {
   }
 
   // instructions
-  inst_q.io.enq <> io.inst
-  inst_q.io.deq.ready := (state === sExe & done) | (state === sSync)
+  instructionQueue.io.enq <> io.inst
+  instructionQueue.io.deq.ready := (state === sExe & done) | (state === sSync)
 
   // store
   tensorStore.io.start := state === sIdle & start & dec.io.isStore
-  tensorStore.io.inst := inst_q.io.deq.bits
+  tensorStore.io.inst := instructionQueue.io.deq.bits
   tensorStore.io.baddr := io.out_baddr
   io.vme_wr <> tensorStore.io.vmeWr
   tensorStore.io.tensor <> io.out
 
   // semaphore
-  s.io.spost := io.i_post
-  s.io.swait := dec.io.pop_prev & (state === sIdle & start)
+  semaphore.io.spost := io.i_post
+  semaphore.io.swait := dec.io.pop_prev & (state === sIdle & start)
   io.o_post := dec.io.push_prev & ((state === sExe & done) | (state === sSync))
 
   // debug

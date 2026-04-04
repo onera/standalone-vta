@@ -59,7 +59,7 @@ abstract class VMEBase(implicit p: Parameters)
   *
   * This interface is used for creating write and read requests to memory.
   */
-class clientTag(implicit p: Parameters) extends Bundle {
+class ClientTag(implicit p: Parameters) extends Bundle {
   val clientBits = p(ShellKey).vmeParams.clientBits
   val RequestQueueDepth = p(ShellKey).vmeParams.RequestQueueDepth
   val RequestQueueMaskBits = p(ShellKey).vmeParams.RequestQueueMaskBits
@@ -182,6 +182,7 @@ class VME(implicit p: Parameters) extends Module {
     val mem = new AXIMaster(p(ShellKey).memParams)
     val vme = new VMEClient
   })
+  // Parameters
   val clientCmdQueueDepth = p(ShellKey).vmeParams.clientCmdQueueDepth
   val clientDataQueueDepth = p(ShellKey).vmeParams.clientDataQueueDepth
   val RequestQueueDepth = p(ShellKey).vmeParams.RequestQueueDepth
@@ -191,18 +192,29 @@ class VME(implicit p: Parameters) extends Module {
   val addrBits = p(ShellKey).memParams.addrBits
   val lenBits = p(ShellKey).memParams.lenBits
   val idBits = p(ShellKey).memParams.idBits
-  val vmeTag_array = SyncReadMem(RequestQueueDepth, (new (clientTag)))
-  val vmeTag_array_wr_data = Wire(new (clientTag))
-  val vmeTag_array_wr_addr = Wire(UInt(RequestQueueAddrWidth.W))
-  val vmeTag_array_rd_addr = Wire(UInt(RequestQueueAddrWidth.W))
-  val vmeTag_array_wr_en = Wire(Bool())
-  val localTag_out = Wire(new (clientTag))
+
+  // Tag Array
+  class VmeTagArrayIf extends Bundle {
+    val wr = new Bundle {
+      val addr = UInt(RequestQueueAddrWidth.W)
+      val data = new ClientTag
+      val en = Bool()
+    }
+    val rd = new Bundle {
+      val addr = UInt(RequestQueueAddrWidth.W)
+    }
+  }
+  val vmeTagArray = SyncReadMem(RequestQueueDepth, (new (ClientTag)))
+  val vmeTagArrayIf = Wire(new VmeTagArrayIf)
+
+  val localTagOut = Wire(new (ClientTag))
   val availableEntriesEn = Wire(Bool())
   val availableEntriesNext = Wire(UInt(RequestQueueDepth.W))
   val availableEntries = Reg(chiselTypeOf(availableEntriesNext))
   val freeTagLocation = Wire(UInt(RequestQueueDepth.W))
   val (resetEntry, newEntry, firstPostn) = firstOneOH(availableEntries.asUInt)
   val updateEntry = Wire(UInt(RequestQueueDepth.W))
+
   when(io.mem.r.bits.last & io.mem.r.valid) {
     availableEntriesNext := updateEntry | availableEntries
   }.elsewhen(
@@ -222,7 +234,7 @@ class VME(implicit p: Parameters) extends Module {
     }).asUInt
   }
   // Cmd Queues for eaach VME client
-  val VMEcmd_Qs = IndexedSeq.fill(5) {
+  val VMEcmdQs = IndexedSeq.fill(5) {
     Module(new Queue(new VMECmd, clientCmdQueueDepth))
   }
 
@@ -242,56 +254,56 @@ class VME(implicit p: Parameters) extends Module {
     val bitPostn = PriorityEncoder(oneHotIdx)
     (oHot, newVec, bitPostn)
   }
-  val default_tag = Wire(new (clientTag))
-  default_tag.client_tag := 0.U
-  default_tag.client_id := 0.U
-  default_tag.client_mask := 0.U
+  val defaultTag = Wire(new (ClientTag))
+  defaultTag.client_tag := 0.U
+  defaultTag.client_id := 0.U
+  defaultTag.client_mask := 0.U
 
-  val cmd_valids = for { q <- VMEcmd_Qs } yield q.io.deq.valid
+  val cmd_valids = for { q <- VMEcmdQs } yield q.io.deq.valid
 
   val vme_select = PriorityEncoder(cmd_valids :+ true.B)
   val any_cmd_valid = cmd_valids.foldLeft(false.B) { case (x, y) => x || y }
   availableEntriesEn := io.mem.ar.ready & any_cmd_valid
 
   for { i <- 0 until 5 } {
-    VMEcmd_Qs(i).io.enq.valid := io.vme.rd(i).cmd.valid & VMEcmd_Qs(
+    VMEcmdQs(i).io.enq.valid := io.vme.rd(i).cmd.valid & VMEcmdQs(
       i
     ).io.enq.ready
-    VMEcmd_Qs(i).io.enq.bits := io.vme.rd(i).cmd.bits
-    VMEcmd_Qs(i).io.deq.ready := io.mem.ar.ready &
+    VMEcmdQs(i).io.enq.bits := io.vme.rd(i).cmd.bits
+    VMEcmdQs(i).io.deq.ready := io.mem.ar.ready &
       (vme_select === i.U) & (availableEntries.asUInt =/= 0.U) &
       !(io.mem.r.bits.last & io.mem.r.valid)
-    io.vme.rd(i).cmd.ready := VMEcmd_Qs(i).io.enq.ready
+    io.vme.rd(i).cmd.ready := VMEcmdQs(i).io.enq.ready
   }
 
-  vmeTag_array_wr_addr := firstPostn.asUInt
+  vmeTagArrayIf.wr.addr := firstPostn.asUInt
 
-  val cmd_readys = for { q <- VMEcmd_Qs } yield q.io.deq.ready
-  val any_cmd_ready = cmd_readys.foldLeft(false.B) { case (x, y) => x || y }
+  val cmdReadys = for { q <- VMEcmdQs } yield q.io.deq.ready
+  val anyCmdReady = cmdReadys.foldLeft(false.B) { case (x, y) => x || y }
 
-  vmeTag_array_wr_en := any_cmd_ready
+  vmeTagArrayIf.wr.en := anyCmdReady
 
-  when(vmeTag_array_wr_en) {
-    val rdwrPort = vmeTag_array(vmeTag_array_wr_addr)
-    rdwrPort := vmeTag_array_wr_data
+  when(vmeTagArrayIf.wr.en) {
+    val rdwrPort = vmeTagArray(vmeTagArrayIf.wr.addr)
+    rdwrPort := vmeTagArrayIf.wr.data
   }
 
   io.mem.ar.bits.addr := 0.U
   io.mem.ar.bits.len := 0.U
   io.mem.ar.valid := 0.U
   io.mem.ar.bits.id := 0.U
-  vmeTag_array_wr_data := default_tag
+  vmeTagArrayIf.wr.data := defaultTag
 
   // Last assign wins so do this in reverse order
   for { i <- 4 to 0 by -1 } {
-    when(VMEcmd_Qs(i).io.deq.ready) {
-      io.mem.ar.bits.addr := VMEcmd_Qs(i).io.deq.bits.addr
-      io.mem.ar.bits.len := VMEcmd_Qs(i).io.deq.bits.len
-      io.mem.ar.valid := VMEcmd_Qs(i).io.deq.valid
-      io.mem.ar.bits.id := vmeTag_array_wr_addr
-      vmeTag_array_wr_data.client_id := i.U
-      vmeTag_array_wr_data.client_tag := VMEcmd_Qs(i).io.deq.bits.tag
-      vmeTag_array_wr_data.client_mask := resetEntry
+    when(VMEcmdQs(i).io.deq.ready) {
+      io.mem.ar.bits.addr := VMEcmdQs(i).io.deq.bits.addr
+      io.mem.ar.bits.len := VMEcmdQs(i).io.deq.bits.len
+      io.mem.ar.valid := VMEcmdQs(i).io.deq.valid
+      io.mem.ar.bits.id := vmeTagArrayIf.wr.addr
+      vmeTagArrayIf.wr.data.client_id := i.U
+      vmeTagArrayIf.wr.data.client_tag := VMEcmdQs(i).io.deq.bits.tag
+      vmeTagArrayIf.wr.data.client_mask := resetEntry
     }
   }
 
@@ -300,55 +312,55 @@ class VME(implicit p: Parameters) extends Module {
   // Adding a flop stage for mem.r.data, mem.r.last, mem.r.valid
   // till local tag lookup is performed.
   io.mem.r.ready := true.B
-  vmeTag_array_rd_addr := io.mem.r.bits.id
-  localTag_out := vmeTag_array(vmeTag_array_rd_addr)
-  freeTagLocation := localTag_out.client_mask
+  vmeTagArrayIf.rd.addr := io.mem.r.bits.id
+  localTagOut := vmeTagArray(vmeTagArrayIf.rd.addr)
+  freeTagLocation := localTagOut.client_mask
 
   for (i <- 0 until nReadClients) {
     io.vme.rd(i).data.valid := ((RegNext(
       io.mem.r.valid,
       init = false.B
-    )) && ((localTag_out.client_id) === i.U)
+    )) && ((localTagOut.client_id) === i.U)
       && io.vme.rd(i).data.ready)
     // VME doesnt stop on not ready
     assert(io.vme.rd(i).data.ready || ~io.vme.rd(i).data.valid)
     io.vme.rd(i).data.bits.data := RegNext(io.mem.r.bits.data, init = false.B)
     io.vme.rd(i).data.bits.last := RegNext(io.mem.r.bits.last, init = false.B)
-    io.vme.rd(i).data.bits.tag := localTag_out.client_tag
+    io.vme.rd(i).data.bits.tag := localTagOut.client_tag
   }
 
   // VME <-> AXI write interface
-  val wr_len = RegInit(0.U(lenBits.W))
-  val wr_addr = RegInit(0.U(addrBits.W))
+  val wrLen = RegInit(0.U(lenBits.W))
+  val wrAddr = RegInit(0.U(addrBits.W))
   val sWriteIdle :: sWriteAddr :: sWriteData :: sWriteResp :: Nil = Enum(4)
   val wstate = RegInit(sWriteIdle)
-  val wr_cnt = RegInit(0.U(lenBits.W))
+  val wrCnt = RegInit(0.U(lenBits.W))
   io.vme.wr(0).cmd.ready := wstate === sWriteIdle
   io.vme.wr(0).ack := io.mem.b.fire
   io.vme.wr(0).data.ready := wstate === sWriteData & io.mem.w.ready
   io.mem.aw.valid := wstate === sWriteAddr
-  io.mem.aw.bits.addr := wr_addr
-  io.mem.aw.bits.len := wr_len
+  io.mem.aw.bits.addr := wrAddr
+  io.mem.aw.bits.len := wrLen
   io.mem.aw.bits.id := p(
     ShellKey
   ).memParams.idConst.U // no support for multiple writes
   io.mem.w.valid := wstate === sWriteData & io.vme.wr(0).data.valid
   io.mem.w.bits.data := io.vme.wr(0).data.bits.data
   io.mem.w.bits.strb := io.vme.wr(0).data.bits.strb
-  io.mem.w.bits.last := wr_cnt === wr_len
+  io.mem.w.bits.last := wrCnt === wrLen
   io.mem.w.bits.id := p(
     ShellKey
   ).memParams.idConst.U // no support for multiple writes
   io.mem.b.ready := wstate === sWriteResp
   when(io.vme.wr(0).cmd.fire) {
-    wr_len := io.vme.wr(0).cmd.bits.len
-    wr_addr := io.vme.wr(0).cmd.bits.addr
+    wrLen := io.vme.wr(0).cmd.bits.len
+    wrAddr := io.vme.wr(0).cmd.bits.addr
   }
   when(wstate === sWriteIdle) {
-    wr_cnt := 0.U
+    wrCnt := 0.U
   }
     .elsewhen(io.mem.w.fire) {
-      wr_cnt := wr_cnt + 1.U
+      wrCnt := wrCnt + 1.U
     }
   switch(wstate) {
     is(sWriteIdle) {
@@ -362,7 +374,7 @@ class VME(implicit p: Parameters) extends Module {
       }
     }
     is(sWriteData) {
-      when(io.vme.wr(0).data.valid && io.mem.w.ready && wr_cnt === wr_len) {
+      when(io.vme.wr(0).data.valid && io.mem.w.ready && wrCnt === wrLen) {
         wstate := sWriteResp
       }
     }

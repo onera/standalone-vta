@@ -55,7 +55,7 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val tensorType = Seq("inp", "wgt")
   val tensorDec = Seq(dec.io.isInput, dec.io.isWeight)
   val tensorLoad =
-    Seq.tabulate(2)(i => Module(new TensorLoad(tensorType = tensorType(i))))
+    Seq.tabulate(2)(i => Module(TensorLoad(tensorType = tensorType(i))))
 
   val start = inst_q.io.deq.valid & Mux(dec.io.pop_next, s.io.sready, true.B)
   val done = Mux(dec.io.isInput, tensorLoad(0).io.done, tensorLoad(1).io.done)

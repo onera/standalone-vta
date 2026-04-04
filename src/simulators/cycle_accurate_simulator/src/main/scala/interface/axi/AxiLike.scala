@@ -4,8 +4,23 @@ import chisel3._
 import chisel3.util.{is, switch}
 
 trait AxiLike[T <: Data] {
+
+  /** Handles the axi client write channel protocol
+    *
+    * @param enabled
+    *   writing enabled signal
+    * @return
+    *   the write address
+    */
   def writeHandler(enabled: Bool): UInt
 
+  /** Handles the axi client read channel protocol
+    *
+    * @param enabled
+    *   reading enabled signal
+    * @return
+    *   the read address
+    */
   def readHandler(enabled: Bool): UInt
 }
 
@@ -230,5 +245,64 @@ object AxiLike {
         }
       arAddr
     }
+  }
+  implicit class AxiLiteClientIsAxiLike(axi: AXILiteClient)
+      extends AxiLike[AXILiteClient] {
+
+    override def writeHandler(enabled: Bool): UInt = {
+      val waddr = RegInit("h_ffff".U(axi.params.addrBits.W))
+      val sWriteAddress :: sWriteData :: sWriteResponse :: Nil = util.Enum(3)
+      val wdata = axi.w.bits.data
+      val wstate = RegInit(sWriteAddress)
+
+      switch(wstate) {
+        is(sWriteAddress) {
+          when(axi.aw.valid) {
+            wstate := sWriteData
+          }
+        }
+        is(sWriteData) {
+          when(axi.w.valid) {
+            wstate := sWriteResponse
+          }
+        }
+        is(sWriteResponse) {
+          when(axi.b.ready) {
+            wstate := sWriteAddress
+          }
+        }
+      }
+
+      when(axi.aw.fire) { waddr := axi.aw.bits.addr }
+      axi.aw.ready := wstate === sWriteAddress
+      axi.w.ready := wstate === sWriteData
+      axi.b.valid := wstate === sWriteResponse
+      axi.b.bits.resp := 0.U
+      waddr
+    }
+
+    override def readHandler(enabled: Bool): UInt = {
+
+      val sReadAddress :: sReadData :: Nil = util.Enum(2)
+      val rstate = RegInit(sReadAddress)
+      switch(rstate) {
+        is(sReadAddress) {
+          when(axi.ar.valid) {
+            rstate := sReadData
+          }
+        }
+        is(sReadData) {
+          when(axi.r.ready) {
+            rstate := sReadAddress
+          }
+        }
+      }
+
+      axi.ar.ready := rstate === sReadAddress
+      axi.r.valid := rstate === sReadData
+      axi.r.bits.resp := 0.U
+      axi.ar.bits.addr
+    }
+
   }
 }

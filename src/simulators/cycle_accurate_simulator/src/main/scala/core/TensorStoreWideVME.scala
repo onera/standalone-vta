@@ -31,10 +31,9 @@ case class TensorStoreWideVME(
     tensorType: String = "none",
     debug: Boolean = false
 )(implicit
-    p: Parameters
-) extends Module
-    with TensorStore {
-  def parameters: Parameters = p
+    val
+    parameters: Parameters
+) extends TensorStore {
   val writePipeLatency = tp.writePipeLatency
   val io: TensorStoreIf = IO(new TensorStoreIf())
   // Store write is delayed by writePipeLatency

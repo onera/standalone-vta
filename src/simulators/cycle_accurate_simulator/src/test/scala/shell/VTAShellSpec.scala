@@ -61,7 +61,7 @@ class VTAShellSpec
     runVtaTestWithInitializedMem(
       memoryConfigs,
       timeout = 10000,
-      waves = false
+      waves = true
     )
 
   }

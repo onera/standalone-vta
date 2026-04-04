@@ -31,19 +31,13 @@ import scala.math.pow
   * Load 1D and 2D tensors from main memory (DRAM) to input/weight scratchpads
   * (SRAM). Also, there is support for zero padding, while doing the load.
   */
-class TensorLoadNarrowVME(tensorType: String = "none", debug: Boolean = false)(
-    implicit p: Parameters
-) extends Module {
-  val tp = new TensorParams(tensorType)
-  val mp = p(ShellKey).memParams
-  val io = IO(new Bundle {
-    val start = Input(Bool())
-    val done = Output(Bool())
-    val inst = Input(UInt(INST_BITS.W))
-    val baddr = Input(UInt(mp.addrBits.W))
-    val vme_rd = new VMEReadMaster
-    val tensor = new TensorClient(tensorType)
-  })
+case class TensorLoadNarrowVME(
+    tensorType: String = "none",
+    debug: Boolean = false
+)(implicit
+    val
+    parameters: Parameters
+) extends TensorLoad {
   val writePipeLatency = tp.writePipeLatency
 
   val sIdle :: sBusy :: Nil =
@@ -175,14 +169,14 @@ class TensorLoadNarrowVME(tensorType: String = "none", debug: Boolean = false)(
   // tensor load instruction writes a VME data block or a whole tensor
   val waddrTensInstrTmp = Mux(isZeroPadWrite, zpDestIdx, rdDataDestIdx)
   val waddrTensInstrPipe = VecInit(
-    (for (j <- 0 until splitFactorL1) yield {
+    (for (_ <- 0 until splitFactorL1) yield {
       ShiftRegister(waddrTensInstrTmp, if (writePipeLatency > 0) 1 else 0)
     }).flatMap(elem =>
-      for (k <- 0 until splitFactorL0) yield {
+      for (_ <- 0 until splitFactorL0) yield {
         elem
       }
     ).flatMap(elem =>
-      for (k <- 0 until splitMemBlockFactor) yield {
+      for (_ <- 0 until splitMemBlockFactor) yield {
         ShiftRegister(
           elem,
           if (writePipeLatency < 2) 0 else writePipeLatency - 1
@@ -194,7 +188,7 @@ class TensorLoadNarrowVME(tensorType: String = "none", debug: Boolean = false)(
 
   val waddrDirect = (VecInit((for (grIdx <- 0 until splitDataFactor) yield {
     io.tensor.wr(grIdx).bits.idx
-  }).flatMap(elem => for (k <- 0 until groupMemBlockFactor) yield { elem })))
+  }).flatMap(elem => for (_ <- 0 until groupMemBlockFactor) yield { elem })))
     .asTypeOf(
       Vec(
         memSizeRatio * splitMemBlockFactor,
@@ -220,11 +214,11 @@ class TensorLoadNarrowVME(tensorType: String = "none", debug: Boolean = false)(
   // get en sygnal and duplicate
   val wenTensInstr = VecInit((for (j <- 0 until memSizeRatio) yield {
     Mux(isZeroPadWrite, true.B, dataOffset === j.U && vmeDataFirePipe)
-  }).flatMap(elem => for (k <- 0 until splitMemBlockFactor) yield { elem }))
+  }).flatMap(elem => for (_ <- 0 until splitMemBlockFactor) yield { elem }))
 
   val wenDirect = VecInit((for (grIdx <- 0 until splitDataFactor) yield {
     io.tensor.wr(grIdx).valid
-  }).flatMap(elem => for (k <- 0 until groupMemBlockFactor) yield { elem }))
+  }).flatMap(elem => for (_ <- 0 until groupMemBlockFactor) yield { elem }))
 
   val wen = Wire(Vec(memSizeRatio * splitMemBlockFactor, Bool()))
   for (j <- 0 until memSizeRatio * splitMemBlockFactor) {
@@ -241,10 +235,10 @@ class TensorLoadNarrowVME(tensorType: String = "none", debug: Boolean = false)(
   // --- Write data vector ---------
   // -------------------------------
   val wdataTensInstrDataPipe = VecInit(
-    (for (j <- 0 until splitFactorL0) yield {
+    (for (_ <- 0 until splitFactorL0) yield {
       ShiftRegister(vmeDataBitsPipe.data, if (writePipeLatency > 0) 1 else 0)
     }).flatMap(elem =>
-      for (k <- 0 until splitFactorL1) yield {
+      for (_ <- 0 until splitFactorL1) yield {
         elem
       }
     ).flatMap(elem =>

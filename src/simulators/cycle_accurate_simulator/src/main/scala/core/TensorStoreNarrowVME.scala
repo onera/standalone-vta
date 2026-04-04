@@ -31,19 +31,11 @@ case class TensorStoreNarrowVME(
     tensorType: String = "none",
     debug: Boolean = false
 )(implicit
-    p: Parameters
+    val
+    parameters: Parameters
 ) extends Module
     with TensorStore {
-  def parameters: Parameters = p
   val io: TensorStoreIf = IO(new TensorStoreIf())
-  // val io = IO(new Bundle {
-  //   val start = Input(Bool())
-  //   val done = Output(Bool())
-  //   val inst = Input(UInt(INST_BITS.W))
-  //   val baddr = Input(UInt(mp.addrBits.W))
-  //   val vme_wr = new VMEWriteMaster
-  //   val tensor = new TensorClient(tensorType)
-  // })
   val tensorLength = tp.tensorLength
   val tensorWidth = tp.tensorWidth
   val tensorElemBits = tp.tensorElemBits
@@ -84,7 +76,9 @@ case class TensorStoreNarrowVME(
   val xstride_bytes = dec.xstride << log2Ceil(tensorLength * tensorWidth)
   val maskOffset = VecInit(Seq.fill(M_DRAM_OFFSET_BITS)(true.B)).asUInt
   val elemBytes =
-    (p(CoreKey).batch * p(CoreKey).blockOut * p(CoreKey).outBits) / 8
+    (parameters(CoreKey).batch * parameters(CoreKey).blockOut * parameters(
+      CoreKey
+    ).outBits) / 8
   val pulse_bytes_bits = log2Ceil(mp.dataBits >> 3)
 
   val xferInitAddr =

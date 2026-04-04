@@ -58,19 +58,12 @@ import scala.math.pow
   *  n
   *  e
   */
-class TensorLoadWideVME(tensorType: String = "none", debug: Boolean = false)(
-    implicit p: Parameters
-) extends Module {
-  val tp = new TensorParams(tensorType)
-  val mp = p(ShellKey).memParams
-  val io = IO(new Bundle {
-    val start = Input(Bool())
-    val done = Output(Bool())
-    val inst = Input(UInt(INST_BITS.W))
-    val baddr = Input(UInt(mp.addrBits.W))
-    val vme_rd = new VMEReadMaster
-    val tensor = new TensorClient(tensorType)
-  })
+case class TensorLoadWideVME(
+    tensorType: String = "none",
+    debug: Boolean = false
+)(implicit
+    val parameters: Parameters
+) extends TensorLoad {
   // the delay cycles of write pipe. Needed to deliver singal over physical distance
   val writePipeLatency = tp.writePipeLatency
 

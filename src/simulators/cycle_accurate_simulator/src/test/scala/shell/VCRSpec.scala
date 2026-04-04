@@ -7,20 +7,15 @@ import vta.util.config.Parameters
 import vta.DefaultPynqConfig
 
 import vta.interface.axi.AXILiteClient
-import vta.shell.VCRParams
-import vta.util.SimulationUtils.verilatorWithWaveDump
-import chisel3.simulator.HasSimulator
 import vta.util.SimulationUtils._
+import unittest.AnyFlatSpecSim
 
 class VCRSpec
-    extends AnyFlatSpec
+    extends AnyFlatSpecSim
     with Matchers
-    with ChiselSim
     with vta.test.AxiLiteSimUtils {
   behavior of "VCR"
-  implicit val verilator: HasSimulator = verilatorWithWaveDump
   "Control registers" should "be writable from the host" in {
-    implicit val parameters: Parameters = new DefaultPynqConfig
     simulate(new VCR) { vcr =>
       implicit val axi = vcr.io.host
       implicit val clock = vcr.clock
@@ -32,7 +27,6 @@ class VCRSpec
   }
 
   "Launch" should "be configurable from the host" in {
-    implicit val parameters: Parameters = new DefaultPynqConfig
     simulate(new VCR) { vcr =>
       implicit val axi = vcr.io.host
       implicit val clock = vcr.clock
@@ -43,7 +37,6 @@ class VCRSpec
   }
 
   "VCR" should "be configurable from the host" in {
-    implicit val parameters: Parameters = new DefaultPynqConfig
     simulate(new VCR) { vcr =>
       implicit val axi = vcr.io.host
       implicit val clock = vcr.clock
@@ -59,7 +52,14 @@ class VCRSpec
       writeOutBaseAddress(500)
 
       launchVTA()
+
+      for (i <- 0 until 10) {
+        writeAxiLiteReadAddress(i * 4)
+        val data = readAxiLiteData()
+        println(data)
+      }
       clock.stepUntil(vcr.io.vcr.finish, 1, 10)
     }
   }
+
 }

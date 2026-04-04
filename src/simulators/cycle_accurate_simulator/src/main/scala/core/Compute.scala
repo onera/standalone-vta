@@ -60,7 +60,7 @@ class Compute(debug: Boolean = false)(implicit
   )
 
   val loadUop = Module(new LoadUopTop(debug))
-  val tensorAcc = Module(new TensorLoad(tensorType = "acc"))
+  val tensorAcc = Module(TensorLoad(tensorType = "acc"))
   val tensorGemm = Module(new TensorGemm)
   val tensorAlu = Module(new TensorAlu)
 
@@ -161,7 +161,7 @@ class Compute(debug: Boolean = false)(implicit
       - log2Ceil(tensorAcc.io.tensor.splitWidth) / 2
   ).toInt
   require(splitFactorL0 * splitFactorL1 == tensorAcc.io.tensor.splitWidth)
-  val accRdSelectL0 = for (idx <- 0 until splitFactorL1) yield {
+  val accRdSelectL0 = for (_ <- 0 until splitFactorL1) yield {
     // can save 1 stage on small design
     if (splitFactorL1 > 1) RegNext(dec.io.isGemm, init = false.B)
     else dec.io.isGemm

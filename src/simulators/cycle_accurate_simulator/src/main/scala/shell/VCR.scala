@@ -22,6 +22,7 @@ package vta.shell
 import chisel3._
 import chisel3.util._
 import vta.interface.axi._
+import vta.interface.axi.AxiLike._
 import vta.util.config._
 import vta.util.genericbundle._
 
@@ -92,117 +93,91 @@ class VCR(implicit p: Parameters) extends Module {
   val mp = p(ShellKey).memParams
   val hp = p(ShellKey).hostParams
 
-  // Write control (AW, W, B)
-  val waddr = RegInit("h_ffff".U(hp.addrBits.W)) // init with invalid address
-  val wdata = io.host.w.bits.data
-  val sWriteAddress :: sWriteData :: sWriteResponse :: Nil = Enum(3)
-  val wstate = RegInit(sWriteAddress)
+  // Write and Read channels control
+  val waddr = io.host.writeHandler(true.B)
+  val raddr = io.host.readHandler(true.B)
 
-  // read control (AR, R)
-  val sReadAddress :: sReadData :: Nil = Enum(2)
-  val rstate = RegInit(sReadAddress)
+  val wdata = io.host.w.bits.data
   val rdata = RegInit(0.U(vp.regBits.W))
 
   // registers
   val nPtrs = if (mp.addrBits == 32) vp.nPtrs else 2 * vp.nPtrs
   val nTotal = vp.nCtrl + vp.nECnt + vp.nVals + nPtrs + vp.nUCnt
 
-  val reg = Seq.fill(nTotal)(RegInit(0.U(vp.regBits.W)))
+  /** Vcr Control registers bundle
+    */
+  class VcrBundleReg extends Bundle {
+    val ctrl = UInt(32.W)
+    val ecnt = Vec(vp.nECnt, UInt(32.W))
+    val vals = Vec(vp.nVals, UInt(32.W))
+    val ptrs = Vec(nPtrs, UInt(vp.regBits.W))
+    val ucnt = Vec(vp.nUCnt, UInt(32.W))
+  }
+  val regs = RegInit(0.U((nTotal * 32).W).asTypeOf(new VcrBundleReg))
+
+  // View registers as a Vec
+  val regVec = regs.asTypeOf(Vec(nTotal, UInt(32.W)))
+
   val addr = Seq.tabulate(nTotal)(_ * 4)
-  val reg_map = (addr zip reg) map { case (a, r) => a.U -> r }
+  val reg_map = (addr zip regVec) map { case (a, r) => a.U -> r }
   val eo = vp.nCtrl
   val vo = eo + vp.nECnt
   val po = vo + vp.nVals
   val uo = po + nPtrs
 
-  switch(wstate) {
-    is(sWriteAddress) {
-      when(io.host.aw.valid) {
-        wstate := sWriteData
-      }
-    }
-    is(sWriteData) {
-      when(io.host.w.valid) {
-        wstate := sWriteResponse
-      }
-    }
-    is(sWriteResponse) {
-      when(io.host.b.ready) {
-        wstate := sWriteAddress
-      }
-    }
-  }
-
-  when(io.host.aw.fire) { waddr := io.host.aw.bits.addr }
-
-  io.host.aw.ready := wstate === sWriteAddress
-  io.host.w.ready := wstate === sWriteData
-  io.host.b.valid := wstate === sWriteResponse
-  io.host.b.bits.resp := 0.U
-
-  switch(rstate) {
-    is(sReadAddress) {
-      when(io.host.ar.valid) {
-        rstate := sReadData
-      }
-    }
-    is(sReadData) {
-      when(io.host.r.ready) {
-        rstate := sReadAddress
-      }
-    }
-  }
-
-  io.host.ar.ready := rstate === sReadAddress
-  io.host.r.valid := rstate === sReadData
   io.host.r.bits.data := rdata
-  io.host.r.bits.resp := 0.U
 
+  // When VTA finishes, write a flag in ctrl register
   when(io.vcr.finish) {
-    reg(0) := "b_10".U
+    regs.ctrl := "b_10".U
   }.elsewhen(io.host.w.fire && addr(0).U === waddr) {
-    reg(0) := wdata
+    regs.ctrl := wdata
   }
 
   for (i <- 0 until vp.nECnt) {
     when(io.vcr.ecnt(i).valid) {
-      reg(eo + i) := io.vcr.ecnt(i).bits
+      regs.ecnt(i) := io.vcr.ecnt(i).bits
     }.elsewhen(io.host.w.fire && addr(eo + i).U === waddr) {
-      reg(eo + i) := wdata
+      regs.ecnt(i) := wdata
     }
   }
 
-  for (i <- 0 until (vp.nVals + nPtrs)) {
+  for (i <- 0 until (vp.nVals)) {
     when(io.host.w.fire && addr(vo + i).U === waddr) {
-      reg(vo + i) := wdata
+      regs.vals(i) := wdata
     }
   }
 
+  for (i <- 0 until (vp.nPtrs)) {
+    when(io.host.w.fire && addr(po + i).U === waddr) {
+      regs.ptrs(i) := wdata
+    }
+  }
   when(io.host.ar.fire) {
-    rdata := MuxLookup(io.host.ar.bits.addr, 0.U)(reg_map)
+    rdata := MuxLookup(raddr, 0.U)(reg_map)
   }
 
-  io.vcr.launch := reg(0)(0)
+  io.vcr.launch := regs.ctrl(0)
 
   for (i <- 0 until vp.nVals) {
-    io.vcr.vals(i) := reg(vo + i)
+    io.vcr.vals(i) := regs.vals(i)
   }
 
   if (mp.addrBits == 32) { // 32-bit pointers
     for (i <- 0 until nPtrs) {
-      io.vcr.ptrs(i) := reg(po + i)
+      io.vcr.ptrs(i) := regs.ptrs(i)
     }
   } else { // 64-bits pointers
     for (i <- 0 until (nPtrs / 2)) {
-      io.vcr.ptrs(i) := Cat(reg(po + 2 * i + 1), reg(po + 2 * i))
+      io.vcr.ptrs(i) := Cat(regs.ptrs(2 * i + 1), regs.ptrs(2 * i))
     }
   }
 
   for (i <- 0 until vp.nUCnt) {
     when(io.vcr.ucnt(i).valid) {
-      reg(uo + i) := io.vcr.ucnt(i).bits
+      regs.ucnt(i) := io.vcr.ucnt(i).bits
     }.elsewhen(io.host.w.fire && addr(uo + i).U === waddr) {
-      reg(uo + i) := wdata
+      regs.ucnt(i) := wdata
     }
   }
 }
