@@ -65,7 +65,7 @@ class Core(debug: Boolean = false)(implicit p: Parameters) extends Module {
     val vcr = new VCRClient
     val vme = new VMEMaster
   })
-  val fetch = Module(new Fetch(debug))
+  val fetch = Module(Fetch(debug))
   val load = Module(new Load(debug))
   val compute = Module(new Compute(debug))
   val store = Module(new Store(debug))

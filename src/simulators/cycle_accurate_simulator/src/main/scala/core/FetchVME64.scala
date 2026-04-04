@@ -41,21 +41,8 @@ import vta.util.config._
   * instruction queue is sized (entries_q), depending on the maximum burst
   * allowed in the memory.
   */
-class Fetch64Bit(debug: Boolean = false)(implicit p: Parameters)
-    extends Module {
-  val vp = p(ShellKey).vcrParams
-  val mp = p(ShellKey).memParams
-  val io = IO(new Bundle {
-    val launch = Input(Bool())
-    val ins_baddr = Input(UInt(mp.addrBits.W))
-    val ins_count = Input(UInt(vp.regBits.W))
-    val vme_rd = new VMEReadMaster
-    val inst = new Bundle {
-      val ld = Decoupled(UInt(INST_BITS.W))
-      val co = Decoupled(UInt(INST_BITS.W))
-      val st = Decoupled(UInt(INST_BITS.W))
-    }
-  })
+case class Fetch64Bit(debug: Boolean = false)(implicit val p: Parameters)
+    extends Fetch {
   val entries_q = 1 << (mp.lenBits - 1) // one-instr-every-two-vme-word
   val inst_q = Module(SyncQueue(UInt(INST_BITS.W), entries_q))
   val dec = Module(new FetchDecode)
