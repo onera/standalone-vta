@@ -69,7 +69,7 @@ case class TensorStoreNarrowVME(
   val xmaxBytes = ((1 << mp.lenBits) * mp.dataBits / 8).U
   val ycnt = Reg(chiselTypeOf(dec.ysize))
   val ysize = dec.ysize
-  val tag = Reg(UInt(8.W))
+  val tag = Reg(UInt(log2Ceil(numMemBlock).W))
   val set = Reg(UInt(8.W))
 
   val xferBytes = Reg(chiselTypeOf(io.vmeWr.cmd.bits.addr))
