@@ -35,7 +35,7 @@ class VCRSpec extends AnyFlatSpecSim with Matchers with vta.test.VcrTestUtils {
       vcr.io.host.b.ready.poke(true.B)
 
       // Configure memory pointers
-      writeInstructionBaseAddress(0)
+      writeInstructionBaseAddress(10)
       writeInstructionCount(5)
       writeUopBaseAddress(100)
       writeInputBaseAddress(200)

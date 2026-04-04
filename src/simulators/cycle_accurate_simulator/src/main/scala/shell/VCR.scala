@@ -104,20 +104,18 @@ class VCR(implicit p: Parameters) extends Module {
   val nPtrs = if (mp.addrBits == 32) vp.nPtrs else 2 * vp.nPtrs
   val nTotal = vp.nCtrl + vp.nECnt + vp.nVals + nPtrs + vp.nUCnt
 
-  /** Vcr Control registers bundle
-    */
   class VcrBundleReg extends Bundle {
-    val ctrl = UInt(32.W)
-    val ecnt = Vec(vp.nECnt, UInt(32.W))
-    val vals = Vec(vp.nVals, UInt(32.W))
-    val ptrs = Vec(nPtrs, UInt(vp.regBits.W))
     val ucnt = Vec(vp.nUCnt, UInt(32.W))
+    val ptrs = Vec(nPtrs, UInt(vp.regBits.W))
+    val vals = Vec(vp.nVals, UInt(32.W))
+    val ecnt = Vec(vp.nECnt, UInt(32.W))
+    val ctrl = UInt(32.W)
   }
-  val regs = RegInit(0.U((nTotal * 32).W).asTypeOf(new VcrBundleReg))
+  val regs = RegInit(0.U.asTypeOf(new VcrBundleReg))
 
   // View registers as a Vec
-  val regVec = regs.asTypeOf(Vec(nTotal, UInt(32.W)))
-
+  val regVec = Wire(Vec(nTotal, UInt(32.W)))
+  regVec := regs.asTypeOf(regVec)
   val addr = Seq.tabulate(nTotal)(_ * 4)
   val reg_map = (addr zip regVec) map { case (a, r) => a.U -> r }
   val eo = vp.nCtrl
