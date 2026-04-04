@@ -1,19 +1,11 @@
 package vta.shell
 import chisel3._
-import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import chisel3.simulator.scalatest.ChiselSim
-import vta.util.config.Parameters
-import vta.DefaultPynqConfig
 
-import vta.interface.axi.AXILiteClient
 import vta.util.SimulationUtils._
 import unittest.AnyFlatSpecSim
 
-class VCRSpec
-    extends AnyFlatSpecSim
-    with Matchers
-    with vta.test.AxiLiteSimUtils {
+class VCRSpec extends AnyFlatSpecSim with Matchers with vta.test.VcrTestUtils {
   behavior of "VCR"
   "Control registers" should "be writable from the host" in {
     simulate(new VCR) { vcr =>

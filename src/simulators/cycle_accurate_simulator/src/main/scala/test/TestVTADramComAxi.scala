@@ -37,7 +37,7 @@ class VTAShellTestFull(
   vta.io.mem <> dramMock.io
 }
 
-trait VTAShellTest extends ChiselSim with AxiFullSimUtils with AxiLiteSimUtils {
+trait VTAShellTest extends ChiselSim with AxiFullSimUtils with VcrTestUtils {
 
   def runVtaTestWithInitializedMem(
       content: Seq[MemoryConfig],
