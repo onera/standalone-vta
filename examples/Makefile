@@ -17,6 +17,11 @@ CONFIG_FILE ?= vta_config.json
 CONFIG = $(CONFIG_DIR)/$(CONFIG_FILE)
 
 
+# Derive data types from the active config (LOG_INP_WIDTH/LOG_WGT_WIDTH/LOG_ACC_WIDTH: 3=int8, 4=int16, 5=int32)
+INP_DTYPE := $(shell python3 -c "import json,sys; w=json.load(open('$(CONFIG)'))['LOG_INP_WIDTH']; sys.stdout.write('int8' if w==3 else ('int16' if w==4 else 'int32'))")
+WGT_DTYPE := $(shell python3 -c "import json,sys; w=json.load(open('$(CONFIG)'))['LOG_WGT_WIDTH']; sys.stdout.write('int8' if w==3 else ('int16' if w==4 else 'int32'))")
+ACC_DTYPE := $(shell python3 -c "import json,sys; w=json.load(open('$(CONFIG)'))['LOG_ACC_WIDTH']; sys.stdout.write('int8' if w==3 else ('int16' if w==4 else 'int32'))")
+
 # VARIABLES
 ###########
 PYTHON_CMD ?= python 
@@ -215,8 +220,8 @@ test_gemm:
 	@echo "Copy VTA IR in compiler/output"
 	@cp ./vta_ir/matmul_16x16.json $(COMPILER_OUTPUT_DIR)
 	@echo "Generate random data"
-	@python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 input int32
-	@python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 weight int32
+	@python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 input $(INP_DTYPE)
+	@python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 weight $(WGT_DTYPE)
 	@echo ""
 	@echo "Compile VTA IR"
 	@make vta_compiler
@@ -232,7 +237,7 @@ test_alu:
 	@echo "Copy VTA IR in compiler/output"
 	@cp ./vta_ir/alu_16x16.json $(COMPILER_OUTPUT_DIR)
 	@echo "Generate random data"
-	@python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 accumulator int32
+	@python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 accumulator $(ACC_DTYPE)
 	@echo ""
 	@echo "Compile VTA IR"
 	@make vta_compiler

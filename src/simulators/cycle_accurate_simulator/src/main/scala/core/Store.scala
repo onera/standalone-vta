@@ -45,7 +45,7 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val sIdle :: sSync :: sExe :: Nil = Enum(3)
   val state = RegInit(sIdle)
 
-  val semaphore = Module(new Semaphore(counterBits = 8, counterInitValue = 0))
+  val sem = Module(new Semaphore(counterBits = 8, counterInitValue = 0))
   val instructionQueue = Module(
     new Queue(UInt(INST_BITS.W), p(CoreKey).instQueueEntries)
   )
@@ -58,7 +58,7 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val start =
     instructionQueue.io.deq.valid & Mux(
       dec.io.pop_prev,
-      semaphore.io.sready,
+      sem.io.sready,
       true.B
     )
   val done = tensorStore.io.done
@@ -96,8 +96,8 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module {
   tensorStore.io.tensor <> io.out
 
   // semaphore
-  semaphore.io.spost := io.i_post
-  semaphore.io.swait := dec.io.pop_prev & (state === sIdle & start)
+  sem.io.spost := io.i_post
+  sem.io.swait := dec.io.pop_prev & (state === sIdle & start)
   io.o_post := dec.io.push_prev & ((state === sExe & done) | (state === sSync))
 
   // debug

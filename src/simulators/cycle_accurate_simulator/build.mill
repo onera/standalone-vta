@@ -115,11 +115,23 @@ object `package` extends SbtModule with PublishModule with ScalafixModule {
     //   Seq("-n", "vta.tags.UnitTests")
     def testSandboxWorkingDir = false
     def testParallelism = false
-    override def forkArgs: Simple[Seq[String]] = Seq(
+    def vtaConfigFile = Task.Input{
+      sys.props.get("vta.config.file")
+    }
+  
+    def getConfigArgs = Task {
+      (for {
+        file <- vtaConfigFile()
+      } yield {
+        Seq(s"-Dvta.config.file=${file}")
+      }).getOrElse{
+        Seq(
       "-Dvta.config.file=vta_config_test.json",
       "-Dvta.config.fromResources=true"
     )
-
+      }
+    }
+    override def forkArgs: Simple[Seq[String]] = getConfigArgs()
     def unittest() : Task.Command[(msg: String, results: Seq[TestResult])] = {
       Task.Command {
         testForked("-n","vta.tags.UnitTests")()
