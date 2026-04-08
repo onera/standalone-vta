@@ -76,7 +76,7 @@ set_property vendor              $ip_vendor   [ipx::current_core]
 set_property library             $ip_lib      [ipx::current_core]
 set_property name                $ip_name     [ipx::current_core]
 set_property version             $ip_version  [ipx::current_core]
-set_property display_name        $display_name  [ipx::current_core]
+set_property display_name        $ip_display_name  [ipx::current_core]
 set_property description         $ip_description [ipx::current_core]
 set_property vendor_display_name "VTA"        [ipx::current_core]
 

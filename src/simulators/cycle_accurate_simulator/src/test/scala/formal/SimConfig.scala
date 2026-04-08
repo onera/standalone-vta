@@ -37,14 +37,14 @@ class SimConfig {
           addrBits = 16,
           dataBits = 32,
           lenBits = 8,
-          userBits = 1
+          userBits = 0
         ),
         memParams = AXIParams(
           coherent = true,
           addrBits = 32,
           dataBits = 64,
           lenBits = 8,
-          userBits = 1
+          userBits = 0
         ),
         vcrParams = VCRParams(),
         vmeParams = VMEParams()
@@ -52,4 +52,3 @@ class SimConfig {
   })
   // implicit val p: Parameters = config
 }
-

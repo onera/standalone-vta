@@ -30,7 +30,7 @@ case class AXIParams(
     addrBits: Int = 32,
     dataBits: Int = 64,
     lenBits: Int = 8,
-    userBits: Int = 1
+    userBits: Int = 0
 ) {
   require(addrBits > 0)
   require(dataBits >= 8 && dataBits % 2 == 0)

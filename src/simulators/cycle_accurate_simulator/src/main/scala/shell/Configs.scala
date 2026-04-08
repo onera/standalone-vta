@@ -33,7 +33,7 @@ class PynqConfig
           addrBits = 16,
           dataBits = 32,
           lenBits = 8,
-          userBits = 1
+          userBits = 0
         ),
         memParams = AXIParams(
           coherent = true,
@@ -41,7 +41,7 @@ class PynqConfig
           idBits = 8,
           dataBits = 64,
           lenBits = 8,
-          userBits = 1
+          userBits = 0
         ),
         vcrParams = VCRParams(),
         vmeParams = VMEParams()

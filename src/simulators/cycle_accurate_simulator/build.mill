@@ -91,14 +91,17 @@ object `package` extends SbtModule with PublishModule with ScalafixModule {
     )
   }
 
-  def emitVtaFpgaConfig() = Task.Command {
-    val outDir = BuildCtx.workspaceRoot / "build" / "emitted" / "vta-zusys-shell"
+
+  def emitVtaFpgaConfig(args: Args) = Task.Command {
+    val outDir = if (args.value.isEmpty) BuildCtx.workspaceRoot / "build" / "emitted" / "vta-zusys-shell" else os.Path(args.value.head)
     os.makeDir.all(outDir)
+
     runner().run(
       args = Seq(outDir.toString),
       mainClass = "vta.ZynqUs3Config",
       workingDir = BuildCtx.workspaceRoot
     )
+    println(s"[INFO] VTA FPGA config emitted in ${outDir}")
   }
 
   def cleanOutputs() = Task.Command {

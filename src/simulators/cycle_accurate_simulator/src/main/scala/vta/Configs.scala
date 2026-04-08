@@ -117,7 +117,7 @@ object ZynqUs3Config extends EmitterApp {
   exportIpPackageTclScript(
     outputDir,
     "onera",
-    "VTA_zcu3eg",
+    "VTA_ZynqUs",
     "0.2.0",
     "VTAXilinxShell"
   )
