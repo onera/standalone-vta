@@ -179,6 +179,22 @@ object BinaryReader {
       filePath: String,
       fromResources: Boolean
   ): Map[String, Int] = {
+    (for {
+      decodedJson <- parseConfigJson(filePath, fromResources)
+    } yield {
+
+      val filteredJson = decodedJson -- Seq("TARGET", "HW_VER")
+      val json = filteredJson.map { case (key, value) =>
+        key -> pow(2, value.toInt).toInt
+      }
+      json
+    }).get
+  }
+
+  def parseConfigJson(
+      filePath: String,
+      fromResources: Boolean
+  ): Try[Map[String, String]] = {
     val newFilePath =
       if (!fromResources) {
         val projectRoot = new File("../../../")
@@ -188,36 +204,30 @@ object BinaryReader {
       } else {
         filePath
       }
-    val content = readFile(newFilePath, fromResources)
-    content match {
-      case Success(data) =>
-        val decodedJson: Map[String, String] = {
-          data
-            .split("\n")
-            .filterNot(line =>
-              line.startsWith("//") || line.trim.isEmpty || line.contains(
-                "{"
-              ) || line.contains("}")
-            )
-            .map { line =>
-              val array = line.trim
-                .replaceAll(" ", "")
-                .replaceAll("\"", "")
-                .replaceAll(",", "")
-                .replaceAll("\n", "")
-                .replaceAll("\r", "")
-                .split(":")
-              (array(0), array(1))
-            }
-        }.toMap
-        val filteredJson = decodedJson -- Seq("TARGET", "HW_VER")
-        val json = filteredJson.map { case (key, value) =>
-          key -> pow(2, value.toInt).toInt
-        }
-        json
-      case Failure(exception) =>
-        println(s"Error while reading JSON file : ${exception.getMessage}")
-        Map.empty
+    for {
+      content <- readFile(newFilePath, fromResources)
+    } yield {
+
+      val decodedJson: Map[String, String] = {
+        content
+          .split("\n")
+          .filterNot(line =>
+            line.startsWith("//") || line.trim.isEmpty || line.contains(
+              "{"
+            ) || line.contains("}")
+          )
+          .map { line =>
+            val array = line.trim
+              .replaceAll(" ", "")
+              .replaceAll("\"", "")
+              .replaceAll(",", "")
+              .replaceAll("\n", "")
+              .replaceAll("\r", "")
+              .split(":")
+            (array(0), array(1))
+          }
+      }.toMap
+      decodedJson
     }
   }
 

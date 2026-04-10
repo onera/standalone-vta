@@ -43,6 +43,7 @@ trait EmitterApp extends App {
   def showConfig(implicit p: Parameters) = {
     p(CoreKey) match {
       case CoreParams(
+            target,
             batch,
             blockOut,
             blockOutFactor,
@@ -61,7 +62,7 @@ trait EmitterApp extends App {
           ) =>
         println(
           s"""
-          |Using following core config:
+          |Using following core config for target ${target}:
           | -batch=${batch}
           | -blockOut=${blockOut}
           | -blockOutFactor=${blockOutFactor}
@@ -83,8 +84,8 @@ trait EmitterApp extends App {
   }
 }
 
-object DefaultPynqConfig extends EmitterApp {
-  override val defaultDir = os.RelPath("build/emitted/vta-xilinx-shell")
+object DefaultXilinxConfig extends EmitterApp {
+  override val defaultDir = os.RelPath("build") / "emitted" / "vta-xilinx-shell"
   implicit val p: Parameters = new DefaultPynqConfig
   ChiselStage.emitSystemVerilogFile(
     new XilinxShell,
@@ -94,32 +95,18 @@ object DefaultPynqConfig extends EmitterApp {
       "--split-verilog"
     ),
     firtoolOpts = Array(
-      "--lowering-options=disallowLocalVariables,disallowPackedArrays"
-    )
-  )
-}
-
-object ZynqUs3Config extends EmitterApp {
-  override val defaultDir = os.RelPath("build") / "emitted" / "vta-zusys-shell"
-  implicit val p: Parameters = new DefaultPynqConfig
-  ChiselStage.emitSystemVerilogFile(
-    new XilinxShell,
-    args = Array(
-      "--target-dir",
-      outputDir.toString(),
-      "--split-verilog"
-    ),
-    firtoolOpts = Array(
-      "--lowering-options=disallowLocalVariables,disallowPackedArrays"
+      "--lowering-options=disallowLocalVariables,disallowPackedArrays,mitigateVivadoArrayIndexConstPropBug"
     )
   )
 
+  showConfig
   exportIpPackageTclScript(
-    outputDir,
-    "onera",
-    "VTA_ZynqUs",
-    "0.2.0",
-    "VTAXilinxShell"
+    target = outputDir,
+    vendor = "onera",
+    name = "VTA",
+    version = "0.2.0",
+    topModule = "VTAXilinxShell",
+    displayName = "VTA_" + p(CoreKey).target
   )
 
 }

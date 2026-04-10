@@ -28,7 +28,7 @@ class VTAShellTestFull(
     new MultiMemAxiClient(content)(param(ShellKey).memParams)
   )
   val finish = dontTouch(
-    WireInit(BoringUtils.tapAndRead(vta.vcr.io.vcr.finish))
+    RegNext(BoringUtils.tapAndRead(vta.vcr.io.vcr.finish))
   )
   when(finish) {
     stop()

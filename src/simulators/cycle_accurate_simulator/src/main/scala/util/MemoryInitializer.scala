@@ -1,6 +1,7 @@
 package vta.util
 
 import chisel3._
+import java.io.File
 
 /** Utility case class for defining mock memories for simulation
   *

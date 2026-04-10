@@ -25,6 +25,7 @@ import vta.util.config._
 
 /** Core parameters */
 case class CoreParams(
+    target: String,
     batch: Int,
     blockOut: Int,
     blockOutFactor: Int,

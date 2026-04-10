@@ -3,6 +3,7 @@ foreach {key val} $argv {
     switch $key {
         --part    { set part    $val }
         --ip_root { set ip_root $val }
+        --ip_name { set ip_name $val }
     }
 }
 

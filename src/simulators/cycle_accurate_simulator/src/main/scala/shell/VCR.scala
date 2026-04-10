@@ -127,7 +127,7 @@ class VCR(implicit p: Parameters) extends Module {
 
   // When VTA finishes, write a flag in ctrl register
   when(io.vcr.finish) {
-    regs.ctrl := "b_10".U
+    regs.ctrl := 2.U
   }.elsewhen(io.host.w.fire && addr(0).U === waddr) {
     regs.ctrl := wdata
   }

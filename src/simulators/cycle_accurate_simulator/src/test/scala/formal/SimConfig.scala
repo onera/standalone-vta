@@ -13,6 +13,7 @@ class SimConfig {
     // Default configuration //TODO: confirm configuration
     case CoreKey =>
       CoreParams(
+        target = "sim",
         batch = 1,
         blockOut = 16,
         blockOutFactor = 1,

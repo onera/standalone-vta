@@ -23,6 +23,7 @@ import vta.util.BinaryReader.computeJSONFile
 import vta.util.config._
 
 import scala.math.pow
+import vta.util.BinaryReader.parseConfigJson
 
 /** CoreConfig.
   *
@@ -36,9 +37,14 @@ class CoreConfig
         System.getProperty("vta.config.file", "vta_config.json")
       val useResources =
         System.getProperty("vta.config.fromResources", "false").toBoolean
-      val params = computeJSONFile(configFileName, fromResources = useResources)
-      // val params = computeJSONFile("vta_config.json", fromResources = false)
+      val params =
+        computeJSONFile(configFileName, fromResources = useResources)
+
+      val target =
+        parseConfigJson(configFileName, fromResources = useResources)
+          .get("TARGET")
       CoreParams(
+        target = target,
         batch = params("LOG_BATCH"),
         blockOut = params("LOG_BLOCK"),
         blockOutFactor = 1,
