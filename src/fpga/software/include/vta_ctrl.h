@@ -9,4 +9,5 @@ void write_config(std::uintptr_t base, const VTARegs &r);
 void launch(std::uintptr_t base);
 
 void dump_config(std::uintptr_t base);
+void print_cycles(std::uintptr_t base);
 } // namespace vta

@@ -1,6 +1,5 @@
 #ifndef _VTA_MEM_H_
 #define _VTA_MEM_H_
-#include "vta.h"
 namespace vta {
 void init_ddr_region(std::uintptr_t dst_addr, const std::uint32_t *src,
                      std::size_t word_count, const char *name);

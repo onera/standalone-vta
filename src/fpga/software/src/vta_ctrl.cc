@@ -35,4 +35,8 @@ void dump_config(std::uintptr_t base) {
   xil_printf("ucnt = 0x%08lx\r\n",
              static_cast<unsigned long>(read_reg(base, REG_UCNT)));
 }
+void print_cycles(std::uintptr_t base){
+  xil_printf("Number of cycles: %d\r\n",static_cast<unsigned long>(read_reg(base, REG_ECNT)));
+  xil_printf("Number of compute cycles: %d\r\n",static_cast<unsigned long>(read_reg(base, REG_UCNT)));
+}
 }
