@@ -25,7 +25,9 @@ object ComputeSimulator {
       case Success(scratchpad) =>
         scratchpad
       case Failure(exception) =>
-        println(s"Error while building scratchpad : ${exception.getMessage}")
+        println(
+          s"Error while building ${dataType} scratchpad from ${filePath}: ${exception.getMessage}"
+        )
         Map.empty
     }
   }

@@ -12,14 +12,17 @@ class ComputeLenet5(
 ) {
 
   val computeLeNet5 =
-    new ComputeCNN(c, lenet_params, doCompare = false, debug, fromResources)
+    new ComputeCNN(c, lenet_params, doCompare = true, debug, fromResources)
 }
 
 class ComputeLeNet5_all_layers
     extends GenericTest(
       "ComputeLeNet5_all_layers",
-      (p: Parameters) => new Compute(true)(p),
+      (p: Parameters) => new Compute(false)(p),
       (c: Compute) =>
-        new ComputeLenet5(c, "examples_compute/lenet5/lenet_params.csv"),
+        new ComputeLenet5(
+          c,
+          "examples_compute/lenet5/lenet_params.csv"
+        ),
       isLongTest = true
     )

@@ -57,7 +57,7 @@ class MultiMemAxiClient(memoryConfigs: Seq[MemoryConfig])(implicit
       // Log any written data in a logfile for the current memory
       when(io.w.fire) {
         val splitted = io.w.bits.data.asTypeOf(Vec(2, SInt(32.W)))
-        splitted.foreach { e => log.printf(cf"${e}%0d\n") }
+        splitted.foreach { e => log.printf(cf"${e}%x\n") }
 
       }
     }

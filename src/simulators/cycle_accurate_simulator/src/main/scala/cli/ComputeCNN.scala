@@ -31,8 +31,6 @@ class ComputeCNN(
     * Boolean
     */
   val params = computeCSVFile(CNN_param, fromResources, isBaseAddr = false)
-  println(params.keys)
-  println(params("dst_out1"))
   val nb_layers = params("layers").toInt
   var outScratchpad: Map[BigInt, Array[BigInt]] = Map.empty
 
