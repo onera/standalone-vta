@@ -19,7 +19,13 @@ ENV MILL_JVM_OPTS=${PROXY_JVM_OPTS}
 ENV MILL_VERSION=1.1.4-jvm
 ENV VERILATOR_VERSION=5.046
 
+# some Vitis deps require a timezone to be specified, which hangs in Docker
+# use workaround from https://grigorkh.medium.com/fix-tzdata-hangs-docker-image-build-cdb52cc3360d
+ENV TZ="Europe/Paris"
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    locales \
     openjdk-21-jdk \
     help2man \
     flex \
@@ -31,6 +37,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libfl2 \
     libfl-dev \
     && rm -rf /var/lib/apt/lists/*
+
+RUN locale-gen "en_US.UTF-8"
 
 RUN cd /opt \
     && git clone --depth 1 --branch v${VERILATOR_VERSION} https://github.com/verilator/verilator \
