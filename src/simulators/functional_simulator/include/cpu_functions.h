@@ -709,7 +709,7 @@
       }
       
       // 3.5 - APPLY PADDING
-      auto padded_tensor = pad_tensor(tensor, padding, 0);
+      auto padded_tensor = pad_tensor(tensor, padding, static_cast<T>(0));
 
 
       // 4 - TENSOR -> NEW MATRIX (unpad)

@@ -53,7 +53,7 @@ class CoreConfig
         wgtBits = params("LOG_WGT_WIDTH"),
         uopBits = 32,
         accBits = params("LOG_ACC_WIDTH"),
-        outBits = params("LOG_INP_WIDTH"),
+        outBits = params("LOG_OUT_WIDTH"),
         uopMemDepth = (params("LOG_UOP_BUFF_SIZE") * pow(2, 3)).toInt / (params(
           "LOG_BATCH"
         ) * pow(2, 0).toInt * pow(

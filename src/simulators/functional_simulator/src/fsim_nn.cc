@@ -5,9 +5,28 @@
 #include "../include/vta_device_backend.h"
 
 // Define the data type
+#if (VTA_LOG_INP_WIDTH == 3)
+using inp_dtype = int8_t;
+#else
 using inp_dtype = int32_t;
+#endif
+
+#if (VTA_LOG_WGT_WIDTH == 3)
+using wgt_dtype = int8_t;
+#else
 using wgt_dtype = int32_t;
+#endif
+#if (VTA_LOG_ACC_WIDTH == 3)
+using acc_dtype = int8_t;
+#else
 using acc_dtype = int32_t;
+#endif
+
+#if (VTA_LOG_OUT_WIDTH == 3)
+using out_dtype = int8_t;
+#else
+using out_dtype = int32_t;
+#endif
 
 extern bool g_use_verilator;
 #ifdef VERILATOR_BUILD_ENABLED
@@ -20,7 +39,8 @@ struct LayerContext {
   std::string suffix;
 
   // Buffers (Host side)
-  std::vector<inp_dtype> inpA, outC;
+  std::vector<inp_dtype> inpA;
+  std::vector<out_dtype> outC;
   std::vector<wgt_dtype> wgtB;
   std::vector<acc_dtype> accX, accY;
   std::vector<uop_t> uop_buffer;
@@ -186,7 +206,7 @@ int fsim_nn() {
       ctx.accY = data_formatting(raw_accY, Y_row, Y_col, block_size, true);
 
     // Output C (buffer space)
-    std::vector<inp_dtype> raw_outC;
+    std::vector<out_dtype> raw_outC;
     if (C_row <= 0 || C_col <= 0)
       ctx.outC = raw_outC;
     else
@@ -203,7 +223,7 @@ int fsim_nn() {
     ctx.mem_wgtB = VTAMemAlloc(ctx.wgtB.size() * sizeof(wgt_dtype), 1);
     ctx.mem_accX = VTAMemAlloc(ctx.accX.size() * sizeof(acc_dtype), 1);
     ctx.mem_accY = VTAMemAlloc(ctx.accY.size() * sizeof(acc_dtype), 1);
-    ctx.mem_outC = VTAMemAlloc(ctx.outC.size() * sizeof(inp_dtype), 1);
+    ctx.mem_outC = VTAMemAlloc(ctx.outC.size() * sizeof(out_dtype), 1);
     ctx.mem_uop = VTAMemAlloc(ctx.uop_buffer.size() * sizeof(uop_t), 1);
     ctx.mem_insn =
         VTAMemAlloc(ctx.insn_buffer.size() * sizeof(instruction_t), 1);
@@ -222,7 +242,7 @@ int fsim_nn() {
     VTAMemCopyFromHost(ctx.mem_accY, ctx.accY.data(),
                        ctx.accY.size() * sizeof(acc_dtype));
     VTAMemCopyFromHost(ctx.mem_outC, ctx.outC.data(),
-                       ctx.outC.size() * sizeof(inp_dtype));
+                       ctx.outC.size() * sizeof(out_dtype));
     VTAMemCopyFromHost(ctx.mem_uop, ctx.uop_buffer.data(),
                        ctx.uop_buffer.size() * sizeof(uop_t));
     VTAMemCopyFromHost(ctx.mem_insn, ctx.insn_buffer.data(),

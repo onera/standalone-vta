@@ -24,7 +24,7 @@
 CC := g++
 CFLAGS = -std=c++17 -lstdc++fs -Wall -g
 # CFLAGS = -std=c++17 -lstdc++fs -fsanitize=address -g
-DEBUGFLAG := -DDEBUG_SIM=false
+DEBUGFLAG ?= -DDEBUG_SIM=false
 #-fsanitize=address
 
 # C++ flags for verilated sources (DPI glue, verilated_device, Verilator runtime).

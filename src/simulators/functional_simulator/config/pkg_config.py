@@ -18,6 +18,7 @@
 
 This module is dependency free and can be used to configure package.
 """
+
 from __future__ import absolute_import as _abs
 
 import json
@@ -29,15 +30,17 @@ def get_vta_hw_path():
     """Get the VTA HW path."""
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
     vta_hw_default = os.path.abspath(os.path.join(curr_path, ".."))
-    VTA_HW_PATH = os.getenv('VTA_HW_PATH', vta_hw_default)
+    VTA_HW_PATH = os.getenv("VTA_HW_PATH", vta_hw_default)
     return VTA_HW_PATH
+
 
 def get_tvm_path():
     """Get the TVM path."""
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
     tvm_default = os.path.abspath(os.path.join(curr_path, "../../.."))
-    TVM_PATH = os.getenv('TVM_PATH', tvm_default)
+    TVM_PATH = os.getenv("TVM_PATH", tvm_default)
     return TVM_PATH
+
 
 class PkgConfig(object):
     """Simple package config tool for VTA.
@@ -49,11 +52,13 @@ class PkgConfig(object):
     cfg : dict
         The config dictionary
     """
+
     cfg_keys = [
         "TARGET",
         "LOG_INP_WIDTH",
         "LOG_WGT_WIDTH",
         "LOG_ACC_WIDTH",
+        "LOG_OUT_WIDTH",
         "LOG_BATCH",
         "LOG_BLOCK",
         "LOG_UOP_BUFF_SIZE",
@@ -67,11 +72,10 @@ class PkgConfig(object):
         # Derived parameters
         cfg["LOG_BLOCK_IN"] = cfg["LOG_BLOCK"]
         cfg["LOG_BLOCK_OUT"] = cfg["LOG_BLOCK"]
-        cfg["LOG_OUT_WIDTH"] = cfg["LOG_INP_WIDTH"]
+        cfg["LOG_OUT_WIDTH"] = cfg["LOG_OUT_WIDTH"]
         cfg["LOG_OUT_BUFF_SIZE"] = (
-            cfg["LOG_ACC_BUFF_SIZE"] +
-            cfg["LOG_OUT_WIDTH"] -
-            cfg["LOG_ACC_WIDTH"])
+            cfg["LOG_ACC_BUFF_SIZE"] + cfg["LOG_OUT_WIDTH"] - cfg["LOG_ACC_WIDTH"]
+        )
 
         # Update cfg now that we've extended it
         self.__dict__.update(cfg)
@@ -85,7 +89,7 @@ class PkgConfig(object):
             "-I%s/include" % tvm_path,
             "-I%s/include" % vta_hw_path,
             "-I%s/3rdparty/dlpack/include" % tvm_path,
-            "-I%s/3rdparty/dmlc-core/include" % tvm_path
+            "-I%s/3rdparty/dmlc-core/include" % tvm_path,
         ]
 
         # List of source files that can be used to build standalone library.
@@ -98,14 +102,12 @@ class PkgConfig(object):
             self.lib_source += glob.glob("%s/src/de10nano/*.cc" % vta_hw_path)
             self.include_path += [
                 "-I%s/src/de10nano" % vta_hw_path,
-                "-I%s/3rdparty" % tvm_path
+                "-I%s/3rdparty" % tvm_path,
             ]
 
         # Linker flags
         if self.TARGET in ["pynq", "ultra96", "zcu104"]:
-            self.ldflags = [
-                "-L/usr/lib",
-                "-l:libcma.so"]
+            self.ldflags = ["-L/usr/lib", "-l:libcma.so"]
         else:
             self.ldflags = []
 
@@ -119,7 +121,8 @@ class PkgConfig(object):
             cfg["LOG_UOP_BUFF_SIZE"],
             cfg["LOG_INP_BUFF_SIZE"],
             cfg["LOG_WGT_BUFF_SIZE"],
-            cfg["LOG_ACC_BUFF_SIZE"])
+            cfg["LOG_ACC_BUFF_SIZE"],
+        )
 
         # Derive FPGA parameters from target
         #   - device:           part number
@@ -142,7 +145,7 @@ class PkgConfig(object):
             self.fpga_freq = 100
             self.fpga_per = 2
             self.fpga_log_axi_bus_width = 6
-            self.axi_prot_bits = '100'
+            self.axi_prot_bits = "100"
             # IP register address map
             self.ip_reg_map_range = "0x1000"
             self.fetch_base_addr = "0xFF220000"
@@ -157,7 +160,7 @@ class PkgConfig(object):
             self.fpga_freq = 333
             self.fpga_per = 2
             self.fpga_log_axi_bus_width = 7
-            self.axi_prot_bits = '010'
+            self.axi_prot_bits = "010"
             # IP register address map
             self.ip_reg_map_range = "0x1000"
             self.fetch_base_addr = "0xA0000000"
@@ -172,7 +175,7 @@ class PkgConfig(object):
             self.fpga_freq = 333
             self.fpga_per = 2
             self.fpga_log_axi_bus_width = 7
-            self.axi_prot_bits = '010'
+            self.axi_prot_bits = "010"
             # IP register address map
             self.ip_reg_map_range = "0x1000"
             self.fetch_base_addr = "0xA0000000"
@@ -188,7 +191,7 @@ class PkgConfig(object):
             self.fpga_freq = 100
             self.fpga_per = 7
             self.fpga_log_axi_bus_width = 6
-            self.axi_prot_bits = '000'
+            self.axi_prot_bits = "000"
             # IP register address map
             self.ip_reg_map_range = "0x1000"
             self.fetch_base_addr = "0x43C00000"
@@ -198,7 +201,7 @@ class PkgConfig(object):
         # Set coherence settings
         coherent = True
         if coherent:
-            self.axi_cache_bits = '1111'
+            self.axi_cache_bits = "1111"
             self.coherent = True
 
         # Define IP memory mapped registers offsets.
@@ -229,35 +232,29 @@ class PkgConfig(object):
         # Bus width of a memory interface
         mem_bus_width = 1 << self.fpga_log_axi_bus_width
         # Input memory
-        inp_mem_bus_width = 1 << (cfg["LOG_INP_WIDTH"] + \
-                                  cfg["LOG_BATCH"] + \
-                                  cfg["LOG_BLOCK_IN"])
+        inp_mem_bus_width = 1 << (
+            cfg["LOG_INP_WIDTH"] + cfg["LOG_BATCH"] + cfg["LOG_BLOCK_IN"]
+        )
         self.inp_mem_size = 1 << cfg["LOG_INP_BUFF_SIZE"]  # bytes
-        self.inp_mem_banks = (inp_mem_bus_width + \
-                              max_bus_width - 1) // \
-            max_bus_width
+        self.inp_mem_banks = (inp_mem_bus_width + max_bus_width - 1) // max_bus_width
         self.inp_mem_width = min(inp_mem_bus_width, max_bus_width)
         self.inp_mem_depth = self.inp_mem_size * 8 // inp_mem_bus_width
         self.inp_mem_axi_ratio = self.inp_mem_width // mem_bus_width
         # Weight memory
-        wgt_mem_bus_width = 1 << (cfg["LOG_WGT_WIDTH"] + \
-                                  cfg["LOG_BLOCK_IN"] + \
-                                  cfg["LOG_BLOCK_OUT"])
+        wgt_mem_bus_width = 1 << (
+            cfg["LOG_WGT_WIDTH"] + cfg["LOG_BLOCK_IN"] + cfg["LOG_BLOCK_OUT"]
+        )
         self.wgt_mem_size = 1 << cfg["LOG_WGT_BUFF_SIZE"]  # bytes
-        self.wgt_mem_banks = (wgt_mem_bus_width + \
-                              max_bus_width - 1) // \
-            max_bus_width
+        self.wgt_mem_banks = (wgt_mem_bus_width + max_bus_width - 1) // max_bus_width
         self.wgt_mem_width = min(wgt_mem_bus_width, max_bus_width)
         self.wgt_mem_depth = self.wgt_mem_size * 8 // wgt_mem_bus_width
         self.wgt_mem_axi_ratio = self.wgt_mem_width // mem_bus_width
         # Output memory
-        out_mem_bus_width = 1 << (cfg["LOG_OUT_WIDTH"] + \
-                                  cfg["LOG_BATCH"] + \
-                                  cfg["LOG_BLOCK_OUT"])
+        out_mem_bus_width = 1 << (
+            cfg["LOG_OUT_WIDTH"] + cfg["LOG_BATCH"] + cfg["LOG_BLOCK_OUT"]
+        )
         self.out_mem_size = 1 << cfg["LOG_OUT_BUFF_SIZE"]  # bytes
-        self.out_mem_banks = (out_mem_bus_width + \
-                              max_bus_width - 1) // \
-            max_bus_width
+        self.out_mem_banks = (out_mem_bus_width + max_bus_width - 1) // max_bus_width
         self.out_mem_width = min(out_mem_bus_width, max_bus_width)
         self.out_mem_depth = self.out_mem_size * 8 // out_mem_bus_width
         self.out_mem_axi_ratio = self.out_mem_width // mem_bus_width
@@ -276,24 +273,33 @@ class PkgConfig(object):
         self.macro_defs.append("-DVTA_COMPUTE_ADDR=%s" % (self.compute_base_addr))
         self.macro_defs.append("-DVTA_STORE_ADDR=%s" % (self.store_base_addr))
         # IP register offsets
-        self.macro_defs.append("-DVTA_FETCH_INSN_COUNT_OFFSET=%s" % \
-                               (self.fetch_insn_count_offset))
-        self.macro_defs.append("-DVTA_FETCH_INSN_ADDR_OFFSET=%s" % \
-                               (self.fetch_insn_addr_offset))
-        self.macro_defs.append("-DVTA_LOAD_INP_ADDR_OFFSET=%s" % \
-                               (self.load_inp_addr_offset))
-        self.macro_defs.append("-DVTA_LOAD_WGT_ADDR_OFFSET=%s" % \
-                               (self.load_wgt_addr_offset))
-        self.macro_defs.append("-DVTA_COMPUTE_DONE_WR_OFFSET=%s" % \
-                               (self.compute_done_wr_offset))
-        self.macro_defs.append("-DVTA_COMPUTE_DONE_RD_OFFSET=%s" % \
-                               (self.compute_done_rd_offset))
-        self.macro_defs.append("-DVTA_COMPUTE_UOP_ADDR_OFFSET=%s" % \
-                               (self.compute_uop_addr_offset))
-        self.macro_defs.append("-DVTA_COMPUTE_BIAS_ADDR_OFFSET=%s" % \
-                               (self.compute_bias_addr_offset))
-        self.macro_defs.append("-DVTA_STORE_OUT_ADDR_OFFSET=%s" % \
-                               (self.store_out_addr_offset))
+        self.macro_defs.append(
+            "-DVTA_FETCH_INSN_COUNT_OFFSET=%s" % (self.fetch_insn_count_offset)
+        )
+        self.macro_defs.append(
+            "-DVTA_FETCH_INSN_ADDR_OFFSET=%s" % (self.fetch_insn_addr_offset)
+        )
+        self.macro_defs.append(
+            "-DVTA_LOAD_INP_ADDR_OFFSET=%s" % (self.load_inp_addr_offset)
+        )
+        self.macro_defs.append(
+            "-DVTA_LOAD_WGT_ADDR_OFFSET=%s" % (self.load_wgt_addr_offset)
+        )
+        self.macro_defs.append(
+            "-DVTA_COMPUTE_DONE_WR_OFFSET=%s" % (self.compute_done_wr_offset)
+        )
+        self.macro_defs.append(
+            "-DVTA_COMPUTE_DONE_RD_OFFSET=%s" % (self.compute_done_rd_offset)
+        )
+        self.macro_defs.append(
+            "-DVTA_COMPUTE_UOP_ADDR_OFFSET=%s" % (self.compute_uop_addr_offset)
+        )
+        self.macro_defs.append(
+            "-DVTA_COMPUTE_BIAS_ADDR_OFFSET=%s" % (self.compute_bias_addr_offset)
+        )
+        self.macro_defs.append(
+            "-DVTA_STORE_OUT_ADDR_OFFSET=%s" % (self.store_out_addr_offset)
+        )
         # Coherency
         if coherent:
             self.macro_defs.append("-DVTA_COHERENT_ACCESSES=true")
