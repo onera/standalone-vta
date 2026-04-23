@@ -249,60 +249,147 @@ object AxiLike {
   implicit class AxiLiteClientIsAxiLike(axi: AXILiteClient)
       extends AxiLike[AXILiteClient] {
 
-    override def writeHandler(enabled: Bool): UInt = {
-      val waddr = RegInit("h_ffff".U(axi.params.addrBits.W))
-      val sWriteAddress :: sWriteData :: sWriteResponse :: Nil = util.Enum(3)
-      val wdata = axi.w.bits.data
-      val wstate = RegInit(sWriteAddress)
+    override def writeHandler(enabled: Bool) = {
 
-      switch(wstate) {
-        is(sWriteAddress) {
-          when(axi.aw.valid) {
-            wstate := sWriteData
-          }
+      val dataWidth = axi.params.dataBits
+
+      object WriteState extends ChiselEnum {
+        val idle, waddr, wdata = Value
+      }
+
+      val awReady = RegInit(false.B)
+      val wReady = RegInit(false.B)
+      val bValid = RegInit(false.B)
+      val bResp = RegInit(false.B)
+
+      val awAddr = RegInit(0.U.asTypeOf(axi.aw.bits.addr))
+      val writeState = RegInit(WriteState.idle)
+
+      axi.aw.ready := awReady
+      axi.w.ready := wReady && enabled
+      axi.b.valid := bValid
+      axi.b.bits.resp := bResp
+
+      switch(writeState) {
+        is(WriteState.idle) {
+          awReady := true.B
+          wReady := false.B
+          writeState := WriteState.waddr
         }
-        is(sWriteData) {
-          when(axi.w.valid) {
-            wstate := sWriteResponse
-          }
+        is(WriteState.waddr) {
+          when(axi.aw.fire) {
+            when(axi.w.fire) {
+              bValid := true.B
+              awReady := true.B
+              wReady := false.B
+              writeState := WriteState.waddr
+            }.otherwise({
+              when(axi.b.fire) {
+                bValid := false.B
+              }
+              writeState := WriteState.wdata
+              awReady := false.B
+              wReady := true.B
+
+            })
+          }.otherwise({
+            writeState := writeState
+            when(axi.b.fire) {
+              bValid := false.B
+            }
+          })
         }
-        is(sWriteResponse) {
-          when(axi.b.ready) {
-            wstate := sWriteAddress
-          }
+
+        is(WriteState.wdata) {
+          when(axi.w.fire) {
+            writeState := WriteState.waddr
+            bValid := true.B
+            awReady := true.B
+            wReady := false.B
+          }.otherwise({
+            writeState := writeState
+            wReady := true.B
+          })
         }
       }
 
-      when(axi.aw.fire) { waddr := axi.aw.bits.addr }
-      axi.aw.ready := wstate === sWriteAddress
-      axi.w.ready := wstate === sWriteData
-      axi.b.valid := wstate === sWriteResponse
-      axi.b.bits.resp := 0.U
-      waddr
+      // Write address increment
+      when(axi.aw.fire) {
+        awAddr := axi.aw.bits.addr
+      }
+
+      awAddr
+
     }
+    // override def readHandler(enabled: Bool): UInt = {
+    //
+    //   val sReadAddress :: sReadData :: Nil = util.Enum(2)
+    //   val rstate = RegInit(sReadAddress)
+    //   switch(rstate) {
+    //     is(sReadAddress) {
+    //       when(axi.ar.valid) {
+    //         rstate := sReadData
+    //       }
+    //     }
+    //     is(sReadData) {
+    //       when(axi.r.ready) {
+    //         rstate := sReadAddress
+    //       }
+    //     }
+    //   }
+    //
+    //   axi.ar.ready := rstate === sReadAddress
+    //   axi.r.valid := rstate === sReadData
+    //   axi.r.bits.resp := 0.U
+    //   axi.ar.bits.addr
+    // }
+    def readHandler(enabled: Bool) = {
 
-    override def readHandler(enabled: Bool): UInt = {
+      val idle :: raddr :: rdata :: Nil = util.Enum(3)
 
-      val sReadAddress :: sReadData :: Nil = util.Enum(2)
-      val rstate = RegInit(sReadAddress)
-      switch(rstate) {
-        is(sReadAddress) {
-          when(axi.ar.valid) {
-            rstate := sReadData
-          }
+      val readState = RegInit(idle)
+
+      val arReady = RegInit(false.B)
+      val rValid = RegInit(false.B)
+      val rReady = RegInit(false.B)
+      val rResp = RegInit(false.B)
+
+      axi.ar.ready := arReady && enabled
+      axi.r.valid := rValid
+      axi.r.bits.resp := rResp
+
+      // ReadState machine
+
+      switch(readState) {
+        is(idle) {
+          readState := raddr
+          arReady := true.B
         }
-        is(sReadData) {
-          when(axi.r.ready) {
-            rstate := sReadAddress
-          }
+        is(raddr) {
+          when(axi.ar.fire) {
+            readState := rdata
+            rValid := true.B
+            arReady := false.B
+          }.otherwise(readState := readState)
+        }
+        is(rdata) {
+          when(axi.r.fire) {
+            rValid := false.B
+            rReady := false.B
+            arReady := true.B
+            readState := raddr
+          }.otherwise(readState := readState)
         }
       }
 
-      axi.ar.ready := rstate === sReadAddress
-      axi.r.valid := rstate === sReadData
-      axi.r.bits.resp := 0.U
-      axi.ar.bits.addr
-    }
+      val dataWidth = axi.params.dataBits
+      val arAddr = RegInit(0.U.asTypeOf(axi.ar.bits.addr))
 
+      // Handles read address increment
+      when(axi.ar.fire) {
+        arAddr := axi.ar.bits.addr
+      }
+      arAddr
+    }
   }
 }

@@ -37,7 +37,7 @@ trait AxiLiteSimUtils extends PeekPokeAPI {
     axi.ar.valid.poke(true.B)
     axi.ar.bits.addr.poke(data.U)
     clock.step()
-    axi.w.valid.poke(false.B)
+    axi.ar.valid.poke(false.B)
   }
 
   def readAxiLiteData()(implicit
@@ -45,14 +45,15 @@ trait AxiLiteSimUtils extends PeekPokeAPI {
       axi: AXILiteClient,
       timeout: Int = 2
   ): Option[UInt] = {
+    // clock.stepUntil(axi.r.valid, 1, timeout)
     axi.r.ready.poke(true.B)
-    clock.step()
-    clock.stepUntil(axi.r.valid, 1, timeout)
 
-    axi.r.ready.poke(false.B)
-    if (axi.r.valid.peekBoolean()) {
+    val res = if (axi.r.valid.peekBoolean()) {
       Some(axi.r.bits.data.peek())
     } else None
+    clock.step()
+    axi.r.ready.poke(false.B)
+    res
   }
 
 }

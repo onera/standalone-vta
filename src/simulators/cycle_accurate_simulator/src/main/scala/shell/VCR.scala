@@ -151,9 +151,7 @@ class VCR(implicit p: Parameters) extends Module {
       regs.ptrs(i) := wdata
     }
   }
-  when(io.host.ar.fire) {
-    rdata := MuxLookup(raddr, 0.U)(reg_map)
-  }
+  io.host.r.bits.data := MuxLookup(raddr, 0.U)(reg_map)
 
   io.vcr.launch := regs.ctrl(0)
 

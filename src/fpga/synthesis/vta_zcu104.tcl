@@ -43,6 +43,8 @@ if { [info exists ::origin_dir_loc] } {
 set _xil_proj_name_ "vta_zcu104"
 
 set ip_repo "ip_repo"
+set vta_ip "onera:user:VTADefaultShell:0.2.0"
+
 # Use project name variable, if specified in the tcl shell
 if { [info exists ::user_project_name] } {
   set _xil_proj_name_ $::user_project_name
@@ -222,7 +224,7 @@ proc cr_bd_block_design { parentCell } {
   if { $bCheckIPs == 1 } {
      set list_check_ips "\ 
   xilinx.com:ip:zynq_ultra_ps_e:3.5\
-  onera:user:VTADefaultShell:0.2.0\
+  $vta_ip\
   xilinx.com:ip:smartconnect:1.0\
   xilinx.com:ip:proc_sys_reset:5.0\
   "
