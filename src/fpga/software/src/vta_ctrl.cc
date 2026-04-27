@@ -1,5 +1,5 @@
-#include "../include/vta.h"
 #include "../include/vta_ctrl.h"
+#include "../include/vta.h"
 namespace vta {
 
 void write_reg(std::uintptr_t base, std::uint32_t offset, std::uint32_t value) {
@@ -11,8 +11,10 @@ std::uint32_t read_reg(std::uintptr_t base, std::uint32_t offset) {
 }
 
 void write_config(std::uintptr_t base, const VTARegs &r) {
+  // writes the number of instructions in the val reg
   write_reg(base, REG_VALS, r.vals);
 
+  // writes each data type addresses offset to ptr register
   for (std::size_t i = 0; i < 6; ++i) {
     write_reg(base, REG_PTR(i), r.ptr[i]);
   }
@@ -35,8 +37,10 @@ void dump_config(std::uintptr_t base) {
   xil_printf("ucnt = 0x%08lx\r\n",
              static_cast<unsigned long>(read_reg(base, REG_UCNT)));
 }
-void print_cycles(std::uintptr_t base){
-  xil_printf("Number of cycles: %d\r\n",static_cast<unsigned long>(read_reg(base, REG_ECNT)));
-  xil_printf("Number of compute cycles: %d\r\n",static_cast<unsigned long>(read_reg(base, REG_UCNT)));
+void print_cycles(std::uintptr_t base) {
+  xil_printf("Number of cycles: %d\r\n",
+             static_cast<unsigned long>(read_reg(base, REG_ECNT)));
+  xil_printf("Number of compute cycles: %d\r\n",
+             static_cast<unsigned long>(read_reg(base, REG_UCNT)));
 }
-}
+} // namespace vta

@@ -28,11 +28,12 @@ void run_qadd(const NnQaddStep &d)
     auto       *c = reinterpret_cast<std::int8_t *>(
         static_cast<std::uintptr_t>(d.out));
 
+    const float inv_sC = 1.0f / d.sC;
     for (std::uint32_t i = 0u; i < d.n_elems; ++i) {
         float fa = d.sA * static_cast<float>(static_cast<std::int32_t>(a[i]) - d.zA);
         float fb = d.sB * static_cast<float>(static_cast<std::int32_t>(b[i]) - d.zB);
         std::int32_t q = static_cast<std::int32_t>(
-            std::roundf((fa + fb) / d.sC)) + d.zC;
+            std::nearbyintf((fa + fb) * inv_sC)) + d.zC;
         c[i] = clamp_i8(q);
     }
     Xil_DCacheFlushRange(static_cast<UINTPTR>(d.out),
@@ -44,15 +45,16 @@ void run_concat(const NnConcatStep &d, float * /*tmp*/)
     auto *out = reinterpret_cast<std::int8_t *>(
         static_cast<std::uintptr_t>(d.out));
 
+    const float inv_out_scale = 1.0f / d.out_scale;
     std::uint32_t out_offset = 0u;
     for (int p = 0; p < d.nb_inp; ++p) {
         const auto *src = reinterpret_cast<const std::int8_t *>(
             static_cast<std::uintptr_t>(d.inp[p]));
+        const float inv_scale_p = d.scales[p] * inv_out_scale;
         for (std::uint32_t e = 0u; e < d.n_elems_per_ch; ++e) {
-            float f = d.scales[p] * static_cast<float>(
-                static_cast<std::int32_t>(src[e]) - d.zps[p]);
             std::int32_t q = static_cast<std::int32_t>(
-                std::roundf(f / d.out_scale)) + d.out_zp;
+                std::nearbyintf(inv_scale_p * static_cast<float>(
+                    static_cast<std::int32_t>(src[e]) - d.zps[p]))) + d.out_zp;
             out[out_offset++] = clamp_i8(q);
         }
     }
@@ -75,9 +77,10 @@ void run_quant(const NnQuantStep &d, const float *in)
 {
     auto *dst = reinterpret_cast<std::int8_t *>(
         static_cast<std::uintptr_t>(d.out_addr));
+    const float inv_scale = 1.0f / d.scale;
     for (std::uint32_t i = 0u; i < d.n_elems; ++i) {
         std::int32_t q = static_cast<std::int32_t>(
-            std::roundf(in[i] / d.scale)) + d.zp;
+            std::nearbyintf(in[i] * inv_scale)) + d.zp;
         dst[i] = clamp_i8(q);
     }
     Xil_DCacheFlushRange(static_cast<UINTPTR>(d.out_addr),
@@ -113,16 +116,18 @@ void run_format_input(const NnFormatInputStep &d)
     for (std::uint32_t obr = 0u; obr < N_blocks; ++obr) {
         for (std::uint32_t obc = 0u; obc < K_blocks; ++obc) {
             std::int8_t *blk = out + (obr * K_blocks + obc) * 256u;
-            for (std::uint32_t r = 0u; r < 16u; ++r) {
-                const std::uint32_t out_row = obr * 16u + r;
-                const std::uint32_t h_out   = out_row / oW;
-                const std::uint32_t w_out   = out_row % oW;
-                for (std::uint32_t t = 0u; t < 16u; ++t) {
-                    const std::uint32_t out_col = obc * 16u + t;
-                    const std::uint32_t c_in    = out_col / (kH * kW);
-                    const std::uint32_t k_rem   = out_col % (kH * kW);
-                    const std::uint32_t ki      = k_rem / kW;
-                    const std::uint32_t kj      = k_rem % kW;
+            /* t outer so the ÷(kH*kW) and ÷kW divisions (non-power-of-2)
+               are computed once per column element instead of once per cell. */
+            for (std::uint32_t t = 0u; t < 16u; ++t) {
+                const std::uint32_t out_col = obc * 16u + t;
+                const std::uint32_t c_in    = out_col / (kH * kW);
+                const std::uint32_t k_rem   = out_col % (kH * kW);
+                const std::uint32_t ki      = k_rem / kW;
+                const std::uint32_t kj      = k_rem % kW;
+                for (std::uint32_t r = 0u; r < 16u; ++r) {
+                    const std::uint32_t out_row = obr * 16u + r;
+                    const std::uint32_t h_out   = out_row / oW;
+                    const std::uint32_t w_out   = out_row % oW;
 
                     const std::int32_t h_in = static_cast<std::int32_t>(h_out * sh + ki) - pt;
                     const std::int32_t w_in = static_cast<std::int32_t>(w_out * sh + kj) - pl;

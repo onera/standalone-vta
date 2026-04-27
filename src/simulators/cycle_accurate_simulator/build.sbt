@@ -11,7 +11,7 @@ lazy val commonSettings = Seq(
   )
 )
 
-val chiselVersion = "7.9.0"
+val chiselVersion = "7.11.0"
 val firrtlVersion = "6.0.0"
 
 lazy val chiseltestSettings = Seq(

@@ -40,7 +40,7 @@ object `package` extends SbtModule with PublishModule with ScalafixModule {
   //   "https://oss.sonatype.org/service/local/repositories/releases/content/",
   //   "https://s01.oss.sonatype.org/content/repositories/releases"
   // )
-  def chiselVersion = "7.10.0"
+  def chiselVersion = "7.11.0"
 
   def mvnDeps = Seq(
     mvn"com.fasterxml.jackson.core:jackson-databind:2.21.0",
