@@ -91,13 +91,27 @@ sbt runMain "vta.StandaloneSimConfig"
 ```
 
 For FPGA Xilinx IP flow:
-
+To emit the SystemVerilog and tcl script, run one of this command; you can specify a custom output directory by passing a path as argument:
 ```bash
-./mill emitVtaFpgaConfig
+./mill emitVtaFpgaConfig <destpath>
 ./mill run vta.DefaultPynqConfig
 sbt runMain "vta.DefaultPynqConfig"
 ```
+You can pass a different configuration (ex: <project_root>/config/your_config.json):
 
+```bash
+./mill -Dvta.config.file=your_config.json emitVtaFpgaConfig <destpath>
+```
+Then run vivado on the package_ip.tcl script:
+```bash
+cd <destpath>
+vivado -mode batch -script package_ip.tcl
+```
+You can specify a custom repo path and ip name by passing TCL arguments:
+```bash
+cd <destpath>
+vivado -mode batch -script package_ip.tcl -tclargs ip_root <ip repo path> --ip_name <vta ip name>
+```
 ## Example
 
 The `ComputeTest.scala` test runs a simulation of the Compute module using a JSON input file. The JSON file specifies the input data, weights, and expected output. The simulation output provides a cycle-by-cycle trace of the Compute module's operation.
