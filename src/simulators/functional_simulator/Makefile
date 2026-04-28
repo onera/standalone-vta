@@ -62,11 +62,7 @@ VERILATED_OBJS = $(patsubst src/%.cc, $(VERILATED_OBJ_DIR)/%.o, $(VERILATED_SRCS
 
 # Thread counts for Verilated simulation.
 # SIM_THREADS:   parallel evaluation threads (scales with design complexity).
-# TRACE_THREADS: background FST/VCD writer threads; 2 is usually optimal —
-#                FST is I/O-bound and adding more threads beyond 2 gives
-#                diminishing returns while consuming cores needed by simulation.
 SIM_THREADS   ?= 8
-TRACE_THREADS ?= 2
 
 # Trace format selection: fst (default) or vcd
 # Override at build time: TRACE_FORMAT=vcd make verilate_vtashell && make verilated
@@ -127,8 +123,6 @@ verilate_vtashell:
 	  $(VERILATOR_DEBUG_FLAGS) \
 	  --Mdir $(VERILATED_OBJ_DIR)/VVTAShell \
 	  -O3 \
-	  --threads $(SIM_THREADS) \
-	  --trace-threads $(TRACE_THREADS) \
 	  --x-assign fast \
 	  --x-initial fast \
 	  --build -j 0
