@@ -110,7 +110,7 @@ vivado -mode batch -script package_ip.tcl
 You can specify a custom repo path and ip name by passing TCL arguments:
 ```bash
 cd <destpath>
-vivado -mode batch -script package_ip.tcl -tclargs ip_root <ip repo path> --ip_name <vta ip name>
+vivado -mode batch -script package_ip.tcl -tclargs --ip_root <ip repo path> --ip_name <vta ip name>
 ```
 ## Example
 
