@@ -1,3 +1,6 @@
+#ifndef _VTA_CTRL_H_
+#define _VTA_CTRL_H_
+
 #include "vta.h"
 namespace vta {
 
@@ -11,3 +14,4 @@ void launch(std::uintptr_t base);
 void dump_config(std::uintptr_t base);
 void print_cycles(std::uintptr_t base);
 } // namespace vta
+#endif // !_VTA_CTRL_H_
