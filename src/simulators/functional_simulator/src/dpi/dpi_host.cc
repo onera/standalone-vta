@@ -22,6 +22,8 @@
 #include <cstdio>
 
 static constexpr uint8_t  VCR_CTRL_ADDR = 0x00;
+static constexpr uint8_t  VCR_ECNT_ADDR = 0x04;
+static constexpr uint8_t  VCR_UCNT_ADDR = 0x24;
 static constexpr uint32_t POLL_PERIOD   = 16;
 
 struct HostTxn {
@@ -30,12 +32,18 @@ struct HostTxn {
   uint32_t value;
 };
 
+enum class CounterPhase { NONE, READING_ECNT, READING_UCNT };
+
 static std::deque<HostTxn> s_queue;
-static bool     s_pending       = false;
-static bool     s_awaiting_resp = false;
-static HostTxn  s_current       = {};
-static bool     s_launched      = false;
-static uint32_t s_poll_counter  = 0;
+static bool          s_pending        = false;
+static bool          s_awaiting_resp  = false;
+static HostTxn       s_current        = {};
+static bool          s_launched       = false;
+static bool          s_finish_seen    = false;
+static uint32_t      s_poll_counter   = 0;
+static CounterPhase  s_counter_phase  = CounterPhase::NONE;
+static uint32_t      s_ecnt_val       = 0;
+static uint32_t      s_ucnt_val       = 0;
 
 void VTAHostDPI_Reset() {
   s_queue.clear();
@@ -43,8 +51,15 @@ void VTAHostDPI_Reset() {
   s_awaiting_resp = false;
   s_current       = {};
   s_launched      = false;
+  s_finish_seen   = false;
   s_poll_counter  = 0;
+  s_counter_phase = CounterPhase::NONE;
+  s_ecnt_val      = 0;
+  s_ucnt_val      = 0;
 }
+
+uint32_t VTAHostDPI_GetECnt() { return s_ecnt_val; }
+uint32_t VTAHostDPI_GetUCnt() { return s_ucnt_val; }
 
 void VTAHostDPI_QueueWrite(uint8_t addr, uint32_t value) {
   s_queue.push_back({true, addr, value});
@@ -64,8 +79,18 @@ extern "C" void VTAHostDPI(
   // -----------------------------------------------------------------------
   if (s_awaiting_resp) {
     if (resp_valid) {
-      if (resp_value & 0x2u) {  // finish bit set in ctrl register
+      if (s_counter_phase == CounterPhase::READING_ECNT) {
+        s_ecnt_val      = resp_value;
+        s_counter_phase = CounterPhase::READING_UCNT;
+        s_queue.push_back({false, VCR_UCNT_ADDR, 0u});
+      } else if (s_counter_phase == CounterPhase::READING_UCNT) {
+        s_ucnt_val      = resp_value;
+        s_counter_phase = CounterPhase::NONE;
         VTASimDPI_SetExit();
+      } else if (resp_value & 0x2u) {  // finish bit set in ctrl register
+        s_finish_seen   = true;
+        s_counter_phase = CounterPhase::READING_ECNT;
+        s_queue.push_back({false, VCR_ECNT_ADDR, 0u});
       }
       s_awaiting_resp = false;
       s_pending       = false;
@@ -91,9 +116,10 @@ extern "C" void VTAHostDPI(
   }
 
   // -----------------------------------------------------------------------
-  // 3. Auto-poll VCR_CTRL after launch when the explicit queue is drained
+  // 3. Auto-poll VCR_CTRL after launch when the explicit queue is drained.
+  // Stop polling once finish is detected; counter reads take over from there.
   // -----------------------------------------------------------------------
-  if (s_launched && !s_pending && s_queue.empty()) {
+  if (s_launched && !s_finish_seen && !s_pending && s_queue.empty()) {
     ++s_poll_counter;
     if (s_poll_counter >= POLL_PERIOD) {
       s_poll_counter = 0;

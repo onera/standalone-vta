@@ -19,6 +19,11 @@ void VTAHostDPI_Reset();
 /** Enqueue a VCR register write. */
 void VTAHostDPI_QueueWrite(uint8_t addr, uint32_t value);
 
+/** Retrieve counter values captured after the finish bit was observed.
+ *  Valid only after a successful Run() returns. */
+uint32_t VTAHostDPI_GetECnt();
+uint32_t VTAHostDPI_GetUCnt();
+
 // VTAHostDPI() is declared extern "C" in dpi_host.cc and linked
 // automatically by the DPI framework.
 

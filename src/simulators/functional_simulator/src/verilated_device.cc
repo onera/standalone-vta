@@ -122,7 +122,6 @@ class VerilatedDevice : public VTADeviceBackend {
     VTASimDPI_Reset();
     VTAHostDPI_Reset();
     VTAMemDPI_Reset();
-    Verilated::gotFinish(false);
 
     // Open trace file for this run (read g_verilator_config.trace_file now,
     // so callers can update it per-run before calling Run())
@@ -149,6 +148,15 @@ class VerilatedDevice : public VTADeviceBackend {
       ClockEdge();
     top_->reset = 0;
 
+    // VTASimDPI.v has a $finish block that checks __exit every posedge.
+    // __exit=1 can linger from the previous layer's end, and Verilator may
+    // schedule the $finish block before the DPI/reset block that clears it,
+    // causing a spurious gotFinish() during reset cycles.  Clearing AFTER
+    // reset ensures any such spurious trigger is suppressed before the main
+    // loop begins.  Reset cycles cannot produce a legitimate finish because
+    // VTASimDPI() is gated by (reset|__reset) and g_sim_exit=0.
+    Verilated::gotFinish(false);
+
     // Main simulation loop (timeout_cycles==0 means run until finish)
     const bool unlimited = (g_verilator_config.timeout_cycles == 0);
     for (uint32_t c = 0; unlimited || c < g_verilator_config.timeout_cycles; ++c) {
@@ -156,6 +164,10 @@ class VerilatedDevice : public VTADeviceBackend {
 
       if (Verilated::gotFinish()) {
         CloseTrace();
+        fprintf(stderr, "[VerilatedDevice] ecnt (total cycles)   = %u\n",
+                VTAHostDPI_GetECnt());
+        fprintf(stderr, "[VerilatedDevice] ucnt (compute cycles) = %u\n",
+                VTAHostDPI_GetUCnt());
         return 0;
       }
 
@@ -168,6 +180,10 @@ class VerilatedDevice : public VTADeviceBackend {
         ++cycle_;
         if (Verilated::gotFinish()) {
           CloseTrace();
+          fprintf(stderr, "[VerilatedDevice] ecnt (total cycles)   = %u\n",
+                  VTAHostDPI_GetECnt());
+          fprintf(stderr, "[VerilatedDevice] ucnt (compute cycles) = %u\n",
+                  VTAHostDPI_GetUCnt());
           return 0;
         }
       }
