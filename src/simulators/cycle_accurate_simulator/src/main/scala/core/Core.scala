@@ -61,16 +61,16 @@ case object CoreKey extends Field[CoreParams]
   * Register (VCR) and the VTA Memory Engine (VME) interfaces. More info about
   * these interfaces and modules can be found in the shell directory.
   */
-class Core(debug: Boolean = false)(implicit p: Parameters) extends Module {
+class Core(implicit p: Parameters) extends Module {
   val io = IO(new Bundle {
     val vcr = new VCRClient
     val vme = new VMEMaster
   })
-  val fetch = Module(Fetch(debug))
-  val load = Module(new Load(debug))
-  val compute = Module(new Compute(debug))
-  val store = Module(new Store(debug))
-  val ecounters = Module(new EventCounters(debug))
+  val fetch = Module(Fetch())
+  val load = Module(new Load)
+  val compute = Module(new Compute)
+  val store = Module(new Store)
+  val ecounters = Module(new EventCounters)
 
   // Read(rd) and write(wr) from/to memory (i.e. DRAM)
   io.vme.rd(0) <> fetch.io.vme_rd

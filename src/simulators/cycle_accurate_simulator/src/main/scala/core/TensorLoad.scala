@@ -33,7 +33,6 @@ import vta.util.config._
   */
 trait TensorLoad extends Module {
   val tensorType: String
-  val debug: Boolean
   val parameters: Parameters
   val tp = new TensorParams(tensorType)(parameters)
   val mp = parameters(ShellKey).memParams
@@ -52,7 +51,6 @@ trait TensorLoad extends Module {
 object TensorLoad {
   def apply(
       tensorType: String,
-      debug: Boolean = false,
       forceSimpleTensorLoad: Boolean = false
   )(implicit
       p: Parameters
@@ -61,21 +59,21 @@ object TensorLoad {
     val mp = p(ShellKey).memParams
     if (forceSimpleTensorLoad) {
       // use
-      TensorLoadSimple(tensorType, debug).suggestName(
+      TensorLoadSimple(tensorType).suggestName(
         "TensorLoadSimple" + tensorType.capitalize
       )
     } else if (mp.dataBits >= tp.tensorSizeBits) {
       // cacheline is wider than tensor size,
       // macro memory bitwidth by cache size
       // bank by tansor size
-      TensorLoadWideVME(tensorType, debug).suggestName(
+      TensorLoadWideVME(tensorType).suggestName(
         "TensorLoadWideVME" + tensorType.capitalize
       )
     } else {
       // tensor is wider than cacheline, bank by
       // macro memory bitwidth by tansor size
       // bank by cacheline size
-      TensorLoadNarrowVME(tensorType, debug).suggestName(
+      TensorLoadNarrowVME(tensorType).suggestName(
         "TensorLoadNarrowVME" + tensorType.capitalize
       )
     }

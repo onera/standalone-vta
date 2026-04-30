@@ -25,6 +25,8 @@ import vta.shell._
 import vta.util.config._
 
 import scala.math.pow
+import vta.util.UserDefined.Debug
+import chisel3.layer.block
 
 /** TensorLoad.
   *
@@ -32,8 +34,7 @@ import scala.math.pow
   * (SRAM). Also, there is support for zero padding, while doing the load.
   */
 case class TensorLoadNarrowVME(
-    tensorType: String = "none",
-    debug: Boolean = false
+    tensorType: String = "none"
 )(implicit
     val
     parameters: Parameters
@@ -63,7 +64,7 @@ case class TensorLoadNarrowVME(
   // --------------------------------------
   // --- Generate data load VME command ---
   // --------------------------------------
-  val vmeCmd = Module(new GenVMECmd(tensorType, debug))
+  val vmeCmd = Module(new GenVMECmd(tensorType))
   vmeCmd.io.start := io.start
   vmeCmd.io.isBusy := isBusy
   vmeCmd.io.inst := io.inst
@@ -95,7 +96,7 @@ case class TensorLoadNarrowVME(
   // --- Read VME data ---
   // ---------------------
 
-  val readData = Module(new ReadVMEData(tensorType, debug))
+  val readData = Module(new ReadVMEData(tensorType))
   readData.io.start := io.start
   readData.io.vmeData.valid := vmeDataValidPipe
   readData.io.vmeData.bits := vmeDataBitsPipe
@@ -111,7 +112,7 @@ case class TensorLoadNarrowVME(
   // --- Fill zero padding ---
   // -------------------------
 
-  val fillPadding = Module(new ZeroPadding(tensorType, debug))
+  val fillPadding = Module(new ZeroPadding(tensorType))
   fillPadding.io.canWriteMem := !vmeDataFirePipe
   fillPadding.io.inst := RegNext(io.inst) // stage it to move from instr queue
   fillPadding.io.start := RegNext(
@@ -314,7 +315,7 @@ case class TensorLoadNarrowVME(
       tensorFile(j).write(waddr(j), wdata(j))
     }
   }
-  if (debug) {
+  block(Debug) {
     when(isZeroPadWrite) {
       printf(
         cf"[TensorLoad] $tensorType isZeroPadWrite data zpDestIdx: ${zpDestIdx}\n"
@@ -379,7 +380,7 @@ case class TensorLoadNarrowVME(
 
 //Fill algorithm fills row by row from TOP then sides, then BOT
 //----------------------------------------------------------------------------
-class ZeroPadding(tensorType: String = "none", debug: Boolean = false)(implicit
+class ZeroPadding(tensorType: String = "none")(implicit
     p: Parameters
 ) extends Module {
   val tp = new TensorParams(tensorType)
@@ -553,7 +554,7 @@ class ZeroPadding(tensorType: String = "none", debug: Boolean = false)(implicit
 // Different transactions are identified by tag change
 // SAME DESTINATION SUBSEQUENT REQUESTS IN ONE INSTRUCTION LEADS TO UNDEFINED BEHAVIOR
 //----------------------------------------------------------------------------
-class ReadVMEData(tensorType: String = "none", debug: Boolean = false)(implicit
+class ReadVMEData(tensorType: String = "none")(implicit
     p: Parameters
 ) extends Module {
   val tp = new TensorParams(tensorType)
@@ -650,7 +651,7 @@ class ReadVMEData(tensorType: String = "none", debug: Boolean = false)(implicit
 // transaction TAG is a data block offset in scratchpad
 // Different transactions are identified by tag change
 // SAME DESTINATION SUBSEQUENT REQUESTS IN ONE INSTRUCTION LEADS TO UNDEFINED BEHAVIOR
-class GenVMECmd(tensorType: String = "none", debug: Boolean = false)(implicit
+class GenVMECmd(tensorType: String = "none")(implicit
     p: Parameters
 ) extends Module {
   val tp = new TensorParams(tensorType)
@@ -846,7 +847,7 @@ class GenVMECmd(tensorType: String = "none", debug: Boolean = false)(implicit
   }.otherwise {
     rdCmdValid := false.B
   }
-  if (debug) {
+  block(Debug) {
     when(io.vmeCmd.fire) {
       printf(
         s"[GenVMECmd] $tensorType cmd data rdCmdDestBlockIdx:%b " +

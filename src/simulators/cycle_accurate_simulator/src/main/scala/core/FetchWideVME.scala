@@ -23,6 +23,8 @@ import chisel3._
 import chisel3.util._
 import vta.shell._
 import vta.util.config._
+import vta.util.UserDefined.Debug
+import chisel3.layer.block
 
 /** Fetch.
   *
@@ -40,8 +42,7 @@ import vta.util.config._
   * instruction queue is sized (entries_q), depending on the maximum burst
   * allowed in the memory.
   */
-case class FetchWideVME(debug: Boolean = false)(implicit val p: Parameters)
-    extends Fetch {
+class FetchWideVME(implicit val p: Parameters) extends Fetch {
 
   val tp = new TensorParams("fetch")
   val tensorsInClNb = tp.clSizeRatio
@@ -74,7 +75,7 @@ case class FetchWideVME(debug: Boolean = false)(implicit val p: Parameters)
   val vmeStart =
     start || (state === sRead && RegNext(state, init = sIdle) === sDrain)
   val dramOffset = RegInit(UInt(mp.addrBits.W), init = 0.U)
-  val vmeCmd = Module(new GenVMECmdWideFetch(debug))
+  val vmeCmd = Module(new GenVMECmdWideFetch)
   vmeCmd.io.start := vmeStart
   vmeCmd.io.isBusy := isBusy & ~vmeStart
   vmeCmd.io.ins_baddr := Mux(
@@ -159,7 +160,7 @@ case class FetchWideVME(debug: Boolean = false)(implicit val p: Parameters)
   // --- Read VME data ---
   // ---------------------
 
-  val readData = Module(new ReadVMEDataWide("fetch", debug))
+  val readData = Module(new ReadVMEDataWide("fetch"))
   readData.io.start := vmeStart
   readData.io.vmeData.valid := pipeDelayQueueDeqV
   readData.io.vmeData.bits := pipeDelayQueueDeqB
@@ -178,7 +179,7 @@ case class FetchWideVME(debug: Boolean = false)(implicit val p: Parameters)
       inst_q(i).write(widx(i), wdata(i))
     }
   }
-  if (debug) {
+  block(Debug) {
     when(io.vme_rd.data.fire) {
       printf(
         cf"[TensorLoad] fetch data rdDataDestIdx: $widx rdDataDestMask: $wmask \n"
@@ -291,7 +292,7 @@ case class FetchWideVME(debug: Boolean = false)(implicit val p: Parameters)
     )
 
   // debug
-  if (debug) {
+  block(Debug) {
     when(start) {
       printf("[Fetch] Launch\n")
     }
@@ -306,8 +307,7 @@ case class FetchWideVME(debug: Boolean = false)(implicit val p: Parameters)
     }
   }
 }
-class GenVMECmdWideFetch(debug: Boolean = false)(implicit p: Parameters)
-    extends Module {
+class GenVMECmdWideFetch(implicit p: Parameters) extends Module {
   val mp = p(ShellKey).memParams
   val io = IO(new Bundle {
     val start = Input(Bool())
@@ -322,7 +322,7 @@ class GenVMECmdWideFetch(debug: Boolean = false)(implicit p: Parameters)
 
   })
 
-  val cmdGen = Module(new GenVMECmdWide(tensorType = "fetch", debug))
+  val cmdGen = Module(new GenVMECmdWide(tensorType = "fetch"))
 
   cmdGen.io.start := io.start
   cmdGen.io.isBusy := io.isBusy

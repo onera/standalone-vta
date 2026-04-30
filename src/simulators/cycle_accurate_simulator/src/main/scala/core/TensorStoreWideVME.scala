@@ -22,14 +22,15 @@ package vta.core
 import chisel3._
 import chisel3.util._
 import vta.util.config._
+import chisel3.layer.block
+import vta.util.UserDefined.Debug
 
 /** TensorStore.
   *
   * Store 1D and 2D tensors from out-scratchpad (SRAM) to main memory (DRAM).
   */
 case class TensorStoreWideVME(
-    tensorType: String = "none",
-    debug: Boolean = false
+    tensorType: String = "none"
 )(implicit
     val
     parameters: Parameters
@@ -46,7 +47,7 @@ case class TensorStoreWideVME(
   val sIdle :: sWriteCmd :: sWriteData :: sWriteAck :: Nil = Enum(4)
   val state = RegInit(sIdle)
 
-  val cmdGen = Module(new GenVMECmdWide(tensorType, debug))
+  val cmdGen = Module(new GenVMECmdWide(tensorType))
 
   cmdGen.io.ysize := dec.ysize
   cmdGen.io.xsize := dec.xsize
@@ -292,7 +293,7 @@ case class TensorStoreWideVME(
   io.done := state === sWriteAck & commandsDone & io.vmeWr.ack
 
   // debug
-  if (debug) {
+  block(Debug) {
     when(io.vmeWr.data.fire) {
       printf("[TensorStore] data:%x\n", io.vmeWr.data.bits.data)
       printf("[TensorStore] strb:%x\n", io.vmeWr.data.bits.strb)

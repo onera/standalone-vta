@@ -30,7 +30,6 @@ import vta.util.config._
 trait TensorStore extends Module {
   val parameters: Parameters
   val tensorType: String
-  val debug: Boolean
   val tp = new TensorParams(tensorType)(parameters)
   val mp = parameters(ShellKey).memParams
   class TensorStoreIf extends Bundle {
@@ -48,8 +47,7 @@ trait TensorStore extends Module {
 object TensorStore {
   def apply(
       tensorType: String = "none",
-      forceSimpleStore: Boolean = false,
-      debug: Boolean = false
+      forceSimpleStore: Boolean = false
   )(implicit
       p: Parameters
   ): TensorStore = {
@@ -60,14 +58,14 @@ object TensorStore {
       // cacheline is wider than tensor size,
       // macro memory bitwidth by cache size
       // bank by tansor size
-      TensorStoreWideVME(tensorType, debug).suggestName(
+      TensorStoreWideVME(tensorType).suggestName(
         "TensorStoreWideVME" + tensorType.capitalize
       )
     } else {
       // tensor is wider than cacheline, bank by
       // macro memory bitwidth by tensor size
       // bank by cacheline size
-      TensorStoreNarrowVME(tensorType, debug).suggestName(
+      TensorStoreNarrowVME(tensorType).suggestName(
         "TensorStoreNarrowVME" + tensorType.capitalize
       )
     }

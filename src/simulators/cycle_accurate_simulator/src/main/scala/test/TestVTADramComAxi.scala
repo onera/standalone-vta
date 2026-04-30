@@ -22,7 +22,7 @@ class VTAShellTestFull(
   val io = IO(new Bundle {
     val host = new AXILiteClient(param(ShellKey).hostParams)
   })
-  val vta = Module(new VTAShell(true))
+  val vta = Module(new VTAShell)
 
   val dramMock = Module(
     new MultiMemAxiClient(content)(param(ShellKey).memParams)

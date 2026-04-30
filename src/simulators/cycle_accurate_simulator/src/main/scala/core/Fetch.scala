@@ -42,7 +42,6 @@ import vta.util.config._
   */
 trait Fetch extends Module {
   val p: Parameters
-  val debug: Boolean
   val vp = p(ShellKey).vcrParams
   val mp = p(ShellKey).memParams
   val io = IO(new Bundle {
@@ -58,7 +57,7 @@ trait Fetch extends Module {
   })
 }
 object Fetch {
-  def apply(debug: Boolean = false, forceSimpleFetch: Boolean = false)(implicit
+  def apply(forceSimpleFetch: Boolean = false)(implicit
       p: Parameters
   ) = {
 
@@ -72,13 +71,13 @@ object Fetch {
     }
     if (mp.dataBits >= 128 && !forceSimpleFetch) {
       // wide cacheline
-      FetchWideVME(debug)
+      new FetchWideVME
     } else {
       require(
         mp.dataBits == 64,
         "-F- Cannot make simple Fetch for more than 64 bit data read"
       )
-      Fetch64Bit(debug) // Simple
+      new Fetch64Bit // Simple
     }
   }
 

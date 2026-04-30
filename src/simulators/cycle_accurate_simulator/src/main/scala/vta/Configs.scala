@@ -117,7 +117,7 @@ object StandaloneSimConfig extends EmitterApp {
   implicit val p: Parameters = new DefaultPynqConfig
 
   ChiselStage.emitSystemVerilogFile(
-    new Test(true),
+    new Test,
     args = Array("--target-dir", outputDir.toString())
   )
 

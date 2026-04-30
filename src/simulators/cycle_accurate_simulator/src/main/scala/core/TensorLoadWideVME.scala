@@ -25,6 +25,8 @@ import vta.shell._
 import vta.util.config._
 
 import scala.math.pow
+import vta.util.UserDefined.Debug
+import chisel3.layer.block
 
 /** TensorLoad.
   *
@@ -59,8 +61,7 @@ import scala.math.pow
   *  e
   */
 case class TensorLoadWideVME(
-    tensorType: String = "none",
-    debug: Boolean = false
+    tensorType: String = "none"
 )(implicit
     val parameters: Parameters
 ) extends TensorLoad {
@@ -93,7 +94,7 @@ case class TensorLoadWideVME(
   // --------------------------------------
   // --- Generate data load VME command ---
   // --------------------------------------
-  val vmeCmd = Module(new GenVMECmdWideTL(tensorType, debug))
+  val vmeCmd = Module(new GenVMECmdWideTL(tensorType))
   vmeCmd.io.start := io.start
   vmeCmd.io.isBusy := isBusy
   vmeCmd.io.inst := io.inst
@@ -144,7 +145,7 @@ case class TensorLoadWideVME(
   // --- Read VME data ---
   // ---------------------
 
-  val readData = Module(new ReadVMEDataWide(tensorType, debug))
+  val readData = Module(new ReadVMEDataWide(tensorType))
   readData.io.start := io.start
   readData.io.vmeData.valid := vmeDataValidPipe
   readData.io.vmeData.bits := vmeDataBitsPipe
@@ -162,7 +163,7 @@ case class TensorLoadWideVME(
   // --- Fill zero padding ---
   // -------------------------
 
-  val fillPadding = Module(new ZeroPadding(tensorType, debug))
+  val fillPadding = Module(new ZeroPadding(tensorType))
   fillPadding.io.canWriteMem := !vmeDataFirePipe
   fillPadding.io.inst := io.inst
   fillPadding.io.start := io.start
@@ -316,7 +317,7 @@ case class TensorLoadWideVME(
       }
     }
   }
-  if (debug) {
+  block(Debug) {
     when(isZeroPadWrite) {
       printf(
         cf"[TensorLoad] $tensorType isZeroPadWrite data zpDestIdx: ${zpDestIdx} \n"
@@ -384,8 +385,8 @@ case class TensorLoadWideVME(
 // Different transactions are identified by atag change
 // SAME DESTINATION SUBSEQUENT REQUESTS IN ONE INSTRUCTION LEADS TO UNDEFINED BEHAVIOR
 //----------------------------------------------------------------------------
-class ReadVMEDataWide(tensorType: String = "none", debug: Boolean = false)(
-    implicit p: Parameters
+class ReadVMEDataWide(tensorType: String = "none")(implicit
+    p: Parameters
 ) extends Module {
   val tp = new TensorParams(tensorType)
   val mp = p(ShellKey).memParams
@@ -533,8 +534,8 @@ class ReadVMEDataWide(tensorType: String = "none", debug: Boolean = false)(
 // transaction TAG is a data block offset in scratchpad
 // Different transactions are identified by atag change
 // SAME DESTINATION SUBSEQUENT REQUESTS IN ONE INSTRUCTION LEADS TO UNDEFINED BEHAVIOR
-class GenVMECmdWide(tensorType: String = "none", debug: Boolean = false)(
-    implicit p: Parameters
+class GenVMECmdWide(tensorType: String = "none")(implicit
+    p: Parameters
 ) extends Module {
   val tp = new TensorParams(tensorType)
   val mp = p(ShellKey).memParams
@@ -842,8 +843,8 @@ class GenVMECmdWide(tensorType: String = "none", debug: Boolean = false)(
   io.done := commandsDone
 }
 
-class GenVMECmdWideTL(tensorType: String = "none", debug: Boolean = false)(
-    implicit p: Parameters
+class GenVMECmdWideTL(tensorType: String = "none")(implicit
+    p: Parameters
 ) extends Module {
   val tp = new TensorParams(tensorType)
   val mp = p(ShellKey).memParams
@@ -859,7 +860,7 @@ class GenVMECmdWideTL(tensorType: String = "none", debug: Boolean = false)(
 
   val dec = io.inst.asTypeOf(new MemDecode)
 
-  val cmdGen = Module(new GenVMECmdWide(tensorType, debug))
+  val cmdGen = Module(new GenVMECmdWide(tensorType))
 
   cmdGen.io.start := io.start
   cmdGen.io.isBusy := io.isBusy

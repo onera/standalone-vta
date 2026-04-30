@@ -24,11 +24,11 @@ import vta.shell._
 import vta.util.config._
 
 /** Test. This generates a testbench file for simulation */
-class Test(debug: Boolean = false)(implicit p: Parameters) extends Module {
+class Test(implicit p: Parameters) extends Module {
   val sim_clock = IO(Input(Clock()))
   val sim_wait = IO(Output(Bool()))
   val sim_shell = Module(new SimShell)
-  val vta_shell = Module(new VTAShell(debug))
+  val vta_shell = Module(new VTAShell)
   sim_shell.sim_clock := sim_clock
   sim_wait := sim_shell.sim_wait
   sim_shell.mem <> vta_shell.io.mem

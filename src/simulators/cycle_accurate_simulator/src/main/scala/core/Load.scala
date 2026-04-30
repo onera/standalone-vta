@@ -23,6 +23,8 @@ import chisel3._
 import chisel3.util._
 import vta.shell._
 import vta.util.config._
+import vta.util.UserDefined.Debug
+import chisel3.layer.block
 
 /** Load.
   *
@@ -31,7 +33,7 @@ import vta.util.config._
   * 2D tensors to scratchpads, so it can be used by other modules such as
   * Compute.
   */
-class Load(debug: Boolean = false)(implicit p: Parameters) extends Module {
+class Load(implicit p: Parameters) extends Module {
   val mp = p(ShellKey).memParams
   val io = IO(new Bundle {
     val i_post = Input(Bool())
@@ -104,7 +106,7 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module {
   io.o_post := dec.io.push_next & ((state === sExe & done) | (state === sSync))
 
   // debug
-  if (debug) {
+  block(Debug) {
     // start
     when(state === sIdle && start) {
       when(dec.io.isSync) {

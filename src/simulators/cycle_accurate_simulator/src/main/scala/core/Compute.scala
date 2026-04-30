@@ -24,8 +24,10 @@ import chisel3.util._
 import vta.shell._
 import vta.util._
 import vta.util.config._
+import chisel3.layer._
 
 import scala.math.pow
+import vta.util.UserDefined.Debug
 
 /** Compute.
   *
@@ -294,9 +296,8 @@ class Compute(debug: Boolean = false)(implicit
   io.finish := state === sExe & done & dec.io.isFinish
 
   // debug
-  if (debug) {
 
-    // block(DebugLayer) {
+  block(Debug) {
     // start
     when(state === sIdle && start) {
       when(dec.io.isSync) {

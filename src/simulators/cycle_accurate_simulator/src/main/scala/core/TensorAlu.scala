@@ -22,6 +22,8 @@ package vta.core
 import chisel3._
 import chisel3.util._
 import vta.util.config._
+import vta.util.UserDefined.Debug
+import chisel3.layer.block
 
 /** ALU datapath */
 class Alu(implicit p: Parameters) extends Module {
@@ -629,7 +631,7 @@ class TensorAluOrig(debug: Boolean = false)(implicit p: Parameters)
   io.out.tieoffRead() // write-only
   io.done := done
 
-  if (debug) {
+  block(Debug) {
     when(state === sReadUop) {
       printf("[TensorAlu] [uop] idx:%x\n", uop_idx)
     }

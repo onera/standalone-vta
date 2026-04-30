@@ -24,6 +24,8 @@ import chisel3.util._
 import vta.shell._
 import vta.util._
 import vta.util.config._
+import vta.util.UserDefined.Debug
+import chisel3.layer.block
 
 /** Fetch.
   *
@@ -41,8 +43,7 @@ import vta.util.config._
   * instruction queue is sized (entries_q), depending on the maximum burst
   * allowed in the memory.
   */
-case class Fetch64Bit(debug: Boolean = false)(implicit val p: Parameters)
-    extends Fetch {
+class Fetch64Bit(implicit val p: Parameters) extends Fetch {
   val entries_q = 1 << (mp.lenBits - 1) // one-instr-every-two-vme-word
   val inst_q = Module(SyncQueue(UInt(INST_BITS.W), entries_q))
   val dec = Module(new FetchDecode)
@@ -174,7 +175,7 @@ case class Fetch64Bit(debug: Boolean = false)(implicit val p: Parameters)
   inst_q.io.deq.ready := deq_ready & inst_q.io.deq.valid & state === sDrain
 
   // debug
-  if (debug) {
+  block(Debug) {
     when(state === sIdle && pulse) {
       printf("[Fetch] Launch\n")
     }

@@ -22,14 +22,15 @@ package vta.core
 import chisel3._
 import chisel3.util._
 import vta.util.config._
+import vta.util.UserDefined.Debug
+import chisel3.layer.block
 
 /** TensorStore.
   *
   * Store 1D and 2D tensors from out-scratchpad (SRAM) to main memory (DRAM).
   */
 case class TensorStoreNarrowVME(
-    tensorType: String = "none",
-    debug: Boolean = false
+    tensorType: String = "none"
 )(implicit
     val
     parameters: Parameters
@@ -283,7 +284,7 @@ case class TensorStoreNarrowVME(
   io.done := state === sWriteAck & io.vmeWr.ack & xrem === 0.U & ycnt === ysize - 1.U
 
   // debug
-  if (debug) {
+  block(Debug) {
     when(io.vmeWr.cmd.fire) {
       printf(
         "[TensorStore] ysize:%x ycnt:%x raddr:%x waddr:%x len:%x rem:%x\n",

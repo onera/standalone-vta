@@ -23,6 +23,8 @@ import chisel3._
 import chisel3.util._
 import vta.shell._
 import vta.util.config._
+import vta.util.UserDefined.Debug
+import chisel3.layer.block
 
 class LoadUopSimple(debug: Boolean = false)(implicit val p: Parameters)
     extends Module {
@@ -233,25 +235,25 @@ class LoadUopSimple(debug: Boolean = false)(implicit val p: Parameters)
     io.uop.data.bits <> m0.asTypeOf(io.uop.data.bits)
   }
 
-  if (false) {
-    // Report initial part of the uop state after
-    //   the clock transition where io.done is high
-    val memDumpGuard = RegNext(io.done, init = false.B)
-    when(memDumpGuard) {
-      for {
-        idx <- 0 until scala.math.min(8, uopDepth)
-        i <- 0 until uopsPerMemXfer
-      } {
-        val s = mems(i)(idx).asTypeOf(io.uop.data.bits)
-        printf(cf"uop: $idx $i u0: ${s.u0} u1: ${s.u1} u2: ${s.u2}\n")
-      }
-    }
-  }
-
   // debug
-  if (debug) {
+  block(Debug) {
     when(io.vme_rd.cmd.fire) {
       printf(cf"[LoadUop] cmd addr: ${raddr} len: ${xlen} rem: ${xrem}\n")
+    }
+
+    if (false) {
+      // Report initial part of the uop state after
+      //   the clock transition where io.done is high
+      val memDumpGuard = RegNext(io.done, init = false.B)
+      when(memDumpGuard) {
+        for {
+          idx <- 0 until scala.math.min(8, uopDepth)
+          i <- 0 until uopsPerMemXfer
+        } {
+          val s = mems(i)(idx).asTypeOf(io.uop.data.bits)
+          printf(cf"uop: $idx $i u0: ${s.u0} u1: ${s.u1} u2: ${s.u2}\n")
+        }
+      }
     }
   }
 }

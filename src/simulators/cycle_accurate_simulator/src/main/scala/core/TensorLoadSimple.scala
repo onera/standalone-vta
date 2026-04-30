@@ -23,6 +23,8 @@ import chisel3._
 import chisel3.util._
 import vta.shell._
 import vta.util.config._
+import vta.util.UserDefined.Debug
+import chisel3.layer.block
 
 /** TensorLoad.
   *
@@ -33,8 +35,7 @@ import vta.util.config._
   * the scratchpads.
   */
 case class TensorLoadSimple(
-    tensorType: String = "none",
-    debug: Boolean = false
+    tensorType: String = "none"
 )(implicit
     val parameters: Parameters
 ) extends TensorLoad {
@@ -320,7 +321,7 @@ case class TensorLoadSimple(
   io.done := done_no_pad | done_x_pad | done_y_pad
 
   // debug
-  if (debug) {
+  block(Debug) {
     if (tensorType == "inp") {
       when(io.vme_rd.cmd.fire) {
         printf(

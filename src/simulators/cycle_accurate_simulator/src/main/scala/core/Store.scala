@@ -102,23 +102,21 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module {
 
   // debug
   block(Debug) {
-    if (debug) {
-      // start
-      when(state === sIdle && start) {
-        when(dec.io.isSync) {
-          printf("[Store] start sync\n")
-        }.elsewhen(dec.io.isStore) {
-          printf("[Store] start\n")
-        }
+    // start
+    when(state === sIdle && start) {
+      when(dec.io.isSync) {
+        printf("[Store] start sync\n")
+      }.elsewhen(dec.io.isStore) {
+        printf("[Store] start\n")
       }
-      // done
-      when(state === sSync) {
-        printf("[Store] done sync\n")
-      }
-      when(state === sExe) {
-        when(done) {
-          printf("[Store] done\n")
-        }
+    }
+    // done
+    when(state === sSync) {
+      printf("[Store] done sync\n")
+    }
+    when(state === sExe) {
+      when(done) {
+        printf("[Store] done\n")
       }
     }
   }
