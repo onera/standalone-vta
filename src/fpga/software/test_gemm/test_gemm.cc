@@ -1,4 +1,4 @@
-#include "../examples/init_dram.h"
+#include "init_dram.h"
 #include "../include/vta.h"
 #include "../include/vta_mem.h"
 #include "../include/vta_ctrl.h"
