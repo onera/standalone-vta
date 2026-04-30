@@ -19,7 +19,7 @@ void write_config(std::uintptr_t base, const VTARegs &r) {
     write_reg(base, REG_PTR(i), r.ptr[i]);
   }
 }
-void launch(std::uintptr_t base) { write_reg(base, REG_CTRL, 0x01); }
+void launch(std::uintptr_t base) { write_reg(base, REG_CTRL, CTRL_LAUNCH); }
 
 void dump_config(std::uintptr_t base) {
   xil_printf("ctrl = 0x%08lx\r\n",
@@ -38,9 +38,9 @@ void dump_config(std::uintptr_t base) {
              static_cast<unsigned long>(read_reg(base, REG_UCNT)));
 }
 void print_cycles(std::uintptr_t base) {
-  xil_printf("Number of cycles: %d\r\n",
+  xil_printf("Number of cycles: %lu\r\n",
              static_cast<unsigned long>(read_reg(base, REG_ECNT)));
-  xil_printf("Number of compute cycles: %d\r\n",
+  xil_printf("Number of compute cycles: %lu\r\n",
              static_cast<unsigned long>(read_reg(base, REG_UCNT)));
 }
 } // namespace vta

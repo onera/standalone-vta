@@ -12,7 +12,8 @@ struct NnQaddStep {
 struct NnConcatStep {
   std::uint32_t inp[4];
   std::uint32_t out;
-  std::uint32_t n_elems_per_ch;
+  std::uint32_t n_rows;        /* H * W spatial positions (multiple of 16) */
+  std::uint32_t n_ch_per_inp;  /* channels per input branch (multiple of 16) */
   int nb_inp;
   float scales[4];
   std::int32_t zps[4];
@@ -43,7 +44,7 @@ struct NnFormatInputStep {
   std::uint32_t tensor_h; /* H — input height                                 */
   std::uint32_t tensor_w; /* W — input width                                  */
   std::uint32_t kh, kw;   /* kernel height / width                            */
-  std::uint32_t sh;      /* stride                                            */
+  std::uint32_t sh, sw;   /* stride height / width                            */
   std::int32_t pad[4];   /* {top, left, bottom, right}                       */
   std::int32_t offset_a; /* zero-point to subtract from raw values           */
   std::uint32_t out_h;   /* output height after im2row                       */
@@ -53,7 +54,7 @@ struct NnFormatInputStep {
 namespace vta {
 
 void run_qadd(const NnQaddStep &d);
-void run_concat(const NnConcatStep &d, float *tmp);
+void run_concat(const NnConcatStep &d);
 void run_dequant(const NnDequantStep &d, float *out);
 void run_quant(const NnQuantStep &d, const float *in);
 void run_format_input(const NnFormatInputStep &d);

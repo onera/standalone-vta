@@ -9,8 +9,7 @@ Usage
         [--ddr-base 0x10000000]                                          \
         [--out-header    src/fpga/software/examples/nn_ddr_map.h]       \
         [--out-tcl       src/fpga/software/examples/load_nn.tcl]        \
-        [--out-exec-plan src/fpga/software/examples/nn_exec_plan.h]     \
-        [--ps-init       <path/to/psu_init.tcl>]
+        [--out-exec-plan src/fpga/software/examples/nn_exec_plan.h]     
 
 Inputs consumed from <compiler_output_dir>
 ------------------------------------------
@@ -46,6 +45,12 @@ from typing import Dict, List, Optional, Tuple
 BUFFER_TYPES = ("INP", "WGT", "ACC", "OUT", "UOP", "INSN")
 # Buffers to pre-load (static model data).  INP = runtime input; OUT = runtime output.
 STATIC_LOAD_ORDER = ("INSN", "UOP", "WGT", "ACC")
+
+_PAGE = 0x1000
+
+
+def _align_page(n: int) -> int:
+    return ((n + _PAGE - 1) // _PAGE) * _PAGE
 
 
 # ---------------------------------------------------------------------------
@@ -332,12 +337,93 @@ def _out_addr(
     layers: List[LayerInfo],
     ddr_base: int,
     suffix_to_idx: Dict[str, int],
+    cpu_out: Optional[Dict[str, int]] = None,
 ) -> int:
-    """DDR address of a VTA layer's OUT buffer."""
+    """DDR address where layer_name wrote its output.
+
+    Checks VTA OUT buffers first, then the pre-resolved cpu_out map
+    (which covers CPU ops that write to VTA INP/ACC or to CPU scratch).
+    """
     idx = suffix_to_idx.get(layer_name, -1)
     if idx >= 0:
         return ddr_base + layers[idx].mem["OUT"].offset
+    if cpu_out is not None:
+        return cpu_out.get(layer_name, 0)
     return 0
+
+
+def _find_vta_consumer_addr(
+    layer_name: str,
+    dep_info: DependencyInfo,
+    layers: List[LayerInfo],
+    ddr_base: int,
+    suffix_to_idx: Dict[str, int],
+    start_after: int,
+) -> int:
+    """Scan all consumers of layer_name and return the VTA INP/ACC address if one exists."""
+    for k in range(start_after, len(dep_info.execution_order)):
+        _, proc, name = dep_info.execution_order[k]
+        ld = dep_info.layers.get(name)
+        if not ld or layer_name not in ld.deps:
+            continue
+        if proc == "vta":
+            idx = suffix_to_idx.get(name, -1)
+            if idx >= 0:
+                if ld.reshape_info == "im2row":
+                    return ddr_base + layers[idx].mem["INP"].offset
+                else:
+                    return ddr_base + layers[idx].mem["ACC"].offset
+        # CPU consumer: keep scanning — a later VTA consumer may exist
+    return 0
+
+
+def _build_cpu_out_addrs(
+    dep_info: DependencyInfo,
+    layers: List[LayerInfo],
+    ddr_base: int,
+    suffix_to_idx: Dict[str, int],
+    comp_dir: str,
+) -> Dict[str, int]:
+    """Pre-resolve every CPU op's output DDR address.
+
+    For ops that write into a VTA layer's INP/ACC the VTA address is used
+    (shared buffer, no extra allocation).  For ops whose output feeds only
+    other CPU ops a fresh page-aligned scratch region is allocated above
+    the VTA + raw-input footprint.
+
+    dequant is excluded: its output is a CPU-allocated float* not in DDR.
+    """
+    raw_phys = scratch_addr(layers, ddr_base)
+    input_nn_path = os.path.join(comp_dir, "input_nn.bin")
+    raw_size = os.path.getsize(input_nn_path) if os.path.isfile(input_nn_path) else 0
+    alloc_ptr = raw_phys + max(_align_page(raw_size), _PAGE)
+
+    cpu_out: Dict[str, int] = {}
+
+    for k, (_, processor, layer_name) in enumerate(dep_info.execution_order):
+        if processor in ("vta", "dequant"):
+            continue
+        ld = dep_info.layers.get(layer_name)
+        if not ld:
+            continue
+
+        vta_addr = _find_vta_consumer_addr(
+            layer_name, dep_info, layers, ddr_base, suffix_to_idx, k + 1
+        )
+        if vta_addr != 0:
+            cpu_out[layer_name] = vta_addr
+        elif processor in ("qadd", "concat"):
+            # No VTA consumer: allocate a scratch DDR region
+            n_bytes = ld.out_ch * ld.out_h * ld.out_w
+            cpu_out[layer_name] = alloc_ptr
+            alloc_ptr += _align_page(n_bytes)
+            print(
+                f"[gen] CPU scratch alloc: {layer_name} → "
+                f"{hex32(cpu_out[layer_name])} ({n_bytes} bytes)"
+            )
+        # quant with no VTA consumer is unusual; leave address as 0 (warning below)
+
+    return cpu_out
 
 
 def _cpu_out_addr(
@@ -347,25 +433,19 @@ def _cpu_out_addr(
     ddr_base: int,
     suffix_to_idx: Dict[str, int],
     start_after: int,
+    cpu_out: Optional[Dict[str, int]] = None,
 ) -> int:
+    """Return the DDR address where cpu_name should write its output.
+
+    Prefers the pre-resolved cpu_out map; falls back to scanning for a VTA
+    consumer (handles quant steps not entered in cpu_out).
     """
-    Scan forward in execution_order to find where the CPU op's output is consumed.
-    If the consumer is a VTA layer: im2row → INP address; int32 → ACC address.
-    """
-    for k in range(start_after, len(dep_info.execution_order)):
-        _, proc, name = dep_info.execution_order[k]
-        layer = dep_info.layers.get(name)
-        if not layer or cpu_name not in layer.deps:
-            continue
-        if proc == "vta":
-            idx = suffix_to_idx.get(name, -1)
-            if idx >= 0:
-                if layer.reshape_info == "im2row":
-                    return ddr_base + layers[idx].mem["INP"].offset
-                else:
-                    return ddr_base + layers[idx].mem["ACC"].offset
-        return 0  # CPU→CPU chain: unsupported, caller gets 0
-    return 0
+    if cpu_out is not None and cpu_name in cpu_out:
+        return cpu_out[cpu_name]
+    # Fallback: scan for a VTA consumer (legacy path, covers quant)
+    return _find_vta_consumer_addr(
+        cpu_name, dep_info, layers, ddr_base, suffix_to_idx, start_after
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -447,9 +527,14 @@ def gen_header(layers: List[LayerInfo], ddr_base: int, out_path: str) -> None:
 
 
 def gen_exec_plan_header(
-    dep_info: DependencyInfo, layers: List[LayerInfo], ddr_base: int, out_path: str
+    dep_info: DependencyInfo,
+    layers: List[LayerInfo],
+    ddr_base: int,
+    comp_dir: str,
+    out_path: str,
 ) -> None:
     suffix_to_idx = {layer.suffix: i for i, layer in enumerate(layers)}
+    cpu_out = _build_cpu_out_addrs(dep_info, layers, ddr_base, suffix_to_idx, comp_dir)
     num_steps = len(dep_info.execution_order)
 
     L: List[str] = []
@@ -483,6 +568,7 @@ def gen_exec_plan_header(
             "kh": ld.kh,
             "kw": ld.kw,
             "sh": ld.sh,
+            "sw": ld.sw,
             "pad": ld.pad,
             "offset_a": ld.offset_a,
             "out_h": out_h,
@@ -541,7 +627,7 @@ def gen_exec_plan_header(
             L.append(
                 f"        {fi['tensor_ch']}u, {fi['tensor_h']}u, {fi['tensor_w']}u,"
             )
-            L.append(f"        {fi['kh']}u, {fi['kw']}u, {fi['sh']}u,")
+            L.append(f"        {fi['kh']}u, {fi['kw']}u, {fi['sh']}u, {fi['sw']}u,")
             L.append(
                 f"        {{ {fi['pad'][0]}, {fi['pad'][1]}, {fi['pad'][2]}, {fi['pad'][3]} }},"
             )
@@ -562,17 +648,15 @@ def gen_exec_plan_header(
 
         elif processor == "qadd" and ld:
             inpA = _out_addr(
-                ld.deps[0] if ld.deps else "", dep_info, layers, ddr_base, suffix_to_idx
+                ld.deps[0] if ld.deps else "",
+                dep_info, layers, ddr_base, suffix_to_idx, cpu_out,
             )
             inpB = _out_addr(
                 ld.deps[1] if len(ld.deps) > 1 else "",
-                dep_info,
-                layers,
-                ddr_base,
-                suffix_to_idx,
+                dep_info, layers, ddr_base, suffix_to_idx, cpu_out,
             )
             out = _cpu_out_addr(
-                layer_name, dep_info, layers, ddr_base, suffix_to_idx, k + 1
+                layer_name, dep_info, layers, ddr_base, suffix_to_idx, k + 1, cpu_out
             )
             n = ld.out_ch * ld.out_h * ld.out_w
             L.append(f"    /* step {step_idx}: qadd */")
@@ -587,20 +671,19 @@ def gen_exec_plan_header(
             inp_addrs = [
                 _out_addr(
                     ld.deps[j] if j < len(ld.deps) else "",
-                    dep_info,
-                    layers,
-                    ddr_base,
-                    suffix_to_idx,
+                    dep_info, layers, ddr_base, suffix_to_idx, cpu_out,
                 )
                 for j in range(4)
             ]
             out = _cpu_out_addr(
-                layer_name, dep_info, layers, ddr_base, suffix_to_idx, k + 1
+                layer_name, dep_info, layers, ddr_base, suffix_to_idx, k + 1, cpu_out
             )
+            n_rows       = ld.tensor_h * ld.tensor_w
+            n_ch_per_inp = ld.tensor_ch
             L.append(f"    /* step {step_idx}: concat */")
             L.append(f'    {{ NN_STEP_CONCAT, "{layer_name}", {{ .concat = {{')
             L.append(f"        {{ {', '.join(hex32(a) for a in inp_addrs)} }},")
-            L.append(f"        {hex32(out)}, {ld.tensor_ch}u, {ld.nb_inp},")
+            L.append(f"        {hex32(out)}, {n_rows}u, {n_ch_per_inp}u, {ld.nb_inp},")
             L.append(
                 f"        {{ {ld.scale_a}f, {ld.scale_b}f, {ld.scale_u}f, {ld.scale_v}f }},"
             )
@@ -613,7 +696,8 @@ def gen_exec_plan_header(
 
         elif processor == "dequant" and ld:
             inp = _out_addr(
-                ld.deps[0] if ld.deps else "", dep_info, layers, ddr_base, suffix_to_idx
+                ld.deps[0] if ld.deps else "",
+                dep_info, layers, ddr_base, suffix_to_idx, cpu_out,
             )
             n = ld.tensor_ch * ld.tensor_h * ld.tensor_w
             L.append(f"    /* step {step_idx}: dequant */")
@@ -624,7 +708,7 @@ def gen_exec_plan_header(
 
         elif processor == "quant" and ld:
             out = _cpu_out_addr(
-                layer_name, dep_info, layers, ddr_base, suffix_to_idx, k + 1
+                layer_name, dep_info, layers, ddr_base, suffix_to_idx, k + 1, cpu_out
             )
             n = ld.out_ch * ld.out_h * ld.out_w
             L.append(f"    /* step {step_idx}: quant */")
@@ -665,7 +749,6 @@ def gen_tcl(
     comp_dir: str,
     out_path: str,
     dep_info: Optional[DependencyInfo] = None,
-    ps_init: Optional[str] = None,
 ) -> None:
     L: List[str] = []
     L.append("# Auto-generated by tools/gen_nn_baremetal.py — DO NOT EDIT")
@@ -676,30 +759,10 @@ def gen_tcl(
     L.append("# Usage (from Vitis XSCT console or xsct shell):")
     L.append("#   source load_nn.tcl")
     L.append("")
-
-    if ps_init:
-        ps_abs = os.path.abspath(ps_init)
-        L.append("# 1. Reset the PSU and initialise the DDR controller via psu_init")
-        L.append("connect")
-        L.append('targets -set -filter {name =~ "PSU"}')
-        L.append("rst")
-        L.append("after 3000")
-        L.append(f"source {{{ps_abs}}}")
-        L.append("psu_init")
-        L.append("after 1000")
-        L.append("")
-        L.append("# 2. Hold the A53 #0 in reset, then stop so we can write DDR")
-        L.append('targets -set -filter {name =~ "ARM Cortex-A53 #0"}')
-        L.append("rst -processor")
-        L.append("stop")
-        L.append("after 500")
-    else:
-        L.append("# psu_init not provided: assuming DDR is already initialised.")
-        L.append("# Re-run with --ps-init <path/to/psu_init.tcl> for cold start.")
-        L.append("connect")
-        L.append('targets -set -filter {name =~ "ARM Cortex-A53 #0"}')
-        L.append("stop")
-        L.append("after 500")
+    L.append("connect")
+    L.append('targets -set -filter {name =~ "APU*"}')
+    L.append("stop")
+    L.append("after 500")
     L.append("")
 
     # Static model data: INSN, UOP, WGT, ACC only
@@ -725,8 +788,11 @@ def gen_tcl(
     if os.path.isfile(input_nn_path):
         L.append(f"dow -data {{{input_nn_path}}} {addr_str}")
     else:
-        L.append(f"# WARNING: {input_nn_path} not found at codegen time")
-        L.append(f"dow -data {{{input_nn_path}}} {addr_str}")
+        L.append(f"# WARNING: input_nn.bin not found at codegen time: {input_nn_path}")
+        L.append(
+            f'puts stderr "ERROR: input_nn.bin not found — place it at: {input_nn_path}"'
+        )
+        L.append("exit 1")
     L.append("")
     L.append("# Resume ARM execution")
     L.append("con")
@@ -786,15 +852,6 @@ def main() -> None:
         metavar="PATH",
         help="Output path for the execution-plan C header (nn_exec_plan.h)",
     )
-    parser.add_argument(
-        "--ps-init",
-        default=None,
-        metavar="PATH",
-        help=(
-            "Path to psu_init.tcl (ZynqMP) or ps7_init.tcl (Zynq-7000). "
-            "Required for cold-start DDR initialisation."
-        ),
-    )
     args = parser.parse_args()
 
     ddr_base = int(args.ddr_base, 16)
@@ -802,8 +859,6 @@ def main() -> None:
 
     if not os.path.isdir(comp_dir):
         sys.exit(f"ERROR: compiler output directory not found: {comp_dir}")
-    if args.ps_init and not os.path.isfile(args.ps_init):
-        sys.exit(f"ERROR: ps-init file not found: {args.ps_init}")
 
     layers = collect_layers(comp_dir)
     print(f"[gen] found {len(layers)} VTA layer(s)")
@@ -831,13 +886,14 @@ def main() -> None:
         comp_dir,
         args.out_tcl,
         dep_info=dep_info,
-        ps_init=args.ps_init,
     )
     if args.out_exec_plan:
         if dep_info:
-            gen_exec_plan_header(dep_info, layers, ddr_base, args.out_exec_plan)
+            gen_exec_plan_header(dep_info, layers, ddr_base, comp_dir, args.out_exec_plan)
         else:
-            print("WARNING: --out-exec-plan requires dependency.csv — skipping")
+            sys.exit(
+                f"ERROR: --out-exec-plan requires dependency.csv, not found: {dep_path}"
+            )
     print_summary(layers, ddr_base)
 
 

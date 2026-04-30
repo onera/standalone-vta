@@ -42,6 +42,10 @@ int main()
 
         switch (s.type) {
         case NN_STEP_VTA:
+            if (s.vta.layer_idx < 0 || s.vta.layer_idx >= static_cast<int>(NN_NUM_LAYERS)) {
+                xil_printf("=== bad layer_idx %d at step %u ===\r\n", s.vta.layer_idx, i);
+                return -1;
+            }
             if (vta::run_layer(VTA_VCR_BASE, nn_layers[s.vta.layer_idx]) != 0) {
                 xil_printf("=== NN FAILED at step %u ===\r\n", i);
                 return -1;
@@ -53,7 +57,7 @@ int main()
             break;
 
         case NN_STEP_CONCAT:
-            vta::run_concat(s.concat, float_buf);
+            vta::run_concat(s.concat);
             break;
 
         case NN_STEP_DEQUANT:

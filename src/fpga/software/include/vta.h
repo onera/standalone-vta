@@ -29,6 +29,9 @@ constexpr std::uint32_t REG_PTR(std::size_t i) {
 }
 constexpr std::uint32_t REG_UCNT = 4u * 9u;
 
+constexpr std::uint32_t CTRL_LAUNCH = 0x1u;
+constexpr std::uint32_t CTRL_DONE   = 0x2u;
+
 
 
 } // namespace vta

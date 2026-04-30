@@ -40,22 +40,20 @@ int run_layer(std::uintptr_t vcr_base, const LayerDesc &layer, int timeout) {
   // 3. Launch the VTA by writing 0x1 to the ctrl register.
   launch(vcr_base);
 
-  // 4. Poll finish flag (REG_CTRL = 0x2).
-  int count = 0;
-  while (timeout == 0 || count < timeout) {
-    std::uint32_t status = read_reg(vcr_base, REG_CTRL);
-    if (status & 0x2u) {
-      xil_printf(
-          "[vta] finish flag is set, computation is over, after %d polls\n",
-          count);
-      vta::print_cycles(vcr_base);
+  // 4. Poll finish flag (CTRL_DONE bit).  timeout==0 means unlimited.
+  bool done = false;
+  for (int count = 0; timeout == 0 || count < timeout; ++count) {
+    if (read_reg(vcr_base, REG_CTRL) & CTRL_DONE) {
+      xil_printf("[vta] done after %d polls\r\n", count);
+      // Get the number of compute cycles from the VTA
+      print_cycles(vcr_base);
+      done = true;
       break;
     }
-    ++count;
-    if (timeout != 0 && count >= timeout) {
-      xil_printf("[vta] run_layer: TIMEOUT after %d polls\r\n", timeout);
-      return -1;
-    }
+  }
+  if (!done) {
+    xil_printf("[vta] run_layer: TIMEOUT after %d polls\r\n", timeout);
+    return -1;
   }
 
   // 5. Invalidate output cache so the CPU sees VTA-written DDR contents.
