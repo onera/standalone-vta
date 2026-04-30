@@ -9,25 +9,24 @@
  * dependency.csv and handles both VTA layers and ARM CPU operations in order.
  *
  * To regenerate headers from a compiler output directory:
- *   python3 tools/gen_nn_baremetal.py <compiler_output_dir>       \
- *       --ddr-base 0x10000000                                      \
- *       --out-header    src/fpga/software/examples/nn_ddr_map.h   \
- *       --out-tcl       src/fpga/software/examples/load_nn.tcl    \
- *       --out-exec-plan src/fpga/software/examples/nn_exec_plan.h
+ *   python3 tools/gen_nn_baremetal.py <compiler_output_dir>      \
+ *       --ddr-base 0x10000000                                     \
+ *       --vcr-base 0xA0000000                                     \
+ *       --out-header    src/fpga/software/config/nn_ddr_map.h    \
+ *       --out-tcl       src/fpga/software/config/load_nn.tcl     \
+ *       --out-exec-plan src/fpga/software/config/nn_exec_plan.h  \
+ *       --out-platform  src/fpga/software/config/nn_platform.h
  */
 
-#include "nn_ddr_map.h"       // generated — LayerDesc nn_layers[], NN_NUM_LAYERS
-#include "nn_exec_plan.h"     // generated — NnExecStep nn_exec_steps[], NN_NUM_STEPS
+#include "../config/nn_ddr_map.h"   // generated — LayerDesc nn_layers[], NN_NUM_LAYERS
+#include "../config/nn_exec_plan.h" // generated — NnExecStep nn_exec_steps[], NN_NUM_STEPS
+#include "../config/nn_platform.h"  // generated — VTA_VCR_BASE
 #include "../include/vta_nn.h"
 #include "../include/vta_cpu_ops.h"
 #include <cstdlib>
 extern "C" {
 #include "xil_printf.h"
-#include "xparameters.h"
 }
-
-constexpr std::uintptr_t VTA_VCR_BASE =
-    static_cast<std::uintptr_t>(XPAR_VTADEFAULTSHELL_0_BASEADDR);
 
 int main()
 {
