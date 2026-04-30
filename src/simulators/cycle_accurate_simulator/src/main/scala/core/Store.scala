@@ -23,7 +23,7 @@ import chisel3._
 import chisel3.layer._
 import chisel3.util._
 import vta.shell._
-import vta.util.UserDefined.Debug
+import vta.util.UserDefined.DebugLayer
 import vta.util.config._
 
 /** Store.
@@ -101,7 +101,7 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module {
   io.o_post := dec.io.push_prev & ((state === sExe & done) | (state === sSync))
 
   // debug
-  block(Debug) {
+  block(DebugLayer) {
     // start
     when(state === sIdle && start) {
       when(dec.io.isSync) {

@@ -24,7 +24,7 @@ import chisel3.util._
 import vta.shell._
 import vta.util._
 import vta.util.config._
-import vta.util.UserDefined.Debug
+import vta.util.UserDefined.DebugLayer
 import chisel3.layer.block
 
 /** Fetch.
@@ -175,7 +175,7 @@ class Fetch64Bit(implicit val p: Parameters) extends Fetch {
   inst_q.io.deq.ready := deq_ready & inst_q.io.deq.valid & state === sDrain
 
   // debug
-  block(Debug) {
+  block(DebugLayer) {
     when(state === sIdle && pulse) {
       printf("[Fetch] Launch\n")
     }

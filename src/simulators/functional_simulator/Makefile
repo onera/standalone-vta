@@ -87,7 +87,7 @@ ifeq ($(VERILATOR_DEBUG),1)
     +incdir+$(VTASHELL_DIR)/verification/cover \
     +incdir+$(VTASHELL_DIR)/verification \
     $(VTASHELL_DIR)/verification/layers-VTAShell-Verification.sv \
-    +define+layer\$$Verification\$$Debug
+    +define+layer\$$Verification\$$DebugLayer
 else
   VERILATOR_DEBUG_FLAGS =
 endif

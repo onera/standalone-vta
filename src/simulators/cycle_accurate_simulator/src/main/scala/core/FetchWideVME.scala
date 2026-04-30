@@ -23,7 +23,7 @@ import chisel3._
 import chisel3.util._
 import vta.shell._
 import vta.util.config._
-import vta.util.UserDefined.Debug
+import vta.util.UserDefined.DebugLayer
 import chisel3.layer.block
 
 /** Fetch.
@@ -179,7 +179,7 @@ class FetchWideVME(implicit val p: Parameters) extends Fetch {
       inst_q(i).write(widx(i), wdata(i))
     }
   }
-  block(Debug) {
+  block(DebugLayer) {
     when(io.vme_rd.data.fire) {
       printf(
         cf"[TensorLoad] fetch data rdDataDestIdx: $widx rdDataDestMask: $wmask \n"
@@ -292,7 +292,7 @@ class FetchWideVME(implicit val p: Parameters) extends Fetch {
     )
 
   // debug
-  block(Debug) {
+  block(DebugLayer) {
     when(start) {
       printf("[Fetch] Launch\n")
     }

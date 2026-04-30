@@ -26,7 +26,7 @@ import chisel3.layer.block
 
 import scala.math.pow
 import chisel3.layers.Verification
-import vta.util.UserDefined.Debug
+import vta.util.UserDefined.DebugLayer
 
 /** Pipelined multiply and accumulate */
 class MAC(
@@ -532,7 +532,7 @@ class TensorGemmSimple(debug: Boolean = false)(implicit p: Parameters)
 
   io.done := done
 
-  block(Debug) {
+  block(DebugLayer) {
     printf("[TensorGemm] [state]:%d [inflight]:%d\n", state, inflight)
 
     when(state === sReadUop && ~dec.reset) {

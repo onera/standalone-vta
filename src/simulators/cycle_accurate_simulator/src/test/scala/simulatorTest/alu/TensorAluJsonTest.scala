@@ -10,7 +10,7 @@ import vta.util.config._
 import unittest.GenericTest
 import chisel3.simulator.ChiselSim
 import chisel3.simulator.PeekPokeAPI
-import unittest.AnyFlatSpecSim
+import vta.util.AnyFlatSpecSim
 import chisel3.simulator.stimulus.ResetProcedure
 import chisel3.experimental.inlinetest.TestHarness
 import chisel3.experimental.inlinetest.TestHarnessGenerator

@@ -4,7 +4,7 @@ import unittest.GenericTest
 import vta.core.Compute
 import vta.util.config.Parameters
 
-class ComputeLenet5(
+class ComputeLeNet5(
     c: Compute,
     lenet_params: String,
     debug: Boolean = false,
@@ -18,9 +18,9 @@ class ComputeLenet5(
 class ComputeLeNet5_all_layers
     extends GenericTest(
       "ComputeLeNet5_all_layers",
-      (p: Parameters) => new Compute(false)(p),
+      (p: Parameters) => new Compute()(p),
       (c: Compute) =>
-        new ComputeLenet5(
+        new ComputeLeNet5(
           c,
           "examples_compute/lenet5/lenet_params.csv"
         ),

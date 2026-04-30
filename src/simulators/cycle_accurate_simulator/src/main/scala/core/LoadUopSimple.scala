@@ -23,7 +23,7 @@ import chisel3._
 import chisel3.util._
 import vta.shell._
 import vta.util.config._
-import vta.util.UserDefined.Debug
+import vta.util.UserDefined.DebugLayer
 import chisel3.layer.block
 
 class LoadUopSimple(debug: Boolean = false)(implicit val p: Parameters)
@@ -236,7 +236,7 @@ class LoadUopSimple(debug: Boolean = false)(implicit val p: Parameters)
   }
 
   // debug
-  block(Debug) {
+  block(DebugLayer) {
     when(io.vme_rd.cmd.fire) {
       printf(cf"[LoadUop] cmd addr: ${raddr} len: ${xlen} rem: ${xrem}\n")
     }

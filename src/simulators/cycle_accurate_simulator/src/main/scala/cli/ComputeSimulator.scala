@@ -1,7 +1,6 @@
 package cli
 
 import chisel3._
-import chisel3.simulator.ChiselSim
 import vta.core.ISA._
 import vta.core.{Compute, TensorMaster}
 import vta.shell.VMEReadMaster
@@ -11,6 +10,7 @@ import vta.util.GenericSim
 import vta.util.config.Parameters
 
 import scala.util.{Failure, Success}
+import chisel3.simulator.PeekPokeAPI
 
 object ComputeSimulator {
   /* COMMON PART - MANAGE VIRTUAL MEMORIES */
@@ -53,7 +53,7 @@ class ComputeSimulator(
     doCompare: Boolean,
     debug: Boolean,
     fromResources: Boolean
-) extends ChiselSim {
+) extends PeekPokeAPI {
 
   def this(
       c: Compute,
@@ -670,7 +670,7 @@ object ISAHelper { // Or place inside ISA object if preferred
 class ComputeApp
     extends GenericSim(
       "ComputeApp",
-      (p: Parameters) => new Compute(true)(p),
+      (p: Parameters) => new Compute()(p),
       (c: Compute) =>
         new ComputeSimulator(
           c,

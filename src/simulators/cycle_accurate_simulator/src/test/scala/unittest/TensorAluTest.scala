@@ -21,8 +21,9 @@ package unittest
 
 import chisel3._
 import vta.core._
-import chisel3.simulator.ChiselSim
 import vta.tags
+import chisel3.simulator.PeekPokeAPI
+import vta.util.AnyFlatSpecSim
 
 @tags.UnitTests
 class TensorAluIndexGeneratorTest extends AnyFlatSpecSim {
@@ -205,7 +206,7 @@ class TensorAluPipelinedTest extends AnyFlatSpecSim {
         }
       }
 
-      class Mocks extends ChiselSim {
+      class Mocks extends PeekPokeAPI {
         val uop_mock = new UopMasterMock(c.io.uop)
         val acc_mock = new TensorMasterMock(c.io.acc)
 

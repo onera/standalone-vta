@@ -140,6 +140,6 @@ class ComputeCNN(
 class ComputeLeNet5_generic_file_exists
     extends GenericSim(
       "ComputeLeNet5_generic_file_exists",
-      (p: Parameters) => new Compute(false)(p),
+      (p: Parameters) => new Compute()(p),
       (c: Compute) => new ComputeCNN(c, "lenet_params.csv")
     )

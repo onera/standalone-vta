@@ -2,6 +2,11 @@ package vta.util
 import chisel3.simulator.HasSimulator
 import svsim.CommonCompilationSettings
 import svsim.CommonSettingsModifications
+import chisel3.layer.LayerConfig
+import chisel3.simulator.LayerControl
+import vta.util.UserDefined.DebugLayer
+import chisel3.simulator.Settings
+import chisel3.layers.Verification
 
 object SimulationUtils {
 
@@ -38,4 +43,23 @@ object SimulationUtils {
     }
 
   }
+
+  def debugLayerDisabled[A <: chisel3.Module] = {
+    val default = Settings.default[A]
+    Settings(
+      verilogLayers = LayerControl
+        .Enable(
+          Verification.Assert,
+          Verification.Assume,
+          Verification.Cover
+        ),
+      assertVerboseCond = default.assertVerboseCond,
+      printfCond = default.printfCond,
+      stopCond = default.stopCond,
+      plusArgs = default.plusArgs,
+      enableWavesAtTimeZero = default.enableWavesAtTimeZero,
+      randomization = default.randomization
+    )
+  }
+
 }

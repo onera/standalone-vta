@@ -27,7 +27,7 @@ import vta.util.config._
 import chisel3.layer._
 
 import scala.math.pow
-import vta.util.UserDefined.Debug
+import vta.util.UserDefined.DebugLayer
 
 /** Compute.
   *
@@ -37,7 +37,7 @@ import vta.util.UserDefined.Debug
   *   - Compute ALU instructions (tensorAlu module)
   *   - Compute GEMM instructions (tensorGemm module)
   */
-class Compute(debug: Boolean = false)(implicit
+class Compute(implicit
     val p: Parameters
 ) extends Module {
   val mp = p(ShellKey).memParams
@@ -61,7 +61,7 @@ class Compute(debug: Boolean = false)(implicit
     Module(new Semaphore(counterBits = 8, counterInitValue = 0))
   )
 
-  val loadUop = Module(new LoadUopTop(debug))
+  val loadUop = Module(new LoadUopTop)
   val tensorAcc = Module(TensorLoad(tensorType = "acc"))
   val tensorGemm = Module(new TensorGemm)
   val tensorAlu = Module(new TensorAlu)
@@ -297,7 +297,7 @@ class Compute(debug: Boolean = false)(implicit
 
   // debug
 
-  block(Debug) {
+  block(DebugLayer) {
     // start
     when(state === sIdle && start) {
       when(dec.io.isSync) {

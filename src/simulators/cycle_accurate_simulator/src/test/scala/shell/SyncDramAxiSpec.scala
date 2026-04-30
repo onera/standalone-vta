@@ -1,15 +1,12 @@
 package vta.shell
 import chisel3._
-import chisel3.simulator.scalatest.ChiselSim
 import chisel3.util.experimental.loadMemoryFromFileInline
-import org.scalatest.flatspec.AnyFlatSpec
-import svsim.CommonCompilationSettings
-import svsim.CommonSettingsModifications
 import vta.interface.axi.AXIClient
 import vta.interface.axi.AxiLike._
-import vta.util.SimulationUtils._
 import vta.util.config.Parameters
 import vta.tags.tagObjects.UnitTests
+import vta.util.AnyFlatSpecSim
+import vta.util.SimulationUtils.EnableMemInitVerilog
 
 class SyncAxiDram(memoryFile: String = "", size: Int)(implicit
     p: Parameters
@@ -35,10 +32,7 @@ class SyncAxiDram(memoryFile: String = "", size: Int)(implicit
   io.axis.r.bits.user := DontCare
 }
 
-class SyncAxiDramSpec
-    extends AnyFlatSpec
-    with ChiselSim
-    with vta.test.AxiFullSimUtils {
+class SyncAxiDramSpec extends AnyFlatSpecSim with vta.test.AxiFullSimUtils {
 
   class InitMemInline(memoryFile: String = "", size: Int, width: Int)
       extends Module {
@@ -65,28 +59,12 @@ class SyncAxiDramSpec
 
   "InitMemInline" should "be simulable" taggedAs (UnitTests) in {
     val resource = "examples_shell/simple.mem"
-    implicit val simulator = verilatorWithWaveDump
 
     val file = getClass.getClassLoader.getResource(resource).getFile()
-
-    val compilationSettings = svsim.CommonCompilationSettings.default
-
-    implicit object EnableMemInitVerilog extends CommonSettingsModifications {
-
-      override def apply(
-          v1: CommonCompilationSettings
-      ): CommonCompilationSettings = {
-        v1.copy(verilogPreprocessorDefines =
-          compilationSettings.verilogPreprocessorDefines :+ CommonCompilationSettings
-            .VerilogPreprocessorDefine("ENABLE_INITIAL_MEM_")
-        )
-      }
-
-    }
+    implicit val memoryInit = EnableMemInitVerilog
 
     simulate(
       new InitMemInline(file, 16, 32),
-      // Array("--verilator-cflags", "-DENABLE_MEM_INIT=1"),
       firtoolOpts = Array("--disable-all-randomization")
     ) { mem =>
       mem.io.enable.poke(true)

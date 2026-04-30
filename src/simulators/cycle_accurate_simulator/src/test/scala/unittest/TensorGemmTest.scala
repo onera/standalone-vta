@@ -28,6 +28,7 @@ import unittest.mocks.{
   TensorGemmTester
 }
 import vta.tags
+import vta.util.AnyFlatSpecSim
 
 @tags.UnitTests
 class TensorGemmTestSuite extends AnyFlatSpecSim {

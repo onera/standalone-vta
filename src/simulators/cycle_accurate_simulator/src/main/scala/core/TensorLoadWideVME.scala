@@ -25,7 +25,7 @@ import vta.shell._
 import vta.util.config._
 
 import scala.math.pow
-import vta.util.UserDefined.Debug
+import vta.util.UserDefined.DebugLayer
 import chisel3.layer.block
 
 /** TensorLoad.
@@ -317,7 +317,7 @@ case class TensorLoadWideVME(
       }
     }
   }
-  block(Debug) {
+  block(DebugLayer) {
     when(isZeroPadWrite) {
       printf(
         cf"[TensorLoad] $tensorType isZeroPadWrite data zpDestIdx: ${zpDestIdx} \n"

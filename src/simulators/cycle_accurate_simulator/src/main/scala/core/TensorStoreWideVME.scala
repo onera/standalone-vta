@@ -23,7 +23,7 @@ import chisel3._
 import chisel3.util._
 import vta.util.config._
 import chisel3.layer.block
-import vta.util.UserDefined.Debug
+import vta.util.UserDefined.DebugLayer
 
 /** TensorStore.
   *
@@ -293,7 +293,7 @@ case class TensorStoreWideVME(
   io.done := state === sWriteAck & commandsDone & io.vmeWr.ack
 
   // debug
-  block(Debug) {
+  block(DebugLayer) {
     when(io.vmeWr.data.fire) {
       printf("[TensorStore] data:%x\n", io.vmeWr.data.bits.data)
       printf("[TensorStore] strb:%x\n", io.vmeWr.data.bits.strb)

@@ -23,7 +23,7 @@ import chisel3._
 import chisel3.util._
 import vta.shell._
 import vta.util.config._
-import vta.util.UserDefined.Debug
+import vta.util.UserDefined.DebugLayer
 import chisel3.layer.block
 
 /** TensorLoad.
@@ -321,7 +321,7 @@ case class TensorLoadSimple(
   io.done := done_no_pad | done_x_pad | done_y_pad
 
   // debug
-  block(Debug) {
+  block(DebugLayer) {
     if (tensorType == "inp") {
       when(io.vme_rd.cmd.fire) {
         printf(

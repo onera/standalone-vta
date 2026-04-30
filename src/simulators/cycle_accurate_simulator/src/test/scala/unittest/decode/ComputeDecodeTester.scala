@@ -6,10 +6,10 @@ import unittest.GenericTest
 import vta.core._
 import vta.util.config.Parameters
 
-import scala.language.postfixOps
+import chisel3.simulator.PeekPokeAPI
 
-class ComputeDecodeTest(c: ComputeDecode, debug:Boolean = false)
-  extends ChiselSim {
+class ComputeDecodeTest(c: ComputeDecode, debug: Boolean = false)
+    extends PeekPokeAPI {
   if (debug) {
     // Print the test name
     println("TEST NAME: \n\t ComputeDecodeTester")
@@ -27,7 +27,8 @@ class ComputeDecodeTest(c: ComputeDecode, debug:Boolean = false)
       s2g_queue = 0, g2s_queue = 0
    */
   val I0 = BigInt("00000000400000000100010001000000", 16)
-  val R0 = BigInt("00000001000100010000004000000000", 16) // reversed instruction field
+  val R0 =
+    BigInt("00000001000100010000004000000000", 16) // reversed instruction field
 
   /*
    * INSTRUCTION 1: GEMM
@@ -40,7 +41,8 @@ class ComputeDecodeTest(c: ComputeDecode, debug:Boolean = false)
       s2g_queue = 0, g2s_queue = 0
    */
   val I1 = BigInt("a2002000080002000000000000000000", 16)
-  val R1 = BigInt("000000000000000000020008002000a2", 16) // reversed instruction field
+  val R1 =
+    BigInt("000000000000000000020008002000a2", 16) // reversed instruction field
 
   /*
    * INSTRUCTION 2: LOAD INP
@@ -52,7 +54,8 @@ class ComputeDecodeTest(c: ComputeDecode, debug:Boolean = false)
       s2g_queue = 0, g2s_queue = 0
    */
   val I2 = BigInt("10010000040000000100010001000000", 16)
-  val R2 = BigInt("00000001000100010000000400000110", 16) // reversed instruction field
+  val R2 =
+    BigInt("00000001000100010000000400000110", 16) // reversed instruction field
 
   /*
    * INSTRUCTION 3: LOAD WGT
@@ -64,7 +67,8 @@ class ComputeDecodeTest(c: ComputeDecode, debug:Boolean = false)
       s2g_queue = 0, g2s_queue = 0
    */
   val I3 = BigInt("c0000080000000000100010001000000", 16)
-  val R3 = BigInt("000000010001000100000000800000c0", 16) // reversed instruction field
+  val R3 =
+    BigInt("000000010001000100000000800000c0", 16) // reversed instruction field
 
   /*
    * INSTRUCTION 4: LOAD UOP
@@ -76,7 +80,8 @@ class ComputeDecodeTest(c: ComputeDecode, debug:Boolean = false)
       s2g_queue = 0, g2s_queue = 0
    */
   val I4 = BigInt("08040004400000000100010001000000", 16)
-  val R4 = BigInt("00000001000100010000004004000408", 16) // reversed instruction field
+  val R4 =
+    BigInt("00000001000100010000004004000408", 16) // reversed instruction field
 
   /*
    * INSTRUCTION 5: GEMM
@@ -89,7 +94,8 @@ class ComputeDecodeTest(c: ComputeDecode, debug:Boolean = false)
       s2g_queue = 0, g2s_queue = 1
    */
   val I5 = BigInt("42014000080002000000000000000000", 16)
-  val R5 = BigInt("00000000000000000002000400400142", 16) // reversed instruction field
+  val R5 =
+    BigInt("00000000000000000002000400400142", 16) // reversed instruction field
 
   /*
    * INSTRUCTION 6: STORE:
@@ -101,7 +107,8 @@ class ComputeDecodeTest(c: ComputeDecode, debug:Boolean = false)
       s2g_queue = 1, g2s_queue = 0
    */
   val I6 = BigInt("290200000c0000000100010001000000", 16)
-  val R6 = BigInt("00000001000100010000000c00000229", 16) // reversed instruction field
+  val R6 =
+    BigInt("00000001000100010000000c00000229", 16) // reversed instruction field
 
   /*
    * INSTRUCTION 7: NOP-MEMORY-STAGE
@@ -110,7 +117,8 @@ class ComputeDecodeTest(c: ComputeDecode, debug:Boolean = false)
       s2g_queue = 1, g2s_queue = 0
    */
   val I7 = BigInt("40010000000000000000000000000000", 16)
-  val R7 = BigInt("00000000000000000000000000000140", 16) // reversed instruction field
+  val R7 =
+    BigInt("00000000000000000000000000000140", 16) // reversed instruction field
 
   /*
    * INSTRUCTION 8: NOP-COMPUTE-STAGE
@@ -119,7 +127,8 @@ class ComputeDecodeTest(c: ComputeDecode, debug:Boolean = false)
       s2g_queue = 0, g2s_queue = 0
    */
   val I8 = BigInt("18000000000000000000000000000000", 16)
-  val R8 = BigInt("00000000000000000000000000000018", 16) // reversed instruction field
+  val R8 =
+    BigInt("00000000000000000000000000000018", 16) // reversed instruction field
 
   /*
    * INSTRUCTION 9: FINISH
@@ -127,8 +136,8 @@ class ComputeDecodeTest(c: ComputeDecode, debug:Boolean = false)
       s2g_queue = 0, g2s_queue = 0
    */
   val I9 = BigInt("03000000000000000000000000000000", 16)
-  val R9 = BigInt("00000000000000000000000000000003", 16) // reversed instruction field
-
+  val R9 =
+    BigInt("00000000000000000000000000000003", 16) // reversed instruction field
 
   // INTERACT WITH THE MODULE
   // ------------------------
@@ -136,7 +145,7 @@ class ComputeDecodeTest(c: ComputeDecode, debug:Boolean = false)
   if (debug) {
     print("\n\n Decode I0 (load UOP):\n")
   }
-  c.io.inst.poke( R0)
+  c.io.inst.poke(R0)
   // Expected output:
   c.io.pop_prev.expect(0)
   c.io.pop_next.expect(0)
@@ -149,12 +158,11 @@ class ComputeDecodeTest(c: ComputeDecode, debug:Boolean = false)
   c.io.isGemm.expect(0)
   c.io.isFinish.expect(0)
 
-
   // Decode I1 = GEMM RESET
   if (debug) {
     print("\n\n Decode I1 (gemm reset):\n")
   }
-  c.io.inst.poke( R1)
+  c.io.inst.poke(R1)
   // Expected output:
   c.io.pop_prev.expect(0)
   c.io.pop_next.expect(0)
@@ -171,7 +179,7 @@ class ComputeDecodeTest(c: ComputeDecode, debug:Boolean = false)
   if (debug) {
     print("\n\n Decode I4 (load UOP):\n")
   }
-  c.io.inst.poke( R4)
+  c.io.inst.poke(R4)
   // Expected output:
   c.io.pop_prev.expect(1)
   c.io.pop_next.expect(0)
@@ -184,12 +192,11 @@ class ComputeDecodeTest(c: ComputeDecode, debug:Boolean = false)
   c.io.isGemm.expect(0)
   c.io.isFinish.expect(0)
 
-
   // Decode I5 = GEMM
-  if(debug) {
+  if (debug) {
     print("\n\n Decode I5 (gemm):\n")
   }
-  c.io.inst.poke( R5)
+  c.io.inst.poke(R5)
   // Expected output:
   c.io.pop_prev.expect(0)
   c.io.pop_next.expect(0)
@@ -206,7 +213,7 @@ class ComputeDecodeTest(c: ComputeDecode, debug:Boolean = false)
   if (debug) {
     print("\n\n Decode I7 (nop-memory-stage):\n")
   }
-  c.io.inst.poke( R7) // LOAD DECODE ...
+  c.io.inst.poke(R7) // LOAD DECODE ...
   // Expected output:
   c.io.pop_prev.expect(0)
   c.io.pop_next.expect(0)
@@ -219,12 +226,11 @@ class ComputeDecodeTest(c: ComputeDecode, debug:Boolean = false)
   c.io.isGemm.expect(0)
   c.io.isFinish.expect(0)
 
-
   // Decode I8 = NOP-COMPUTE-STAGE
   if (debug) {
     print("\n\n Decode I8 (nop-compute-stage):\n")
   }
-  c.io.inst.poke( R8)
+  c.io.inst.poke(R8)
   // Expected output:
   c.io.pop_prev.expect(1)
   c.io.pop_next.expect(1)
@@ -237,12 +243,11 @@ class ComputeDecodeTest(c: ComputeDecode, debug:Boolean = false)
   c.io.isGemm.expect(0)
   c.io.isFinish.expect(0)
 
-
   // Decode I9 = FINISH
   if (debug) {
     print("\n\n Decode I9 (finish):\n")
   }
-  c.io.inst.poke( R9)
+  c.io.inst.poke(R9)
   // Expected output:
   c.io.pop_prev.expect(0)
   c.io.pop_next.expect(0)
@@ -255,13 +260,12 @@ class ComputeDecodeTest(c: ComputeDecode, debug:Boolean = false)
   c.io.isGemm.expect(0)
   c.io.isFinish.expect(1)
 
-
   // OTHERS INSTRUCTIONS (alternative)
   if (debug) {
     // Alternative INSN test
-    //val Itest = BigInt("00000100010001000000040000000000", 16) // test
+    // val Itest = BigInt("00000100010001000000040000000000", 16) // test
     print("\n\n Decode Itest:\n")
-    c.io.inst.poke( I0)
+    c.io.inst.poke(I0)
     // Read:
     println(s"POP_PREV = ${c.io.pop_prev.peek()}")
     println(s"POP_NEXT = ${c.io.pop_next.peek()}")
@@ -280,8 +284,10 @@ class ComputeDecodeTest(c: ComputeDecode, debug:Boolean = false)
   }
 }
 
-class AlternativeComputeMemDecodeTest(c: AlternativeComputeMemDecode, debug: Boolean = false)
-  extends ChiselSim {
+class AlternativeComputeMemDecodeTest(
+    c: AlternativeComputeMemDecode,
+    debug: Boolean = false
+) extends ChiselSim {
   if (debug) {
     // Print the test name
     println("TEST NAME: \n\t AlternativeComputeMemDecodeTester")
@@ -291,28 +297,33 @@ class AlternativeComputeMemDecodeTest(c: AlternativeComputeMemDecode, debug: Boo
 
   // INSTRUCTION 0: LOAD UOP
   val I0 = BigInt("00000000400000000100010001000000", 16)
-  val R0 = BigInt("00000001000100010000004000000000", 16) // reversed instruction field
+  val R0 =
+    BigInt("00000001000100010000004000000000", 16) // reversed instruction field
 
   // INSTRUCTION 2: LOAD INP
   val I2 = BigInt("10010000040000000100010001000000", 16)
-  val R2 = BigInt("00000001000100010000000400000110", 16) // reversed instruction field
+  val R2 =
+    BigInt("00000001000100010000000400000110", 16) // reversed instruction field
 
   // INSTRUCTION 3: LOAD WGT
   val I3 = BigInt("c0000080000000000100010001000000", 16)
-  val R3 = BigInt("000000010001000100000000800000c0", 16) // reversed instruction field
+  val R3 =
+    BigInt("000000010001000100000000800000c0", 16) // reversed instruction field
 
   // INSTRUCTION 4: LOAD UOP
   val I4 = BigInt("08040004400000000100010001000000", 16)
-  val R4 = BigInt("00000001000100010000004004000408", 16) // reversed instruction field
+  val R4 =
+    BigInt("00000001000100010000004004000408", 16) // reversed instruction field
 
   // INSTRUCTION 7: NOP-MEMORY-STAGE
   val I7 = BigInt("40010000000000000000000000000000", 16)
-  val R7 = BigInt("00000000000000000000000000000140", 16) // reversed instruction field
+  val R7 =
+    BigInt("00000000000000000000000000000140", 16) // reversed instruction field
 
   // INSTRUCTION 8: NOP-COMPUTE-STAGE
   val I8 = BigInt("18000000000000000000000000000000", 16)
-  val R8 = BigInt("00000000000000000000000000000018", 16) // reversed instruction field
-
+  val R8 =
+    BigInt("00000000000000000000000000000018", 16) // reversed instruction field
 
   // INTERACT WITH THE MODULE
   // ------------------------
@@ -320,7 +331,7 @@ class AlternativeComputeMemDecodeTest(c: AlternativeComputeMemDecode, debug: Boo
   if (debug) {
     print("\n\n Decode I0 (load UOP):\n")
   }
-  c.io.inst.poke( R0)
+  c.io.inst.poke(R0)
   // Expected output:
   c.io.op.expect(0)
   c.io.pop_prev.expect(0)
@@ -338,12 +349,11 @@ class AlternativeComputeMemDecodeTest(c: AlternativeComputeMemDecode, debug: Boo
   c.io.xpad_0.expect(0)
   c.io.xpad_1.expect(0)
 
-
   // Decode I2 = LOAD INP
   if (debug) {
     print("\n\n Decode I2 (load INP):\n")
   }
-  c.io.inst.poke( R2)
+  c.io.inst.poke(R2)
   // Expected output:
   c.io.op.expect(0)
   c.io.pop_prev.expect(0)
@@ -367,8 +377,10 @@ class AlternativeComputeMemDecodeTest(c: AlternativeComputeMemDecode, debug: Boo
   }
 }
 
-class AlternativeComputeGemmDecodeTest(c: AlternativeComputeGemmDecode, debug:Boolean = false)
-  extends ChiselSim {
+class AlternativeComputeGemmDecodeTest(
+    c: AlternativeComputeGemmDecode,
+    debug: Boolean = false
+) extends ChiselSim {
   if (debug) {
     // Print the test name
     println("TEST NAME: \n\t AlternativeComputeGemmDecodeTester")
@@ -378,12 +390,13 @@ class AlternativeComputeGemmDecodeTest(c: AlternativeComputeGemmDecode, debug:Bo
   // INSTRUCTION 0: LOAD UOP
   // I1: GEMM reset
   val I1 = BigInt("a2002000080002000000000000000000", 16)
-  val R1 = BigInt("000000000000000000020008002000a2", 16) // reversed instruction field
+  val R1 =
+    BigInt("000000000000000000020008002000a2", 16) // reversed instruction field
 
   // I5: GEMM
   val I5 = BigInt("42014000080002000000000000000000", 16)
-  val R5 = BigInt("00000000000000000002000800400142", 16) // reversed instruction field
-
+  val R5 =
+    BigInt("00000000000000000002000800400142", 16) // reversed instruction field
 
   // INTERACT WITH THE MODULE
   // ------------------------
@@ -391,7 +404,7 @@ class AlternativeComputeGemmDecodeTest(c: AlternativeComputeGemmDecode, debug:Bo
   if (debug) {
     print("\n\n Decode I1 (GEMM reset):\n")
   }
-  c.io.inst.poke( R1)
+  c.io.inst.poke(R1)
   // Expected output:
   c.io.op.expect(2)
   c.io.pop_prev.expect(0)
@@ -411,12 +424,11 @@ class AlternativeComputeGemmDecodeTest(c: AlternativeComputeGemmDecode, debug:Bo
   c.io.wgt_0.expect(0)
   c.io.wgt_1.expect(0)
 
-
   // Decode I2 = LOAD INP
   if (debug) {
     print("\n\n Decode I5 (GEMM):\n")
   }
-  c.io.inst.poke( R5)
+  c.io.inst.poke(R5)
   // Expected output:
   c.io.op.expect(2)
   c.io.pop_prev.expect(0)
@@ -442,19 +454,26 @@ class AlternativeComputeGemmDecodeTest(c: AlternativeComputeGemmDecode, debug:Bo
   }
 }
 
+/** Execute the tests
+  */
+class ComputeDecodeTester
+    extends GenericTest(
+      "ComputeDecodeTest",
+      (p: Parameters) => new ComputeDecode(),
+      (c: ComputeDecode) => new ComputeDecodeTest(c)
+    )
 
-/**
- * Execute the tests
- */
-class ComputeDecodeTester extends GenericTest("ComputeDecodeTest", (p:Parameters) =>
-  new ComputeDecode(),
-  (c:ComputeDecode) => new ComputeDecodeTest(c))
+class AlternativeComputeMemDecodeTester
+    extends GenericTest(
+      "AlternativeComputeMemDecodeTest",
+      (p: Parameters) => new AlternativeComputeMemDecode(),
+      (c: AlternativeComputeMemDecode) => new AlternativeComputeMemDecodeTest(c)
+    )
 
-class AlternativeComputeMemDecodeTester extends GenericTest("AlternativeComputeMemDecodeTest", (p:Parameters) =>
-  new AlternativeComputeMemDecode(),
-  (c:AlternativeComputeMemDecode) => new AlternativeComputeMemDecodeTest(c))
-
-class AlternativeComputeGemmDecodeTester extends GenericTest("AlternativeComputeGemmDecodeTest", (p: Parameters) =>
-  new AlternativeComputeGemmDecode(),
-  (c: AlternativeComputeGemmDecode) => new AlternativeComputeGemmDecodeTest(c))
-
+class AlternativeComputeGemmDecodeTester
+    extends GenericTest(
+      "AlternativeComputeGemmDecodeTest",
+      (p: Parameters) => new AlternativeComputeGemmDecode(),
+      (c: AlternativeComputeGemmDecode) =>
+        new AlternativeComputeGemmDecodeTest(c)
+    )

@@ -24,6 +24,7 @@ import vta.core._
 
 import unittest.mocks.TensorGemmJsonTester
 import vta.tags.UnitTests
+import vta.util.AnyFlatSpecSim
 
 @UnitTests
 class TensorGemmJsonTest extends AnyFlatSpecSim {

@@ -13,6 +13,7 @@ import vta.shell.VTAShell
 import vta.util.MemoryConfig
 import vta.util.SimulationUtils.EnableMemInitVerilog
 import vta.util.config.Parameters
+import vta.util.SimulationUtils.verilatorWithWaveDump
 
 class VTAShellTestFull(
     content: Seq[MemoryConfig]

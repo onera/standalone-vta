@@ -7,7 +7,7 @@ import vta.core.ISA._
 import vta.core._
 import vta.shell.VMEReadMaster
 import vta.util.config.Parameters
-import unittest.AnyFlatSpecSim
+import vta.util.AnyFlatSpecSim
 import vta.DefaultPynqConfig
 import org.scalatest.tags.Slow
 import chisel3.test.UnitTest

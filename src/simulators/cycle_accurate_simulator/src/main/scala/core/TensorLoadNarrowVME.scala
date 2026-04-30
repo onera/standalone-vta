@@ -25,7 +25,7 @@ import vta.shell._
 import vta.util.config._
 
 import scala.math.pow
-import vta.util.UserDefined.Debug
+import vta.util.UserDefined.DebugLayer
 import chisel3.layer.block
 
 /** TensorLoad.
@@ -315,7 +315,7 @@ case class TensorLoadNarrowVME(
       tensorFile(j).write(waddr(j), wdata(j))
     }
   }
-  block(Debug) {
+  block(DebugLayer) {
     when(isZeroPadWrite) {
       printf(
         cf"[TensorLoad] $tensorType isZeroPadWrite data zpDestIdx: ${zpDestIdx}\n"
@@ -847,7 +847,7 @@ class GenVMECmd(tensorType: String = "none")(implicit
   }.otherwise {
     rdCmdValid := false.B
   }
-  block(Debug) {
+  block(DebugLayer) {
     when(io.vmeCmd.fire) {
       printf(
         s"[GenVMECmd] $tensorType cmd data rdCmdDestBlockIdx:%b " +

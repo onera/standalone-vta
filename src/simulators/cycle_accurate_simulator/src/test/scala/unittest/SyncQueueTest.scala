@@ -21,17 +21,12 @@ package unittest
 
 import chisel3._
 import chisel3.util._
-import scala.util.Random
-import unittest.AnyFlatSpecSim
+import vta.util.AnyFlatSpecSim
 import vta.util._
-import vta.util.config._
-import chisel3.simulator.ChiselSim
-import chisel3.simulator.scalatest
-import org.scalatest.flatspec.AnyFlatSpec
 import vta.tags
 import chisel3.simulator.PeekPokeAPI
 
-class Checker(c: SyncQueueTestWrapper[UInt]) extends ChiselSim {
+class Checker(c: SyncQueueTestWrapper[UInt]) extends PeekPokeAPI {
 
   def bits(bits: Int) = {
     c.io.tq.deq.bits.expect(bits)

@@ -7,5 +7,5 @@ import chisel3.layers.Verification
 object UserDefined {
 
   implicit val root: Layer = Verification
-  object Debug extends Layer(LayerConfig.Inline)
+  object DebugLayer extends Layer(LayerConfig.Inline)
 }

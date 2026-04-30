@@ -6,7 +6,7 @@ import vta.test.AxiFullSimUtils
 import vta.interface.axi.AXIClient
 import vta.interface.axi.AxiLike._
 import vta.shell.ShellKey
-import unittest.AnyFlatSpecSim
+import vta.util.AnyFlatSpecSim
 import vta.tags.UnitTests
 
 @UnitTests

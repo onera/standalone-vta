@@ -22,7 +22,7 @@ package vta.core
 import chisel3._
 import chisel3.util._
 import vta.util.config._
-import vta.util.UserDefined.Debug
+import vta.util.UserDefined.DebugLayer
 import chisel3.layer.block
 
 /** TensorStore.
@@ -284,7 +284,7 @@ case class TensorStoreNarrowVME(
   io.done := state === sWriteAck & io.vmeWr.ack & xrem === 0.U & ycnt === ysize - 1.U
 
   // debug
-  block(Debug) {
+  block(DebugLayer) {
     when(io.vmeWr.cmd.fire) {
       printf(
         "[TensorStore] ysize:%x ycnt:%x raddr:%x waddr:%x len:%x rem:%x\n",

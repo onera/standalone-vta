@@ -1,15 +1,14 @@
 package unittest.decode
 
 import chisel3._
-import chisel3.simulator.ChiselSim
 import unittest.GenericTest
 import vta.core._
 import vta.util.config.Parameters
 
-import scala.language.postfixOps
+import chisel3.simulator.PeekPokeAPI
 
 class LoadDecodeTest(c: LoadDecode, debug: Boolean = false)
-  extends ChiselSim {
+    extends PeekPokeAPI {
   if (debug) {
     // Print the test name
     println("TEST NAME: \n\t LoadDecodeTester")
@@ -27,7 +26,8 @@ class LoadDecodeTest(c: LoadDecode, debug: Boolean = false)
       s2g_queue = 0, g2s_queue = 0
    */
   val I0 = BigInt("00000000400000000100010001000000", 16)
-  val R0 = BigInt("00000001000100010000004000000000", 16) // reversed instruction field
+  val R0 =
+    BigInt("00000001000100010000004000000000", 16) // reversed instruction field
 
   /*
    * INSTRUCTION 1: GEMM
@@ -40,7 +40,8 @@ class LoadDecodeTest(c: LoadDecode, debug: Boolean = false)
       s2g_queue = 0, g2s_queue = 0
    */
   val I1 = BigInt("a2002000080002000000000000000000", 16)
-  val R1 = BigInt("000000000000000000020008002000a2", 16) // reversed instruction field
+  val R1 =
+    BigInt("000000000000000000020008002000a2", 16) // reversed instruction field
 
   /*
    * INSTRUCTION 2: LOAD INP
@@ -52,7 +53,8 @@ class LoadDecodeTest(c: LoadDecode, debug: Boolean = false)
       s2g_queue = 0, g2s_queue = 0
    */
   val I2 = BigInt("10010000040000000100010001000000", 16)
-  val R2 = BigInt("00000001000100010000000400000110", 16) // reversed instruction field
+  val R2 =
+    BigInt("00000001000100010000000400000110", 16) // reversed instruction field
 
   /*
    * INSTRUCTION 3: LOAD WGT
@@ -64,7 +66,8 @@ class LoadDecodeTest(c: LoadDecode, debug: Boolean = false)
       s2g_queue = 0, g2s_queue = 0
    */
   val I3 = BigInt("c0000080000000000100010001000000", 16)
-  val R3 = BigInt("000000010001000100000000800000c0", 16) // reversed instruction field
+  val R3 =
+    BigInt("000000010001000100000000800000c0", 16) // reversed instruction field
 
   /*
    * INSTRUCTION 4: LOAD UOP
@@ -76,7 +79,8 @@ class LoadDecodeTest(c: LoadDecode, debug: Boolean = false)
       s2g_queue = 0, g2s_queue = 0
    */
   val I4 = BigInt("08040004400000000100010001000000", 16)
-  val R4 = BigInt("00000001000100010000004004000408", 16) // reversed instruction field
+  val R4 =
+    BigInt("00000001000100010000004004000408", 16) // reversed instruction field
 
   /*
    * INSTRUCTION 5: GEMM
@@ -89,7 +93,8 @@ class LoadDecodeTest(c: LoadDecode, debug: Boolean = false)
       s2g_queue = 0, g2s_queue = 1
    */
   val I5 = BigInt("42014000080002000000000000000000", 16)
-  val R5 = BigInt("00000000000000000002000400400142", 16) // reversed instruction field
+  val R5 =
+    BigInt("00000000000000000002000400400142", 16) // reversed instruction field
 
   /*
    * INSTRUCTION 6: STORE:
@@ -101,7 +106,8 @@ class LoadDecodeTest(c: LoadDecode, debug: Boolean = false)
       s2g_queue = 1, g2s_queue = 0
    */
   val I6 = BigInt("290200000c0000000100010001000000", 16)
-  val R6 = BigInt("00000001000100010000000c00000229", 16) // reversed instruction field
+  val R6 =
+    BigInt("00000001000100010000000c00000229", 16) // reversed instruction field
 
   /*
    * INSTRUCTION 7: NOP-MEMORY-STAGE
@@ -110,7 +116,8 @@ class LoadDecodeTest(c: LoadDecode, debug: Boolean = false)
       s2g_queue = 1, g2s_queue = 0
    */
   val I7 = BigInt("40010000000000000000000000000000", 16)
-  val R7 = BigInt("00000000000000000000000000000140", 16) // reversed instruction field
+  val R7 =
+    BigInt("00000000000000000000000000000140", 16) // reversed instruction field
 
   /*
    * INSTRUCTION 8: NOP-COMPUTE-STAGE
@@ -119,7 +126,8 @@ class LoadDecodeTest(c: LoadDecode, debug: Boolean = false)
       s2g_queue = 0, g2s_queue = 0
    */
   val I8 = BigInt("18000000000000000000000000000000", 16)
-  val R8 = BigInt("00000000000000000000000000000018", 16) // reversed instruction field
+  val R8 =
+    BigInt("00000000000000000000000000000018", 16) // reversed instruction field
 
   /*
    * INSTRUCTION 9: FINISH
@@ -127,8 +135,8 @@ class LoadDecodeTest(c: LoadDecode, debug: Boolean = false)
       s2g_queue = 0, g2s_queue = 0
    */
   val I9 = BigInt("03000000000000000000000000000000", 16)
-  val R9 = BigInt("00000000000000000000000000000003", 16) // reversed instruction field
-
+  val R9 =
+    BigInt("00000000000000000000000000000003", 16) // reversed instruction field
 
   // INTERACT WITH THE MODULE
   // ------------------------
@@ -137,7 +145,7 @@ class LoadDecodeTest(c: LoadDecode, debug: Boolean = false)
   if (debug) {
     print("\n\n Decode I2 (load INP):\n")
   }
-  c.io.inst.poke( R2)
+  c.io.inst.poke(R2)
   // Expected output:
   c.io.pop_next.expect(1)
   c.io.push_next.expect(0)
@@ -145,12 +153,11 @@ class LoadDecodeTest(c: LoadDecode, debug: Boolean = false)
   c.io.isWeight.expect(0)
   c.io.isSync.expect(0)
 
-
   // Decode I3 = LOAD WGT => LoadDecode
   if (debug) {
     print("\n\n Decode I3 (load WGT):\n")
   }
-  c.io.inst.poke( R3)
+  c.io.inst.poke(R3)
   // Expected output:
   c.io.pop_next.expect(0)
   c.io.push_next.expect(1)
@@ -162,7 +169,7 @@ class LoadDecodeTest(c: LoadDecode, debug: Boolean = false)
   if (debug) {
     print("\n\n Decode I7 (nop-memory-stage):\n")
   }
-  c.io.inst.poke( R7)
+  c.io.inst.poke(R7)
   // Expected output:
   c.io.pop_next.expect(0)
   c.io.push_next.expect(1)
@@ -171,11 +178,11 @@ class LoadDecodeTest(c: LoadDecode, debug: Boolean = false)
   c.io.isSync.expect(1)
 }
 
-
-
-/**
- * Execute the tests
- */
-class LoadDecodeTester extends GenericTest("LoadDecodeTest", (p:Parameters) =>
-  new LoadDecode(),
-  (c:LoadDecode) => new LoadDecodeTest(c))
+/** Execute the tests
+  */
+class LoadDecodeTester
+    extends GenericTest(
+      "LoadDecodeTest",
+      (p: Parameters) => new LoadDecode(),
+      (c: LoadDecode) => new LoadDecodeTest(c)
+    )
