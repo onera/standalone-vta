@@ -637,7 +637,7 @@ int fsim_nn() {
 
       // Copy Result Back
       VTAMemCopyToHost(ctx.outC.data(), ctx.mem_outC,
-                       ctx.outC.size() * sizeof(inp_dtype));
+                       ctx.outC.size() * sizeof(out_dtype));
     }
     // ELSE CPU OPERATIONS
     else if (processor == "qadd") {
@@ -682,10 +682,10 @@ int fsim_nn() {
       LayerContext &dep4_ctx = layers_map[name_dep4];
 
       // Get the previous layers
-      std::vector<acc_dtype> dep_out, dep2_out, dep3_out, dep4_out;
+      std::vector<out_dtype> dep_out, dep2_out, dep3_out, dep4_out;
 
       // The variables
-      std::vector<std::vector<acc_dtype>> concat_inp;
+      std::vector<std::vector<out_dtype>> concat_inp;
       std::vector<std::vector<int>> concat_shapes;
       std::vector<float> concat_scales;
       std::vector<int32_t> concat_zps;
@@ -694,23 +694,23 @@ int fsim_nn() {
       std::vector<int> shape = {1, tensor_channel, tensor_height, tensor_width};
 
       // Get the previous layers
-      dep_out = convert_vector_type<acc_dtype>(dep_ctx.res);
-      dep2_out = convert_vector_type<acc_dtype>(dep2_ctx.res);
+      dep_out = convert_vector_type<out_dtype>(dep_ctx.res);
+      dep2_out = convert_vector_type<out_dtype>(dep2_ctx.res);
       if (nb_inp == 2) {
         concat_inp = {dep_out, dep2_out};
         concat_shapes = {shape, shape};
         concat_scales = {scaleA, scaleB};
         concat_zps = {offsetA, offsetB};
       } else if (nb_inp == 3) {
-        dep3_out = convert_vector_type<acc_dtype>(dep3_ctx.res);
+        dep3_out = convert_vector_type<out_dtype>(dep3_ctx.res);
 
         concat_inp = {dep_out, dep2_out, dep3_out};
         concat_shapes = {shape, shape, shape};
         concat_scales = {scaleA, scaleB, scaleU};
         concat_zps = {offsetA, offsetB, offsetU};
       } else if (nb_inp == 4) {
-        dep3_out = convert_vector_type<acc_dtype>(dep3_ctx.res);
-        dep4_out = convert_vector_type<acc_dtype>(dep4_ctx.res);
+        dep3_out = convert_vector_type<out_dtype>(dep3_ctx.res);
+        dep4_out = convert_vector_type<out_dtype>(dep4_ctx.res);
 
         concat_inp = {dep_out, dep2_out, dep3_out, dep4_out};
         concat_shapes = {shape, shape, shape, shape};
@@ -719,7 +719,7 @@ int fsim_nn() {
       }
 
       // Perform the concatenation
-      ctx.outC = qlinear_concat<acc_dtype>(concat_inp,    // Inputs
+      ctx.outC = qlinear_concat<out_dtype>(concat_inp,    // Inputs
                                            concat_shapes, // Shapes
                                            concat_scales, // input_scales
                                            concat_zps,    // input_zps
@@ -770,12 +770,9 @@ int fsim_nn() {
       // Get the previou layer
       std::vector<float> float_res = dep_ctx.value;
 
-      // Quantise
-      std::vector<acc_dtype> int_res =
-          quantize_linear(float_res, scaleA, offsetA);
-
-      // Save the result
-      ctx.outC = int_res;
+      // Quantise (returns int32, convert to out_dtype which may be int8)
+      ctx.outC = convert_vector_type<out_dtype>(
+          quantize_linear(float_res, scaleA, offsetA));
 
       // Fix scale to 1.0
       scale = 1.0;

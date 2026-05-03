@@ -14,7 +14,8 @@
  *
  * verilated_device.cc only:
  *   1. Enqueues VCR register writes via VTAHostDPI_QueueWrite().
- *   2. Runs the clock loop (both clock + sim_clock together, per tsim_device.cc).
+ *   2. Runs the clock loop (both clock + sim_clock together, per
+ * tsim_device.cc).
  *   3. Detects completion via Verilated::gotFinish() set by vl_finish().
  *
  * All AXI protocol handling is in SV.  The three DPI-C functions
@@ -28,9 +29,9 @@
 #ifdef VERILATOR_BUILD_ENABLED
 
 #include "../include/vta_device_backend.h"
-#include "dpi/dpi_host.h"   // VTAHostDPI_Reset / VTAHostDPI_QueueWrite
-#include "dpi/dpi_mem.h"    // VTAMemDPI_Reset
-#include "dpi/dpi_sim.h"    // VTASimDPI_Reset
+#include "dpi/dpi_host.h" // VTAHostDPI_Reset / VTAHostDPI_QueueWrite
+#include "dpi/dpi_mem.h"  // VTAMemDPI_Reset
+#include "dpi/dpi_sim.h"  // VTASimDPI_Reset
 
 // Verilator-generated header produced by `make verilate_vtashell`
 // (--top-module Test generates VTest.h)
@@ -54,14 +55,14 @@ static constexpr const char *DEFAULT_TRACE_FILE = "vtashell.fst";
 #include <unistd.h>
 
 // VCR register byte addresses (AXI-Lite, 32-bit registers, 4-byte stride)
-static constexpr uint8_t VCR_CTRL     = 0x00;  // ctrl: bit[0]=launch, bit[1]=finish
-static constexpr uint8_t VCR_VALS0    = 0x08;  // vals[0] = instruction count
-static constexpr uint8_t VCR_PTR_INSN = 0x0C;  // ptrs[0] = insn base address
-static constexpr uint8_t VCR_PTR_UOP  = 0x10;  // ptrs[1] = uop  base address
-static constexpr uint8_t VCR_PTR_INP  = 0x14;  // ptrs[2] = inp  base address
-static constexpr uint8_t VCR_PTR_WGT  = 0x18;  // ptrs[3] = wgt  base address
-static constexpr uint8_t VCR_PTR_ACC  = 0x1C;  // ptrs[4] = acc  base address
-static constexpr uint8_t VCR_PTR_OUT  = 0x20;  // ptrs[5] = out  base address
+static constexpr uint8_t VCR_CTRL = 0x00;  // ctrl: bit[0]=launch, bit[1]=finish
+static constexpr uint8_t VCR_VALS0 = 0x08; // vals[0] = instruction count
+static constexpr uint8_t VCR_PTR_INSN = 0x0C; // ptrs[0] = insn base address
+static constexpr uint8_t VCR_PTR_UOP = 0x10;  // ptrs[1] = uop  base address
+static constexpr uint8_t VCR_PTR_INP = 0x14;  // ptrs[2] = inp  base address
+static constexpr uint8_t VCR_PTR_WGT = 0x18;  // ptrs[3] = wgt  base address
+static constexpr uint8_t VCR_PTR_ACC = 0x1C;  // ptrs[4] = acc  base address
+static constexpr uint8_t VCR_PTR_OUT = 0x20;  // ptrs[5] = out  base address
 
 static constexpr uint32_t RESET_CYCLES = 10;
 
@@ -72,7 +73,8 @@ static constexpr uint32_t RESET_CYCLES = 10;
 // Verilator would call exit().  We intercept it and set gotFinish() so the
 // simulation loop can return cleanly.
 // Requires -DVL_USER_FINISH at compile time (see Makefile).
-void vl_finish(const char * /*filename*/, int /*linenum*/, const char * /*hier*/) {
+void vl_finish(const char * /*filename*/, int /*linenum*/,
+               const char * /*hier*/) {
   Verilated::gotFinish(true);
 }
 
@@ -80,15 +82,17 @@ void vl_finish(const char * /*filename*/, int /*linenum*/, const char * /*hier*/
 // VerilatedDevice
 // ---------------------------------------------------------------------------
 class VerilatedDevice : public VTADeviceBackend {
- public:
+public:
   VerilatedDevice()
-      : top_(std::make_unique<VTest>()), bufAddrs_{},
-        tfp_(nullptr), cycle_(0), sv_log_stdout_backup_(-1) {
+      : top_(std::make_unique<VTest>()), bufAddrs_{}, tfp_(nullptr), cycle_(0),
+        sv_log_stdout_backup_(-1) {
 
     if (!g_verilator_config.sv_log_file.empty()) {
       sv_log_stdout_backup_ = dup(STDOUT_FILENO);
-      if (freopen(g_verilator_config.sv_log_file.c_str(), "w", stdout) == nullptr) {
-        fprintf(stderr, "[VerilatedDevice] Warning: could not open sv-log '%s'\n",
+      if (freopen(g_verilator_config.sv_log_file.c_str(), "w", stdout) ==
+          nullptr) {
+        fprintf(stderr,
+                "[VerilatedDevice] Warning: could not open sv-log '%s'\n",
                 g_verilator_config.sv_log_file.c_str());
         sv_log_stdout_backup_ = -1;
       }
@@ -133,14 +137,14 @@ class VerilatedDevice : public VTADeviceBackend {
     }
 
     // Enqueue VCR register writes (processed by VTAHostDPI() during eval())
-    VTAHostDPI_QueueWrite(VCR_VALS0,    insn_count);
+    VTAHostDPI_QueueWrite(VCR_VALS0, insn_count);
     VTAHostDPI_QueueWrite(VCR_PTR_INSN, static_cast<uint32_t>(insn_phy_addr));
-    VTAHostDPI_QueueWrite(VCR_PTR_UOP,  0u);
-    VTAHostDPI_QueueWrite(VCR_PTR_INP,  0u);
-    VTAHostDPI_QueueWrite(VCR_PTR_WGT,  0u);
-    VTAHostDPI_QueueWrite(VCR_PTR_ACC,  0u);
-    VTAHostDPI_QueueWrite(VCR_PTR_OUT,  0u);
-    VTAHostDPI_QueueWrite(VCR_CTRL,     1u);  // launch
+    VTAHostDPI_QueueWrite(VCR_PTR_UOP, 0u);
+    VTAHostDPI_QueueWrite(VCR_PTR_INP, 0u);
+    VTAHostDPI_QueueWrite(VCR_PTR_WGT, 0u);
+    VTAHostDPI_QueueWrite(VCR_PTR_ACC, 0u);
+    VTAHostDPI_QueueWrite(VCR_PTR_OUT, 0u);
+    VTAHostDPI_QueueWrite(VCR_CTRL, 1u); // launch
 
     // Reset for RESET_CYCLES (follows tsim_device.cc pattern)
     top_->reset = 1;
@@ -159,24 +163,27 @@ class VerilatedDevice : public VTADeviceBackend {
 
     // Main simulation loop (timeout_cycles==0 means run until finish)
     const bool unlimited = (g_verilator_config.timeout_cycles == 0);
-    for (uint32_t c = 0; unlimited || c < g_verilator_config.timeout_cycles; ++c) {
+    for (uint32_t c = 0; unlimited || c < g_verilator_config.timeout_cycles;
+         ++c) {
       ClockEdge();
 
       if (Verilated::gotFinish()) {
         CloseTrace();
-        fprintf(stderr, "[VerilatedDevice] ecnt (total cycles)   = %u\n",
-                VTAHostDPI_GetECnt());
-        fprintf(stderr, "[VerilatedDevice] ucnt (compute cycles) = %u\n",
-                VTAHostDPI_GetUCnt());
+        printf("[VerilatedDevice] ecnt (total cycles)   = %u\n",
+               VTAHostDPI_GetECnt());
+        printf("[VerilatedDevice] ucnt (compute cycles) = %u\n",
+               VTAHostDPI_GetUCnt());
         return 0;
       }
 
       // sim_wait: VTASim requests host to pause the main clock.
       // Tick only sim_clock while holding clock=0 (follows tsim_device.cc).
       while (top_->sim_wait) {
-        top_->clock     = 0;
-        top_->sim_clock = 0; top_->eval();
-        top_->sim_clock = 1; top_->eval();
+        top_->clock = 0;
+        top_->sim_clock = 0;
+        top_->eval();
+        top_->sim_clock = 1;
+        top_->eval();
         ++cycle_;
         if (Verilated::gotFinish()) {
           CloseTrace();
@@ -195,7 +202,7 @@ class VerilatedDevice : public VTADeviceBackend {
     return 1;
   }
 
- private:
+private:
   void OpenTrace(const std::string &path) {
     CloseTrace();
     // Ensure output directory exists
@@ -222,25 +229,27 @@ class VerilatedDevice : public VTADeviceBackend {
    */
   void ClockEdge() {
     top_->sim_clock = 0;
-    top_->clock     = 0;
+    top_->clock = 0;
     top_->eval();
-    if (tfp_) tfp_->dump(static_cast<vluint64_t>(2 * cycle_));
+    if (tfp_)
+      tfp_->dump(static_cast<vluint64_t>(2 * cycle_));
 
     top_->sim_clock = 1;
-    top_->clock     = 1;
+    top_->clock = 1;
     top_->eval();
-    if (tfp_) tfp_->dump(static_cast<vluint64_t>(2 * cycle_ + 1));
+    if (tfp_)
+      tfp_->dump(static_cast<vluint64_t>(2 * cycle_ + 1));
 
     ++cycle_;
   }
 
   std::unique_ptr<VTest> top_;
-  VTABufferAddrs         bufAddrs_;
-  TraceType             *tfp_;
-  uint64_t               cycle_;
-  int                    sv_log_stdout_backup_;
+  VTABufferAddrs bufAddrs_;
+  TraceType *tfp_;
+  uint64_t cycle_;
+  int sv_log_stdout_backup_;
 };
 
 VTADeviceBackend *CreateVerilatedDevice() { return new VerilatedDevice(); }
 
-#endif  // VERILATOR_BUILD_ENABLED
+#endif // VERILATOR_BUILD_ENABLED
