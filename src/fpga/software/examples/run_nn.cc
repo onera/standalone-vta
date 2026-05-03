@@ -18,10 +18,10 @@
  *       --out-platform  src/fpga/software/config/nn_platform.h
  */
 
-#include "../config/nn_ddr_map.h" // generated — LayerDesc nn_layers[], NN_NUM_LAYERS
-#include "../config/nn_exec_plan.h" // generated — NnExecStep nn_exec_steps[], NN_NUM_STEPS
 #include "../include/vta_cpu_ops.h"
 #include "../include/vta_nn.h"
+#include "nn_ddr_map.h"   // generated — LayerDesc nn_layers[], NN_NUM_LAYERS
+#include "nn_exec_plan.h" // generated — NnExecStep nn_exec_steps[], NN_NUM_STEPS
 #include <cstdlib>
 extern "C" {
 #include "xil_printf.h"

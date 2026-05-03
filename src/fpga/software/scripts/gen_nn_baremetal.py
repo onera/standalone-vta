@@ -310,7 +310,9 @@ def collect_layers(comp_dir: str) -> List[LayerInfo]:
         mem = load_memory_addresses(maddr_path)
         missing = [t for t in BUFFER_TYPES if t not in mem]
         if missing:
-            sys.exit(f"ERROR: {maddr_path} missing entries for: {missing}")
+            print(f"WARNING: {maddr_path} missing entries for {missing} — treating as size=0 (maxpool/no-weight layer)")
+            for t in missing:
+                mem[t] = MemAddr(offset=0, size=0)
         bin_files = {t: layer_binfile(comp_dir, t, suffix) for t in BUFFER_TYPES}
         layers.append(LayerInfo(suffix=suffix, mem=mem, bin_files=bin_files))
     return layers
@@ -797,9 +799,12 @@ def gen_tcl(
     for i, layer in enumerate(layers):
         L.append(f'# --- layer {i} "{layer.suffix}" static model data ---')
         for buf_type in STATIC_LOAD_ORDER:
+            m = layer.mem[buf_type]
+            if m.size == 0:
+                continue
             bin_path = os.path.abspath(layer.bin_files[buf_type])
             if os.path.isfile(bin_path):
-                addr_str = f"0x{ddr_base + layer.mem[buf_type].offset:08X}"
+                addr_str = f"0x{ddr_base + m.offset:08X}"
                 L.append(f'puts "Loading {layer.suffix} {buf_type}..."')
                 L.append(f"dow -data {{{bin_path}}} {addr_str}")
         L.append("")
@@ -850,6 +855,8 @@ def gen_asm_incbin(layers: List[LayerInfo], out_path: str) -> None:
 
     for i, layer in enumerate(layers):
         for buf_type in STATIC_LOAD_ORDER:
+            if layer.mem[buf_type].size == 0:
+                continue
             bin_path = os.path.abspath(layer.bin_files[buf_type])
             sec_name = f".vta_l{i}_{buf_type.lower()}"
             L.append(f'    .section {sec_name}, "a", %progbits')
@@ -889,6 +896,8 @@ def gen_linker_fragment(layers: List[LayerInfo], ddr_base: int, out_path: str) -
     for i, layer in enumerate(layers):
         for buf_type in STATIC_LOAD_ORDER:
             m = layer.mem[buf_type]
+            if m.size == 0:
+                continue
             addr = ddr_base + m.offset
             sec_name = f".vta_l{i}_{buf_type.lower()}"
             L.append(f"{sec_name} 0x{addr:08X} : {{ KEEP(*({sec_name})) }}")
@@ -945,6 +954,65 @@ def gen_input_tcl(
     with open(out_path, "w") as f:
         f.write("\n".join(L) + "\n")
     print(f"[gen] Input-only XSDB Tcl script written to {out_path}")
+
+
+# ---------------------------------------------------------------------------
+# Memory fit check
+# ---------------------------------------------------------------------------
+
+
+def check_memory_fit(
+    layers: List[LayerInfo], ddr_base: int, max_addr: int, comp_dir: str
+) -> bool:
+    """Verify that every DDR allocation ends before max_addr.
+
+    Checks VTA layer buffers and the raw-input scratch region.
+    CPU scratch allocations (qadd/concat intermediates) are not included.
+    Returns True if everything fits, False otherwise.
+    """
+    overflows: List[str] = []
+    high_watermark = ddr_base
+
+    for i, layer in enumerate(layers):
+        for buf_type in BUFFER_TYPES:
+            m = layer.mem[buf_type]
+            if m.size == 0:
+                continue
+            end = ddr_base + m.offset + m.size
+            high_watermark = max(high_watermark, end)
+            if end > max_addr:
+                overflows.append(
+                    f"  layer {i:3d} ({layer.suffix:<30s}) {buf_type}:"
+                    f" end=0x{end:08X} > max=0x{max_addr:08X}"
+                    f" (overflow by {end - max_addr} bytes)"
+                )
+
+    raw_phys = scratch_addr(layers, ddr_base)
+    input_nn_path = os.path.join(comp_dir, "input_nn.bin")
+    raw_size = os.path.getsize(input_nn_path) if os.path.isfile(input_nn_path) else 0
+    if raw_size > 0:
+        raw_end = raw_phys + _align_page(raw_size)
+        high_watermark = max(high_watermark, raw_end)
+        if raw_end > max_addr:
+            overflows.append(
+                f"  input_nn.bin scratch:"
+                f" end=0x{raw_end:08X} > max=0x{max_addr:08X}"
+                f" (overflow by {raw_end - max_addr} bytes)"
+            )
+
+    print(f"\n[check] DDR base:       0x{ddr_base:08X}")
+    print(f"[check] Max address:    0x{max_addr:08X}  ({max_addr - ddr_base} bytes available)")
+    print(f"[check] High watermark: 0x{high_watermark:08X}  ({high_watermark - ddr_base} bytes used)")
+
+    if overflows:
+        print(f"[check] FAIL — {len(overflows)} overflow(s):")
+        for msg in overflows:
+            print(msg)
+        return False
+
+    remaining = max_addr - high_watermark
+    print(f"[check] OK — {remaining} bytes free (0x{remaining:08X})")
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -1015,6 +1083,11 @@ def main() -> None:
         metavar="PATH",
         help="Output path for the input-only XSDB Tcl script (load_input.tcl)",
     )
+    parser.add_argument(
+        "--max-addr",
+        metavar="ADDR",
+        help="Maximum DDR address (hex). If given, verify all allocations fit below this address.",
+    )
     args = parser.parse_args()
 
     ddr_base = int(args.ddr_base, 16)
@@ -1061,6 +1134,11 @@ def main() -> None:
     gen_linker_fragment(layers, ddr_base, args.out_lscript)
     gen_input_tcl(layers, ddr_base, comp_dir, args.out_input_tcl)
     print_summary(layers, ddr_base)
+
+    if args.max_addr:
+        max_addr = int(args.max_addr, 16)
+        if not check_memory_fit(layers, ddr_base, max_addr, comp_dir):
+            sys.exit(1)
 
 
 if __name__ == "__main__":

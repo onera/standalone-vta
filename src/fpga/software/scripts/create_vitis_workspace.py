@@ -66,11 +66,10 @@ RUNNER_FILES: dict[str, str] = {
 
 # Generated files required by each runner (placed in config/, must exist before this script)
 RUNNER_GENERATED_FILES: dict[str, list[str]] = {
-    "xsdb": ["nn_ddr_map.h", "nn_exec_plan.h", "nn_platform.h"],
+    "xsdb": ["nn_ddr_map.h", "nn_exec_plan.h"],
     "elf": [
         "nn_ddr_map.h",
         "nn_exec_plan.h",
-        "nn_platform.h",
         "nn_bin_data.S",
         "nn_vta_sections.ld",
     ],
@@ -125,6 +124,13 @@ def _domain_name(cpu: str) -> str:
     return f"standalone_{cpu}"
 
 
+def xpfm_path(workspace: Path, platform_name: str) -> Path:
+    """Return the expected .xpfm path for a platform inside a workspace."""
+    return (
+        workspace / platform_name / "export" / platform_name / f"{platform_name}.xpfm"
+    )
+
+
 def create_workspace_and_platform(
     client,
     workspace: Path,
@@ -139,9 +145,7 @@ def create_workspace_and_platform(
     print(f"[vitis] Setting workspace: {workspace}")
     client.set_workspace(path=str(workspace))
 
-    xpfm = (
-        workspace / platform_name / "export" / platform_name / f"{platform_name}.xpfm"
-    )
+    xpfm = xpfm_path(workspace, platform_name)
 
     if xpfm.exists():
         print(f"[vitis] Platform already exists at {xpfm}, skipping creation.")
@@ -226,9 +230,12 @@ def main() -> None:
     )
     parser.add_argument(
         "--xsa",
-        required=True,
         metavar="PATH",
-        help="Path to the Vivado-exported XSA hardware description file.",
+        help=(
+            "Path to the Vivado-exported XSA hardware description file. "
+            "Omit to add an application to an existing workspace "
+            "(the platform must already be built)."
+        ),
     )
     parser.add_argument(
         "--workspace",
@@ -262,6 +269,14 @@ def main() -> None:
         help="BSP processor instance name (from xparameters.h).",
     )
     parser.add_argument(
+        "--app-name",
+        metavar="NAME",
+        help=(
+            "Override the application component name. "
+            "Cannot be used together with multiple --runner values."
+        ),
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Print what would be done without calling Vitis APIs.",
@@ -274,11 +289,22 @@ def main() -> None:
     if invalid:
         sys.exit(f"ERROR: unknown runner(s): {invalid}")
 
-    xsa = Path(args.xsa).resolve()
+    if args.app_name and len(runners) > 1:
+        sys.exit("ERROR: --app-name cannot be used with multiple --runner values.")
+
+    xsa = Path(args.xsa).resolve() if args.xsa else None
     workspace = Path(args.workspace).resolve()
 
-    if not xsa.exists():
+    if xsa is not None and not xsa.exists():
         sys.exit(f"ERROR: XSA file not found: {xsa}")
+
+    xpfm = xpfm_path(workspace, args.platform_name)
+    if xsa is None and not xpfm.exists():
+        sys.exit(
+            f"ERROR: --xsa not provided and no built platform found at:\n"
+            f"         {xpfm}\n"
+            f"       Provide --xsa to create the platform first, or check --platform-name."
+        )
 
     # BSP libs: union across all selected runners
     bsp_libs: list[str] = []
@@ -287,11 +313,15 @@ def main() -> None:
             if lib not in bsp_libs:
                 bsp_libs.append(lib)
 
-    app_names = {r: f"vta_run_nn_{r}" for r in runners}
+    app_names = {
+        r: (args.app_name if args.app_name else f"vta_run_nn_{r}") for r in runners
+    }
 
     if args.dry_run:
+        mode = "update (add app to existing workspace)" if xsa is None else "create"
         print("=== DRY RUN ===")
-        print(f"  XSA:           {xsa}")
+        print(f"  Mode:          {mode}")
+        print(f"  XSA:           {xsa or '(not provided — using existing platform)'}")
         print(f"  Workspace:     {workspace}")
         print(f"  Platform:      {args.platform_name}")
         print(f"  CPU:           {args.cpu}")
@@ -324,9 +354,15 @@ def main() -> None:
 
     client = vitis.create_client()
     try:
-        xpfm = create_workspace_and_platform(
-            client, workspace, xsa, args.platform_name, args.cpu, bsp_libs
-        )
+        if xsa is not None:
+            xpfm = create_workspace_and_platform(
+                client, workspace, xsa, args.platform_name, args.cpu, bsp_libs
+            )
+        else:
+            print(f"[vitis] Setting workspace: {workspace}")
+            client.set_workspace(path=str(workspace))
+            print(f"[vitis] Using existing platform at {xpfm}")
+
         app_srcs: dict[str, Path] = {}
         for runner in runners:
             app_srcs[runner] = create_app(
@@ -349,21 +385,17 @@ def main() -> None:
         print()
         if runner == "xsdb":
             print(f"Next steps ({runner}):")
-            print("  1. Run gen_nn_baremetal.py to regenerate config/ files:")
-            print("       --out-header --out-exec-plan --out-platform --out-tcl")
-            print("  2. Build the application in Vitis.")
-            print("  3. In XSDB: source load_nn.tcl, then con.")
+            print("  1. Build the application in Vitis.")
+            print("  2. In XSDB: source load_nn.tcl, then con.")
         elif runner == "elf":
             print(f"Next steps ({runner}):")
-            print("  1. Run gen_nn_baremetal.py to regenerate config/ files:")
-            print("       --out-header --out-exec-plan --out-platform")
-            print("       --out-asm --out-lscript --out-input-tcl")
-            print("  2. In your platform linker script, add inside SECTIONS { ... }:")
-            print("       INCLUDE nn_vta_sections.ld")
+            print(" 1. In run_nn.cc, modify XPAR_VTA_0_BASEADDR if necessary")
+            print(" 2. In your platform linker script, add:")
+            print("    INCLUDE nn_vta_sections.ld")
             print(
-                "  3. Build the ELF in Vitis (model data loaded by FSBL, no XSDB needed)."
+                " 3. Build the ELF in Vitis (model data loaded by FSBL, no XSDB needed)."
             )
-            print("  4. In XSDB: source load_input.tcl, then con.")
+            print(" 4. In XSDB: source load_input.tcl, then con.")
 
 
 if __name__ == "__main__":

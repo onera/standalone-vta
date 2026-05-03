@@ -1,7 +1,6 @@
 #include "../include/vta_mem.h"
 #include "../include/vta.h"
 #include <cstddef>
-#include <cstdint>
 #include <cstring>
 extern "C" {
 #include "xil_cache.h"
