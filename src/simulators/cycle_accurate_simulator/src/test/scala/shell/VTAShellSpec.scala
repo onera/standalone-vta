@@ -77,43 +77,42 @@ class VTAShellSpec extends AnyFlatSpecSim with Matchers with VTAShellTest {
   //
   // }
 
-  it should "run the full vta on a sample operation from resources" in {
-
-    val dramInitJson =
-      parseJsonMemoryInitFile(
-        getClass.getClassLoader
-          .getResource("examples_shell/dram_state.json")
-          .getPath()
-      )
-    val content = parseMemorySections(dramInitJson)
-
-    implicit val verilatorEnabledWave = verilatorWithWaveDump
-
-    MemoryInitializer.exportHexFiles(
-      content,
-      os.pwd / "build" / "mem"
+  val dramInitJson =
+    parseJsonMemoryInitFile(
+      getClass.getClassLoader
+        .getResource("examples_shell/dram_state.json")
+        .getPath()
     )
-    val memoryConfigs = parseMemorySections(dramInitJson)
-      .map { case (name, (addr, values)) =>
-        MemoryConfig(
-          name = name,
-          path = (os.pwd / "build" / "mem" / (name + ".mem")).toString,
-          baseAddress = addr,
-          initialSize = values.size,
-          words64 = {
-            val n = values.map(_.getWidth).sum
-            if (n % 64 == 0) n / 64 else (n / 64) + 1
-          }
-        )
-      }
-      .toSeq
-      .map {
-        case m: MemoryConfig if m.name.matches("OUT") =>
-          m.copy(logging =
-            true
-          ) // enable the logging of outputs (FIXME: make a flag instead ? or pass a logfile path)
-        case m: MemoryConfig => m
-      }
+  val content = parseMemorySections(dramInitJson)
+
+  implicit val verilatorEnabledWave = verilatorWithWaveDump
+
+  MemoryInitializer.exportHexFiles(
+    content,
+    os.pwd / "build" / "mem"
+  )
+  val memoryConfigs = parseMemorySections(dramInitJson)
+    .map { case (name, (addr, values)) =>
+      MemoryConfig(
+        name = name,
+        path = (os.pwd / "build" / "mem" / (name + ".mem")).toString,
+        baseAddress = addr,
+        initialSize = values.size,
+        words64 = {
+          val n = values.map(_.getWidth).sum
+          if (n % 64 == 0) n / 64 else (n / 64) + 1
+        }
+      )
+    }
+    .toSeq
+    .map {
+      case m: MemoryConfig if m.name.matches("OUT") =>
+        m.copy(logging =
+          true
+        ) // enable the logging of outputs (FIXME: make a flag instead ? or pass a logfile path)
+      case m: MemoryConfig => m
+    }
+  it should "run the full vta on a sample operation from resources" in {
 
     runVtaTestWithInitializedMem(
       memoryConfigs,
@@ -123,4 +122,13 @@ class VTAShellSpec extends AnyFlatSpecSim with Matchers with VTAShellTest {
 
   }
 
+  it should "run the full vta twice" in {
+
+    runVtaTestWithInitializedMemTwice(
+      memoryConfigs,
+      timeout = 10000,
+      waves = true
+    )
+
+  }
 }
