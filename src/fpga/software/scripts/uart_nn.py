@@ -8,13 +8,18 @@ input file provided, or for --repeat iterations of the same file.
 
 Protocol (board side implemented in run_nn.cc)
 ----------------------------------------------
-  Board sends: "=== VTA NN runner: <N> step(s) ===\\r\\n"
-  Board sends: "input=<N> out=<M>\\r\\n"
+  Board sends: "=== VTA NN runner: <N> step(s) ===\\r\\n"   (once, at boot)
   Loop:
+    Host sends:  trigger byte 0x01
+    Board sends: "input=<N> out=<M>\\r\\n"
     Board sends: "READY\\r\\n"
     Host sends:  <input_n_bytes> raw HWC INT8 bytes (no framing)
-    Board runs inference
+    Board runs inference (prints per-step logs)
+    Board sends: "OUTPUT\\r\\n"
     Board sends: <out_n_bytes> raw bytes
+
+  The board is silent until it receives the trigger, so connecting at any time
+  and sending 0x01 is enough to (re-)synchronise and get a fresh banner.
 
 Usage
 -----
@@ -27,7 +32,7 @@ Usage
   # Repeat same input 5 times:
   python3 scripts/uart_nn.py --port /dev/ttyUSB0 --input input_nn.bin --repeat 5 --output-dir results/
 
-  # Board already running (skip banner parsing):
+  # Override sizes (banner still consumed but sizes ignored):
   python3 scripts/uart_nn.py --port /dev/ttyUSB0 --input-bytes 150528 --output-bytes 200704 \\
       --input input_nn.bin --output out.bin
 
@@ -51,8 +56,9 @@ except ImportError:
 # Constants
 # ---------------------------------------------------------------------------
 
+TRIGGER = b"\x01"
 READY_SENTINEL = b"READY\r\n"
-BANNER_TIMEOUT = 20.0  # seconds to wait for the startup banner
+BANNER_TIMEOUT_DEFAULT = 20.0
 
 
 # ---------------------------------------------------------------------------
@@ -60,56 +66,37 @@ BANNER_TIMEOUT = 20.0  # seconds to wait for the startup banner
 # ---------------------------------------------------------------------------
 
 
-def read_line(ser: "serial.Serial", timeout: float = 10.0) -> bytes:
-    """Read one \\n-terminated line from the serial port."""
-    deadline = time.monotonic() + timeout
-    buf = b""
-    while time.monotonic() < deadline:
-        ch = ser.read(1)
-        if ch:
-            buf += ch
-            if ch == b"\n":
-                return buf
-    raise TimeoutError(f"Timeout waiting for newline; partial: {buf!r}")
+def sync(
+    ser: "serial.Serial", banner_timeout: float, verbose: bool
+) -> "tuple[int | None, int | None]":
+    """Send the trigger byte and read lines until READY.
 
-
-def parse_banner(ser: "serial.Serial", timeout: float = BANNER_TIMEOUT):
-    """Read lines until 'input=N out=M' is found; return (N, M) or (None, None)."""
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            break
-        try:
-            line = read_line(ser, timeout=max(0.1, remaining))
-        except TimeoutError:
-            break
-        text = line.decode(errors="replace").strip()
-        if text:
-            print(f"[board] {text}")
-        m = re.search(r"input=(\d+)\s+out=(\d+)", text)
-        if m:
-            return int(m.group(1)), int(m.group(2))
-    return None, None
-
-
-def wait_ready(ser: "serial.Serial", timeout: float = 60.0) -> None:
-    """Block until READY\\r\\n is received, printing any intermediate lines."""
-    deadline = time.monotonic() + timeout
+    Parses the 'input=N out=M' banner line along the way.
+    Returns (input_n_bytes, out_n_bytes); either may be None if the board did
+    not send the banner before timing out.
+    """
+    ser.write(TRIGGER)
+    in_b: "int | None" = None
+    out_b: "int | None" = None
+    deadline = time.monotonic() + banner_timeout
     buf = b""
     while time.monotonic() < deadline:
         ch = ser.read(1)
         if not ch:
             continue
         buf += ch
-        if buf.endswith(b"\n"):
-            text = buf.decode(errors="replace").strip()
-            if text and text != "READY":
-                print(f"[board] {text}")
-            if buf == READY_SENTINEL:
-                return
-            buf = b""
-    raise TimeoutError("Timeout waiting for READY sentinel")
+        if not buf.endswith(b"\n"):
+            continue
+        if buf == READY_SENTINEL:
+            return in_b, out_b
+        text = buf.decode(errors="replace").strip()
+        if text:
+            print(f"[board] {text}")
+        m = re.search(r"input=(\d+)\s+out=(\d+)", text)
+        if m:
+            in_b, out_b = int(m.group(1)), int(m.group(2))
+        buf = b""
+    raise TimeoutError("Timeout waiting for READY after trigger")
 
 
 def send_bytes(ser: "serial.Serial", data: bytes, verbose: bool = False) -> None:
@@ -175,7 +162,7 @@ def run_inference(
     ready_timeout: float,
     verbose: bool,
 ) -> bytes:
-    wait_ready(ser, timeout=ready_timeout)
+    """Send input, drain inference logs, receive output. Call after sync()."""
     if verbose:
         print(f"  [>] sending {len(input_data)} bytes …")
     send_bytes(ser, input_data, verbose=verbose)
@@ -236,13 +223,20 @@ def main() -> None:
         "--input-bytes",
         type=int,
         metavar="N",
-        help="Input size in bytes. Skips banner parsing when provided.",
+        help="Override input size in bytes (banner value is still consumed but ignored).",
     )
     parser.add_argument(
         "--output-bytes",
         type=int,
         metavar="N",
-        help="Output size in bytes. Skips banner parsing when provided.",
+        help="Override output size in bytes (banner value is still consumed but ignored).",
+    )
+    parser.add_argument(
+        "--banner-timeout",
+        type=float,
+        default=BANNER_TIMEOUT_DEFAULT,
+        metavar="SEC",
+        help="Seconds to wait for the startup banner (input=N out=M line).",
     )
     parser.add_argument(
         "--ready-timeout",
@@ -276,44 +270,47 @@ def main() -> None:
     print(f"[uart] Opening {args.port} at {args.baud} baud …")
     ser = serial.Serial(args.port, args.baud, timeout=1.0)
 
-    # Parse startup banner for sizes, unless both are given on the command line.
-    input_n_bytes: int | None = args.input_bytes
-    out_n_bytes: int | None = args.output_bytes
-
-    if input_n_bytes is None or out_n_bytes is None:
-        print(f"[uart] Waiting for board banner (up to {BANNER_TIMEOUT}s) …")
-        bn, bo = parse_banner(ser)
-        if input_n_bytes is None:
-            input_n_bytes = bn
-        if out_n_bytes is None:
-            out_n_bytes = bo
-
-    if input_n_bytes is None or out_n_bytes is None:
-        ser.close()
-        sys.exit(
-            "ERROR: could not read input/output sizes from board banner.\n"
-            "       Either reset the board so it re-sends the banner, or pass\n"
-            "       --input-bytes and --output-bytes explicitly."
-        )
-
-    print(f"[uart] input={input_n_bytes} bytes  output={out_n_bytes} bytes")
+    # Sizes are discovered from the banner on the first run, or overridden by flags.
+    input_n_bytes: "int | None" = args.input_bytes
+    out_n_bytes: "int | None" = args.output_bytes
 
     # Main loop.
     total_runs = len(inputs) * args.repeat
     run_idx = 0
     for inp_path in inputs:
         raw = inp_path.read_bytes()
-        if len(raw) != input_n_bytes:
-            print(
-                f"WARNING: {inp_path.name} is {len(raw)} bytes but board expects "
-                f"{input_n_bytes} — sending anyway"
-            )
 
         for rep in range(args.repeat):
             run_idx += 1
             suffix = f"_r{rep}" if args.repeat > 1 else ""
             tag = f"{inp_path.stem}{suffix}"
             print(f"[run {run_idx}/{total_runs}] {tag}")
+
+            # Trigger the board and parse the banner to get/confirm sizes.
+            parsed_in, parsed_out = sync(ser, args.banner_timeout, args.verbose)
+            if input_n_bytes is None:
+                if parsed_in is None:
+                    ser.close()
+                    sys.exit(
+                        "ERROR: board did not send input size in banner.\n"
+                        "       Pass --input-bytes to override."
+                    )
+                input_n_bytes = parsed_in
+                print(f"[uart] input={input_n_bytes} bytes  output={parsed_out} bytes")
+            if out_n_bytes is None:
+                if parsed_out is None:
+                    ser.close()
+                    sys.exit(
+                        "ERROR: board did not send output size in banner.\n"
+                        "       Pass --output-bytes to override."
+                    )
+                out_n_bytes = parsed_out
+
+            if len(raw) != input_n_bytes:
+                print(
+                    f"WARNING: {inp_path.name} is {len(raw)} bytes but board expects "
+                    f"{input_n_bytes} — sending anyway"
+                )
 
             out_data = run_inference(
                 ser, raw, out_n_bytes, args.ready_timeout, args.verbose

@@ -7,12 +7,14 @@
  *
  * Protocol
  * --------
- *   Board sends: "=== VTA NN runner: <N> step(s) ===\r\n"
- *   Board sends: "input=<N> out=<M>\r\n"
+ *   Board sends: "=== VTA NN runner: <N> step(s) ===\r\n"   (once, at boot)
  *   Loop:
+ *     Board waits: trigger byte (0x01) from host
+ *     Board sends: "input=<N> out=<M>\r\n"
  *     Board sends: "READY\r\n"
  *     Host sends:  <input_n_bytes> raw bytes (HWC INT8, no framing)
- *     Board runs inference
+ *     Board runs inference (prints per-step logs)
+ *     Board sends: "OUTPUT\r\n"
  *     Board sends: <out_n_bytes> raw bytes (INT8 from VTA OUT buffer,
  *                  or float bytes if the last step is DEQUANT with no QUANT)
  */
@@ -34,6 +36,10 @@ constexpr std::uintptr_t VTA_VCR_BASE = XPAR_VTA_0_BASEADDR;
 // ---------------------------------------------------------------------------
 // UART byte I/O
 // ---------------------------------------------------------------------------
+
+static void wait_for_trigger() {
+  while (inbyte() != '\x01') {}
+}
 
 static void uart_recv(void *dst, std::uint32_t n) {
   auto *p = static_cast<std::uint8_t *>(dst);
@@ -153,9 +159,9 @@ int main() {
     }
   }
 
-  xil_printf("input=%u out=%u\r\n", input_n_bytes, out_n_bytes);
-
   while (true) {
+    wait_for_trigger();
+    xil_printf("input=%u out=%u\r\n", input_n_bytes, out_n_bytes);
     xil_printf("READY\r\n");
 
     // Receive raw HWC input into scratch DDR, flush cache for PL coherency.
