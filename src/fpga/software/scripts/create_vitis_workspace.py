@@ -13,7 +13,7 @@ What this script does:
 
 Runners (one or more may be selected)
 --------------------------------------
-  xsct  — run_nn.cc : DDR pre-initialised via XSCT load_nn.tcl
+  xsdb  — run_nn.cc : DDR pre-initialised via XSDB load_nn.tcl
   elf   — run_nn.cc : model data embedded in the ELF, loaded by FSBL
 
 Usage
@@ -25,7 +25,7 @@ Usage
       --xsa       <path/to/design.xsa>                         \\
       --workspace <path/to/workspace>                          \\
       [--platform-name vta_platform]                           \\
-      [--runner        xsct elf]                               \\
+      [--runner        xsdb elf]                               \\
       [--cpu           psu_cortexa53_0]
 
 Note on the vitis Python module
@@ -49,7 +49,7 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 
 SCRIPT_DIR = Path(__file__).resolve().parent  # src/fpga/software/scripts/
-SOFTWARE_DIR = SCRIPT_DIR.parent              # src/fpga/software/
+SOFTWARE_DIR = SCRIPT_DIR.parent  # src/fpga/software/
 INCLUDE_DIR = SOFTWARE_DIR / "include"
 SRC_DIR = SOFTWARE_DIR / "src"
 EXAMPLES_DIR = SOFTWARE_DIR / "examples"
@@ -60,21 +60,26 @@ CONFIG_DIR = SOFTWARE_DIR / "config"
 # ---------------------------------------------------------------------------
 
 RUNNER_FILES: dict[str, str] = {
-    "xsct": "run_nn.cc",
-    "elf":  "run_nn.cc",
+    "xsdb": "run_nn.cc",
+    "elf": "run_nn.cc",
 }
 
 # Generated files required by each runner (placed in config/, must exist before this script)
 RUNNER_GENERATED_FILES: dict[str, list[str]] = {
-    "xsct": ["nn_ddr_map.h", "nn_exec_plan.h", "nn_platform.h"],
-    "elf":  ["nn_ddr_map.h", "nn_exec_plan.h", "nn_platform.h",
-             "nn_bin_data.S", "nn_vta_sections.ld"],
+    "xsdb": ["nn_ddr_map.h", "nn_exec_plan.h", "nn_platform.h"],
+    "elf": [
+        "nn_ddr_map.h",
+        "nn_exec_plan.h",
+        "nn_platform.h",
+        "nn_bin_data.S",
+        "nn_vta_sections.ld",
+    ],
 }
 
 # BSP libraries required by each runner
 RUNNER_BSP_LIBS: dict[str, list[str]] = {
-    "xsct": [],
-    "elf":  [],
+    "xsdb": [],
+    "elf": [],
 }
 
 # ---------------------------------------------------------------------------
@@ -102,10 +107,10 @@ def collect_sources(runner: str) -> dict[Path, Path]:
     runner_cc = EXAMPLES_DIR / RUNNER_FILES[runner]
     if not runner_cc.exists():
         sys.exit(f"ERROR: runner file not found: {runner_cc}")
-    files[Path("examples") / runner_cc.name] = runner_cc
+    files[Path("src") / runner_cc.name] = runner_cc
 
     for fname in RUNNER_GENERATED_FILES[runner]:
-        files[Path("config") / fname] = CONFIG_DIR / fname
+        files[Path("src") / fname] = CONFIG_DIR / fname
 
     return files
 
@@ -239,15 +244,15 @@ def main() -> None:
     )
     parser.add_argument(
         "--runner",
-        choices=["xsct", "elf"],
+        choices=["xsdb", "elf"],
         nargs="+",
-        default=["xsct"],
+        default=["xsdb"],
         metavar="RUNNER",
         help=(
             "One or more runners to create as separate app components: "
-            "'xsct' = XSCT pre-loaded DDR, "
+            "'xsdb' = XSDB pre-loaded DDR, "
             "'elf' = ELF-embedded data (FSBL loads model). "
-            "Example: --runner xsct elf"
+            "Example: --runner xsdb elf"
         ),
     )
     parser.add_argument(
@@ -293,7 +298,9 @@ def main() -> None:
         print(f"  BSP libraries: {bsp_libs or '(none)'}")
         for runner in runners:
             print()
-            print(f"  Application: {app_names[runner]}  (runner={runner}, src={RUNNER_FILES[runner]})")
+            print(
+                f"  Application: {app_names[runner]}  (runner={runner}, src={RUNNER_FILES[runner]})"
+            )
             print("  Files that would be copied:")
             for dest_rel, src_path in collect_sources(runner).items():
                 exists = "ok" if src_path.exists() else "MISSING"
@@ -329,7 +336,7 @@ def main() -> None:
         client.close()
 
     for runner in runners:
-        copy_sources(app_srcs[runner], runner)
+        copy_sources(app_srcs[runner].parent, runner)
 
     print()
     print("=== Done ===")
@@ -340,12 +347,12 @@ def main() -> None:
 
     for runner in runners:
         print()
-        if runner == "xsct":
+        if runner == "xsdb":
             print(f"Next steps ({runner}):")
             print("  1. Run gen_nn_baremetal.py to regenerate config/ files:")
             print("       --out-header --out-exec-plan --out-platform --out-tcl")
             print("  2. Build the application in Vitis.")
-            print("  3. In XSCT: source load_nn.tcl, then con.")
+            print("  3. In XSDB: source load_nn.tcl, then con.")
         elif runner == "elf":
             print(f"Next steps ({runner}):")
             print("  1. Run gen_nn_baremetal.py to regenerate config/ files:")
@@ -353,8 +360,10 @@ def main() -> None:
             print("       --out-asm --out-lscript --out-input-tcl")
             print("  2. In your platform linker script, add inside SECTIONS { ... }:")
             print("       INCLUDE nn_vta_sections.ld")
-            print("  3. Build the ELF in Vitis (model data loaded by FSBL, no XSCT needed).")
-            print("  4. In XSCT: source load_input.tcl, then con.")
+            print(
+                "  3. Build the ELF in Vitis (model data loaded by FSBL, no XSDB needed)."
+            )
+            print("  4. In XSDB: source load_input.tcl, then con.")
 
 
 if __name__ == "__main__":

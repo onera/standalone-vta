@@ -1,13 +1,12 @@
-#include "init_dram.h"
 #include "../include/vta.h"
-#include "../include/vta_mem.h"
 #include "../include/vta_ctrl.h"
+#include "../include/vta_mem.h"
+#include "init_dram.h"
 #include "xil_cache.h"
 #include "xil_printf.h"
 #include <cstdint>
 #include <xil_io.h>
 #include <xparameters.h>
-
 
 constexpr std::uintptr_t DDR_VTA_BASE = 0x10000000u;
 constexpr std::uintptr_t DDR_UOP_BASE = DDR_VTA_BASE + 0x5000u;
@@ -17,14 +16,18 @@ constexpr std::uintptr_t DDR_ACC_BASE = DDR_VTA_BASE + 0x3000u;
 constexpr std::uintptr_t DDR_INSN_BASE = DDR_VTA_BASE + 0x6000u;
 constexpr std::uintptr_t DDR_OUT_BASE = DDR_VTA_BASE + 0x4000u;
 
-constexpr std::uintptr_t VTA_VCR_BASE = XPAR_VTADEFAULTSHELL_0_BASEADDR;
+constexpr std::uintptr_t VTA_VCR_BASE = XPAR_VTA_0_BASEADDR;
 
 int main() {
   vta::init_ddr_region(DDR_UOP_BASE, uop, sizeof(uop) / sizeof(uop[0]), "uop");
-  vta::init_ddr_region(DDR_INP_BASE, input, sizeof(input) / sizeof(input[0]),"input");
-  vta::init_ddr_region(DDR_WGT_BASE, wgt, sizeof(wgt) / sizeof(wgt[0]), "weight");
-  vta::init_ddr_region(DDR_ACC_BASE, acc, sizeof(acc) / sizeof(acc[0]), "accum");
-  vta::init_ddr_region(DDR_OUT_BASE, acc, sizeof(acc) / sizeof(acc[0]), "output");
+  vta::init_ddr_region(DDR_INP_BASE, input, sizeof(input) / sizeof(input[0]),
+                       "input");
+  vta::init_ddr_region(DDR_WGT_BASE, wgt, sizeof(wgt) / sizeof(wgt[0]),
+                       "weight");
+  vta::init_ddr_region(DDR_ACC_BASE, acc, sizeof(acc) / sizeof(acc[0]),
+                       "accum");
+  vta::init_ddr_region(DDR_OUT_BASE, acc, sizeof(acc) / sizeof(acc[0]),
+                       "output");
   auto *vta_insn = reinterpret_cast<volatile std::uint32_t *>(DDR_INSN_BASE);
 
   vta::copy_insns_to_vta(vta_insn, insn, sizeof(insn) / sizeof(insn[0]));
@@ -59,7 +62,7 @@ int main() {
   vta::launch(VTA_VCR_BASE);
   int count = 0;
   int timeout = 200000;
-  
+
   int countstep = 0;
   u32 status = 0x0u;
   while (1) {

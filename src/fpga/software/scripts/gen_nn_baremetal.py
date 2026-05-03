@@ -1,20 +1,18 @@
 #!/usr/bin/env python3
 """
-gen_nn_baremetal.py — Generate baremetal headers, XSCT load scripts, and
+gen_nn_baremetal.py — Generate baremetal headers, XSDB load scripts, and
 ELF-embedding artifacts from VTA compiler output directories.
 
 Usage
 -----
     python3 tools/gen_nn_baremetal.py <compiler_output_dir>                 \
         [--ddr-base 0x10000000]                                              \
-        [--vcr-base 0xA0000000]                                              \
-        [--out-header      src/fpga/software/config/nn_ddr_map.h]           \
-        [--out-tcl         src/fpga/software/config/load_nn.tcl]            \
-        [--out-exec-plan   src/fpga/software/config/nn_exec_plan.h]         \
-        [--out-platform    src/fpga/software/config/nn_platform.h]          \
-        [--out-asm         src/fpga/software/config/nn_bin_data.S]          \
-        [--out-lscript     src/fpga/software/config/nn_vta_sections.ld]     \
-        [--out-input-tcl   src/fpga/software/config/load_input.tcl]
+        [--out-header      config/nn_ddr_map.h]           \
+        [--out-tcl         config/load_nn.tcl]            \
+        [--out-exec-plan   config/nn_exec_plan.h]         \
+        [--out-asm         config/nn_bin_data.S]          \
+        [--out-lscript     config/nn_vta_sections.ld]     \
+        [--out-input-tcl   config/load_input.tcl]
 
 Inputs consumed from <compiler_output_dir>
 ------------------------------------------
@@ -31,17 +29,16 @@ layer, subsequent INP regions are populated by the previous VTA layer's OUT.
 Outputs
 -------
   nn_ddr_map.h        — vta::LayerDesc array for VTA layers
-  load_nn.tcl         — XSCT script: loads INSN/UOP/WGT/ACC + input_nn.bin
+  load_nn.tcl         — XSDB script: loads INSN/UOP/WGT/ACC + input_nn.bin
                         (traditional JTAG-load flow)
   nn_exec_plan.h      — Typed execution step array (VTA + CPU steps)
-  nn_platform.h       — VTA_VCR_BASE constexpr (requires --vcr-base)
 
   ELF-embedding flow (alternative to load_nn.tcl):
   nn_bin_data.S       — AArch64 assembly with .incbin for each static buffer;
                         add as a source file in your project
   nn_vta_sections.ld  — Linker fragment placing each section at its exact DRAM
                         address; INCLUDE inside your platform SECTIONS { ... }
-  load_input.tcl      — XSCT script: loads input_nn.bin only (static model
+  load_input.tcl      — XSDB script: loads input_nn.bin only (static model
                         data is embedded in the ELF and loaded by the FSBL)
 """
 
@@ -664,11 +661,19 @@ def gen_exec_plan_header(
         elif processor == "qadd" and ld:
             inpA = _out_addr(
                 ld.deps[0] if ld.deps else "",
-                dep_info, layers, ddr_base, suffix_to_idx, cpu_out,
+                dep_info,
+                layers,
+                ddr_base,
+                suffix_to_idx,
+                cpu_out,
             )
             inpB = _out_addr(
                 ld.deps[1] if len(ld.deps) > 1 else "",
-                dep_info, layers, ddr_base, suffix_to_idx, cpu_out,
+                dep_info,
+                layers,
+                ddr_base,
+                suffix_to_idx,
+                cpu_out,
             )
             out = _cpu_out_addr(
                 layer_name, dep_info, layers, ddr_base, suffix_to_idx, k + 1, cpu_out
@@ -686,14 +691,18 @@ def gen_exec_plan_header(
             inp_addrs = [
                 _out_addr(
                     ld.deps[j] if j < len(ld.deps) else "",
-                    dep_info, layers, ddr_base, suffix_to_idx, cpu_out,
+                    dep_info,
+                    layers,
+                    ddr_base,
+                    suffix_to_idx,
+                    cpu_out,
                 )
                 for j in range(4)
             ]
             out = _cpu_out_addr(
                 layer_name, dep_info, layers, ddr_base, suffix_to_idx, k + 1, cpu_out
             )
-            n_rows       = ld.tensor_h * ld.tensor_w
+            n_rows = ld.tensor_h * ld.tensor_w
             n_ch_per_inp = ld.tensor_ch
             L.append(f"    /* step {step_idx}: concat */")
             L.append(f'    {{ NN_STEP_CONCAT, "{layer_name}", {{ .concat = {{')
@@ -712,7 +721,11 @@ def gen_exec_plan_header(
         elif processor == "dequant" and ld:
             inp = _out_addr(
                 ld.deps[0] if ld.deps else "",
-                dep_info, layers, ddr_base, suffix_to_idx, cpu_out,
+                dep_info,
+                layers,
+                ddr_base,
+                suffix_to_idx,
+                cpu_out,
             )
             n = ld.tensor_ch * ld.tensor_h * ld.tensor_w
             L.append(f"    /* step {step_idx}: dequant */")
@@ -754,7 +767,7 @@ def gen_exec_plan_header(
 
 
 # ---------------------------------------------------------------------------
-# XSCT Tcl script
+# XSDB Tcl script
 # ---------------------------------------------------------------------------
 
 
@@ -769,9 +782,9 @@ def gen_tcl(
     L.append("# Auto-generated by tools/gen_nn_baremetal.py — DO NOT EDIT")
     L.append("#")
     L.append("# Loads static model data (INSN/UOP/WGT/ACC) and the network input")
-    L.append("# (input_nn.bin) into DDR via XSCT, then resumes the ARM application.")
+    L.append("# (input_nn.bin) into DDR via XSDB, then resumes the ARM application.")
     L.append("#")
-    L.append("# Usage (from Vitis XSCT console or xsct shell):")
+    L.append("# Usage (from Vitis XSDB console or xsct shell):")
     L.append("#   source load_nn.tcl")
     L.append("")
     L.append("connect")
@@ -814,28 +827,7 @@ def gen_tcl(
 
     with open(out_path, "w") as f:
         f.write("\n".join(L) + "\n")
-    print(f"[gen] XSCT Tcl script written to {out_path}")
-
-
-# ---------------------------------------------------------------------------
-# Platform header
-# ---------------------------------------------------------------------------
-
-
-def gen_platform_header(vcr_base: int, out_path: str) -> None:
-    L: List[str] = []
-    L.append("/* Auto-generated by gen_nn_baremetal.py — DO NOT EDIT */")
-    L.append("#pragma once")
-    L.append("#include <cstdint>")
-    L.append("")
-    L.append("/* AXI base address of the VTA VCR control register block */")
-    L.append(
-        f"static constexpr std::uintptr_t VTA_VCR_BASE = 0x{vcr_base:08X}UL;"
-    )
-    L.append("")
-    with open(out_path, "w") as f:
-        f.write("\n".join(L) + "\n")
-    print(f"[gen] Platform header written to {out_path}")
+    print(f"[gen] XSDB Tcl script written to {out_path}")
 
 
 # ---------------------------------------------------------------------------
@@ -849,7 +841,9 @@ def gen_asm_incbin(layers: List[LayerInfo], out_path: str) -> None:
     L.append("/*")
     L.append(" * VTA static model data: one .incbin section per buffer per layer.")
     L.append(" * Each section is placed at its DRAM address by nn_vta_sections.ld.")
-    L.append(" * Add this file as a source in your project and INCLUDE nn_vta_sections.ld")
+    L.append(
+        " * Add this file as a source in your project and INCLUDE nn_vta_sections.ld"
+    )
     L.append(" * inside your platform SECTIONS { ... } block.")
     L.append(" */")
     L.append("")
@@ -858,7 +852,7 @@ def gen_asm_incbin(layers: List[LayerInfo], out_path: str) -> None:
         for buf_type in STATIC_LOAD_ORDER:
             bin_path = os.path.abspath(layer.bin_files[buf_type])
             sec_name = f".vta_l{i}_{buf_type.lower()}"
-            L.append(f"    .section {sec_name}, \"a\", %progbits")
+            L.append(f'    .section {sec_name}, "a", %progbits')
             L.append("    .align 6")
             if os.path.isfile(bin_path):
                 L.append(f'    .incbin "{bin_path}"')
@@ -884,12 +878,14 @@ def gen_linker_fragment(layers: List[LayerInfo], ddr_base: int, out_path: str) -
     L.append("/* Auto-generated by gen_nn_baremetal.py — DO NOT EDIT              */")
     L.append("/* VTA static model data linker fragment                             */")
     L.append("/*                                                                   */")
-    L.append("/* Include this file inside your platform SECTIONS { ... } block,   */")
-    L.append("/* after all program sections and heap/stack symbols have been set.  */")
-    L.append("/* Example (in your lscript.ld, inside SECTIONS { ... }):           */")
-    L.append("/*   INCLUDE nn_vta_sections.ld                                      */")
+    L.append(
+        "/* Include this file inside the platform linker script generated.                    */"
+    )
+    L.append("/* Example (in your lscript.ld):           */")
+    L.append("/*   INCLUDE ../config/nn_vta_sections.ld                             */")
     L.append("")
 
+    L.append("SECTIONS {")
     for i, layer in enumerate(layers):
         for buf_type in STATIC_LOAD_ORDER:
             m = layer.mem[buf_type]
@@ -897,14 +893,14 @@ def gen_linker_fragment(layers: List[LayerInfo], ddr_base: int, out_path: str) -
             sec_name = f".vta_l{i}_{buf_type.lower()}"
             L.append(f"{sec_name} 0x{addr:08X} : {{ KEEP(*({sec_name})) }}")
 
-    L.append("")
+    L.append("}")
     with open(out_path, "w") as f:
         f.write("\n".join(L) + "\n")
     print(f"[gen] Linker fragment written to {out_path}")
 
 
 # ---------------------------------------------------------------------------
-# Input-only XSCT Tcl script
+# Input-only XSDB Tcl script
 # ---------------------------------------------------------------------------
 
 
@@ -919,7 +915,7 @@ def gen_input_tcl(
     L.append("#")
     L.append("# Loads input_nn.bin only — static model data is embedded in the ELF.")
     L.append("#")
-    L.append("# Usage (from Vitis XSCT console or xsct shell):")
+    L.append("# Usage (from Vitis XSDB console or xsct shell):")
     L.append("#   source load_input.tcl")
     L.append("")
     L.append("connect")
@@ -948,7 +944,7 @@ def gen_input_tcl(
 
     with open(out_path, "w") as f:
         f.write("\n".join(L) + "\n")
-    print(f"[gen] Input-only XSCT Tcl script written to {out_path}")
+    print(f"[gen] Input-only XSDB Tcl script written to {out_path}")
 
 
 # ---------------------------------------------------------------------------
@@ -977,7 +973,7 @@ def print_summary(layers: List[LayerInfo], ddr_base: int) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Generate baremetal header and XSCT script from VTA compiler output."
+        description="Generate baremetal header and XSDB script from VTA compiler output."
     )
     parser.add_argument(
         "compiler_output_dir", help="Path to the compiler output directory"
@@ -993,45 +989,31 @@ def main() -> None:
     parser.add_argument(
         "--out-tcl",
         default="config/load_nn.tcl",
-        help="Output path for the XSCT Tcl script",
+        help="Output path for the XSDB Tcl script",
     )
     parser.add_argument(
         "--out-exec-plan",
-        default=None,
+        default="config/nn_exec_plan.h",
         metavar="PATH",
         help="Output path for the execution-plan C header (nn_exec_plan.h)",
     )
     parser.add_argument(
         "--out-asm",
-        default=None,
+        default="config/nn_bin_data.S",
         metavar="PATH",
         help="Output path for the assembly incbin file (nn_bin_data.S)",
     )
     parser.add_argument(
         "--out-lscript",
-        default=None,
+        default="config/nn_vta_sections.ld",
         metavar="PATH",
         help="Output path for the linker fragment (nn_vta_sections.ld)",
     )
     parser.add_argument(
         "--out-input-tcl",
-        default=None,
+        default="config/load_input.tcl",
         metavar="PATH",
-        help="Output path for the input-only XSCT Tcl script (load_input.tcl)",
-    )
-    parser.add_argument(
-        "--vcr-base",
-        default=None,
-        metavar="ADDR",
-        help="AXI base address of the VTA VCR peripheral (e.g. 0xA0000000); "
-             "generates nn_platform.h with VTA_VCR_BASE",
-    )
-    parser.add_argument(
-        "--out-platform",
-        default="config/nn_platform.h",
-        metavar="PATH",
-        help="Output path for the platform header (nn_platform.h); "
-             "only written when --vcr-base is provided",
+        help="Output path for the input-only XSDB Tcl script (load_input.tcl)",
     )
     args = parser.parse_args()
 
@@ -1058,8 +1040,6 @@ def main() -> None:
     for p in [args.out_exec_plan, args.out_asm, args.out_lscript, args.out_input_tcl]:
         if p:
             out_paths.append(p)
-    if args.vcr_base:
-        out_paths.append(args.out_platform)
     for p in out_paths:
         os.makedirs(os.path.dirname(os.path.abspath(p)), exist_ok=True)
 
@@ -1071,21 +1051,15 @@ def main() -> None:
         args.out_tcl,
         dep_info=dep_info,
     )
-    if args.out_exec_plan:
-        if dep_info:
-            gen_exec_plan_header(dep_info, layers, ddr_base, comp_dir, args.out_exec_plan)
-        else:
-            sys.exit(
-                f"ERROR: --out-exec-plan requires dependency.csv, not found: {dep_path}"
-            )
-    if args.out_asm:
-        gen_asm_incbin(layers, args.out_asm)
-    if args.out_lscript:
-        gen_linker_fragment(layers, ddr_base, args.out_lscript)
-    if args.out_input_tcl:
-        gen_input_tcl(layers, ddr_base, comp_dir, args.out_input_tcl)
-    if args.vcr_base:
-        gen_platform_header(int(args.vcr_base, 16), args.out_platform)
+    if dep_info:
+        gen_exec_plan_header(dep_info, layers, ddr_base, comp_dir, args.out_exec_plan)
+    else:
+        sys.exit(
+            f"ERROR: --out-exec-plan requires dependency.csv, not found: {dep_path}"
+        )
+    gen_asm_incbin(layers, args.out_asm)
+    gen_linker_fragment(layers, ddr_base, args.out_lscript)
+    gen_input_tcl(layers, ddr_base, comp_dir, args.out_input_tcl)
     print_summary(layers, ddr_base)
 
 

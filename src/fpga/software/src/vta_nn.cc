@@ -1,6 +1,5 @@
 #include "../include/vta_nn.h"
 #include "../include/vta_ctrl.h"
-#include "../include/vta_mem.h"
 #include <cstring>
 extern "C" {
 #include "sleep.h"

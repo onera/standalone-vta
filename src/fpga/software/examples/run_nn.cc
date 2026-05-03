@@ -18,69 +18,71 @@
  *       --out-platform  src/fpga/software/config/nn_platform.h
  */
 
-#include "../config/nn_ddr_map.h"   // generated — LayerDesc nn_layers[], NN_NUM_LAYERS
+#include "../config/nn_ddr_map.h" // generated — LayerDesc nn_layers[], NN_NUM_LAYERS
 #include "../config/nn_exec_plan.h" // generated — NnExecStep nn_exec_steps[], NN_NUM_STEPS
-#include "../config/nn_platform.h"  // generated — VTA_VCR_BASE
-#include "../include/vta_nn.h"
 #include "../include/vta_cpu_ops.h"
+#include "../include/vta_nn.h"
 #include <cstdlib>
 extern "C" {
 #include "xil_printf.h"
+#include "xparameters.h"
 }
 
-int main()
-{
-    xil_printf("=== VTA NN runner: %u step(s) ===\r\n",
-               static_cast<unsigned>(NN_NUM_STEPS));
+constexpr std::uintptr_t VTA_VCR_BASE = XPAR_VTA_0_BASEADDR;
+int main() {
+  xil_printf("=== VTA NN runner: %u step(s) ===\r\n",
+             static_cast<unsigned>(NN_NUM_STEPS));
 
-    float *float_buf = nullptr;
+  float *float_buf = nullptr;
 
-    for (unsigned i = 0u; i < NN_NUM_STEPS; ++i) {
-        const NnExecStep &s = nn_exec_steps[i];
-        xil_printf("[vta] step %u/%u: %s\r\n", i, NN_NUM_STEPS - 1u, s.name);
+  for (unsigned i = 0u; i < NN_NUM_STEPS; ++i) {
+    const NnExecStep &s = nn_exec_steps[i];
+    xil_printf("[vta] step %u/%u: %s\r\n", i, NN_NUM_STEPS - 1u, s.name);
 
-        switch (s.type) {
-        case NN_STEP_VTA:
-            if (s.vta.layer_idx < 0 || s.vta.layer_idx >= static_cast<int>(NN_NUM_LAYERS)) {
-                xil_printf("=== bad layer_idx %d at step %u ===\r\n", s.vta.layer_idx, i);
-                return -1;
-            }
-            if (vta::run_layer(VTA_VCR_BASE, nn_layers[s.vta.layer_idx]) != 0) {
-                xil_printf("=== NN FAILED at step %u ===\r\n", i);
-                return -1;
-            }
-            break;
+    switch (s.type) {
+    case NN_STEP_VTA:
+      if (s.vta.layer_idx < 0 ||
+          s.vta.layer_idx >= static_cast<int>(NN_NUM_LAYERS)) {
+        xil_printf("=== bad layer_idx %d at step %u ===\r\n", s.vta.layer_idx,
+                   i);
+        return -1;
+      }
+      if (vta::run_layer(VTA_VCR_BASE, nn_layers[s.vta.layer_idx]) != 0) {
+        xil_printf("=== NN FAILED at step %u ===\r\n", i);
+        return -1;
+      }
+      break;
 
-        case NN_STEP_QADD:
-            vta::run_qadd(s.qadd);
-            break;
+    case NN_STEP_QADD:
+      vta::run_qadd(s.qadd);
+      break;
 
-        case NN_STEP_CONCAT:
-            vta::run_concat(s.concat);
-            break;
+    case NN_STEP_CONCAT:
+      vta::run_concat(s.concat);
+      break;
 
-        case NN_STEP_DEQUANT:
-            float_buf = static_cast<float *>(
-                std::malloc(s.dequant.n_elems * sizeof(float)));
-            if (!float_buf) {
-                xil_printf("=== malloc failed at step %u ===\r\n", i);
-                return -1;
-            }
-            vta::run_dequant(s.dequant, float_buf);
-            break;
+    case NN_STEP_DEQUANT:
+      float_buf =
+          static_cast<float *>(std::malloc(s.dequant.n_elems * sizeof(float)));
+      if (!float_buf) {
+        xil_printf("=== malloc failed at step %u ===\r\n", i);
+        return -1;
+      }
+      vta::run_dequant(s.dequant, float_buf);
+      break;
 
-        case NN_STEP_QUANT:
-            vta::run_quant(s.quant, float_buf);
-            std::free(float_buf);
-            float_buf = nullptr;
-            break;
+    case NN_STEP_QUANT:
+      vta::run_quant(s.quant, float_buf);
+      std::free(float_buf);
+      float_buf = nullptr;
+      break;
 
-        case NN_STEP_FORMAT_INPUT:
-            vta::run_format_input(s.format_input);
-            break;
-        }
+    case NN_STEP_FORMAT_INPUT:
+      vta::run_format_input(s.format_input);
+      break;
     }
+  }
 
-    xil_printf("=== NN done ===\r\n");
-    return 0;
+  xil_printf("=== NN done ===\r\n");
+  return 0;
 }

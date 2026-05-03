@@ -18,7 +18,7 @@ object XilinxIpFlow {
       description: String =
         "Versatile Tensor Accelerator — Xilinx shell (AXI4-Lite ctrl + AXI4 DRAM)",
       displayName: String = "VTA"
-  ) = {
+  )(implicit config: Parameters) = {
     val header = s"""
 |##############################################################################
 |# package_ip.tcl
