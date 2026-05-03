@@ -17,9 +17,9 @@ void init_ddr_region(std::uintptr_t dst_addr, const std::uint32_t *src,
   std::memcpy(dst, src, bytes);
   Xil_DCacheFlushRange(static_cast<UINTPTR>(dst_addr), bytes);
 
-  xil_printf("%s init: dst=0x%08lx bytes=%lu\r\n", name,
-             static_cast<unsigned long>(dst_addr),
-             static_cast<unsigned long>(bytes));
+  xil_printf("%s init: dst=0x%08x bytes=%u\r\n", name,
+             static_cast<unsigned>(dst_addr),
+             static_cast<unsigned>(bytes));
 }
 
 void copy_insns_to_vta(volatile std::uint32_t *dst, const VTAInsn *src,
@@ -32,17 +32,13 @@ void copy_insns_to_vta(volatile std::uint32_t *dst, const VTAInsn *src,
 
 void dump_words(const char *name, std::uintptr_t addr, std::size_t n) {
   auto *p = reinterpret_cast<volatile std::uint32_t *>(addr);
-  xil_printf("%s @ 0x%08lx\r\n", name, static_cast<unsigned long>(addr));
-  for (std::size_t i = 0; i < n; ++i) {
-    xil_printf("  [%lu] = 0x%08lx\r\n", static_cast<unsigned long>(i),
-               static_cast<unsigned long>(p[i]));
+  xil_printf("%s @ 0x%08x\r\n", name, static_cast<unsigned>(addr));
+  for (unsigned i = 0u; i < static_cast<unsigned>(n); ++i) {
+    xil_printf("  [%u] = 0x%08x\r\n", i, p[i]);
   }
 }
 
 void dump_insn(const char *name, const volatile std::uint32_t *p) {
-  xil_printf("%s : %08lx %08lx %08lx %08lx\r\n", name,
-             static_cast<unsigned long>(p[0]), static_cast<unsigned long>(p[1]),
-             static_cast<unsigned long>(p[2]),
-             static_cast<unsigned long>(p[3]));
+  xil_printf("%s : %08x %08x %08x %08x\r\n", name, p[0], p[1], p[2], p[3]);
 }
 } // namespace vta

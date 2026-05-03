@@ -315,6 +315,44 @@ def mem_addresses_path(comp_dir: str, suffix: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _recompute_sizes_from_offsets(layers: List[LayerInfo], comp_dir: str) -> None:
+    """Replace CSV-derived pseudo-sizes with real allocated byte sizes.
+
+    The compiler's memory_addresses CSV stores [type, phys_offset, logical_addr].
+    Column 3 (logical_addr = phys_offset / element_size) is NOT the byte size.
+    Real allocated size = next_buffer.offset - this_buffer.offset (page-aligned
+    by the compiler for all but the last buffer, which uses the file size).
+    """
+    # Collect all non-placeholder entries: (offset, layer_idx, buf_type)
+    all_entries: List[Tuple[int, int, str]] = []
+    for i, layer in enumerate(layers):
+        for buf_type in BUFFER_TYPES:
+            m = layer.mem[buf_type]
+            if m.offset == 0 and m.size == 0:
+                continue  # placeholder for missing/zero buffer
+            all_entries.append((m.offset, i, buf_type))
+
+    if not all_entries:
+        return
+
+    all_entries.sort(key=lambda x: x[0])
+
+    for j, (offset, i, buf_type) in enumerate(all_entries):
+        if j + 1 < len(all_entries):
+            # Size = gap to next allocation (page-aligned by compiler)
+            layers[i].mem[buf_type].size = all_entries[j + 1][0] - offset
+        else:
+            # Last entry: use actual binary file size (page-aligned)
+            bin_path = layer_binfile(comp_dir, buf_type, layers[i].suffix)
+            if os.path.isfile(bin_path):
+                layers[i].mem[buf_type].size = _align_page(os.path.getsize(bin_path))
+            else:
+                print(
+                    f"WARNING: cannot determine size for last buffer "
+                    f"layer {i} ({layers[i].suffix}) {buf_type} — no binary file found"
+                )
+
+
 def collect_layers(comp_dir: str) -> List[LayerInfo]:
     """Read layers_name.csv and per-layer memory_addresses CSVs."""
     lname_path = os.path.join(comp_dir, "layers_name.csv")
@@ -338,6 +376,11 @@ def collect_layers(comp_dir: str) -> List[LayerInfo]:
                 mem[t] = MemAddr(offset=0, size=0)
         bin_files = {t: layer_binfile(comp_dir, t, suffix) for t in BUFFER_TYPES}
         layers.append(LayerInfo(suffix=suffix, mem=mem, bin_files=bin_files))
+
+    # Fix sizes: CSV column 3 is the logical address, not the byte size.
+    # Recompute from offset differences so xxx_bytes fields and the overlap
+    # checker use the real page-aligned allocated sizes.
+    _recompute_sizes_from_offsets(layers, comp_dir)
     return layers
 
 
@@ -1040,6 +1083,55 @@ def check_memory_fit(
 
 
 # ---------------------------------------------------------------------------
+# Overlap check
+# ---------------------------------------------------------------------------
+
+
+def check_buffer_overlaps(layers: List[LayerInfo], ddr_base: int) -> bool:
+    """Check that no two DDR buffer regions overlap.
+
+    Collects every non-empty buffer across all layers and all buffer types,
+    then tests each pair for a non-empty intersection.  Returns True if the
+    layout is clean, False (and prints every conflict) if any overlap exists.
+    """
+    # Build flat list: (phys_start, phys_end, label)
+    regions: List[Tuple[int, int, str]] = []
+    for i, layer in enumerate(layers):
+        for buf_type in BUFFER_TYPES:
+            m = layer.mem[buf_type]
+            if m.size == 0:
+                continue
+            start = ddr_base + m.offset
+            end = start + m.size
+            label = f"layer {i} ({layer.suffix}) {buf_type}"
+            regions.append((start, end, label))
+
+    conflicts: List[str] = []
+    for j in range(len(regions)):
+        for k in range(j + 1, len(regions)):
+            s1, e1, l1 = regions[j]
+            s2, e2, l2 = regions[k]
+            if s1 < e2 and s2 < e1:
+                overlap_start = max(s1, s2)
+                overlap_end = min(e1, e2)
+                conflicts.append(
+                    f"  {l1}  [0x{s1:08X}–0x{e1:08X})\n"
+                    f"  {l2}  [0x{s2:08X}–0x{e2:08X})\n"
+                    f"    overlap: [0x{overlap_start:08X}–0x{overlap_end:08X})"
+                    f"  ({overlap_end - overlap_start} bytes)"
+                )
+
+    if conflicts:
+        print(f"\n[overlap] ERROR — {len(conflicts)} DDR region overlap(s) detected:")
+        for msg in conflicts:
+            print(msg)
+        return False
+
+    print(f"\n[overlap] OK — no DDR region overlaps ({len(regions)} buffers checked)")
+    return True
+
+
+# ---------------------------------------------------------------------------
 # Summary print
 # ---------------------------------------------------------------------------
 
@@ -1145,6 +1237,9 @@ def main() -> None:
         print(
             f"WARNING: {dep_path} not found — exec plan and image-layer detection skipped"
         )
+
+    if not check_buffer_overlaps(layers, ddr_base):
+        sys.exit(1)
 
     out_paths = [args.out_header, args.out_tcl]
     for p in [args.out_exec_plan, args.out_asm, args.out_lscript, args.out_input_tcl]:

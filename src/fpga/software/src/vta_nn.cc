@@ -58,7 +58,8 @@ int run_layer(std::uintptr_t vcr_base, const LayerDesc &layer, int timeout) {
     }
   }
   if (!done) {
-    xil_printf("[vta] run_layer: TIMEOUT after %d polls\r\n", timeout);
+    xil_printf("[vta] run_layer: TIMEOUT after %d polls — VCR dump:\r\n", timeout);
+    dump_config(vcr_base);
     return -1;
   }
 

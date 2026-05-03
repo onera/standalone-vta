@@ -22,25 +22,18 @@ void write_config(std::uintptr_t base, const VTARegs &r) {
 void launch(std::uintptr_t base) { write_reg(base, REG_CTRL, CTRL_LAUNCH); }
 
 void dump_config(std::uintptr_t base) {
-  xil_printf("ctrl = 0x%08lx\r\n",
-             static_cast<unsigned long>(read_reg(base, REG_CTRL)));
-  xil_printf("ecnt = 0x%08lx\r\n",
-             static_cast<unsigned long>(read_reg(base, REG_ECNT)));
-  xil_printf("vals = 0x%08lx\r\n",
-             static_cast<unsigned long>(read_reg(base, REG_VALS)));
+  xil_printf("ctrl = 0x%08x\r\n", read_reg(base, REG_CTRL));
+  xil_printf("ecnt = 0x%08x\r\n", read_reg(base, REG_ECNT));
+  xil_printf("vals = 0x%08x\r\n", read_reg(base, REG_VALS));
 
-  for (std::size_t i = 0; i < 6; ++i) {
-    xil_printf("ptr[%lu]  = 0x%08lx\r\n", static_cast<unsigned long>(i),
-               static_cast<unsigned long>(read_reg(base, REG_PTR(i))));
+  for (unsigned i = 0u; i < 6u; ++i) {
+    xil_printf("ptr[%u] = 0x%08x\r\n", i, read_reg(base, REG_PTR(i)));
   }
 
-  xil_printf("ucnt = 0x%08lx\r\n",
-             static_cast<unsigned long>(read_reg(base, REG_UCNT)));
+  xil_printf("ucnt = 0x%08x\r\n", read_reg(base, REG_UCNT));
 }
 void print_cycles(std::uintptr_t base) {
-  xil_printf("Number of cycles: %lu\r\n",
-             static_cast<unsigned long>(read_reg(base, REG_ECNT)));
-  xil_printf("Number of compute cycles: %lu\r\n",
-             static_cast<unsigned long>(read_reg(base, REG_UCNT)));
+  xil_printf("Number of cycles: %u\r\n", read_reg(base, REG_ECNT));
+  xil_printf("Number of compute cycles: %u\r\n", read_reg(base, REG_UCNT));
 }
 } // namespace vta
