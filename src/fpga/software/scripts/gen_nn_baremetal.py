@@ -44,6 +44,7 @@ Outputs
 
 import argparse
 import csv
+import json
 import os
 import sys
 from dataclasses import dataclass
@@ -55,6 +56,28 @@ from typing import Dict, List, Optional, Tuple
 # ---------------------------------------------------------------------------
 
 BUFFER_TYPES = ("INP", "WGT", "ACC", "OUT", "UOP", "INSN")
+
+DEFAULT_BLOCK_SIZE = 8  # Artix default; override with --config-json or --block-size
+
+
+def load_block_size(config_json_path: Optional[str], cli_block_size: Optional[int]) -> int:
+    """Return the VTA block size (BLOCK_IN = BLOCK_OUT).
+
+    Priority: explicit --block-size > --config-json LOG_BLOCK > DEFAULT_BLOCK_SIZE.
+    """
+    if cli_block_size is not None:
+        return cli_block_size
+    if config_json_path:
+        try:
+            with open(config_json_path) as f:
+                cfg = json.load(f)
+            log_block = cfg.get("LOG_BLOCK")
+            if log_block is not None:
+                return 1 << int(log_block)
+            print(f"WARNING: LOG_BLOCK not found in {config_json_path} — using default {DEFAULT_BLOCK_SIZE}")
+        except Exception as e:
+            print(f"WARNING: could not read {config_json_path}: {e} — using default {DEFAULT_BLOCK_SIZE}")
+    return DEFAULT_BLOCK_SIZE
 # Buffers to pre-load (static model data).  INP = runtime input; OUT = runtime output.
 STATIC_LOAD_ORDER = ("INSN", "UOP", "WGT", "ACC")
 
@@ -546,6 +569,7 @@ def gen_exec_plan_header(
     ddr_base: int,
     comp_dir: str,
     out_path: str,
+    block_size: int = DEFAULT_BLOCK_SIZE,
 ) -> None:
     suffix_to_idx = {layer.suffix: i for i, layer in enumerate(layers)}
     cpu_out = _build_cpu_out_addrs(dep_info, layers, ddr_base, suffix_to_idx, comp_dir)
@@ -646,7 +670,7 @@ def gen_exec_plan_header(
                 f"        {{ {fi['pad'][0]}, {fi['pad'][1]}, {fi['pad'][2]}, {fi['pad'][3]} }},"
             )
             L.append(f"        {fi['offset_a']},")
-            L.append(f"        {fi['out_h']}u, {fi['out_w']}u")
+            L.append(f"        {fi['out_h']}u, {fi['out_w']}u, {block_size}u")
             L.append(f"    }} }} }},")
             emitted += 1
 
@@ -716,7 +740,7 @@ def gen_exec_plan_header(
             L.append(
                 f"        {{ {ld.offset_a}, {ld.offset_b}, {ld.offset_u}, {ld.offset_v} }},"
             )
-            L.append(f"        {ld.scale_c}f, {ld.offset_c}")
+            L.append(f"        {ld.scale_c}f, {ld.offset_c}, {block_size}u")
             L.append(f"    }} }} }}{_comma(emitted)}")
             emitted += 1
 
@@ -1088,10 +1112,23 @@ def main() -> None:
         metavar="ADDR",
         help="Maximum DDR address (hex). If given, verify all allocations fit below this address.",
     )
+    parser.add_argument(
+        "--config-json",
+        metavar="PATH",
+        help="VTA hardware config JSON (e.g. vta_artix.json). Reads LOG_BLOCK to set block size.",
+    )
+    parser.add_argument(
+        "--block-size",
+        type=int,
+        metavar="N",
+        help="VTA block size override (overrides --config-json LOG_BLOCK). Default: 8.",
+    )
     args = parser.parse_args()
 
     ddr_base = int(args.ddr_base, 16)
     comp_dir = os.path.abspath(args.compiler_output_dir)
+    block_size = load_block_size(args.config_json, args.block_size)
+    print(f"[gen] VTA block size: {block_size}")
 
     if not os.path.isdir(comp_dir):
         sys.exit(f"ERROR: compiler output directory not found: {comp_dir}")
@@ -1125,7 +1162,7 @@ def main() -> None:
         dep_info=dep_info,
     )
     if dep_info:
-        gen_exec_plan_header(dep_info, layers, ddr_base, comp_dir, args.out_exec_plan)
+        gen_exec_plan_header(dep_info, layers, ddr_base, comp_dir, args.out_exec_plan, block_size)
     else:
         sys.exit(
             f"ERROR: --out-exec-plan requires dependency.csv, not found: {dep_path}"

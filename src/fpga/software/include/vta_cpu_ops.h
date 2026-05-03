@@ -12,13 +12,14 @@ struct NnQaddStep {
 struct NnConcatStep {
   std::uint32_t inp[4];
   std::uint32_t out;
-  std::uint32_t n_rows;        /* H * W spatial positions (multiple of 16) */
-  std::uint32_t n_ch_per_inp;  /* channels per input branch (multiple of 16) */
+  std::uint32_t n_rows;        /* H * W spatial positions (multiple of block) */
+  std::uint32_t n_ch_per_inp;  /* channels per input branch (multiple of block) */
   int nb_inp;
   float scales[4];
   std::int32_t zps[4];
   float out_scale;
   std::int32_t out_zp;
+  std::uint32_t block;         /* VTA block size (BLOCK_IN = BLOCK_OUT) */
 };
 
 struct NnDequantStep {
@@ -49,6 +50,7 @@ struct NnFormatInputStep {
   std::int32_t offset_a; /* zero-point to subtract from raw values           */
   std::uint32_t out_h;   /* output height after im2row                       */
   std::uint32_t out_w;   /* output width  after im2row                       */
+  std::uint32_t block;   /* VTA block size (BLOCK_IN = BLOCK_OUT)            */
 };
 
 namespace vta {

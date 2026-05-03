@@ -57,8 +57,10 @@ void run_concat(const NnConcatStep &d) {
       reinterpret_cast<std::int8_t *>(static_cast<std::uintptr_t>(d.out));
 
   const float inv_out_scale = 1.0f / d.out_scale;
-  const std::uint32_t n_rb = d.n_rows / 16u;
-  const std::uint32_t n_cb = d.n_ch_per_inp / 16u;
+  const std::uint32_t blk = d.block;
+  const std::uint32_t blk2 = blk * blk;
+  const std::uint32_t n_rb = d.n_rows / blk;
+  const std::uint32_t n_cb = d.n_ch_per_inp / blk;
   const std::uint32_t tot_cb = n_cb * static_cast<std::uint32_t>(d.nb_inp);
 
   for (std::uint32_t rb = 0u; rb < n_rb; ++rb) {
@@ -66,13 +68,13 @@ void run_concat(const NnConcatStep &d) {
       const float rescale_p = d.scales[p] * inv_out_scale;
       const auto *src = reinterpret_cast<const std::int8_t *>(
                             static_cast<std::uintptr_t>(d.inp[p])) +
-                        rb * n_cb * 256u;
+                        rb * n_cb * blk2;
       std::int8_t *dst =
-          out + (rb * tot_cb + static_cast<std::uint32_t>(p) * n_cb) * 256u;
+          out + (rb * tot_cb + static_cast<std::uint32_t>(p) * n_cb) * blk2;
       for (std::uint32_t cb = 0u; cb < n_cb; ++cb) {
-        const std::int8_t *s_blk = src + cb * 256u;
-        std::int8_t *d_blk = dst + cb * 256u;
-        for (std::uint32_t e = 0u; e < 256u; ++e) {
+        const std::int8_t *s_blk = src + cb * blk2;
+        std::int8_t *d_blk = dst + cb * blk2;
+        for (std::uint32_t e = 0u; e < blk2; ++e) {
           std::int32_t q =
               static_cast<std::int32_t>(std::nearbyintf(
                   rescale_p *
@@ -85,7 +87,7 @@ void run_concat(const NnConcatStep &d) {
     }
   }
   Xil_DCacheFlushRange(static_cast<UINTPTR>(d.out),
-                       static_cast<INTPTR>(n_rb * tot_cb * 256u));
+                       static_cast<INTPTR>(n_rb * tot_cb * blk2));
 }
 
 void run_dequant(const NnDequantStep &d, float *out) {
@@ -135,27 +137,27 @@ void run_format_input(const NnFormatInputStep &d) {
   const std::int32_t pl = d.pad[1]; /* left */
   const std::uint32_t oH = d.out_h;
   const std::uint32_t oW = d.out_w;
+  const std::uint32_t B = d.block;
 
-  /* im2row output shape: [oH*oW] rows × [C*kH*kW] cols — both multiples of 16
-   */
+  /* im2row: [oH*oW] rows × [C*kH*kW] cols — both multiples of B */
   const std::uint32_t N_rows = oH * oW;
   const std::uint32_t K_cols = C * kH * kW;
-  const std::uint32_t N_blocks = N_rows / 16u;
-  const std::uint32_t K_blocks = K_cols / 16u;
+  const std::uint32_t N_blocks = N_rows / B;
+  const std::uint32_t K_blocks = K_cols / B;
 
   for (std::uint32_t obr = 0u; obr < N_blocks; ++obr) {
     for (std::uint32_t obc = 0u; obc < K_blocks; ++obc) {
-      std::int8_t *blk = out + (obr * K_blocks + obc) * 256u;
+      std::int8_t *blk = out + (obr * K_blocks + obc) * B * B;
       /* t outer so the ÷(kH*kW) and ÷kW divisions (non-power-of-2)
          are computed once per column element instead of once per cell. */
-      for (std::uint32_t t = 0u; t < 16u; ++t) {
-        const std::uint32_t out_col = obc * 16u + t;
+      for (std::uint32_t t = 0u; t < B; ++t) {
+        const std::uint32_t out_col = obc * B + t;
         const std::uint32_t c_in = out_col / (kH * kW);
         const std::uint32_t k_rem = out_col % (kH * kW);
         const std::uint32_t ki = k_rem / kW;
         const std::uint32_t kj = k_rem % kW;
-        for (std::uint32_t r = 0u; r < 16u; ++r) {
-          const std::uint32_t out_row = obr * 16u + r;
+        for (std::uint32_t r = 0u; r < B; ++r) {
+          const std::uint32_t out_row = obr * B + r;
           const std::uint32_t h_out = out_row / oW;
           const std::uint32_t w_out = out_row % oW;
 
@@ -176,14 +178,14 @@ void run_format_input(const NnFormatInputStep &d) {
             /* padding: 0 in the offset-adjusted space */
             val = static_cast<std::int8_t>(0);
           }
-          blk[r * 16u + t] = val;
+          blk[r * B + t] = val;
         }
       }
     }
   }
 
   Xil_DCacheFlushRange(static_cast<UINTPTR>(d.inp_addr),
-                       static_cast<INTPTR>(N_blocks * K_blocks * 256u));
+                       static_cast<INTPTR>(N_blocks * K_blocks * B * B));
 }
 
 } // namespace vta
