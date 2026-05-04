@@ -390,12 +390,13 @@ def main() -> None:
         elif runner == "elf":
             print(f"Next steps ({runner}):")
             print(" 1. In run_nn.cc, modify XPAR_VTA_0_BASEADDR if necessary")
-            print(" 2. In your platform linker script, add:")
+            print(" 2. In vitis, add nn_bin_data.S in UserConfig.cmake sources")
+            print(" 3. In your platform linker script, add:")
             print("    INCLUDE nn_vta_sections.ld")
             print(
-                " 3. Build the ELF in Vitis (model data loaded by FSBL, no XSDB needed)."
+                " 4. Build the ELF in Vitis (model data loaded by FSBL, no XSDB needed)."
             )
-            print(" 4. In XSDB: source load_input.tcl, then con.")
+            print(" 5. Run scripts/uart_nn.py")
 
 
 if __name__ == "__main__":
