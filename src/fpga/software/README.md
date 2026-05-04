@@ -150,7 +150,7 @@ INCLUDE ../config/nn_vta_sections.ld
 
 ### 3 — Build and deploy
 
-Build the application in Vitis (GUI or `vitis -s build.py`), then load the ELF:
+Build the application in Vitis, then load the ELF:
 
 ```sh
 # In the Vitis XSDB console (or xsct shell):
