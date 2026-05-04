@@ -123,6 +123,7 @@ verilate_vtashell:
 	  $(VERILATOR_DEBUG_FLAGS) \
 	  --Mdir $(VERILATED_OBJ_DIR)/VVTAShell \
 	  -O3 \
+		--threads $(SIM_THREADS)\
 	  --x-assign fast \
 	  --x-initial fast \
 	  --build -j 0
