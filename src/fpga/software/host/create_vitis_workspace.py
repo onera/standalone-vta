@@ -200,8 +200,8 @@ def create_app(
     return app_src
 
 
-def _patch_user_config(app_src: Path) -> None:
-    """Append driver paths to UserConfig.cmake — no parsing, just append.
+def _patch_user_config(app_src: Path, baud: int = 921600) -> None:
+    """Append driver paths and compile definitions to UserConfig.cmake.
 
     The driver is referenced from its repository location, so no files are
     copied.  Appending at the end overrides the empty USER_* declarations
@@ -221,8 +221,9 @@ def _patch_user_config(app_src: Path) -> None:
             # data-loader; empty glob is harmless for the TCL loader.
             'file(GLOB _asm_sources "${CMAKE_CURRENT_SOURCE_DIR}/*.S")\n'
             "set(USER_COMPILE_SOURCES ${_drv_sources} ${_asm_sources})\n"
+            f'set(USER_COMPILE_DEFINITIONS "VTA_UART_BAUD={baud}")\n'
         )
-    print("[copy] Added driver paths to UserConfig.cmake.")
+    print(f"[copy] Added driver paths and VTA_UART_BAUD={baud} to UserConfig.cmake.")
 
 
 def _patch_linker_script(app_src: Path, ld_fragment: str) -> None:
@@ -248,7 +249,9 @@ def _patch_linker_script(app_src: Path, ld_fragment: str) -> None:
     print(f"[ld] Added '{include_line}' to lscript.ld.")
 
 
-def copy_sources(app_src: Path, runner: str, data_loader: str | None) -> None:
+def copy_sources(
+    app_src: Path, runner: str, data_loader: str | None, baud: int = 921600
+) -> None:
     sources = collect_sources(runner, data_loader)
     print(f"[copy] Copying files to {app_src}")
     for dest_rel, src_path in sources.items():
@@ -262,7 +265,7 @@ def copy_sources(app_src: Path, runner: str, data_loader: str | None) -> None:
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src_path, dest)
         print(f"       {src_path.relative_to(SOFTWARE_DIR)} → {dest_rel}")
-    _patch_user_config(app_src)
+    _patch_user_config(app_src, baud)
     if data_loader == "elf":
         _patch_linker_script(app_src, "nn_vta_sections.ld")
 
@@ -374,6 +377,13 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--baud",
+        type=int,
+        default=921600,
+        metavar="RATE",
+        help="UART baud rate passed to VTA_UART_BAUD compile definition.",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Print what would be done without calling Vitis APIs.",
@@ -469,7 +479,7 @@ def main() -> None:
         client.close()
 
     for runner in runners:
-        copy_sources(app_srcs[runner], runner, runner_loader(runner))
+        copy_sources(app_srcs[runner], runner, runner_loader(runner), args.baud)
 
     print()
     print("=== Done ===")

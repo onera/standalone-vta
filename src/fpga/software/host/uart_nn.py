@@ -191,9 +191,9 @@ def main() -> None:
     parser.add_argument(
         "--baud",
         type=int,
-        default=115200,
+        default=921600,
         metavar="N",
-        help="Baud rate.",
+        help="Baud rate (must match VTA_UART_BAUD compiled into the firmware).",
     )
     parser.add_argument(
         "--input",

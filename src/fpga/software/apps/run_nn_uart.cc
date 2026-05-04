@@ -19,6 +19,7 @@
  *                  or float bytes if the last step is DEQUANT with no QUANT)
  */
 
+#include "vta_board.h"
 #include "vta_cpu_ops.h"
 #include "vta_nn.h"
 #include "nn_ddr_map.h"
@@ -130,6 +131,7 @@ static float *run_inference(std::uint32_t *float_bytes, bool *ok) {
 // ---------------------------------------------------------------------------
 
 int main() {
+  vta::board_init();
   xil_printf("=== VTA NN runner: %u step(s) ===\r\n",
              static_cast<unsigned>(NN_NUM_STEPS));
 

@@ -18,6 +18,7 @@
  *       --out-platform  src/fpga/software/config/nn_platform.h
  */
 
+#include "vta_board.h"
 #include "vta_cpu_ops.h"
 #include "vta_nn.h"
 #include "nn_ddr_map.h"   // generated — LayerDesc nn_layers[], NN_NUM_LAYERS
@@ -30,6 +31,7 @@ extern "C" {
 
 constexpr std::uintptr_t VTA_VCR_BASE = XPAR_VTA_0_BASEADDR;
 int main() {
+  vta::board_init();
   xil_printf("=== VTA NN runner: %u step(s) ===\r\n",
              static_cast<unsigned>(NN_NUM_STEPS));
 
