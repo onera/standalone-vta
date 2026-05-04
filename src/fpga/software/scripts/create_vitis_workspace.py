@@ -6,27 +6,33 @@ for standalone VTA baremetal applications.
 What this script does:
   1. Creates (or reuses) a Vitis workspace directory.
   2. Creates a hardware platform component from a Vivado XSA file.
-  3. Optionally adds BSP libraries (xilffs for SD card runner).
-  4. Builds the platform.
-  5. Creates a bare-metal application component with an empty template.
-  6. Copies all VTA driver sources + the chosen runner into the app src directory.
+  3. Builds the platform.
+  4. Creates a bare-metal application component with an empty template.
+  5. Copies all VTA driver sources + the chosen runner into the app src directory.
 
-Runners (one or more may be selected)
---------------------------------------
-  xsdb  — run_nn.cc : DDR pre-initialised via XSDB load_nn.tcl
-  elf   — run_nn.cc : model data embedded in the ELF, loaded by FSBL
+Runners (--runner)
+------------------
+  run_nn       — one-shot inference; input pre-loaded before execution
+  run_nn_uart  — interactive UART loop; input received over UART each iteration
+  test_gemm    — standalone GEMM hardware correctness test (no generated headers needed)
+
+Data loaders (--data-loader, not applicable to test_gemm)
+----------------------------------------------------------
+  tcl  — static model data loaded via XSDB load_nn_static.tcl before the ELF starts
+  elf  — static model data embedded in the ELF via .incbin; FSBL loads it
 
 Usage
 -----
   # Source the Vitis environment first:
-  source /tools/Xilinx/Vitis/2025.2/settings64.sh
+  source ~/Xilinx/2025.2/Vitis/settings64.sh
 
   vitis -s src/fpga/software/scripts/create_vitis_workspace.py \\
-      --xsa       <path/to/design.xsa>                         \\
-      --workspace <path/to/workspace>                          \\
-      [--platform-name vta_platform]                           \\
-      [--runner        xsdb elf]                               \\
-      [--cpu           psu_cortexa53_0]
+      --xsa         <path/to/design.xsa>                        \\
+      --workspace   <path/to/workspace>                         \\
+      [--platform-name vta_platform]                            \\
+      --runner      run_nn_uart                                  \\
+      [--data-loader tcl]                                       \\
+      [--cpu        psu_cortexa53_0]
 
 Note on the vitis Python module
 --------------------------------
@@ -36,7 +42,7 @@ Note on the vitis Python module
 
       $VITIS_INSTALL/bin/python3 src/fpga/software/scripts/create_vitis_workspace.py ...
 
-  where VITIS_INSTALL is e.g. /tools/Xilinx/Vitis/2025.2.
+  where VITIS_INSTALL is e.g. ~/Xilinx/2025.2/Vitis.
 """
 
 import argparse
@@ -49,24 +55,38 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 
 SCRIPT_DIR = Path(__file__).resolve().parent  # src/fpga/software/scripts/
-SOFTWARE_DIR = SCRIPT_DIR.parent  # src/fpga/software/
+SOFTWARE_DIR = SCRIPT_DIR.parent              # src/fpga/software/
 INCLUDE_DIR = SOFTWARE_DIR / "include"
 SRC_DIR = SOFTWARE_DIR / "src"
 EXAMPLES_DIR = SOFTWARE_DIR / "examples"
+TEST_GEMM_DIR = SOFTWARE_DIR / "test_gemm"
 CONFIG_DIR = SOFTWARE_DIR / "config"
 
 # ---------------------------------------------------------------------------
-# Runner configuration
+# Runner / data-loader configuration
 # ---------------------------------------------------------------------------
 
-RUNNER_FILES: dict[str, str] = {
-    "xsdb": "run_nn.cc",
-    "elf": "run_nn.cc",
+# Source file for each runner, relative to SOFTWARE_DIR
+RUNNER_SOURCE: dict[str, Path] = {
+    "run_nn":      EXAMPLES_DIR / "run_nn.cc",
+    "run_nn_uart": EXAMPLES_DIR / "run_nn_uart.cc",
+    "test_gemm":   TEST_GEMM_DIR / "test_gemm.cc",
 }
 
-# Generated files required by each runner (placed in config/, must exist before this script)
-RUNNER_GENERATED_FILES: dict[str, list[str]] = {
-    "xsdb": ["nn_ddr_map.h", "nn_exec_plan.h"],
+# Extra files to copy alongside the runner source (e.g. local headers)
+RUNNER_EXTRAS: dict[str, list[Path]] = {
+    "run_nn":      [],
+    "run_nn_uart": [],
+    "test_gemm":   [TEST_GEMM_DIR / "init_dram.h"],
+}
+
+# Generated config files required by each data-loader
+# (placed in config/, must exist before this script runs)
+DATA_LOADER_GENERATED: dict[str, list[str]] = {
+    "tcl": [
+        "nn_ddr_map.h",
+        "nn_exec_plan.h",
+    ],
     "elf": [
         "nn_ddr_map.h",
         "nn_exec_plan.h",
@@ -75,25 +95,24 @@ RUNNER_GENERATED_FILES: dict[str, list[str]] = {
     ],
 }
 
-# BSP libraries required by each runner
-RUNNER_BSP_LIBS: dict[str, list[str]] = {
-    "xsdb": [],
-    "elf": [],
-}
+# Runners that require a data-loader selection
+RUNNERS_WITH_DATA_LOADER = {"run_nn", "run_nn_uart"}
 
 # ---------------------------------------------------------------------------
 # Source file collection
 # ---------------------------------------------------------------------------
 
 
-def collect_sources(runner: str) -> dict[Path, Path]:
+def collect_sources(runner: str, data_loader: str | None) -> dict[Path, Path]:
     """
-    Return {dest_relative_path: src_path} preserving the subfolder tree:
-      software/include/*.h   → include/
-      software/src/*.cc      → src/
-      software/examples/…    → examples/
-      software/config/…      → config/   (generated; may be absent)
-    Always includes generated config files (even if absent) so callers can warn.
+    Return {dest_relative_path: src_path}.
+
+    Layout inside the app src directory:
+      include/*.h        — VTA driver headers
+      src/*.cc           — VTA driver sources
+      src/<runner>.cc    — the selected runner
+      src/<extras>       — runner-specific extra files (e.g. init_dram.h)
+      src/<generated>    — config headers / linker / asm from gen_nn_baremetal.py
     """
     files: dict[Path, Path] = {}
 
@@ -103,13 +122,17 @@ def collect_sources(runner: str) -> dict[Path, Path]:
     for cc in sorted(SRC_DIR.glob("*.cc")):
         files[Path("src") / cc.name] = cc
 
-    runner_cc = EXAMPLES_DIR / RUNNER_FILES[runner]
-    if not runner_cc.exists():
-        sys.exit(f"ERROR: runner file not found: {runner_cc}")
-    files[Path("src") / runner_cc.name] = runner_cc
+    runner_src = RUNNER_SOURCE[runner]
+    if not runner_src.exists():
+        sys.exit(f"ERROR: runner source not found: {runner_src}")
+    files[Path("src") / runner_src.name] = runner_src
 
-    for fname in RUNNER_GENERATED_FILES[runner]:
-        files[Path("src") / fname] = CONFIG_DIR / fname
+    for extra in RUNNER_EXTRAS[runner]:
+        files[Path("src") / extra.name] = extra
+
+    if data_loader is not None:
+        for fname in DATA_LOADER_GENERATED[data_loader]:
+            files[Path("src") / fname] = CONFIG_DIR / fname
 
     return files
 
@@ -120,12 +143,10 @@ def collect_sources(runner: str) -> dict[Path, Path]:
 
 
 def _domain_name(cpu: str) -> str:
-    """Standard Vitis domain name for a bare-metal CPU."""
     return f"standalone_{cpu}"
 
 
 def xpfm_path(workspace: Path, platform_name: str) -> Path:
-    """Return the expected .xpfm path for a platform inside a workspace."""
     return (
         workspace / platform_name / "export" / platform_name / f"{platform_name}.xpfm"
     )
@@ -137,16 +158,11 @@ def create_workspace_and_platform(
     xsa: Path,
     platform_name: str,
     cpu: str,
-    bsp_libs: list[str],
 ) -> Path:
-    """
-    Create platform component, add BSP libraries, build, and return the .xpfm path.
-    """
     print(f"[vitis] Setting workspace: {workspace}")
     client.set_workspace(path=str(workspace))
 
     xpfm = xpfm_path(workspace, platform_name)
-
     if xpfm.exists():
         print(f"[vitis] Platform already exists at {xpfm}, skipping creation.")
         return xpfm
@@ -158,13 +174,6 @@ def create_workspace_and_platform(
         os="standalone",
         cpu=cpu,
     )
-
-    if bsp_libs:
-        print(f"[vitis] Adding BSP libraries: {bsp_libs}")
-        domain_name = _domain_name(cpu)
-        domain = platform.get_domain(domain_name)
-        for lib in bsp_libs:
-            domain.set_lib(lib)
 
     print("[vitis] Building platform…")
     platform.build()
@@ -179,11 +188,7 @@ def create_app(
     xpfm: Path,
     cpu: str,
 ) -> Path:
-    """
-    Create an empty bare-metal application component and return its src directory.
-    """
     app_src = workspace / app_name / "src"
-
     if app_src.exists():
         print(f"[vitis] Application src directory already exists: {app_src}")
         return app_src
@@ -200,10 +205,8 @@ def create_app(
     return app_src
 
 
-def copy_sources(app_src: Path, runner: str) -> None:
-    """Copy all VTA driver and example files into the application src directory,
-    preserving the include/ src/ examples/ subfolder tree."""
-    sources = collect_sources(runner)
+def copy_sources(app_src: Path, runner: str, data_loader: str | None) -> None:
+    sources = collect_sources(runner, data_loader)
     print(f"[copy] Copying files to {app_src}")
     for dest_rel, src_path in sources.items():
         if not src_path.exists():
@@ -216,6 +219,43 @@ def copy_sources(app_src: Path, runner: str) -> None:
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src_path, dest)
         print(f"       {src_path.relative_to(SOFTWARE_DIR)} → {dest_rel}")
+
+
+def _app_name(runner: str, data_loader: str | None) -> str:
+    if data_loader is None:
+        return f"vta_{runner}"
+    return f"vta_{runner}_{data_loader}"
+
+
+def _next_steps(runner: str, data_loader: str | None) -> None:
+    dl = data_loader or ""
+    print(f"\nNext steps (runner={runner}, data-loader={dl or 'n/a'}):")
+    if runner == "test_gemm":
+        print("  1. Build the application in Vitis.")
+        print("  2. In XSDB: dow application.elf, then con.")
+        return
+    if dl == "tcl":
+        print("  1. Build the application in Vitis.")
+        print("  2. In XSDB: dow application.elf")
+        print("  3. source config/load_nn_static.tcl   (static model data)")
+        if runner == "run_nn":
+            print("  4. source config/load_input.tcl       (input_nn.bin)")
+            print("  5. con  — board runs inference once and exits.")
+        else:
+            print("  4. con  — board waits for UART trigger.")
+            print("  5. python scripts/uart_nn.py --port /dev/ttyUSB0 --input input_nn.bin ...")
+    elif dl == "elf":
+        print("  1. Add src/nn_bin_data.S to UserConfig.cmake sources in Vitis.")
+        print("  2. Add inside your platform linker script SECTIONS { ... }:")
+        print("       INCLUDE nn_vta_sections.ld")
+        print("  3. Build the ELF in Vitis (static model data loaded by FSBL).")
+        if runner == "run_nn":
+            print("  4. In XSDB: dow application.elf")
+            print("  5. source config/load_input.tcl   (input_nn.bin)")
+            print("  6. con  — board runs inference once and exits.")
+        else:
+            print("  4. In XSDB: dow application.elf, then con.")
+            print("  5. python scripts/uart_nn.py --port /dev/ttyUSB0 --input input_nn.bin ...")
 
 
 # ---------------------------------------------------------------------------
@@ -251,15 +291,26 @@ def main() -> None:
     )
     parser.add_argument(
         "--runner",
-        choices=["xsdb", "elf"],
+        choices=list(RUNNER_SOURCE.keys()),
         nargs="+",
-        default=["xsdb"],
+        default=["run_nn"],
         metavar="RUNNER",
         help=(
-            "One or more runners to create as separate app components: "
-            "'xsdb' = XSDB pre-loaded DDR, "
-            "'elf' = ELF-embedded data (FSBL loads model). "
-            "Example: --runner xsdb elf"
+            "One or more runner applications to create as separate app components. "
+            "Choices: run_nn, run_nn_uart, test_gemm. "
+            "Example: --runner run_nn run_nn_uart"
+        ),
+    )
+    parser.add_argument(
+        "--data-loader",
+        choices=list(DATA_LOADER_GENERATED.keys()),
+        default=None,
+        metavar="LOADER",
+        help=(
+            "Data loading strategy for run_nn / run_nn_uart: "
+            "'tcl' = XSDB scripts pre-load static model data; "
+            "'elf' = static data embedded in the ELF via .incbin. "
+            "Not required for test_gemm."
         ),
     )
     parser.add_argument(
@@ -273,7 +324,7 @@ def main() -> None:
         metavar="NAME",
         help=(
             "Override the application component name. "
-            "Cannot be used together with multiple --runner values."
+            "Cannot be used with multiple --runner values."
         ),
     )
     parser.add_argument(
@@ -283,22 +334,54 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    # Deduplicate while preserving order
     runners: list[str] = list(dict.fromkeys(args.runner))
-    invalid = [r for r in runners if r not in RUNNER_FILES]
-    if invalid:
-        sys.exit(f"ERROR: unknown runner(s): {invalid}")
+
+    # Validate data-loader requirement
+    needs_loader = [r for r in runners if r in RUNNERS_WITH_DATA_LOADER]
+    if needs_loader and args.data_loader is None:
+        sys.exit(
+            f"ERROR: --data-loader {{tcl,elf}} is required for runner(s): {needs_loader}"
+        )
 
     if args.app_name and len(runners) > 1:
         sys.exit("ERROR: --app-name cannot be used with multiple --runner values.")
 
     xsa = Path(args.xsa).resolve() if args.xsa else None
     workspace = Path(args.workspace).resolve()
+    xpfm = xpfm_path(workspace, args.platform_name)
+
+    # Resolve data-loader per runner (None for test_gemm)
+    def runner_loader(r: str) -> str | None:
+        return args.data_loader if r in RUNNERS_WITH_DATA_LOADER else None
+
+    app_names = {
+        r: (args.app_name if args.app_name else _app_name(r, runner_loader(r)))
+        for r in runners
+    }
+
+    if args.dry_run:
+        mode = "update (add app to existing workspace)" if xsa is None else "create"
+        print("=== DRY RUN ===")
+        print(f"  Mode:        {mode}")
+        print(f"  XSA:         {xsa or '(not provided — using existing platform)'}")
+        print(f"  Workspace:   {workspace}")
+        print(f"  Platform:    {args.platform_name}")
+        print(f"  CPU:         {args.cpu}")
+        for runner in runners:
+            dl = runner_loader(runner)
+            print()
+            print(f"  Application: {app_names[runner]}  "
+                  f"(runner={runner}, data-loader={dl or 'n/a'})")
+            print("  Files that would be copied:")
+            for dest_rel, src_path in collect_sources(runner, dl).items():
+                exists = "ok" if src_path.exists() else "MISSING"
+                rel = src_path.relative_to(SOFTWARE_DIR)
+                print(f"    [{exists:7s}]  {rel} → {dest_rel}")
+        return
 
     if xsa is not None and not xsa.exists():
         sys.exit(f"ERROR: XSA file not found: {xsa}")
 
-    xpfm = xpfm_path(workspace, args.platform_name)
     if xsa is None and not xpfm.exists():
         sys.exit(
             f"ERROR: --xsa not provided and no built platform found at:\n"
@@ -306,57 +389,23 @@ def main() -> None:
             f"       Provide --xsa to create the platform first, or check --platform-name."
         )
 
-    # BSP libs: union across all selected runners
-    bsp_libs: list[str] = []
-    for r in runners:
-        for lib in RUNNER_BSP_LIBS[r]:
-            if lib not in bsp_libs:
-                bsp_libs.append(lib)
-
-    app_names = {
-        r: (args.app_name if args.app_name else f"vta_run_nn_{r}") for r in runners
-    }
-
-    if args.dry_run:
-        mode = "update (add app to existing workspace)" if xsa is None else "create"
-        print("=== DRY RUN ===")
-        print(f"  Mode:          {mode}")
-        print(f"  XSA:           {xsa or '(not provided — using existing platform)'}")
-        print(f"  Workspace:     {workspace}")
-        print(f"  Platform:      {args.platform_name}")
-        print(f"  CPU:           {args.cpu}")
-        print(f"  BSP libraries: {bsp_libs or '(none)'}")
-        for runner in runners:
-            print()
-            print(
-                f"  Application: {app_names[runner]}  (runner={runner}, src={RUNNER_FILES[runner]})"
-            )
-            print("  Files that would be copied:")
-            for dest_rel, src_path in collect_sources(runner).items():
-                exists = "ok" if src_path.exists() else "MISSING"
-                rel = src_path.relative_to(SOFTWARE_DIR)
-                print(f"    [{exists:7s}]  {rel} → {dest_rel}")
-        return
-
-    # Import vitis here so --dry-run works without Vitis installed
     try:
         import vitis  # type: ignore[import]
     except ModuleNotFoundError:
         sys.exit(
             "ERROR: 'vitis' Python module not found.\n"
             "       Source the Vitis settings script first:\n"
-            "         source /tools/Xilinx/Vitis/2025.2/settings64.sh\n"
+            "         source ~/Xilinx/2025.2/Vitis/settings64.sh\n"
             "       or run this script with the Vitis Python interpreter:\n"
             "         $VITIS_INSTALL/bin/python3 create_vitis_workspace.py ..."
         )
 
     workspace.mkdir(parents=True, exist_ok=True)
-
     client = vitis.create_client()
     try:
         if xsa is not None:
             xpfm = create_workspace_and_platform(
-                client, workspace, xsa, args.platform_name, args.cpu, bsp_libs
+                client, workspace, xsa, args.platform_name, args.cpu
             )
         else:
             print(f"[vitis] Setting workspace: {workspace}")
@@ -372,31 +421,17 @@ def main() -> None:
         client.close()
 
     for runner in runners:
-        copy_sources(app_srcs[runner].parent, runner)
+        copy_sources(app_srcs[runner], runner, runner_loader(runner))
 
     print()
     print("=== Done ===")
     print(f"  Workspace : {workspace}")
     print(f"  Platform  : {workspace / args.platform_name}")
     for runner in runners:
-        print(f"  App src   : {app_srcs[runner]}  ({runner})")
+        print(f"  App src   : {app_srcs[runner]}  ({app_names[runner]})")
 
     for runner in runners:
-        print()
-        if runner == "xsdb":
-            print(f"Next steps ({runner}):")
-            print("  1. Build the application in Vitis.")
-            print("  2. In XSDB: source load_nn.tcl, then con.")
-        elif runner == "elf":
-            print(f"Next steps ({runner}):")
-            print(" 1. In run_nn.cc, modify XPAR_VTA_0_BASEADDR if necessary")
-            print(" 2. In vitis, add nn_bin_data.S in UserConfig.cmake sources")
-            print(" 3. In your platform linker script, add:")
-            print("    INCLUDE nn_vta_sections.ld")
-            print(
-                " 4. Build the ELF in Vitis (model data loaded by FSBL, no XSDB needed)."
-            )
-            print(" 5. Run scripts/uart_nn.py")
+        _next_steps(runner, runner_loader(runner))
 
 
 if __name__ == "__main__":

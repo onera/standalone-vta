@@ -1,25 +1,41 @@
-all: 
-	@echo "Usage: "
-	@echo "clean --- cleanup generated files"
+all:
+	@echo "Targets:"
+	@echo "  config       — generate config/ from compiler output (RUNNER, DATA_LOADER, DDR_BASE)"
+	@echo "  workspace    — create Vitis workspace (XSA, CPU required)"
+	@echo "  clean        — remove config/ and build/"
 
-.phony: clean workspace
+.PHONY: all clean config workspace
 
-COMPILER_OUTPUTS=$(wildcard ../../../compiler_output/*)
-CONFIG=../../../config/vta_config.json
-DDR_BASE=0x200000
+COMPILER_OUTPUT ?= ../../../compiler_output
+COMPILER_OUTPUTS = $(wildcard $(COMPILER_OUTPUT)/*)
+CONFIG    ?= ../../../config/vta_config.json
+DDR_BASE  ?= 0x200000
+OUTDIR    ?= config
+RUNNER    ?= run_nn
+DATA_LOADER ?= tcl
 XSA ?=
 CPU ?=
-GEN = $(wildcard config/*)
+GEN = $(wildcard $(OUTDIR)/*)
 
-config: ${COMPILER_OUTPUTS} ${CONFIG}
-	python scripts/gen_nn_baremetal.py --config-json ${CONFIG} --ddr-base ${DDR_BASE} ../../../compiler_output
+config: $(COMPILER_OUTPUTS) $(CONFIG)
+	python scripts/gen_nn_baremetal.py \
+		--config-json $(CONFIG)        \
+		--ddr-base    $(DDR_BASE)      \
+		--outdir      $(OUTDIR)        \
+		--runner      $(RUNNER)        \
+		--data-loader $(DATA_LOADER)   \
+		$(COMPILER_OUTPUT)
 
-build/vitis_proj: ${GEN}
-	vitis -s scripts/create_vitis_workspace.py --xsa ${XSA} --runner elf --cpu ${CPU} --workspace $@
+build/vitis_proj: $(GEN)
+	vitis -s scripts/create_vitis_workspace.py \
+		--xsa         $(XSA)          \
+		--runner      $(RUNNER)       \
+		--data-loader $(DATA_LOADER)  \
+		--cpu         $(CPU)          \
+		--workspace   $@
 
 workspace: build/vitis_proj
 
-
 clean:
-	@rm -rf config
+	@rm -rf $(OUTDIR)
 	@rm -rf build
