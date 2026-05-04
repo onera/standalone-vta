@@ -32,7 +32,7 @@ jobs:
           source src/compiler/.venv/bin/activate
           cd examples && make compile_and_run
 
-  cycle-accurate-simulator-test:
+  chisel-unittests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -42,10 +42,6 @@ jobs:
         uses: coursier/setup-action@v1
         with:
           jvm: adopt:11
-          apps: sbt
-      - name: Setup Z3
-        id: z3
-        uses: cda-tum/setup-z3@v1
       - name: Install Verilator
         run: |
           sudo apt-get install verilator
@@ -54,13 +50,9 @@ jobs:
         run: |
           cd src/simulators/cycle_accurate_simulator
           ./mill test.unittest
-      - name: Run sbt tests
-        run: |
-          cd src/simulators/cycle_accurate_simulator
-          sbt test
 
-  sim-cycle-accurate:
-      needs: [functional-simulator-test, cycle-accurate-simulator-test]
+  cycle-accurate-simulator-test:
+      needs: [functional-simulator-test, chisel-unittests]
       runs-on: ubuntu-latest
       steps:
         - uses: actions/checkout@v6
@@ -70,10 +62,6 @@ jobs:
           uses: coursier/setup-action@v1
           with:
             jvm: adopt:11
-            apps: sbt
-        - name: Setup Z3
-          id: z3
-          uses: cda-tum/setup-z3@v1
         - name: Install Verilator
           run: |
             sudo apt-get install verilator
@@ -88,24 +76,28 @@ jobs:
             version: "0.10.11"
         - name: Sync dependencies
           run: cd src/compiler && uv sync
-        - name: Emit simulation SystemVerilog files
-          run: |
-              cd src/simulators/cycle_accurate_simulator
-              ./mill emitVtaSimConfig
-        - name: Build simulator with verilated backend
-          run: |
-            cd src/simulators/functional_simulator
-            SIM_THREADS=2 make build/fsim_single_layer_rtl
-        - name: Compile small gemm test
+        - name: Compile cycle accurate simulator
+          run: cd examples && SIM_THREADS=2 make -s vsim_compile
+        - name: Compile ONNX
           run: |
             source src/compiler/.venv/bin/activate
             cd examples
-            make -s test_gemm
-        - name: Test the functional simulation
+            make -s nn_compiler
+        - name: Compile VTA
           run: |
-            cd src/simulators/functional_simulator
-            ./build/fsim_single_layer_rtl
-        - name: Test the cycle accurate simulation 
+            source src/compiler/.venv/bin/activate
+            cd examples
+            make -s vta_compiler
+        - name: Compute reference 
           run: |
-            cd src/simulators/functional_simulator
-            ./build/fsim_single_layer_rtl --verilator
+            source src/compiler/.venv/bin/activate
+            cd examples
+            make -s reference
+        - name: Simulate the inference 
+          run: |
+            cd examples
+            make -s vsim_inference
+        - name: Check output against reference
+          run: |
+            cd examples
+            make check_vsim
