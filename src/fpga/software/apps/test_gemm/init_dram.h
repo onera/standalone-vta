@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <cstring>
 
-#include "../include/vta.h"
+#include "vta.h"
 
 static const VTAInsn insn[] = {
     {{0x00000000u, 0x00000050u, 0x00010001u, 0x00000001u}},

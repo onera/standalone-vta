@@ -19,8 +19,8 @@
  *                  or float bytes if the last step is DEQUANT with no QUANT)
  */
 
-#include "../include/vta_cpu_ops.h"
-#include "../include/vta_nn.h"
+#include "vta_cpu_ops.h"
+#include "vta_nn.h"
 #include "nn_ddr_map.h"
 #include "nn_exec_plan.h"
 #include <cstdint>

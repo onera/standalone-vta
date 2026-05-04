@@ -54,13 +54,13 @@ from pathlib import Path
 # Repository layout (relative to this script)
 # ---------------------------------------------------------------------------
 
-SCRIPT_DIR = Path(__file__).resolve().parent  # src/fpga/software/scripts/
+SCRIPT_DIR = Path(__file__).resolve().parent  # src/fpga/software/host/
 SOFTWARE_DIR = SCRIPT_DIR.parent              # src/fpga/software/
-INCLUDE_DIR = SOFTWARE_DIR / "include"
-SRC_DIR = SOFTWARE_DIR / "src"
-EXAMPLES_DIR = SOFTWARE_DIR / "examples"
-TEST_GEMM_DIR = SOFTWARE_DIR / "test_gemm"
-CONFIG_DIR = SOFTWARE_DIR / "config"
+INCLUDE_DIR = SOFTWARE_DIR / "driver" / "include"
+SRC_DIR = SOFTWARE_DIR / "driver" / "src"
+EXAMPLES_DIR = SOFTWARE_DIR / "apps"
+TEST_GEMM_DIR = SOFTWARE_DIR / "apps" / "test_gemm"
+CONFIG_DIR = SOFTWARE_DIR / "gen"
 
 # ---------------------------------------------------------------------------
 # Runner / data-loader configuration
@@ -105,34 +105,29 @@ RUNNERS_WITH_DATA_LOADER = {"run_nn", "run_nn_uart"}
 
 def collect_sources(runner: str, data_loader: str | None) -> dict[Path, Path]:
     """
-    Return {dest_relative_path: src_path}.
+    Return {dest_relative_path: src_path} for files copied into the app.
 
-    Layout inside the app src directory:
-      include/*.h        — VTA driver headers
-      src/*.cc           — VTA driver sources
-      src/<runner>.cc    — the selected runner
-      src/<extras>       — runner-specific extra files (e.g. init_dram.h)
-      src/<generated>    — config headers / linker / asm from gen_nn_baremetal.py
+    Driver headers and sources are NOT copied — they are referenced directly
+    from the repository via absolute paths written into UserConfig.cmake by
+    _patch_user_config().  Only runner-specific files are copied:
+
+      <runner>.cc   — runner entry point (root; picked up by aux_source_directory)
+      <extras>      — e.g. init_dram.h for test_gemm (root)
+      <generated>   — nn_ddr_map.h, nn_exec_plan.h, nn_bin_data.S, … (root)
     """
     files: dict[Path, Path] = {}
-
-    for h in sorted(INCLUDE_DIR.glob("*.h")):
-        files[Path("include") / h.name] = h
-
-    for cc in sorted(SRC_DIR.glob("*.cc")):
-        files[Path("src") / cc.name] = cc
 
     runner_src = RUNNER_SOURCE[runner]
     if not runner_src.exists():
         sys.exit(f"ERROR: runner source not found: {runner_src}")
-    files[Path("src") / runner_src.name] = runner_src
+    files[Path(runner_src.name)] = runner_src
 
     for extra in RUNNER_EXTRAS[runner]:
-        files[Path("src") / extra.name] = extra
+        files[Path(extra.name)] = extra
 
     if data_loader is not None:
         for fname in DATA_LOADER_GENERATED[data_loader]:
-            files[Path("src") / fname] = CONFIG_DIR / fname
+            files[Path(fname)] = CONFIG_DIR / fname
 
     return files
 
@@ -205,6 +200,54 @@ def create_app(
     return app_src
 
 
+def _patch_user_config(app_src: Path) -> None:
+    """Append driver paths to UserConfig.cmake — no parsing, just append.
+
+    The driver is referenced from its repository location, so no files are
+    copied.  Appending at the end overrides the empty USER_* declarations
+    that Vitis wrote earlier in the file; CMakeLists.txt reads the final
+    values after the full include() of UserConfig.cmake completes.
+    """
+    cfg = app_src / "UserConfig.cmake"
+    if not cfg.exists():
+        print(f"[copy] WARNING: UserConfig.cmake not found at {cfg}.")
+        return
+    with cfg.open("a") as f:
+        f.write(
+            "\n# VTA driver — referenced in-place from the repository\n"
+            f'set(USER_INCLUDE_DIRECTORIES "{INCLUDE_DIR}")\n'
+            f'file(GLOB _drv_sources "{SRC_DIR}/*.cc")\n'
+            # Also glob *.S at the app root: picks up nn_bin_data.S for the ELF
+            # data-loader; empty glob is harmless for the TCL loader.
+            'file(GLOB _asm_sources "${CMAKE_CURRENT_SOURCE_DIR}/*.S")\n'
+            "set(USER_COMPILE_SOURCES ${_drv_sources} ${_asm_sources})\n"
+        )
+    print("[copy] Added driver paths to UserConfig.cmake.")
+
+
+def _patch_linker_script(app_src: Path, ld_fragment: str) -> None:
+    """Append INCLUDE <ld_fragment> to the Vitis linker script.
+
+    The fragment file is expected to be in the same directory as lscript.ld
+    (i.e. already copied to app_src).  GNU ld resolves the INCLUDE path
+    relative to the script that contains it, so no path prefix is needed.
+    Appending at the end works for any linker script since GNU ld allows
+    multiple SECTIONS commands and top-level INCLUDE directives.
+    """
+    lscript = app_src / "lscript.ld"
+    if not lscript.exists():
+        print(f"[ld] WARNING: lscript.ld not found at {lscript}.")
+        return
+    include_line = f"INCLUDE {ld_fragment}"
+    text = lscript.read_text()
+    if include_line in text:
+        print(f"[ld] lscript.ld already includes {ld_fragment}, skipping.")
+        return
+    with lscript.open("a") as f:
+        f.write(f"\n{include_line}\n")
+    print(f"[ld] Added '{include_line}' to lscript.ld.")
+
+
 def copy_sources(app_src: Path, runner: str, data_loader: str | None) -> None:
     sources = collect_sources(runner, data_loader)
     print(f"[copy] Copying files to {app_src}")
@@ -219,6 +262,9 @@ def copy_sources(app_src: Path, runner: str, data_loader: str | None) -> None:
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src_path, dest)
         print(f"       {src_path.relative_to(SOFTWARE_DIR)} → {dest_rel}")
+    _patch_user_config(app_src)
+    if data_loader == "elf":
+        _patch_linker_script(app_src, "nn_vta_sections.ld")
 
 
 def _app_name(runner: str, data_loader: str | None) -> str:
@@ -237,13 +283,13 @@ def _next_steps(runner: str, data_loader: str | None) -> None:
     if dl == "tcl":
         print("  1. Build the application in Vitis.")
         print("  2. In XSDB: dow application.elf")
-        print("  3. source config/load_nn_static.tcl   (static model data)")
+        print("  3. source gen/load_nn_static.tcl   (static model data)")
         if runner == "run_nn":
-            print("  4. source config/load_input.tcl       (input_nn.bin)")
+            print("  4. source gen/load_input.tcl       (input_nn.bin)")
             print("  5. con  — board runs inference once and exits.")
         else:
             print("  4. con  — board waits for UART trigger.")
-            print("  5. python scripts/uart_nn.py --port /dev/ttyUSB0 --input input_nn.bin ...")
+            print("  5. python host/uart_nn.py --port /dev/ttyUSB0 --input input_nn.bin ...")
     elif dl == "elf":
         print("  1. Add src/nn_bin_data.S to UserConfig.cmake sources in Vitis.")
         print("  2. Add inside your platform linker script SECTIONS { ... }:")
@@ -251,11 +297,11 @@ def _next_steps(runner: str, data_loader: str | None) -> None:
         print("  3. Build the ELF in Vitis (static model data loaded by FSBL).")
         if runner == "run_nn":
             print("  4. In XSDB: dow application.elf")
-            print("  5. source config/load_input.tcl   (input_nn.bin)")
+            print("  5. source gen/load_input.tcl   (input_nn.bin)")
             print("  6. con  — board runs inference once and exits.")
         else:
             print("  4. In XSDB: dow application.elf, then con.")
-            print("  5. python scripts/uart_nn.py --port /dev/ttyUSB0 --input input_nn.bin ...")
+            print("  5. python host/uart_nn.py --port /dev/ttyUSB0 --input input_nn.bin ...")
 
 
 # ---------------------------------------------------------------------------
@@ -377,6 +423,8 @@ def main() -> None:
                 exists = "ok" if src_path.exists() else "MISSING"
                 rel = src_path.relative_to(SOFTWARE_DIR)
                 print(f"    [{exists:7s}]  {rel} → {dest_rel}")
+            if dl == "elf":
+                print("  Linker script: lscript.ld ← INCLUDE nn_vta_sections.ld (appended)")
         return
 
     if xsa is not None and not xsa.exists():

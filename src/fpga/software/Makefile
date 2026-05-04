@@ -10,7 +10,7 @@ COMPILER_OUTPUT ?= ../../../compiler_output
 COMPILER_OUTPUTS = $(wildcard $(COMPILER_OUTPUT)/*)
 CONFIG    ?= ../../../config/vta_config.json
 DDR_BASE  ?= 0x200000
-OUTDIR    ?= config
+OUTDIR    ?= gen
 RUNNER    ?= run_nn
 DATA_LOADER ?= tcl
 XSA ?=
@@ -18,16 +18,16 @@ CPU ?=
 GEN = $(wildcard $(OUTDIR)/*)
 
 config: $(COMPILER_OUTPUTS) $(CONFIG)
-	python scripts/gen_nn_baremetal.py \
-		--config-json $(CONFIG)        \
-		--ddr-base    $(DDR_BASE)      \
-		--outdir      $(OUTDIR)        \
-		--runner      $(RUNNER)        \
-		--data-loader $(DATA_LOADER)   \
+	python host/gen_nn_baremetal.py \
+		--config-json $(CONFIG)     \
+		--ddr-base    $(DDR_BASE)   \
+		--outdir      $(OUTDIR)     \
+		--runner      $(RUNNER)     \
+		--data-loader $(DATA_LOADER)\
 		$(COMPILER_OUTPUT)
 
 build/vitis_proj: $(GEN)
-	vitis -s scripts/create_vitis_workspace.py \
+	vitis -s host/create_vitis_workspace.py \
 		--xsa         $(XSA)          \
 		--runner      $(RUNNER)       \
 		--data-loader $(DATA_LOADER)  \
