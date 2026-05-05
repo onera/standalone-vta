@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-uart_nn.py — Host-side script for the VTA UART interactive inference loop.
+uart_nn.py - Host-side script for the VTA UART interactive inference loop.
 
 Connects to the board over a serial port, waits for the READY sentinel,
 sends a raw input file, and saves the raw output bytes.  Repeats for every
@@ -309,7 +309,7 @@ def main() -> None:
             if len(raw) != input_n_bytes:
                 print(
                     f"WARNING: {inp_path.name} is {len(raw)} bytes but board expects "
-                    f"{input_n_bytes} — sending anyway"
+                    f"{input_n_bytes} - sending anyway"
                 )
 
             out_data = run_inference(

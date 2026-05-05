@@ -1,5 +1,5 @@
 /**
- * vta_cpu_ops.cc — ARM PS-side CPU operations for multi-layer VTA inference.
+ * vta_cpu_ops.cc - ARM PS-side CPU operations for multi-layer VTA inference.
  *
  * All operations work directly on DDR addresses via reinterpret_cast and
  * flush the D-cache after writing to ensure coherency with the VTA PL fabric.
@@ -97,7 +97,7 @@ void run_dequant(const NnDequantStep &d, float *out) {
     out[i] =
         d.scale * static_cast<float>(static_cast<std::int32_t>(src[i]) - d.zp);
   }
-  /* out is a CPU-allocated float buffer — no D-cache flush needed */
+  /* out is a CPU-allocated float buffer - no D-cache flush needed */
 }
 
 void run_quant(const NnQuantStep &d, const float *in) {
@@ -139,7 +139,7 @@ void run_format_input(const NnFormatInputStep &d) {
   const std::uint32_t oW = d.out_w;
   const std::uint32_t B = d.block;
 
-  /* im2row: [oH*oW] rows × [C*kH*kW] cols — both multiples of B */
+  /* im2row: [oH*oW] rows × [C*kH*kW] cols - both multiples of B */
   const std::uint32_t N_rows = oH * oW;
   const std::uint32_t K_cols = C * kH * kW;
   const std::uint32_t N_blocks = N_rows / B;

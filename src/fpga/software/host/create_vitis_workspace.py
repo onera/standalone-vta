@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-create_vitis_workspace.py — Automate Vitis 2023.x / 2024.x / 2025.x workspace creation
+create_vitis_workspace.py - Automate Vitis 2023.x / 2024.x / 2025.x workspace creation
 for standalone VTA baremetal applications.
 
 What this script does:
@@ -12,14 +12,14 @@ What this script does:
 
 Runners (--runner)
 ------------------
-  run_nn       — one-shot inference; input pre-loaded before execution
-  run_nn_uart  — interactive UART loop; input received over UART each iteration
-  test_gemm    — standalone GEMM hardware correctness test (no generated headers needed)
+  run_nn       - one-shot inference; input pre-loaded before execution
+  run_nn_uart  - interactive UART loop; input received over UART each iteration
+  test_gemm    - standalone GEMM hardware correctness test (no generated headers needed)
 
 Data loaders (--data-loader, not applicable to test_gemm)
 ----------------------------------------------------------
-  tcl  — static model data loaded via XSDB load_nn_static.tcl before the ELF starts
-  elf  — static model data embedded in the ELF via .incbin; FSBL loads it
+  tcl  - static model data loaded via XSDB load_nn_static.tcl before the ELF starts
+  elf  - static model data embedded in the ELF via .incbin; FSBL loads it
 
 Usage
 -----
@@ -46,6 +46,7 @@ Note on the vitis Python module
 """
 
 import argparse
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -107,13 +108,13 @@ def collect_sources(runner: str, data_loader: str | None) -> dict[Path, Path]:
     """
     Return {dest_relative_path: src_path} for files copied into the app.
 
-    Driver headers and sources are NOT copied — they are referenced directly
+    Driver headers and sources are NOT copied - they are referenced directly
     from the repository via absolute paths written into UserConfig.cmake by
     _patch_user_config().  Only runner-specific files are copied:
 
-      <runner>.cc   — runner entry point (root; picked up by aux_source_directory)
-      <extras>      — e.g. init_dram.h for test_gemm (root)
-      <generated>   — nn_ddr_map.h, nn_exec_plan.h, nn_bin_data.S, … (root)
+      <runner>.cc   - runner entry point (root; picked up by aux_source_directory)
+      <extras>      - e.g. init_dram.h for test_gemm (root)
+      <generated>   - nn_ddr_map.h, nn_exec_plan.h, nn_bin_data.S, … (root)
     """
     files: dict[Path, Path] = {}
 
@@ -212,11 +213,13 @@ def _patch_user_config(app_src: Path, baud: int = 921600) -> None:
     if not cfg.exists():
         print(f"[copy] WARNING: UserConfig.cmake not found at {cfg}.")
         return
+    include_rel = Path(os.path.relpath(INCLUDE_DIR, app_src)).as_posix()
+    src_rel = Path(os.path.relpath(SRC_DIR, app_src)).as_posix()
     with cfg.open("a") as f:
         f.write(
-            "\n# VTA driver — referenced in-place from the repository\n"
-            f'set(USER_INCLUDE_DIRECTORIES "{INCLUDE_DIR}")\n'
-            f'file(GLOB _drv_sources "{SRC_DIR}/*.cc")\n'
+            "\n# VTA driver - referenced in-place from the repository\n"
+            f'set(USER_INCLUDE_DIRECTORIES "{include_rel}")\n'
+            f'file(GLOB _drv_sources "{src_rel}/*.cc")\n'
             # Also glob *.S at the app root: picks up nn_bin_data.S for the ELF
             # data-loader; empty glob is harmless for the TCL loader.
             'file(GLOB _asm_sources "${CMAKE_CURRENT_SOURCE_DIR}/*.S")\n'
@@ -249,6 +252,30 @@ def _patch_linker_script(app_src: Path, ld_fragment: str) -> None:
     print(f"[ld] Added '{include_line}' to lscript.ld.")
 
 
+def _patch_asm_incbin(app_src: Path) -> None:
+    """Rewrite .incbin paths in nn_bin_data.S to be relative to app_src.
+
+    gen_nn_baremetal.py embeds absolute POSIX paths so the file is portable
+    across copy destinations; this function relativizes them once the file
+    lands in its final location.
+    """
+    import re
+    asm = app_src / "nn_bin_data.S"
+    if not asm.exists():
+        return
+    pattern = re.compile(r'^(\s*\.incbin\s+")([^"]+)(")')
+    lines = asm.read_text(encoding="utf-8").splitlines(keepends=True)
+    patched = []
+    for line in lines:
+        m = pattern.match(line)
+        if m:
+            rel = Path(os.path.relpath(m.group(2), app_src)).as_posix()
+            line = m.group(1) + rel + m.group(3) + line[m.end():]
+        patched.append(line)
+    asm.write_text("".join(patched), encoding="utf-8")
+    print(f"[asm] Patched .incbin paths in nn_bin_data.S relative to {app_src}")
+
+
 def copy_sources(
     app_src: Path, runner: str, data_loader: str | None, baud: int = 921600
 ) -> None:
@@ -267,6 +294,7 @@ def copy_sources(
         print(f"       {src_path.relative_to(SOFTWARE_DIR)} → {dest_rel}")
     _patch_user_config(app_src, baud)
     if data_loader == "elf":
+        _patch_asm_incbin(app_src)
         _patch_linker_script(app_src, "nn_vta_sections.ld")
 
 
@@ -289,9 +317,9 @@ def _next_steps(runner: str, data_loader: str | None) -> None:
         print("  3. source gen/load_nn_static.tcl   (static model data)")
         if runner == "run_nn":
             print("  4. source gen/load_input.tcl       (input_nn.bin)")
-            print("  5. con  — board runs inference once and exits.")
+            print("  5. con  - board runs inference once and exits.")
         else:
-            print("  4. con  — board waits for UART trigger.")
+            print("  4. con  - board waits for UART trigger.")
             print("  5. python host/uart_nn.py --port /dev/ttyUSB0 --input input_nn.bin ...")
     elif dl == "elf":
         print("  1. Add src/nn_bin_data.S to UserConfig.cmake sources in Vitis.")
@@ -301,7 +329,7 @@ def _next_steps(runner: str, data_loader: str | None) -> None:
         if runner == "run_nn":
             print("  4. In XSDB: dow application.elf")
             print("  5. source gen/load_input.tcl   (input_nn.bin)")
-            print("  6. con  — board runs inference once and exits.")
+            print("  6. con  - board runs inference once and exits.")
         else:
             print("  4. In XSDB: dow application.elf, then con.")
             print("  5. python host/uart_nn.py --port /dev/ttyUSB0 --input input_nn.bin ...")
@@ -419,7 +447,7 @@ def main() -> None:
         mode = "update (add app to existing workspace)" if xsa is None else "create"
         print("=== DRY RUN ===")
         print(f"  Mode:        {mode}")
-        print(f"  XSA:         {xsa or '(not provided — using existing platform)'}")
+        print(f"  XSA:         {xsa or '(not provided - using existing platform)'}")
         print(f"  Workspace:   {workspace}")
         print(f"  Platform:    {args.platform_name}")
         print(f"  CPU:         {args.cpu}")

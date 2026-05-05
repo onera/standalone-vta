@@ -41,9 +41,9 @@ struct NnQuantStep {
 struct NnFormatInputStep {
   std::uint32_t raw_addr; /* scratch DDR addr of raw input_nn.bin (HWC flat) */
   std::uint32_t inp_addr; /* VTA INP address to write formatted result        */
-  std::uint32_t tensor_ch; /* C — input channels */
-  std::uint32_t tensor_h; /* H — input height                                 */
-  std::uint32_t tensor_w; /* W — input width                                  */
+  std::uint32_t tensor_ch; /* C - input channels */
+  std::uint32_t tensor_h; /* H - input height                                 */
+  std::uint32_t tensor_w; /* W - input width                                  */
   std::uint32_t kh, kw;   /* kernel height / width                            */
   std::uint32_t sh, sw;   /* stride height / width                            */
   std::int32_t pad[4];   /* {top, left, bottom, right}                       */

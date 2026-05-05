@@ -1,8 +1,8 @@
 all:
 	@echo "Targets:"
-	@echo "  config       — generate config/ from compiler output (RUNNER, DATA_LOADER, DDR_BASE)"
-	@echo "  workspace    — create Vitis workspace (XSA, CPU required)"
-	@echo "  clean        — remove config/ and build/"
+	@echo "  app       - generate gen/ from compiler output (RUNNER, DATA_LOADER, DDR_BASE)"
+	@echo "  workspace    - create Vitis workspace (XSA, CPU required)"
+	@echo "  clean        - remove config/ and build/"
 
 .PHONY: all clean config workspace
 
@@ -17,7 +17,7 @@ XSA ?=
 CPU ?=
 GEN = $(wildcard $(OUTDIR)/*)
 
-config: $(COMPILER_OUTPUTS) $(CONFIG)
+app: $(COMPILER_OUTPUTS) $(CONFIG)
 	python host/gen_nn_baremetal.py \
 		--config-json $(CONFIG)     \
 		--ddr-base    $(DDR_BASE)   \

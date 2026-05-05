@@ -12,11 +12,11 @@ namespace vta {
  *
  * VCR register mapping:
  *   ptr[0] = insn_addr   (absolute address of the instruction stream)
- *   ptr[1] = ddr_base    (UOP base — offset encoded in instructions)
- *   ptr[2] = ddr_base    (INP base — offset encoded in instructions)
- *   ptr[3] = ddr_base    (WGT base — offset encoded in instructions)
- *   ptr[4] = ddr_base    (ACC base — offset encoded in instructions)
- *   ptr[5] = ddr_base    (OUT base — offset encoded in instructions)
+ *   ptr[1] = ddr_base    (UOP base - offset encoded in instructions)
+ *   ptr[2] = ddr_base    (INP base - offset encoded in instructions)
+ *   ptr[3] = ddr_base    (WGT base - offset encoded in instructions)
+ *   ptr[4] = ddr_base    (ACC base - offset encoded in instructions)
+ *   ptr[5] = ddr_base    (OUT base - offset encoded in instructions)
  *   vals   = insn_count
  */
 struct LayerDesc {

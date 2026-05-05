@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-gen_nn_baremetal.py — Generate baremetal headers, XSDB load scripts, and
+gen_nn_baremetal.py - Generate baremetal headers, XSDB load scripts, and
 ELF-embedding artifacts from VTA compiler output directories.
 
 Usage
@@ -18,10 +18,9 @@ generates all artifacts (backward-compatible default).
 
 Inputs consumed from <compiler_output_dir>
 ------------------------------------------
-  layers_name.csv              — VTA layers and their filename suffixes
-  dependency.csv               — full execution graph (VTA + CPU steps)
-  memory_addresses[SUFFIX].csv — per-VTA-layer DDR offset/size table
-  input_nn.bin                 — raw network input (only needed for run_nn)
+  dependency.csv               - full execution graph (VTA + CPU steps); defines layer order
+  memory_addresses[SUFFIX].csv - per-VTA-layer DDR offset/size table
+  input_nn.bin                 - raw network input (only needed for run_nn)
 
 Only INSN, UOP, WGT, ACC are treated as static model data.
 INP and OUT buffers are runtime: INP receives input_nn.bin before the first
@@ -30,19 +29,19 @@ layer, subsequent INP regions are populated by the previous VTA layer's OUT.
 Outputs (all written to --outdir)
 ----------------------------------
 Always generated:
-  nn_ddr_map.h         — vta::LayerDesc array for VTA layers
-  nn_exec_plan.h       — typed execution step array (VTA + CPU steps)
+  nn_ddr_map.h         - vta::LayerDesc array for VTA layers
+  nn_exec_plan.h       - typed execution step array (VTA + CPU steps)
 
 TCL data-loader (--data-loader tcl, or default):
-  load_nn_static.tcl   — XSDB: loads INSN/UOP/WGT/ACC only (no input)
-  load_nn.tcl          — XSDB: loads INSN/UOP/WGT/ACC + input_nn.bin
+  load_nn_static.tcl   - XSDB: loads INSN/UOP/WGT/ACC only (no input)
+  load_nn.tcl          - XSDB: loads INSN/UOP/WGT/ACC + input_nn.bin
                          (only when --runner run_nn or no --runner)
-  load_input.tcl       — XSDB: loads input_nn.bin only
+  load_input.tcl       - XSDB: loads input_nn.bin only
                          (only when --runner run_nn or no --runner)
 
 ELF data-loader (--data-loader elf, or default):
-  nn_bin_data.S        — AArch64 assembly with .incbin for each static buffer
-  nn_vta_sections.ld   — linker fragment placing each section at its DRAM address
+  nn_bin_data.S        - AArch64 assembly with .incbin for each static buffer
+  nn_vta_sections.ld   - linker fragment placing each section at its DRAM address
 """
 
 import argparse
@@ -51,6 +50,7 @@ import json
 import os
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 
@@ -80,11 +80,11 @@ def load_block_size(
             if log_block is not None:
                 return 1 << int(log_block)
             print(
-                f"WARNING: LOG_BLOCK not found in {config_json_path} — using default {DEFAULT_BLOCK_SIZE}"
+                f"WARNING: LOG_BLOCK not found in {config_json_path} - using default {DEFAULT_BLOCK_SIZE}"
             )
         except Exception as e:
             print(
-                f"WARNING: could not read {config_json_path}: {e} — using default {DEFAULT_BLOCK_SIZE}"
+                f"WARNING: could not read {config_json_path}: {e} - using default {DEFAULT_BLOCK_SIZE}"
             )
     return DEFAULT_BLOCK_SIZE
 
@@ -165,22 +165,6 @@ class DependencyInfo:
 # ---------------------------------------------------------------------------
 
 
-def load_layers_name(path: str) -> List[Tuple[int, str]]:
-    """Parse layers_name.csv → list of (index, suffix) sorted by index."""
-    layers: List[Tuple[int, str]] = []
-    with open(path, newline="") as f:
-        for row in csv.reader(f):
-            row = [c.strip() for c in row]
-            if not row or row[0] == "nb_vta_ir":
-                continue
-            try:
-                idx = int(row[0])
-                suffix = row[1] if len(row) > 1 else ""
-                layers.append((idx, suffix))
-            except ValueError:
-                pass
-    layers.sort(key=lambda x: x[0])
-    return layers
 
 
 def load_memory_addresses(path: str) -> Dict[str, MemAddr]:
@@ -321,6 +305,11 @@ def mem_addresses_path(comp_dir: str, suffix: str) -> str:
     return os.path.join(comp_dir, f"memory_addresses{suffix}.csv")
 
 
+def _relpath_posix(abs_path: str, base_dir: str) -> str:
+    """Return a POSIX-style relative path from base_dir to abs_path."""
+    return Path(os.path.relpath(abs_path, base_dir)).as_posix()
+
+
 # ---------------------------------------------------------------------------
 # Core logic
 # ---------------------------------------------------------------------------
@@ -360,39 +349,31 @@ def _recompute_sizes_from_offsets(layers: List[LayerInfo], comp_dir: str) -> Non
             else:
                 print(
                     f"WARNING: cannot determine size for last buffer "
-                    f"layer {i} ({layers[i].suffix}) {buf_type} — no binary file found"
+                    f"layer {i} ({layers[i].suffix}) {buf_type} - no binary file found"
                 )
 
 
-def collect_layers(comp_dir: str) -> List[LayerInfo]:
-    """Read layers_name.csv and per-layer memory_addresses CSVs."""
-    lname_path = os.path.join(comp_dir, "layers_name.csv")
-    if not os.path.isfile(lname_path):
-        sys.exit(f"ERROR: {lname_path} not found")
-
-    index_suffix = load_layers_name(lname_path)
-    if not index_suffix:
-        sys.exit("ERROR: no layers found in layers_name.csv")
+def collect_layers(comp_dir: str, vta_suffixes: List[str]) -> List[LayerInfo]:
+    """Build LayerInfo list from per-layer memory_addresses CSVs, in execution order."""
+    if not vta_suffixes:
+        sys.exit("ERROR: no VTA layers found in dependency.csv")
 
     layers: List[LayerInfo] = []
-    for idx, suffix in index_suffix:
+    for suffix in vta_suffixes:
         maddr_path = mem_addresses_path(comp_dir, suffix)
         if not os.path.isfile(maddr_path):
-            sys.exit(f"ERROR: {maddr_path} not found (layer {idx}, suffix '{suffix}')")
+            sys.exit(f"ERROR: {maddr_path} not found (suffix '{suffix}')")
         mem = load_memory_addresses(maddr_path)
         missing = [t for t in BUFFER_TYPES if t not in mem]
         if missing:
             print(
-                f"WARNING: {maddr_path} missing entries for {missing} — treating as size=0 (maxpool/no-weight layer)"
+                f"WARNING: {maddr_path} missing entries for {missing} - treating as size=0 (maxpool/no-weight layer)"
             )
             for t in missing:
                 mem[t] = MemAddr(offset=0, size=0)
         bin_files = {t: layer_binfile(comp_dir, t, suffix) for t in BUFFER_TYPES}
         layers.append(LayerInfo(suffix=suffix, mem=mem, bin_files=bin_files))
 
-    # Fix sizes: CSV column 3 is the logical address, not the byte size.
-    # Recompute from offset differences so xxx_bytes fields and the overlap
-    # checker use the real page-aligned allocated sizes.
     _recompute_sizes_from_offsets(layers, comp_dir)
     return layers
 
@@ -466,7 +447,7 @@ def _find_vta_consumer_addr(
                     return ddr_base + layers[idx].mem["INP"].offset
                 else:
                     return ddr_base + layers[idx].mem["ACC"].offset
-        # CPU consumer: keep scanning — a later VTA consumer may exist
+        # CPU consumer: keep scanning - a later VTA consumer may exist
     return 0
 
 
@@ -557,7 +538,7 @@ def insn_count_from_file(bin_path: str, csv_size: int) -> int:
         if file_bytes % 16 != 0:
             print(f"WARNING: {bin_path} size {file_bytes} not a multiple of 16")
         return file_bytes // 16
-    print(f"WARNING: {bin_path} not found — falling back to CSV region size")
+    print(f"WARNING: {bin_path} not found - falling back to CSV region size")
     return csv_size // 16
 
 
@@ -575,7 +556,7 @@ def safe_c_name(suffix: str, index: int) -> str:
 
 def gen_header(layers: List[LayerInfo], ddr_base: int, out_path: str) -> None:
     L: List[str] = []
-    L.append("/* Auto-generated by tools/gen_nn_baremetal.py — DO NOT EDIT */")
+    L.append("/* Auto-generated by tools/gen_nn_baremetal.py - DO NOT EDIT */")
     L.append("#pragma once")
     L.append('#include "vta_nn.h"')
     L.append("")
@@ -632,7 +613,7 @@ def gen_exec_plan_header(
     num_steps = len(dep_info.execution_order)
 
     L: List[str] = []
-    L.append("/* Auto-generated by tools/gen_nn_baremetal.py — DO NOT EDIT */")
+    L.append("/* Auto-generated by tools/gen_nn_baremetal.py - DO NOT EDIT */")
     L.append("#pragma once")
     L.append('#include "vta_cpu_ops.h"')
     L.append("")
@@ -829,10 +810,10 @@ def gen_exec_plan_header(
 
         else:
             print(
-                f"WARNING: unsupported processor '{processor}' for '{layer_name}' — emitting VTA stub"
+                f"WARNING: unsupported processor '{processor}' for '{layer_name}' - emitting VTA stub"
             )
             L.append(
-                f"    /* step {step_idx}: {processor} {layer_name} — unsupported, skipped */"
+                f"    /* step {step_idx}: {processor} {layer_name} - unsupported, skipped */"
             )
             L.append(
                 f'    {{ NN_STEP_VTA, "{layer_name}", {{ .vta = {{ -1 }} }} }}{_comma(emitted)}'
@@ -868,7 +849,7 @@ def gen_tcl(
     If False, only static model data is loaded (for run_nn_uart / test_gemm).
     """
     L: List[str] = []
-    L.append("# Auto-generated by tools/gen_nn_baremetal.py — DO NOT EDIT")
+    L.append("# Auto-generated by tools/gen_nn_baremetal.py - DO NOT EDIT")
     L.append("#")
     if include_input:
         L.append("# Loads static model data (INSN/UOP/WGT/ACC) and the network input")
@@ -878,7 +859,7 @@ def gen_tcl(
     else:
         L.append("# Loads static model data (INSN/UOP/WGT/ACC) only.")
         L.append(
-            "# input_nn.bin is NOT loaded — supplied at runtime (UART or other means)."
+            "# input_nn.bin is NOT loaded - supplied at runtime (UART or other means)."
         )
     L.append("#")
     L.append("# Usage (from Vitis XSDB console or xsct shell):")
@@ -909,7 +890,7 @@ def gen_tcl(
         raw_phys = scratch_addr(layers, ddr_base)
         addr_str = f"0x{raw_phys:08X}"
         L.append(
-            "# --- raw network input (scratch — ARM applies im2row at runtime) ---"
+            "# --- raw network input (scratch - ARM applies im2row at runtime) ---"
         )
         L.append(f'puts "Loading input_nn.bin (raw) -> {addr_str}..."')
         if os.path.isfile(input_nn_path):
@@ -919,7 +900,7 @@ def gen_tcl(
                 f"# WARNING: input_nn.bin not found at codegen time: {input_nn_path}"
             )
             L.append(
-                f'puts stderr "ERROR: input_nn.bin not found — place it at: {input_nn_path}"'
+                f'puts stderr "ERROR: input_nn.bin not found - place it at: {input_nn_path}"'
             )
             L.append("exit 1")
         L.append("")
@@ -939,7 +920,7 @@ def gen_tcl(
 
 def gen_asm_incbin(layers: List[LayerInfo], out_path: str) -> None:
     L: List[str] = []
-    L.append("/* Auto-generated by gen_nn_baremetal.py — DO NOT EDIT */")
+    L.append("/* Auto-generated by gen_nn_baremetal.py - DO NOT EDIT */")
     L.append("/*")
     L.append(" * VTA static model data: one .incbin section per buffer per layer.")
     L.append(" * Each section is placed at its DRAM address by nn_vta_sections.ld.")
@@ -954,20 +935,21 @@ def gen_asm_incbin(layers: List[LayerInfo], out_path: str) -> None:
         for buf_type in STATIC_LOAD_ORDER:
             if layer.mem[buf_type].size == 0:
                 continue
-            bin_path = os.path.abspath(layer.bin_files[buf_type])
+            abs_bin = os.path.abspath(layer.bin_files[buf_type])
+            bin_path = Path(abs_bin).as_posix()  # absolute; relativized by create_vitis_workspace.py
             sec_name = f".vta_l{i}_{buf_type.lower()}"
             L.append(f'    .section {sec_name}, "a", %progbits')
             L.append("    .align 6")
-            if os.path.isfile(bin_path):
+            if os.path.isfile(abs_bin):
                 L.append(f'    .incbin "{bin_path}"')
             else:
                 L.append(
                     f"    /* WARNING: binary not found at codegen time: {bin_path} */"
                 )
-                print(f"WARNING: {bin_path} not found — section will be empty")
+                print(f"WARNING: {abs_bin} not found - section will be empty")
             L.append("")
 
-    with open(out_path, "w") as f:
+    with open(out_path, "w", encoding="utf-8") as f:
         f.write("\n".join(L) + "\n")
     print(f"[gen] Assembly incbin file written to {out_path}")
 
@@ -979,7 +961,7 @@ def gen_asm_incbin(layers: List[LayerInfo], out_path: str) -> None:
 
 def gen_linker_fragment(layers: List[LayerInfo], ddr_base: int, out_path: str) -> None:
     L: List[str] = []
-    L.append("/* Auto-generated by gen_nn_baremetal.py — DO NOT EDIT              */")
+    L.append("/* Auto-generated by gen_nn_baremetal.py - DO NOT EDIT              */")
     L.append("/* VTA static model data linker fragment                             */")
     L.append("/*                                                                   */")
     L.append(
@@ -1017,9 +999,9 @@ def gen_input_tcl(
     out_path: str,
 ) -> None:
     L: List[str] = []
-    L.append("# Auto-generated by gen_nn_baremetal.py — DO NOT EDIT")
+    L.append("# Auto-generated by gen_nn_baremetal.py - DO NOT EDIT")
     L.append("#")
-    L.append("# Loads input_nn.bin only — static model data is embedded in the ELF.")
+    L.append("# Loads input_nn.bin only - static model data is embedded in the ELF.")
     L.append("#")
     L.append("# Usage (from Vitis XSDB console or xsct shell):")
     L.append("#   source load_input.tcl")
@@ -1034,14 +1016,14 @@ def gen_input_tcl(
     raw_phys = scratch_addr(layers, ddr_base)
     addr_str = f"0x{raw_phys:08X}"
 
-    L.append("# --- raw network input (scratch — ARM applies im2row at runtime) ---")
+    L.append("# --- raw network input (scratch - ARM applies im2row at runtime) ---")
     L.append(f'puts "Loading input_nn.bin (raw) -> {addr_str}..."')
     if os.path.isfile(input_nn_path):
         L.append(f"dow -data {{{input_nn_path}}} {addr_str}")
     else:
         L.append(f"# WARNING: input_nn.bin not found at codegen time: {input_nn_path}")
         L.append(
-            f'puts stderr "ERROR: input_nn.bin not found — place it at: {input_nn_path}"'
+            f'puts stderr "ERROR: input_nn.bin not found - place it at: {input_nn_path}"'
         )
         L.append("exit 1")
     L.append("")
@@ -1106,13 +1088,13 @@ def check_memory_fit(
     )
 
     if overflows:
-        print(f"[check] FAIL — {len(overflows)} overflow(s):")
+        print(f"[check] FAIL - {len(overflows)} overflow(s):")
         for msg in overflows:
             print(msg)
         return False
 
     remaining = max_addr - high_watermark
-    print(f"[check] OK — {remaining} bytes free (0x{remaining:08X})")
+    print(f"[check] OK - {remaining} bytes free (0x{remaining:08X})")
     return True
 
 
@@ -1156,12 +1138,12 @@ def check_buffer_overlaps(layers: List[LayerInfo], ddr_base: int) -> bool:
                 )
 
     if conflicts:
-        print(f"\n[overlap] ERROR — {len(conflicts)} DDR region overlap(s) detected:")
+        print(f"\n[overlap] ERROR - {len(conflicts)} DDR region overlap(s) detected:")
         for msg in conflicts:
             print(msg)
         return False
 
-    print(f"\n[overlap] OK — no DDR region overlaps ({len(regions)} buffers checked)")
+    print(f"\n[overlap] OK - no DDR region overlaps ({len(regions)} buffers checked)")
     return True
 
 
@@ -1201,15 +1183,15 @@ def _print_usage_summary(
     print(f"\n[gen] Deployment configuration: runner={r}  data-loader={dl}")
     if want_tcl and want_input:
         print(
-            "[gen]   TCL (full):    load_nn.tcl         — static model data + input_nn.bin"
+            "[gen]   TCL (full):    load_nn.tcl         - static model data + input_nn.bin"
         )
     if want_tcl:
-        print("[gen]   TCL (static):  load_nn_static.tcl  — static model data only")
+        print("[gen]   TCL (static):  load_nn_static.tcl  - static model data only")
     if want_input and not (want_tcl and want_input):
-        print("[gen]   TCL (input):   load_input.tcl      — input_nn.bin only")
+        print("[gen]   TCL (input):   load_input.tcl      - input_nn.bin only")
     elif want_input:
         print(
-            "[gen]   TCL (input):   load_input.tcl      — input_nn.bin only (for ELF flow)"
+            "[gen]   TCL (input):   load_input.tcl      - input_nn.bin only (for ELF flow)"
         )
     if want_elf:
         print("[gen]   ELF embed:     nn_bin_data.S + nn_vta_sections.ld")
@@ -1287,18 +1269,15 @@ def main() -> None:
     if not os.path.isdir(comp_dir):
         sys.exit(f"ERROR: compiler output directory not found: {comp_dir}")
 
-    layers = collect_layers(comp_dir)
-    print(f"[gen] found {len(layers)} VTA layer(s)")
-
-    dep_info: Optional[DependencyInfo] = None
     dep_path = os.path.join(comp_dir, "dependency.csv")
-    if os.path.isfile(dep_path):
-        dep_info = load_dependency_csv(dep_path)
-        print(f"[gen] dependency.csv: {len(dep_info.execution_order)} execution steps")
-    else:
-        print(
-            f"WARNING: {dep_path} not found — exec plan and image-layer detection skipped"
-        )
+    if not os.path.isfile(dep_path):
+        sys.exit(f"ERROR: dependency.csv not found: {dep_path}")
+    dep_info = load_dependency_csv(dep_path)
+    print(f"[gen] dependency.csv: {len(dep_info.execution_order)} execution steps")
+
+    vta_suffixes = [name for _, proc, name in dep_info.execution_order if proc == "vta"]
+    layers = collect_layers(comp_dir, vta_suffixes)
+    print(f"[gen] found {len(layers)} VTA layer(s)")
 
     if not check_buffer_overlaps(layers, ddr_base):
         sys.exit(1)
@@ -1310,12 +1289,9 @@ def main() -> None:
 
     # Always generate runner/loader-agnostic headers.
     gen_header(layers, ddr_base, out("nn_ddr_map.h"))
-    if dep_info:
-        gen_exec_plan_header(
-            dep_info, layers, ddr_base, comp_dir, out("nn_exec_plan.h"), block_size
-        )
-    else:
-        sys.exit(f"ERROR: exec plan requires dependency.csv, not found: {dep_path}")
+    gen_exec_plan_header(
+        dep_info, layers, ddr_base, comp_dir, out("nn_exec_plan.h"), block_size
+    )
 
     # TCL data-loader artifacts.
     if want_tcl:
@@ -1337,7 +1313,7 @@ def main() -> None:
                 include_input=True,
             )
 
-    # input_nn.bin TCL — generated whenever the runner needs pre-loaded input,
+    # input_nn.bin TCL - generated whenever the runner needs pre-loaded input,
     # regardless of data-loader (useful even in ELF flow).
     if want_input:
         gen_input_tcl(layers, ddr_base, comp_dir, out("load_input.tcl"))
