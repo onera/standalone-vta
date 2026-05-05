@@ -99,5 +99,6 @@ jobs:
             make -s vsim_inference
         - name: Check output against reference
           run: |
+            source src/compiler/.venv/bin/activate
             cd examples
             make check_vsim
