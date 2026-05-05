@@ -9,7 +9,7 @@ all:
 COMPILER_OUTPUT ?= ../../../compiler_output
 COMPILER_OUTPUTS = $(wildcard $(COMPILER_OUTPUT)/*)
 CONFIG    ?= ../../../config/vta_config.json
-DDR_BASE  ?= 0x200000
+DDR_BASE  ?= 0x0
 OUTDIR    ?= gen
 RUNNER    ?= run_nn
 DATA_LOADER ?= tcl
@@ -17,13 +17,11 @@ XSA ?=
 CPU ?=
 GEN = $(wildcard $(OUTDIR)/*)
 
-app: $(COMPILER_OUTPUTS) $(CONFIG)
+gen: $(COMPILER_OUTPUTS) $(CONFIG)
 	python host/gen_nn_baremetal.py \
 		--config-json $(CONFIG)     \
 		--ddr-base    $(DDR_BASE)   \
 		--outdir      $(OUTDIR)     \
-		--runner      $(RUNNER)     \
-		--data-loader $(DATA_LOADER)\
 		$(COMPILER_OUTPUT)
 
 build/vitis_proj: $(GEN)

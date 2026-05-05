@@ -7,20 +7,17 @@ Usage
 -----
     python3 host/gen_nn_baremetal.py <compiler_output_dir>  \
         [--ddr-base 0x10000000]                                 \
-        [--outdir   src/fpga/software/gen]                      \
-        [--runner   {run_nn, run_nn_uart, test_gemm}]           \
-        [--data-loader {tcl, elf}]
+        [--outdir   src/fpga/software/gen] \
 
 All generated files are written to --outdir (default: gen) with fixed names.
---runner and --data-loader are orthogonal: runner selects which .cc is compiled,
-data-loader selects how static model data reaches DDR.  Omitting either flag
-generates all artifacts (backward-compatible default).
+create_vitis_workspace.py selects which files to include per application
+(runner × data-loader combination); this script always generates the full set.
 
 Inputs consumed from <compiler_output_dir>
 ------------------------------------------
   dependency.csv               - full execution graph (VTA + CPU steps); defines layer order
   memory_addresses[SUFFIX].csv - per-VTA-layer DDR offset/size table
-  input_nn.bin                 - raw network input (only needed for run_nn)
+  input_nn.bin                 - raw network input
 
 Only INSN, UOP, WGT, ACC are treated as static model data.
 INP and OUT buffers are runtime: INP receives input_nn.bin before the first
@@ -28,18 +25,11 @@ layer, subsequent INP regions are populated by the previous VTA layer's OUT.
 
 Outputs (all written to --outdir)
 ----------------------------------
-Always generated:
   nn_ddr_map.h         - vta::LayerDesc array for VTA layers
   nn_exec_plan.h       - typed execution step array (VTA + CPU steps)
-
-TCL data-loader (--data-loader tcl, or default):
   load_nn_static.tcl   - XSDB: loads INSN/UOP/WGT/ACC only (no input)
   load_nn.tcl          - XSDB: loads INSN/UOP/WGT/ACC + input_nn.bin
-                         (only when --runner run_nn or no --runner)
   load_input.tcl       - XSDB: loads input_nn.bin only
-                         (only when --runner run_nn or no --runner)
-
-ELF data-loader (--data-loader elf, or default):
   nn_bin_data.S        - AArch64 assembly with .incbin for each static buffer
   nn_vta_sections.ld   - linker fragment placing each section at its DRAM address
 """
@@ -163,8 +153,6 @@ class DependencyInfo:
 # ---------------------------------------------------------------------------
 # CSV helpers
 # ---------------------------------------------------------------------------
-
-
 
 
 def load_memory_addresses(path: str) -> Dict[str, MemAddr]:
@@ -607,9 +595,15 @@ def gen_exec_plan_header(
     comp_dir: str,
     out_path: str,
     block_size: int = DEFAULT_BLOCK_SIZE,
+    suffix_to_idx: Optional[Dict[str, int]] = None,
+    cpu_out: Optional[Dict[str, int]] = None,
 ) -> None:
-    suffix_to_idx = {layer.suffix: i for i, layer in enumerate(layers)}
-    cpu_out = _build_cpu_out_addrs(dep_info, layers, ddr_base, suffix_to_idx, comp_dir)
+    if suffix_to_idx is None:
+        suffix_to_idx = {layer.suffix: i for i, layer in enumerate(layers)}
+    if cpu_out is None:
+        cpu_out = _build_cpu_out_addrs(
+            dep_info, layers, ddr_base, suffix_to_idx, comp_dir
+        )
     num_steps = len(dep_info.execution_order)
 
     L: List[str] = []
@@ -936,7 +930,9 @@ def gen_asm_incbin(layers: List[LayerInfo], out_path: str) -> None:
             if layer.mem[buf_type].size == 0:
                 continue
             abs_bin = os.path.abspath(layer.bin_files[buf_type])
-            bin_path = Path(abs_bin).as_posix()  # absolute; relativized by create_vitis_workspace.py
+            bin_path = Path(
+                abs_bin
+            ).as_posix()  # absolute; relativized by create_vitis_workspace.py
             sec_name = f".vta_l{i}_{buf_type.lower()}"
             L.append(f'    .section {sec_name}, "a", %progbits')
             L.append("    .align 6")
@@ -1148,6 +1144,145 @@ def check_buffer_overlaps(layers: List[LayerInfo], ddr_base: int) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Binary fit check
+# ---------------------------------------------------------------------------
+
+
+def check_binary_fits(layers: List[LayerInfo], comp_dir: str) -> bool:
+    """Verify each static binary file fits within its allocated DDR slot.
+
+    Only STATIC_LOAD_ORDER buffers (INSN, UOP, WGT, ACC) are checked —
+    INP/OUT are runtime buffers with no pre-loaded file to compare.
+    """
+    violations: List[str] = []
+    for i, layer in enumerate(layers):
+        for buf_type in STATIC_LOAD_ORDER:
+            m = layer.mem[buf_type]
+            if m.size == 0:
+                continue
+            bin_path = layer.bin_files[buf_type]
+            if not os.path.isfile(bin_path):
+                continue
+            file_size = os.path.getsize(bin_path)
+            if file_size > m.size:
+                violations.append(
+                    f"  layer {i:3d} ({layer.suffix:<30s}) {buf_type}:"
+                    f" file {file_size} B > slot {m.size} B"
+                    f" (overflow by {file_size - m.size} bytes)"
+                )
+    if violations:
+        print(f"\n[check] Binary fit: FAIL - {len(violations)} overflow(s):")
+        for msg in violations:
+            print(msg)
+        return False
+    checked = sum(
+        1
+        for layer in layers
+        for buf_type in STATIC_LOAD_ORDER
+        if layer.mem[buf_type].size > 0 and os.path.isfile(layer.bin_files[buf_type])
+    )
+    print(f"\n[check] Binary fit: OK ({checked} files checked)")
+    return True
+
+
+# ---------------------------------------------------------------------------
+# CPU output fit check
+# ---------------------------------------------------------------------------
+
+
+def check_cpu_output_fits(
+    dep_info: DependencyInfo,
+    layers: List[LayerInfo],
+    ddr_base: int,
+    suffix_to_idx: Dict[str, int],
+    cpu_out: Dict[str, int],
+    block_size: int,
+) -> bool:
+    """Verify CPU-side outputs fit within the VTA regions they target.
+
+    Two subcases:
+      - format_input (im2row): tiled output size <= VTA INP region size
+      - CPU op (qadd/concat/quant) feeding a VTA layer: output_bytes <= INP/ACC size
+    CPU ops writing to scratch are skipped; their region is _align_page(output_bytes).
+    """
+    import math
+
+    violations: List[str] = []
+
+    for k, (_, processor, layer_name) in enumerate(dep_info.execution_order):
+        ld = dep_info.layers.get(layer_name)
+        if not ld:
+            continue
+
+        # format_input: im2row writes to VTA INP
+        if processor == "vta":
+            if not (ld.deps and ld.deps[0] == "image" and ld.reshape_info == "im2row"):
+                continue
+            idx = suffix_to_idx.get(layer_name, -1)
+            if idx < 0:
+                continue
+            out_h = (ld.tensor_h + ld.pad[0] + ld.pad[2] - ld.kh) // ld.sh + 1
+            out_w = (ld.tensor_w + ld.pad[1] + ld.pad[3] - ld.kw) // ld.sw + 1
+            dense = ld.kh * ld.kw * ld.tensor_ch
+            tiled = math.ceil(dense / block_size) * block_size
+            output_bytes = out_h * out_w * tiled
+            region_size = layers[idx].mem["INP"].size
+            if output_bytes > region_size:
+                violations.append(
+                    f"  format_input {layer_name}: im2row output {output_bytes} B"
+                    f" > INP region {region_size} B"
+                    f" (overflow by {output_bytes - region_size} bytes)"
+                )
+            continue
+
+        if processor not in ("qadd", "concat", "quant"):
+            continue
+
+        # Find first VTA consumer after this step
+        vta_consumer: Optional[Tuple[int, str]] = None
+        for j in range(k + 1, len(dep_info.execution_order)):
+            _, proc, name = dep_info.execution_order[j]
+            if proc != "vta":
+                continue
+            vta_ld = dep_info.layers.get(name)
+            if not vta_ld or layer_name not in vta_ld.deps:
+                continue
+            idx = suffix_to_idx.get(name, -1)
+            if idx < 0:
+                continue
+            buf = "INP" if vta_ld.reshape_info == "im2row" else "ACC"
+            vta_consumer = (idx, buf)
+            break
+
+        if vta_consumer is None:
+            continue  # scratch allocation — always fits by construction
+
+        idx, buf = vta_consumer
+        output_bytes = ld.out_ch * ld.out_h * ld.out_w
+        region_size = layers[idx].mem[buf].size
+        if output_bytes > region_size:
+            violations.append(
+                f"  {processor} {layer_name}: output {output_bytes} B"
+                f" > VTA {buf} region {region_size} B"
+                f" (overflow by {output_bytes - region_size} bytes)"
+            )
+
+    if violations:
+        print(f"\n[check] CPU output fit: FAIL - {len(violations)} overflow(s):")
+        for msg in violations:
+            print(msg)
+        return False
+
+    cpu_steps = sum(
+        1
+        for _, proc, _ in dep_info.execution_order
+        if proc in ("qadd", "concat", "quant", "vta")
+    )
+    print(f"\n[check] CPU output fit: OK ({cpu_steps} steps checked)")
+    return True
+
+
+# ---------------------------------------------------------------------------
 # Summary print
 # ---------------------------------------------------------------------------
 
@@ -1171,37 +1306,6 @@ def print_summary(layers: List[LayerInfo], ddr_base: int) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _print_usage_summary(
-    runner: Optional[str],
-    data_loader: Optional[str],
-    want_tcl: bool,
-    want_elf: bool,
-    want_input: bool,
-) -> None:
-    r = runner or "run_nn"
-    dl = data_loader or "tcl+elf"
-    print(f"\n[gen] Deployment configuration: runner={r}  data-loader={dl}")
-    if want_tcl and want_input:
-        print(
-            "[gen]   TCL (full):    load_nn.tcl         - static model data + input_nn.bin"
-        )
-    if want_tcl:
-        print("[gen]   TCL (static):  load_nn_static.tcl  - static model data only")
-    if want_input and not (want_tcl and want_input):
-        print("[gen]   TCL (input):   load_input.tcl      - input_nn.bin only")
-    elif want_input:
-        print(
-            "[gen]   TCL (input):   load_input.tcl      - input_nn.bin only (for ELF flow)"
-        )
-    if want_elf:
-        print("[gen]   ELF embed:     nn_bin_data.S + nn_vta_sections.ld")
-    print(f"[gen]   Compile:       examples/{r}.cc")
-    if r == "run_nn_uart":
-        print("[gen]   Input via:     UART (no TCL input load needed)")
-    elif want_input:
-        print("[gen]   Input via:     pre-loaded (TCL or ELF + load_input.tcl)")
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Generate baremetal header and XSDB script from VTA compiler output."
@@ -1212,28 +1316,11 @@ def main() -> None:
     parser.add_argument(
         "--ddr-base", default="0x0", help="DDR base address (default: 0x0)"
     )
-    # Runner / data-loader selection
-    parser.add_argument(
-        "--runner",
-        choices=["run_nn", "run_nn_uart", "test_gemm"],
-        default=None,
-        help="Target runner binary. Controls whether input_nn.bin loading is generated. "
-        "Default: generate all artifacts.",
-    )
-    parser.add_argument(
-        "--data-loader",
-        choices=["tcl", "elf"],
-        default=None,
-        help="Data loading strategy. 'tcl' generates XSDB scripts; 'elf' generates "
-        "assembly incbin + linker fragment. Default: generate all artifacts.",
-    )
     parser.add_argument(
         "--outdir",
         default="gen",
         metavar="DIR",
-        help="Directory where all generated files are written (default: gen). "
-        "Fixed filenames: nn_ddr_map.h, nn_exec_plan.h, load_nn.tcl, "
-        "load_nn_static.tcl, load_input.tcl, nn_bin_data.S, nn_vta_sections.ld",
+        help="Directory where all generated files are written (default: gen).",
     )
     parser.add_argument(
         "--max-addr",
@@ -1260,12 +1347,6 @@ def main() -> None:
     print(f"[gen] VTA block size: {block_size}")
     print(f"[gen] Output directory: {outdir}")
 
-    # Derive generation flags from runner / data-loader selection.
-    # When neither is specified all artifacts are generated (backward compat).
-    want_tcl = args.data_loader in (None, "tcl")
-    want_elf = args.data_loader in (None, "elf")
-    want_input = args.runner in (None, "run_nn")  # uart/test_gemm: input not pre-loaded
-
     if not os.path.isdir(comp_dir):
         sys.exit(f"ERROR: compiler output directory not found: {comp_dir}")
 
@@ -1282,49 +1363,53 @@ def main() -> None:
     if not check_buffer_overlaps(layers, ddr_base):
         sys.exit(1)
 
+    suffix_to_idx = {layer.suffix: i for i, layer in enumerate(layers)}
+    cpu_out = _build_cpu_out_addrs(dep_info, layers, ddr_base, suffix_to_idx, comp_dir)
+
+    if not check_binary_fits(layers, comp_dir):
+        sys.exit(1)
+    if not check_cpu_output_fits(
+        dep_info, layers, ddr_base, suffix_to_idx, cpu_out, block_size
+    ):
+        sys.exit(1)
+
     os.makedirs(outdir, exist_ok=True)
 
     def out(filename: str) -> str:
         return os.path.join(outdir, filename)
 
-    # Always generate runner/loader-agnostic headers.
     gen_header(layers, ddr_base, out("nn_ddr_map.h"))
     gen_exec_plan_header(
-        dep_info, layers, ddr_base, comp_dir, out("nn_exec_plan.h"), block_size
+        dep_info,
+        layers,
+        ddr_base,
+        comp_dir,
+        out("nn_exec_plan.h"),
+        block_size,
+        suffix_to_idx=suffix_to_idx,
+        cpu_out=cpu_out,
     )
-
-    # TCL data-loader artifacts.
-    if want_tcl:
-        gen_tcl(
-            layers,
-            ddr_base,
-            comp_dir,
-            out("load_nn_static.tcl"),
-            dep_info=dep_info,
-            include_input=False,
-        )
-        if want_input:
-            gen_tcl(
-                layers,
-                ddr_base,
-                comp_dir,
-                out("load_nn.tcl"),
-                dep_info=dep_info,
-                include_input=True,
-            )
-
-    # input_nn.bin TCL - generated whenever the runner needs pre-loaded input,
-    # regardless of data-loader (useful even in ELF flow).
-    if want_input:
-        gen_input_tcl(layers, ddr_base, comp_dir, out("load_input.tcl"))
-
-    # ELF data-loader artifacts.
-    if want_elf:
-        gen_asm_incbin(layers, out("nn_bin_data.S"))
-        gen_linker_fragment(layers, ddr_base, out("nn_vta_sections.ld"))
+    gen_tcl(
+        layers,
+        ddr_base,
+        comp_dir,
+        out("load_nn_static.tcl"),
+        dep_info=dep_info,
+        include_input=False,
+    )
+    gen_tcl(
+        layers,
+        ddr_base,
+        comp_dir,
+        out("load_nn.tcl"),
+        dep_info=dep_info,
+        include_input=True,
+    )
+    gen_input_tcl(layers, ddr_base, comp_dir, out("load_input.tcl"))
+    gen_asm_incbin(layers, out("nn_bin_data.S"))
+    gen_linker_fragment(layers, ddr_base, out("nn_vta_sections.ld"))
 
     print_summary(layers, ddr_base)
-    _print_usage_summary(args.runner, args.data_loader, want_tcl, want_elf, want_input)
 
     if args.max_addr:
         max_addr = int(args.max_addr, 16)

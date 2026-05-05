@@ -57,7 +57,7 @@ A `uv`-managed virtual environment is provided:
 ```sh
 cd src/fpga/software
 uv sync          # creates .venv and installs pyserial
-uv run python host/uart_nn.py ...
+uv run host/uart_nn.py ...
 ```
 
 ---
@@ -66,25 +66,25 @@ uv run python host/uart_nn.py ...
 
 Two axes are independent and can be combined freely:
 
-| Axis | Options | Meaning |
-| ---- | ------- | ------- |
-| **Runner** | `run_nn`, `run_nn_uart`, `test_gemm` | Which ARM application is compiled |
-| **Data loader** | `tcl`, `elf` | How static model data (INSN/UOP/WGT/ACC) reaches DDR |
+| Axis            | Options                              | Meaning                                              |
+| --------------- | ------------------------------------ | ---------------------------------------------------- |
+| **Runner**      | `run_nn`, `run_nn_uart`, `test_gemm` | Which ARM application is compiled                    |
+| **Data loader** | `tcl`, `elf`                         | How static model data (INSN/UOP/WGT/ACC) reaches DDR |
 
 **Runner**
 
-| Runner | Input source | Behaviour |
-| ------ | ------------ | --------- |
-| `run_nn` | Pre-loaded in DDR (TCL or ELF) | Runs inference once and exits |
-| `run_nn_uart` | Received over UART each iteration | Interactive loop driven by host |
-| `test_gemm` | Pre-loaded in DDR | Standalone GEMM correctness test |
+| Runner        | Input source                      | Behaviour                        |
+| ------------- | --------------------------------- | -------------------------------- |
+| `run_nn`      | Pre-loaded in DDR (TCL or ELF)    | Runs inference once and exits    |
+| `run_nn_uart` | Received over UART each iteration | Interactive loop driven by host  |
+| `test_gemm`   | Pre-loaded in DDR                 | Standalone GEMM correctness test |
 
 **Data loader**
 
-| Loader | Static model data | input_nn.bin |
-| ------ | ----------------- | ------------ |
-| `tcl` | `load_nn_static.tcl` sourced in XSDB | `load_input.tcl` (run_nn) or UART (run_nn_uart) |
-| `elf` | Embedded via `.incbin`; FSBL loads it | `load_input.tcl` (run_nn) or UART (run_nn_uart) |
+| Loader | Static model data                     | input_nn.bin                                    |
+| ------ | ------------------------------------- | ----------------------------------------------- |
+| `tcl`  | `load_nn_static.tcl` sourced in XSDB  | `load_input.tcl` (run_nn) or UART (run_nn_uart) |
+| `elf`  | Embedded via `.incbin`; FSBL loads it | `load_input.tcl` (run_nn) or UART (run_nn_uart) |
 
 ---
 
@@ -100,64 +100,42 @@ python host/gen_nn_baremetal.py <compiler_output_dir> \
     --ddr-base    0x200000      \
     --max-addr    0x1ff00000    \
     --outdir      gen           \
-    --runner      run_nn_uart   \
-    --data-loader tcl
 ```
 
-| Flag | Default | Description |
-| ---- | ------- | ----------- |
-| `--outdir DIR` | `gen` | Directory for all generated files |
-| `--runner` | _(all)_ | `run_nn`, `run_nn_uart`, or `test_gemm`; controls which input-loading artifacts are emitted |
-| `--data-loader` | _(all)_ | `tcl` or `elf`; controls which loader artifacts are emitted |
-| `--ddr-base ADDR` | `0x0` | Physical DDR base; all buffer offsets are relative to this |
-| `--max-addr ADDR` | - | Upper DDR limit; script exits with error if any allocation exceeds it |
-| `--config-json PATH` | - | VTA hardware config JSON; reads `LOG_BLOCK` to derive block size |
-| `--block-size N` | `8` | Override block size directly (takes priority over `--config-json`) |
-
-Omitting `--runner` and `--data-loader` generates every artifact (backward-compatible default).
+| Flag                 | Default | Description                                                           |
+| -------------------- | ------- | --------------------------------------------------------------------- |
+| `--outdir DIR`       | `gen`   | Directory for all generated files                                     |
+| `--ddr-base ADDR`    | `0x0`   | Physical DDR base; all buffer offsets are relative to this            |
+| `--max-addr ADDR`    | -       | Upper DDR limit; script exits with error if any allocation exceeds it |
+| `--config-json PATH` | -       | VTA hardware config JSON; reads `LOG_BLOCK` to derive block size      |
+| `--block-size N`     | `16`    | Override block size directly (takes priority over `--config-json`)    |
 
 **Generated files**
 
-| File | Condition | Description |
-| ---- | --------- | ----------- |
-| `nn_ddr_map.h` | always | `LayerDesc nn_layers[]` - VCR register values and buffer addresses per VTA layer |
-| `nn_exec_plan.h` | always | `NnExecStep nn_exec_steps[]` - ordered VTA + CPU steps for the full model |
-| `load_nn_static.tcl` | tcl loader | XSDB: loads INSN/UOP/WGT/ACC only (no input) |
-| `load_nn.tcl` | tcl + run_nn | XSDB: loads INSN/UOP/WGT/ACC + input_nn.bin |
-| `load_input.tcl` | run_nn | XSDB: loads input_nn.bin only (companion for ELF loader or standalone) |
-| `nn_bin_data.S` | elf loader | AArch64 assembly with `.incbin` for each static buffer |
-| `nn_vta_sections.ld` | elf loader | Linker fragment placing each `.vta_lN_*` section at its DDR address |
-
-**Flow examples**
-
-```sh
-# run_nn + tcl: generate static TCL, combined TCL, and input TCL
-python host/gen_nn_baremetal.py out/ --runner run_nn --data-loader tcl
-
-# run_nn_uart + tcl: generate static TCL only (UART provides input at runtime)
-python host/gen_nn_baremetal.py out/ --runner run_nn_uart --data-loader tcl
-
-# run_nn + elf: embed static data in ELF, generate load_input.tcl for input
-python host/gen_nn_baremetal.py out/ --runner run_nn --data-loader elf
-
-# run_nn_uart + elf: embed static data in ELF, no input TCL needed
-python host/gen_nn_baremetal.py out/ --runner run_nn_uart --data-loader elf
-```
+| File                 | Description                                                                      |
+| -------------------- | -------------------------------------------------------------------------------- |
+| `nn_ddr_map.h`       | `LayerDesc nn_layers[]` - VCR register values and buffer addresses per VTA layer |
+| `nn_exec_plan.h`     | `NnExecStep nn_exec_steps[]` - ordered VTA + CPU steps for the full model        |
+| `load_nn_static.tcl` | XSDB: loads INSN/UOP/WGT/ACC only (no input)                                     |
+| `load_nn.tcl`        | XSDB: loads INSN/UOP/WGT/ACC + input_nn.bin                                      |
+| `load_input.tcl`     | XSDB: loads input_nn.bin only (companion for ELF loader or standalone)           |
+| `nn_bin_data.S`      | AArch64 assembly with `.incbin` for each static buffer                           |
+| `nn_vta_sections.ld` | Linker fragment placing each `.vta_lN_*` section at its DDR address              |
 
 ### 2 - Create the Vitis workspace
 
 The script creates a platform from an XSA, builds the BSP, and creates an
-application component with all VTA driver sources copied in.
-`--runner` and `--data-loader` mirror the same flags from `gen_nn_baremetal.py`.
+application component with VTA driver linked in.
+`--runner` and `--data-loader` allows to specify which applications to create.
 
 **Create workspace and application for the first time:**
 
 ```sh
-source ~/Xilinx/2025.2/Vitis/settings64.sh
+source /opt/Xilinx/2025.2/Vitis/settings64.sh
 
 vitis -s host/create_vitis_workspace.py \
     --xsa         path/to/design.xsa  \
-    --workspace   build/vitis_proj    \
+    --workspace   path/to/vitis_workspace    \
     --runner      run_nn_uart         \
     --data-loader tcl
 ```
@@ -167,7 +145,7 @@ vitis -s host/create_vitis_workspace.py \
 
 ```sh
 vitis -s host/create_vitis_workspace.py \
-    --workspace   build/vitis_proj    \
+    --workspace   path/to/vitis_workspace    \
     --runner      run_nn_uart         \
     --data-loader tcl                 \
     --app-name    my_app
@@ -180,29 +158,33 @@ vitis -s host/create_vitis_workspace.py \
     --xsa         path/to/design.xsa  \
     --workspace   build/vitis_proj    \
     --runner      run_nn run_nn_uart  \
-    --data-loader elf
+    --data-loader elf tcl
 ```
 
-| Flag | Default | Description |
-| ---- | ------- | ----------- |
-| `--xsa PATH` | _(required for first run)_ | Vivado XSA file; omit to reuse an existing platform |
-| `--workspace PATH` | `vitis_workspace` | Vitis workspace directory |
-| `--platform-name NAME` | `vta_platform` | Name of the hardware platform component |
-| `--runner` | `run_nn` | One or more of `run_nn`, `run_nn_uart`, `test_gemm`; creates one app component per runner |
-| `--data-loader tcl\|elf` | _(required for run_nn / run_nn_uart)_ | Selects which generated config files are copied into the app; not used for `test_gemm` |
-| `--cpu NAME` | `psu_cortexa53_0` | BSP processor instance name; check `xparameters.h` in your BSP for the correct value |
-| `--app-name NAME` | `vta_<runner>_<loader>` | Override the app component name (single runner only) |
-| `--baud N` | `921600` | UART baud rate compiled into the firmware (`VTA_UART_BAUD`) |
-| `--dry-run` | - | Print files that would be copied without calling Vitis APIs |
+| Flag                     | Default                               | Description                                                                               |
+| ------------------------ | ------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `--xsa PATH`             | _(required for first run)_            | Vivado XSA file; omit to reuse an existing platform                                       |
+| `--workspace PATH`       | `vitis_workspace`                     | Vitis workspace directory                                                                 |
+| `--platform-name NAME`   | `vta_platform`                        | Name of the hardware platform component                                                   |
+| `--runner`               | `run_nn`                              | One or more of `run_nn`, `run_nn_uart`, `test_gemm`; creates one app component per runner |
+| `--data-loader tcl\|elf` | _(required for run_nn / run_nn_uart)_ | Selects which generated config files are copied into the app; not used for `test_gemm`    |
+| `--cpu NAME`             | `psu_cortexa53_0`                     | BSP processor instance name; check `xparameters.h` in your BSP for the correct value      |
+| `--app-name NAME`        | `vta_<runner>_<loader>`               | Override the app component name (single runner only)                                      |
+| `--baud N`               | `921600`                              | UART baud rate compiled into the firmware (`VTA_UART_BAUD`)                               |
+| `--dry-run`              | -                                     | Print files that would be copied without calling Vitis APIs                               |
 
 App component names are auto-derived: `vta_run_nn_tcl`, `vta_run_nn_uart_elf`,
 `vta_test_gemm`, etc.
 
-For the `elf` data loader, add inside the platform linker script's `SECTIONS { ... }`:
+The script also patches Vitis generated files:
+
+- for the `elf` data loader, it adds inside the application linker script:
 
 ```
 INCLUDE nn_vta_sections.ld
 ```
+
+- it includes the driver sources in the user cmake file as well as the \*.S assembly files required by the `elf`` flow
 
 ### 3 - Build and deploy
 
@@ -211,7 +193,7 @@ Build the application in Vitis, then load the ELF and static model data:
 ```sh
 # In the Vitis XSDB console (or xsct shell):
 connect
-targets -set -filter {name =~ "APU*"}
+targets -set -filter {name =~ "psu_cortexa53_0"}
 dow path/to/application.elf
 
 # TCL data loader - load static model data:
@@ -227,7 +209,7 @@ Only source `load_input.tcl` when using `run_nn` (not needed for `run_nn_uart`).
 ### 4a - One-shot inference (`run_nn`)
 
 The ARM application runs the full inference pipeline once and exits, printing
-per-step logs.  Input must be pre-loaded before execution starts (via TCL or
+per-step logs. Input must be pre-loaded before execution starts (via TCL or
 ELF + `load_input.tcl`).
 
 ```
@@ -241,7 +223,7 @@ ELF + `load_input.tcl`).
 
 The ARM application boots, prints the input/output sizes, then loops: waits
 for a trigger byte, receives input over UART, runs inference, and sends back
-the output.  Only static model data needs to be pre-loaded; `uart_nn.py`
+the output. Only static model data needs to be pre-loaded; `uart_nn.py`
 handles the input/output exchange.
 
 **Protocol**
@@ -280,19 +262,19 @@ python host/uart_nn.py \
     --verbose
 ```
 
-| Flag | Default | Description |
-| ---- | ------- | ----------- |
-| `--port DEV` | _(required)_ | Serial device (`/dev/ttyUSB0`, `COM3`, …) |
-| `--baud N` | `921600` | Baud rate (must match `VTA_UART_BAUD` compiled into the firmware) |
-| `--input FILE …` | _(required)_ | Raw input file(s); one inference per file |
-| `--output FILE` | - | Output file (single-run shorthand) |
-| `--output-dir DIR` | - | Directory for per-run output files |
-| `--repeat N` | `1` | Repeat each input N times |
-| `--input-bytes N` | _(from banner)_ | Override input size (banner still consumed) |
-| `--output-bytes N` | _(from banner)_ | Override output size (banner still consumed) |
-| `--banner-timeout SEC` | `20` | Seconds to wait for banner after sending trigger |
-| `--ready-timeout SEC` | `60` | Seconds to wait for `READY` before each run |
-| `--verbose` | - | Print per-layer board logs during inference |
+| Flag                   | Default         | Description                                                       |
+| ---------------------- | --------------- | ----------------------------------------------------------------- |
+| `--port DEV`           | _(required)_    | Serial device (`/dev/ttyUSB0`, `COM3`, …)                         |
+| `--baud N`             | `921600`        | Baud rate (must match `VTA_UART_BAUD` compiled into the firmware) |
+| `--input FILE …`       | _(required)_    | Raw input file(s); one inference per file                         |
+| `--output FILE`        | -               | Output file (single-run shorthand)                                |
+| `--output-dir DIR`     | -               | Directory for per-run output files                                |
+| `--repeat N`           | `1`             | Repeat each input N times                                         |
+| `--input-bytes N`      | _(from banner)_ | Override input size (banner still consumed)                       |
+| `--output-bytes N`     | _(from banner)_ | Override output size (banner still consumed)                      |
+| `--banner-timeout SEC` | `20`            | Seconds to wait for banner after sending trigger                  |
+| `--ready-timeout SEC`  | `60`            | Seconds to wait for `READY` before each run                       |
+| `--verbose`            | -               | Print per-layer board logs during inference                       |
 
 ---
 
@@ -300,21 +282,22 @@ python host/uart_nn.py \
 
 The library has no dependencies beyond the Xilinx BSP (included by Vitis).
 
-| Header | Contents |
-| ------ | -------- |
-| `vta.h` | VCR register layout, `CTRL_LAUNCH` / `CTRL_DONE` bit definitions |
-| `vta_board.h` | `board_init(baud)` - reinitializes the PS UART to the given baud rate at startup |
-| `vta_ctrl.h` | `launch()`, `poll_done()` - thin wrappers around VCR MMIO |
-| `vta_mem.h` | `init_ddr_region()`, `dump_words()` - DDR init and debug helpers |
-| `vta_nn.h` | `LayerDesc`, `run_layer()`, `run_nn()` |
+| Header          | Contents                                                                                                                         |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `vta.h`         | VCR register layout, `CTRL_LAUNCH` / `CTRL_DONE` bit definitions                                                                 |
+| `vta_board.h`   | `board_init(baud)` - reinitializes the PS UART to the given baud rate at startup                                                 |
+| `vta_ctrl.h`    | `launch()`, `poll_done()` - thin wrappers around VCR MMIO                                                                        |
+| `vta_mem.h`     | `init_ddr_region()`, `dump_words()` - DDR init and debug helpers                                                                 |
+| `vta_nn.h`      | `LayerDesc`, `run_layer()`, `run_nn()`                                                                                           |
 | `vta_cpu_ops.h` | `NnFormatInputStep`, `NnQaddStep`, `NnConcatStep`, `NnDequantStep`, `NnQuantStep` and the corresponding `vta::run_*()` functions |
 
 `board_init()` must be called at the very top of `main()`, before any
-`xil_printf` / `inbyte` / `outbyte`.  The BSP's pre-compiled `libxil.a`
+`xil_printf` / `inbyte` / `outbyte`. The BSP's pre-compiled `libxil.a`
 boots the UART at 115200; `board_init()` reinitializes it to `VTA_UART_BAUD`
-(default 921600) at runtime so no BSP rebuild is required.  Both `run_nn.cc`
+(default 921600) at runtime so no BSP rebuild is required. Both `run_nn.cc`
 and `run_nn_uart.cc` call it as their first statement.
 
 `run_layer()` handles the full hardware interaction for one layer: flush input
 caches, program VCR registers, launch VTA, poll for completion, invalidate
 output cache, and optionally relocate the output buffer.
+

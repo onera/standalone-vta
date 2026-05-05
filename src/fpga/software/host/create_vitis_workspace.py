@@ -381,12 +381,14 @@ def main() -> None:
     parser.add_argument(
         "--data-loader",
         choices=list(DATA_LOADER_GENERATED.keys()),
+        nargs="+",
         default=None,
         metavar="LOADER",
         help=(
-            "Data loading strategy for run_nn / run_nn_uart: "
+            "One or more data loading strategies for run_nn / run_nn_uart: "
             "'tcl' = XSDB scripts pre-load static model data; "
             "'elf' = static data embedded in the ELF via .incbin. "
+            "Multiple values create one app component per strategy. "
             "Not required for test_gemm."
         ),
     )
@@ -419,28 +421,38 @@ def main() -> None:
     args = parser.parse_args()
 
     runners: list[str] = list(dict.fromkeys(args.runner))
+    data_loaders: list[str] | None = (
+        list(dict.fromkeys(args.data_loader)) if args.data_loader else None
+    )
 
     # Validate data-loader requirement
     needs_loader = [r for r in runners if r in RUNNERS_WITH_DATA_LOADER]
-    if needs_loader and args.data_loader is None:
+    if needs_loader and data_loaders is None:
         sys.exit(
             f"ERROR: --data-loader {{tcl,elf}} is required for runner(s): {needs_loader}"
         )
 
-    if args.app_name and len(runners) > 1:
-        sys.exit("ERROR: --app-name cannot be used with multiple --runner values.")
+    # Build (runner, data_loader) combos — one app per pair
+    combos: list[tuple[str, str | None]] = []
+    for r in runners:
+        if r in RUNNERS_WITH_DATA_LOADER:
+            for dl in data_loaders:  # type: ignore[union-attr]
+                combos.append((r, dl))
+        else:
+            combos.append((r, None))
+
+    if args.app_name and len(combos) > 1:
+        sys.exit(
+            "ERROR: --app-name cannot be used with multiple --runner / --data-loader values."
+        )
 
     xsa = Path(args.xsa).resolve() if args.xsa else None
     workspace = Path(args.workspace).resolve()
     xpfm = xpfm_path(workspace, args.platform_name)
 
-    # Resolve data-loader per runner (None for test_gemm)
-    def runner_loader(r: str) -> str | None:
-        return args.data_loader if r in RUNNERS_WITH_DATA_LOADER else None
-
     app_names = {
-        r: (args.app_name if args.app_name else _app_name(r, runner_loader(r)))
-        for r in runners
+        (r, dl): (args.app_name if args.app_name else _app_name(r, dl))
+        for r, dl in combos
     }
 
     if args.dry_run:
@@ -451,10 +463,9 @@ def main() -> None:
         print(f"  Workspace:   {workspace}")
         print(f"  Platform:    {args.platform_name}")
         print(f"  CPU:         {args.cpu}")
-        for runner in runners:
-            dl = runner_loader(runner)
+        for runner, dl in combos:
             print()
-            print(f"  Application: {app_names[runner]}  "
+            print(f"  Application: {app_names[(runner, dl)]}  "
                   f"(runner={runner}, data-loader={dl or 'n/a'})")
             print("  Files that would be copied:")
             for dest_rel, src_path in collect_sources(runner, dl).items():
@@ -498,26 +509,26 @@ def main() -> None:
             client.set_workspace(path=str(workspace))
             print(f"[vitis] Using existing platform at {xpfm}")
 
-        app_srcs: dict[str, Path] = {}
-        for runner in runners:
-            app_srcs[runner] = create_app(
-                client, workspace, app_names[runner], xpfm, args.cpu
+        app_srcs: dict[tuple[str, str | None], Path] = {}
+        for runner, dl in combos:
+            app_srcs[(runner, dl)] = create_app(
+                client, workspace, app_names[(runner, dl)], xpfm, args.cpu
             )
     finally:
         client.close()
 
-    for runner in runners:
-        copy_sources(app_srcs[runner], runner, runner_loader(runner), args.baud)
+    for (runner, dl), app_src in app_srcs.items():
+        copy_sources(app_src, runner, dl, args.baud)
 
     print()
     print("=== Done ===")
     print(f"  Workspace : {workspace}")
     print(f"  Platform  : {workspace / args.platform_name}")
-    for runner in runners:
-        print(f"  App src   : {app_srcs[runner]}  ({app_names[runner]})")
+    for (runner, dl), app_src in app_srcs.items():
+        print(f"  App src   : {app_src}  ({app_names[(runner, dl)]})")
 
-    for runner in runners:
-        _next_steps(runner, runner_loader(runner))
+    for runner, dl in combos:
+        _next_steps(runner, dl)
 
 
 if __name__ == "__main__":
