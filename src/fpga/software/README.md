@@ -15,11 +15,13 @@ software/
 ├── driver/
 │   ├── include/
 │   │   ├── vta.h            # Low-level VCR register definitions
+│   │   ├── vta_board.h      # board_init(): runtime UART baud-rate setup
 │   │   ├── vta_ctrl.h       # VTA launch / poll helpers
 │   │   ├── vta_mem.h        # DDR initialization and debug helpers
 │   │   ├── vta_nn.h         # LayerDesc struct and run_layer / run_nn
 │   │   └── vta_cpu_ops.h    # CPU-side op structs (qadd, concat, dequant, quant, format_input)
 │   └── src/
+│       ├── vta_board.cc
 │       ├── vta_ctrl.cc
 │       ├── vta_mem.cc
 │       ├── vta_nn.cc
@@ -188,8 +190,9 @@ vitis -s host/create_vitis_workspace.py \
 | `--platform-name NAME` | `vta_platform` | Name of the hardware platform component |
 | `--runner` | `run_nn` | One or more of `run_nn`, `run_nn_uart`, `test_gemm`; creates one app component per runner |
 | `--data-loader tcl\|elf` | _(required for run_nn / run_nn_uart)_ | Selects which generated config files are copied into the app; not used for `test_gemm` |
-| `--cpu NAME` | `psu_cortexa53_0` | BSP processor instance (from `xparameters.h`) |
+| `--cpu NAME` | `psu_cortexa53_0` | BSP processor instance name; check `xparameters.h` in your BSP for the correct value |
 | `--app-name NAME` | `vta_<runner>_<loader>` | Override the app component name (single runner only) |
+| `--baud N` | `921600` | UART baud rate compiled into the firmware (`VTA_UART_BAUD`) |
 | `--dry-run` | — | Print files that would be copied without calling Vitis APIs |
 
 App component names are auto-derived: `vta_run_nn_tcl`, `vta_run_nn_uart_elf`,
@@ -280,7 +283,7 @@ python host/uart_nn.py \
 | Flag | Default | Description |
 | ---- | ------- | ----------- |
 | `--port DEV` | _(required)_ | Serial device (`/dev/ttyUSB0`, `COM3`, …) |
-| `--baud N` | `115200` | Baud rate |
+| `--baud N` | `921600` | Baud rate (must match `VTA_UART_BAUD` compiled into the firmware) |
 | `--input FILE …` | _(required)_ | Raw input file(s); one inference per file |
 | `--output FILE` | — | Output file (single-run shorthand) |
 | `--output-dir DIR` | — | Directory for per-run output files |
@@ -300,10 +303,17 @@ The library has no dependencies beyond the Xilinx BSP (included by Vitis).
 | Header | Contents |
 | ------ | -------- |
 | `vta.h` | VCR register layout, `CTRL_LAUNCH` / `CTRL_DONE` bit definitions |
+| `vta_board.h` | `board_init(baud)` — reinitializes the PS UART to the given baud rate at startup |
 | `vta_ctrl.h` | `launch()`, `poll_done()` — thin wrappers around VCR MMIO |
 | `vta_mem.h` | `init_ddr_region()`, `dump_words()` — DDR init and debug helpers |
 | `vta_nn.h` | `LayerDesc`, `run_layer()`, `run_nn()` |
 | `vta_cpu_ops.h` | `NnFormatInputStep`, `NnQaddStep`, `NnConcatStep`, `NnDequantStep`, `NnQuantStep` and the corresponding `vta::run_*()` functions |
+
+`board_init()` must be called at the very top of `main()`, before any
+`xil_printf` / `inbyte` / `outbyte`.  The BSP's pre-compiled `libxil.a`
+boots the UART at 115200; `board_init()` reinitializes it to `VTA_UART_BAUD`
+(default 921600) at runtime so no BSP rebuild is required.  Both `run_nn.cc`
+and `run_nn_uart.cc` call it as their first statement.
 
 `run_layer()` handles the full hardware interaction for one layer: flush input
 caches, program VCR registers, launch VTA, poll for completion, invalidate

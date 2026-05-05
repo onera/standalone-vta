@@ -60,10 +60,12 @@ from typing import Dict, List, Optional, Tuple
 
 BUFFER_TYPES = ("INP", "WGT", "ACC", "OUT", "UOP", "INSN")
 
-DEFAULT_BLOCK_SIZE = 8  # Artix default; override with --config-json or --block-size
+DEFAULT_BLOCK_SIZE = 16  # Config default; override with --config-json or --block-size
 
 
-def load_block_size(config_json_path: Optional[str], cli_block_size: Optional[int]) -> int:
+def load_block_size(
+    config_json_path: Optional[str], cli_block_size: Optional[int]
+) -> int:
     """Return the VTA block size (BLOCK_IN = BLOCK_OUT).
 
     Priority: explicit --block-size > --config-json LOG_BLOCK > DEFAULT_BLOCK_SIZE.
@@ -77,10 +79,16 @@ def load_block_size(config_json_path: Optional[str], cli_block_size: Optional[in
             log_block = cfg.get("LOG_BLOCK")
             if log_block is not None:
                 return 1 << int(log_block)
-            print(f"WARNING: LOG_BLOCK not found in {config_json_path} — using default {DEFAULT_BLOCK_SIZE}")
+            print(
+                f"WARNING: LOG_BLOCK not found in {config_json_path} — using default {DEFAULT_BLOCK_SIZE}"
+            )
         except Exception as e:
-            print(f"WARNING: could not read {config_json_path}: {e} — using default {DEFAULT_BLOCK_SIZE}")
+            print(
+                f"WARNING: could not read {config_json_path}: {e} — using default {DEFAULT_BLOCK_SIZE}"
+            )
     return DEFAULT_BLOCK_SIZE
+
+
 # Buffers to pre-load (static model data).  INP = runtime input; OUT = runtime output.
 STATIC_LOAD_ORDER = ("INSN", "UOP", "WGT", "ACC")
 
@@ -374,7 +382,9 @@ def collect_layers(comp_dir: str) -> List[LayerInfo]:
         mem = load_memory_addresses(maddr_path)
         missing = [t for t in BUFFER_TYPES if t not in mem]
         if missing:
-            print(f"WARNING: {maddr_path} missing entries for {missing} — treating as size=0 (maxpool/no-weight layer)")
+            print(
+                f"WARNING: {maddr_path} missing entries for {missing} — treating as size=0 (maxpool/no-weight layer)"
+            )
             for t in missing:
                 mem[t] = MemAddr(offset=0, size=0)
         bin_files = {t: layer_binfile(comp_dir, t, suffix) for t in BUFFER_TYPES}
@@ -862,10 +872,14 @@ def gen_tcl(
     L.append("#")
     if include_input:
         L.append("# Loads static model data (INSN/UOP/WGT/ACC) and the network input")
-        L.append("# (input_nn.bin) into DDR via XSDB, then resumes the ARM application.")
+        L.append(
+            "# (input_nn.bin) into DDR via XSDB, then resumes the ARM application."
+        )
     else:
         L.append("# Loads static model data (INSN/UOP/WGT/ACC) only.")
-        L.append("# input_nn.bin is NOT loaded — supplied at runtime (UART or other means).")
+        L.append(
+            "# input_nn.bin is NOT loaded — supplied at runtime (UART or other means)."
+        )
     L.append("#")
     L.append("# Usage (from Vitis XSDB console or xsct shell):")
     script_name = os.path.basename(out_path)
@@ -894,12 +908,16 @@ def gen_tcl(
         input_nn_path = os.path.abspath(os.path.join(comp_dir, "input_nn.bin"))
         raw_phys = scratch_addr(layers, ddr_base)
         addr_str = f"0x{raw_phys:08X}"
-        L.append("# --- raw network input (scratch — ARM applies im2row at runtime) ---")
+        L.append(
+            "# --- raw network input (scratch — ARM applies im2row at runtime) ---"
+        )
         L.append(f'puts "Loading input_nn.bin (raw) -> {addr_str}..."')
         if os.path.isfile(input_nn_path):
             L.append(f"dow -data {{{input_nn_path}}} {addr_str}")
         else:
-            L.append(f"# WARNING: input_nn.bin not found at codegen time: {input_nn_path}")
+            L.append(
+                f"# WARNING: input_nn.bin not found at codegen time: {input_nn_path}"
+            )
             L.append(
                 f'puts stderr "ERROR: input_nn.bin not found — place it at: {input_nn_path}"'
             )
@@ -1080,8 +1098,12 @@ def check_memory_fit(
             )
 
     print(f"\n[check] DDR base:       0x{ddr_base:08X}")
-    print(f"[check] Max address:    0x{max_addr:08X}  ({max_addr - ddr_base} bytes available)")
-    print(f"[check] High watermark: 0x{high_watermark:08X}  ({high_watermark - ddr_base} bytes used)")
+    print(
+        f"[check] Max address:    0x{max_addr:08X}  ({max_addr - ddr_base} bytes available)"
+    )
+    print(
+        f"[check] High watermark: 0x{high_watermark:08X}  ({high_watermark - ddr_base} bytes used)"
+    )
 
     if overflows:
         print(f"[check] FAIL — {len(overflows)} overflow(s):")
@@ -1178,13 +1200,17 @@ def _print_usage_summary(
     dl = data_loader or "tcl+elf"
     print(f"\n[gen] Deployment configuration: runner={r}  data-loader={dl}")
     if want_tcl and want_input:
-        print("[gen]   TCL (full):    load_nn.tcl         — static model data + input_nn.bin")
+        print(
+            "[gen]   TCL (full):    load_nn.tcl         — static model data + input_nn.bin"
+        )
     if want_tcl:
         print("[gen]   TCL (static):  load_nn_static.tcl  — static model data only")
     if want_input and not (want_tcl and want_input):
         print("[gen]   TCL (input):   load_input.tcl      — input_nn.bin only")
     elif want_input:
-        print("[gen]   TCL (input):   load_input.tcl      — input_nn.bin only (for ELF flow)")
+        print(
+            "[gen]   TCL (input):   load_input.tcl      — input_nn.bin only (for ELF flow)"
+        )
     if want_elf:
         print("[gen]   ELF embed:     nn_bin_data.S + nn_vta_sections.ld")
     print(f"[gen]   Compile:       examples/{r}.cc")
@@ -1210,22 +1236,22 @@ def main() -> None:
         choices=["run_nn", "run_nn_uart", "test_gemm"],
         default=None,
         help="Target runner binary. Controls whether input_nn.bin loading is generated. "
-             "Default: generate all artifacts.",
+        "Default: generate all artifacts.",
     )
     parser.add_argument(
         "--data-loader",
         choices=["tcl", "elf"],
         default=None,
         help="Data loading strategy. 'tcl' generates XSDB scripts; 'elf' generates "
-             "assembly incbin + linker fragment. Default: generate all artifacts.",
+        "assembly incbin + linker fragment. Default: generate all artifacts.",
     )
     parser.add_argument(
         "--outdir",
         default="gen",
-metavar="DIR",
+        metavar="DIR",
         help="Directory where all generated files are written (default: gen). "
-             "Fixed filenames: nn_ddr_map.h, nn_exec_plan.h, load_nn.tcl, "
-             "load_nn_static.tcl, load_input.tcl, nn_bin_data.S, nn_vta_sections.ld",
+        "Fixed filenames: nn_ddr_map.h, nn_exec_plan.h, load_nn.tcl, "
+        "load_nn_static.tcl, load_input.tcl, nn_bin_data.S, nn_vta_sections.ld",
     )
     parser.add_argument(
         "--max-addr",
@@ -1235,13 +1261,13 @@ metavar="DIR",
     parser.add_argument(
         "--config-json",
         metavar="PATH",
-        help="VTA hardware config JSON (e.g. vta_artix.json). Reads LOG_BLOCK to set block size.",
+        help="VTA hardware config JSON (e.g. vta_config.json). Reads LOG_BLOCK to set block size.",
     )
     parser.add_argument(
         "--block-size",
         type=int,
         metavar="N",
-        help="VTA block size override (overrides --config-json LOG_BLOCK). Default: 8.",
+        help="VTA block size override (overrides --config-json LOG_BLOCK). Default: 16.",
     )
     args = parser.parse_args()
 
@@ -1254,8 +1280,8 @@ metavar="DIR",
 
     # Derive generation flags from runner / data-loader selection.
     # When neither is specified all artifacts are generated (backward compat).
-    want_tcl   = args.data_loader in (None, "tcl")
-    want_elf   = args.data_loader in (None, "elf")
+    want_tcl = args.data_loader in (None, "tcl")
+    want_elf = args.data_loader in (None, "elf")
     want_input = args.runner in (None, "run_nn")  # uart/test_gemm: input not pre-loaded
 
     if not os.path.isdir(comp_dir):
@@ -1285,19 +1311,31 @@ metavar="DIR",
     # Always generate runner/loader-agnostic headers.
     gen_header(layers, ddr_base, out("nn_ddr_map.h"))
     if dep_info:
-        gen_exec_plan_header(dep_info, layers, ddr_base, comp_dir, out("nn_exec_plan.h"), block_size)
-    else:
-        sys.exit(
-            f"ERROR: exec plan requires dependency.csv, not found: {dep_path}"
+        gen_exec_plan_header(
+            dep_info, layers, ddr_base, comp_dir, out("nn_exec_plan.h"), block_size
         )
+    else:
+        sys.exit(f"ERROR: exec plan requires dependency.csv, not found: {dep_path}")
 
     # TCL data-loader artifacts.
     if want_tcl:
-        gen_tcl(layers, ddr_base, comp_dir, out("load_nn_static.tcl"), dep_info=dep_info,
-                include_input=False)
+        gen_tcl(
+            layers,
+            ddr_base,
+            comp_dir,
+            out("load_nn_static.tcl"),
+            dep_info=dep_info,
+            include_input=False,
+        )
         if want_input:
-            gen_tcl(layers, ddr_base, comp_dir, out("load_nn.tcl"), dep_info=dep_info,
-                    include_input=True)
+            gen_tcl(
+                layers,
+                ddr_base,
+                comp_dir,
+                out("load_nn.tcl"),
+                dep_info=dep_info,
+                include_input=True,
+            )
 
     # input_nn.bin TCL — generated whenever the runner needs pre-loaded input,
     # regardless of data-loader (useful even in ELF flow).
