@@ -514,18 +514,21 @@
   std::vector<std::vector<T>> im2row(
       const std::vector<std::vector<std::vector<std::vector<T>>>>& X,
       std::pair<int, int> kernel_size,
-      int stride) {
-      
+      int stride_h,
+      int stride_w = -1) {
+
+      if (stride_w < 0) stride_w = stride_h;  // backward-compat default
+
       int batch_size = X.size();
       int input_channels = X[0].size();
       int input_height = X[0][0].size();
       int input_width = X[0][0][0].size();
       int kernel_height = kernel_size.first;
       int kernel_width = kernel_size.second;
-      
+
       // Calculate the output dimensions
-      int output_height = (input_height - kernel_height) / stride + 1;
-      int output_width = (input_width - kernel_width) / stride + 1;
+      int output_height = (input_height - kernel_height) / stride_h + 1;
+      int output_width = (input_width - kernel_width) / stride_w + 1;
       
       // Initial output matrix
       int rows = batch_size * output_height * output_width;
@@ -536,8 +539,8 @@
       // Fill the matrix with patches
       int row_idx = 0;
       for (int b = 0; b < batch_size; b++) {
-          for (int i = 0; i <= input_height - kernel_height; i += stride) {
-              for (int j = 0; j <= input_width - kernel_width; j += stride) {
+          for (int i = 0; i <= input_height - kernel_height; i += stride_h) {
+              for (int j = 0; j <= input_width - kernel_width; j += stride_w) {
                   
                   // SECURITE : Vérifier row_idx AVANT d'écrire
                   if (row_idx >= rows) {
@@ -659,11 +662,13 @@
       int tensor_height,
       int tensor_width,
       std::pair<int, int> kernel_size,
-      int stride,
+      int stride_h,
       const std::vector<int>& padding = {0, 0, 0, 0},
       bool isSquare = false,
-      int offset = 0
-    ) { 
+      int offset = 0,
+      int stride_w = -1
+    ) {
+      if (stride_w < 0) stride_w = stride_h; 
 
       if (vector.empty()) {
           std::cerr << "ERROR: Input vector is empty!" << std::endl;
@@ -713,7 +718,7 @@
 
 
       // 4 - TENSOR -> NEW MATRIX (unpad)
-      auto new_matrix = im2row(padded_tensor, kernel_size, stride);
+      auto new_matrix = im2row(padded_tensor, kernel_size, stride_h, stride_w);
 
       
       // 5 - NEW MATRIX -> PADDED MATRIX

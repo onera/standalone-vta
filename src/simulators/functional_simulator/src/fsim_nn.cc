@@ -408,7 +408,7 @@ int fsim_nn() {
 
     // Stride
     int sh = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 16));
-    // int sw = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 17));
+    int sw = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 17));
 
     // Padding
     int p0 = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 18));
@@ -595,10 +595,11 @@ int fsim_nn() {
                          tensor_height,    // tensor_height
                          tensor_width,     // tensor_width
                          {kh, kw},         // kernel_size (pair)
-                         sh,               // stride
+                         sh,               // stride_h
                          {p0, p1, p2, p3}, // padding (vector)
                          true,             // isSquare
-                         offsetA           // offset
+                         offsetA,          // offset
+                         sw                // stride_w
       );
 
       // Copy the data
