@@ -3,8 +3,8 @@
 #include "vta.h"
 #include <cstdint>
 namespace vta {
-void init_ddr_region(std::uintptr_t dst_addr, const std::uint32_t *src,
-                     std::size_t word_count, const char *name);
+void init_ddr_region(std::uintptr_t dst_addr, const void *src,
+                     std::size_t bytes, const char *name);
 
 void copy_insns_to_vta(volatile std::uint32_t *dst, const VTAInsn *src,
                        std::size_t count);

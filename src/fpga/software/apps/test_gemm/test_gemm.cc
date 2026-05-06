@@ -19,15 +19,11 @@ constexpr std::uintptr_t DDR_OUT_BASE = DDR_VTA_BASE + 0x4000u;
 constexpr std::uintptr_t VTA_VCR_BASE = XPAR_VTA_0_BASEADDR;
 
 int main() {
-  vta::init_ddr_region(DDR_UOP_BASE, uop, sizeof(uop) / sizeof(uop[0]), "uop");
-  vta::init_ddr_region(DDR_INP_BASE, input, sizeof(input) / sizeof(input[0]),
-                       "input");
-  vta::init_ddr_region(DDR_WGT_BASE, wgt, sizeof(wgt) / sizeof(wgt[0]),
-                       "weight");
-  vta::init_ddr_region(DDR_ACC_BASE, acc, sizeof(acc) / sizeof(acc[0]),
-                       "accum");
-  vta::init_ddr_region(DDR_OUT_BASE, acc, sizeof(acc) / sizeof(acc[0]),
-                       "output");
+  vta::init_ddr_region(DDR_UOP_BASE, uop, sizeof(uop), "uop");
+  vta::init_ddr_region(DDR_INP_BASE, input, sizeof(input), "input");
+  vta::init_ddr_region(DDR_WGT_BASE, wgt, sizeof(wgt), "weight");
+  vta::init_ddr_region(DDR_ACC_BASE, acc, sizeof(acc), "accum");
+  vta::init_ddr_region(DDR_OUT_BASE, acc, sizeof(acc), "output");
   auto *vta_insn = reinterpret_cast<volatile std::uint32_t *>(DDR_INSN_BASE);
 
   vta::copy_insns_to_vta(vta_insn, insn, sizeof(insn) / sizeof(insn[0]));
@@ -70,12 +66,32 @@ int main() {
       count = 0;
       countstep++;
       status = vta::read_reg(VTA_VCR_BASE, 0x0);
-      xil_printf("status: %d\n", status);
+      xil_printf("status: %d\r\n", status);
     }
     if (status == 2) {
-      xil_printf("VTA reached finish state.\n");
+      xil_printf("VTA reached finish state.\r\n");
       vta::print_cycles(VTA_VCR_BASE);
-      return 0;
+
+      Xil_DCacheInvalidateRange(DDR_OUT_BASE, sizeof(expected_out));
+      auto *out_ptr = reinterpret_cast<std::int32_t *>(DDR_OUT_BASE);
+      int errors = 0;
+      for (size_t i = 0; i < sizeof(expected_out) / sizeof(expected_out[0]);
+           ++i) {
+        if (out_ptr[i] != expected_out[i]) {
+          errors++;
+          if (errors < 10) {
+            xil_printf("Error at index %d: expected %d, got %d\r\n", i,
+                       expected_out[i], out_ptr[i]);
+          }
+        }
+      }
+
+      if (errors == 0) {
+        xil_printf("GEMM test passed!\r\n");
+      } else {
+        xil_printf("GEMM test failed with %d errors\r\n", errors);
+      }
+      return errors == 0 ? 0 : -1;
     }
     count++;
   }
