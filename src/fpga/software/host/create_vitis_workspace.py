@@ -21,6 +21,12 @@ Data loaders (--data-loader, not applicable to test_gemm)
   tcl  - static model data loaded via XSDB load_nn_static.tcl before the ELF starts
   elf  - static model data embedded in the ELF via .incbin; FSBL loads it
 
+Generated files copied for both data loaders (produced by gen_nn_baremetal.py)
+  vta_hw_config.h   - C++ type aliases (vta_inp_t, vta_out_t, …) derived from the
+                      hardware config; required by vta_cpu_ops.cc at compile time
+  nn_ddr_map.h      - LayerDesc array with per-layer DDR addresses
+  nn_exec_plan.h    - typed execution step array (VTA + CPU ops)
+
 Usage
 -----
   # Source the Vitis environment first:
@@ -85,10 +91,12 @@ RUNNER_EXTRAS: dict[str, list[Path]] = {
 # (placed in config/, must exist before this script runs)
 DATA_LOADER_GENERATED: dict[str, list[str]] = {
     "tcl": [
+        "vta_hw_config.h",  # type aliases (vta_inp_t etc.) used by vta_cpu_ops.cc
         "nn_ddr_map.h",
         "nn_exec_plan.h",
     ],
     "elf": [
+        "vta_hw_config.h",  # type aliases (vta_inp_t etc.) used by vta_cpu_ops.cc
         "nn_ddr_map.h",
         "nn_exec_plan.h",
         "nn_bin_data.S",

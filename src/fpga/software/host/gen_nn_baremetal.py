@@ -6,8 +6,9 @@ ELF-embedding artifacts from VTA compiler output directories.
 Usage
 -----
     python3 host/gen_nn_baremetal.py <compiler_output_dir>  \
-        [--ddr-base 0x10000000]                                 \
-        [--outdir   src/fpga/software/gen] \
+        [--ddr-base   0x10000000]                           \
+        [--outdir     src/fpga/software/gen]                \
+        [--config-json ../../../config/vta_config.json]
 
 All generated files are written to --outdir (default: gen) with fixed names.
 create_vitis_workspace.py selects which files to include per application
@@ -23,8 +24,34 @@ Only INSN, UOP, WGT, ACC are treated as static model data.
 INP and OUT buffers are runtime: INP receives input_nn.bin before the first
 layer, subsequent INP regions are populated by the previous VTA layer's OUT.
 
+Config JSON (--config-json)
+---------------------------
+Reads the following fields from the VTA hardware config JSON:
+  LOG_BLOCK      - block size (BLOCK_IN = BLOCK_OUT = 2^LOG_BLOCK); default 16
+  LOG_INP_WIDTH  - input element width in bits (2^n); default 32
+  LOG_OUT_WIDTH  - output element width in bits (2^n); default 32
+  LOG_WGT_WIDTH  - weight element width in bits (2^n); default 32
+  LOG_ACC_WIDTH  - accumulator width in bits (2^n); default 32
+
+The 32-bit configuration (vta_config.json) is the reference; no warnings are
+emitted for it.  An 8-bit configuration (e.g. vta_artix.json) triggers a
+WARNING so the user can verify that compiler output and quantization match.
+
+Compatibility checks (warnings / errors)
+-----------------------------------------
+  WARNING  - 8-bit data width (LOG_INP_WIDTH or LOG_OUT_WIDTH = 3): CPU ops
+             (vta_cpu_ops.cc) will use int8_t; ensure the compiler was run with
+             the same 8-bit config.
+  WARNING  - Asymmetric stride (sh ≠ sw): the functional simulator im2row()
+             only supports isotropic stride; simulation results will differ.
+  ERROR    - Concat layer with more than 4 inputs: NnConcatStep supports at
+             most 4 inputs; generation is aborted.
+
 Outputs (all written to --outdir)
 ----------------------------------
+  vta_hw_config.h      - C++ type aliases (vta_inp_t, vta_out_t, vta_acc_t,
+                         VTA_BLOCK_SIZE) derived from the hardware config;
+                         required by vta_cpu_ops.cc at compile time
   nn_ddr_map.h         - vta::LayerDesc array for VTA layers
   nn_exec_plan.h       - typed execution step array (VTA + CPU steps)
   load_nn_static.tcl   - XSDB: loads INSN/UOP/WGT/ACC only (no input)
@@ -51,32 +78,151 @@ from typing import Dict, List, Optional, Tuple
 BUFFER_TYPES = ("INP", "WGT", "ACC", "OUT", "UOP", "INSN")
 
 DEFAULT_BLOCK_SIZE = 16  # Config default; override with --config-json or --block-size
+DEFAULT_LOG_INP_WIDTH = 5   # 32-bit (reference config)
+DEFAULT_LOG_OUT_WIDTH = 5
+DEFAULT_LOG_WGT_WIDTH = 5
+DEFAULT_LOG_ACC_WIDTH = 5
 
 
-def load_block_size(
+@dataclass
+class ConfigParams:
+    block_size: int       # 1 << LOG_BLOCK
+    log_inp_width: int    # LOG_INP_WIDTH (raw log value)
+    log_out_width: int    # LOG_OUT_WIDTH
+    log_wgt_width: int    # LOG_WGT_WIDTH
+    log_acc_width: int    # LOG_ACC_WIDTH
+
+
+def load_config_params(
     config_json_path: Optional[str], cli_block_size: Optional[int]
-) -> int:
-    """Return the VTA block size (BLOCK_IN = BLOCK_OUT).
+) -> ConfigParams:
+    """Load hardware config parameters from JSON and/or CLI overrides.
 
-    Priority: explicit --block-size > --config-json LOG_BLOCK > DEFAULT_BLOCK_SIZE.
+    Priority for block_size: explicit --block-size > --config-json LOG_BLOCK > default.
+    Width fields always come from --config-json (defaulting to 32-bit if absent).
     """
-    if cli_block_size is not None:
-        return cli_block_size
+    log_inp = DEFAULT_LOG_INP_WIDTH
+    log_out = DEFAULT_LOG_OUT_WIDTH
+    log_wgt = DEFAULT_LOG_WGT_WIDTH
+    log_acc = DEFAULT_LOG_ACC_WIDTH
+    block_size = DEFAULT_BLOCK_SIZE
+
     if config_json_path:
         try:
             with open(config_json_path) as f:
                 cfg = json.load(f)
+
             log_block = cfg.get("LOG_BLOCK")
             if log_block is not None:
-                return 1 << int(log_block)
-            print(
-                f"WARNING: LOG_BLOCK not found in {config_json_path} - using default {DEFAULT_BLOCK_SIZE}"
-            )
+                block_size = 1 << int(log_block)
+            else:
+                print(
+                    f"WARNING: LOG_BLOCK not found in {config_json_path}"
+                    f" - using default {DEFAULT_BLOCK_SIZE}"
+                )
+
+            for key, default, dest in [
+                ("LOG_INP_WIDTH", DEFAULT_LOG_INP_WIDTH, "log_inp"),
+                ("LOG_OUT_WIDTH", DEFAULT_LOG_OUT_WIDTH, "log_out"),
+                ("LOG_WGT_WIDTH", DEFAULT_LOG_WGT_WIDTH, "log_wgt"),
+                ("LOG_ACC_WIDTH", DEFAULT_LOG_ACC_WIDTH, "log_acc"),
+            ]:
+                val = cfg.get(key)
+                if val is None:
+                    print(
+                        f"WARNING: {key} not found in {config_json_path}"
+                        f" - using default {default}"
+                    )
+                else:
+                    if dest == "log_inp":
+                        log_inp = int(val)
+                    elif dest == "log_out":
+                        log_out = int(val)
+                    elif dest == "log_wgt":
+                        log_wgt = int(val)
+                    elif dest == "log_acc":
+                        log_acc = int(val)
+
         except Exception as e:
             print(
-                f"WARNING: could not read {config_json_path}: {e} - using default {DEFAULT_BLOCK_SIZE}"
+                f"WARNING: could not read {config_json_path}: {e}"
+                f" - using defaults"
             )
-    return DEFAULT_BLOCK_SIZE
+
+    if cli_block_size is not None:
+        block_size = cli_block_size
+
+    return ConfigParams(
+        block_size=block_size,
+        log_inp_width=log_inp,
+        log_out_width=log_out,
+        log_wgt_width=log_wgt,
+        log_acc_width=log_acc,
+    )
+
+
+def _ctype_from_log_width(log_width: int) -> str:
+    bits = 1 << log_width
+    return {8: "std::int8_t", 16: "std::int16_t", 32: "std::int32_t"}.get(
+        bits, f"/* unsupported {bits}-bit */"
+    )
+
+
+def gen_hw_config_header(cfg: ConfigParams, path: str) -> None:
+    """Generate vta_hw_config.h with type aliases derived from the hardware config."""
+    inp_t = _ctype_from_log_width(cfg.log_inp_width)
+    out_t = _ctype_from_log_width(cfg.log_out_width)
+    acc_t = _ctype_from_log_width(cfg.log_acc_width)
+    lines = [
+        "#pragma once",
+        "// Generated by gen_nn_baremetal.py — do not edit manually.",
+        f"// LOG_INP_WIDTH={cfg.log_inp_width}, LOG_OUT_WIDTH={cfg.log_out_width},"
+        f" LOG_WGT_WIDTH={cfg.log_wgt_width}, LOG_ACC_WIDTH={cfg.log_acc_width},"
+        f" LOG_BLOCK={cfg.block_size.bit_length() - 1}",
+        "#include <cstdint>",
+        "#include <limits>",
+        f"using vta_inp_t = {inp_t};",
+        f"using vta_out_t = {out_t};",
+        f"using vta_acc_t = {acc_t};",
+        f"constexpr int VTA_BLOCK_SIZE = {cfg.block_size};",
+        "constexpr std::int64_t VTA_OUT_MIN ="
+        " std::numeric_limits<vta_out_t>::min();",
+        "constexpr std::int64_t VTA_OUT_MAX ="
+        " std::numeric_limits<vta_out_t>::max();",
+    ]
+    with open(path, "w") as f:
+        f.write("\n".join(lines) + "\n")
+    print(f"[gen] {path}")
+
+
+def check_config_compat(cfg: ConfigParams, dep_info: "DependencyInfo") -> None:
+    """Emit warnings/errors for known FPGA software incompatibilities."""
+    if cfg.log_inp_width == 3 or cfg.log_out_width == 3:
+        print(
+            f"WARNING: 8-bit data width detected"
+            f" (LOG_INP_WIDTH={cfg.log_inp_width}, LOG_OUT_WIDTH={cfg.log_out_width})."
+            f" CPU ops will use int8_t."
+            f" Ensure compiler output and network quantization are 8-bit."
+        )
+
+    for _, processor, layer_name in dep_info.execution_order:
+        ld = dep_info.layers.get(layer_name)
+        if ld is None:
+            continue
+
+        if processor == "vta" and ld.reshape_info == "im2row" and ld.sh != ld.sw:
+            print(
+                f"WARNING: layer '{layer_name}' uses asymmetric strides"
+                f" (sh={ld.sh}, sw={ld.sw})."
+                f" The functional simulator im2row() only supports isotropic stride;"
+                f" simulation results will differ from FPGA execution."
+            )
+
+        if processor == "concat" and ld.nb_inp > 4:
+            sys.exit(
+                f"ERROR: concat layer '{layer_name}' has {ld.nb_inp} inputs;"
+                f" NnConcatStep supports at most 4."
+            )
 
 
 # Buffers to pre-load (static model data).  INP = runtime input; OUT = runtime output.
@@ -1330,7 +1476,11 @@ def main() -> None:
     parser.add_argument(
         "--config-json",
         metavar="PATH",
-        help="VTA hardware config JSON (e.g. vta_config.json). Reads LOG_BLOCK to set block size.",
+        help=(
+            "VTA hardware config JSON (e.g. vta_config.json). Reads LOG_BLOCK,"
+            " LOG_INP_WIDTH, LOG_OUT_WIDTH, LOG_WGT_WIDTH, LOG_ACC_WIDTH."
+            " Generates gen/vta_hw_config.h with the corresponding C++ type aliases."
+        ),
     )
     parser.add_argument(
         "--block-size",
@@ -1343,8 +1493,12 @@ def main() -> None:
     ddr_base = int(args.ddr_base, 16)
     comp_dir = os.path.abspath(args.compiler_output_dir)
     outdir = os.path.abspath(args.outdir)
-    block_size = load_block_size(args.config_json, args.block_size)
-    print(f"[gen] VTA block size: {block_size}")
+    cfg = load_config_params(args.config_json, args.block_size)
+    block_size = cfg.block_size
+    print(f"[gen] VTA block size: {block_size}"
+          f" | inp={1 << cfg.log_inp_width}-bit"
+          f" | out={1 << cfg.log_out_width}-bit"
+          f" | acc={1 << cfg.log_acc_width}-bit")
     print(f"[gen] Output directory: {outdir}")
 
     if not os.path.isdir(comp_dir):
@@ -1355,6 +1509,8 @@ def main() -> None:
         sys.exit(f"ERROR: dependency.csv not found: {dep_path}")
     dep_info = load_dependency_csv(dep_path)
     print(f"[gen] dependency.csv: {len(dep_info.execution_order)} execution steps")
+
+    check_config_compat(cfg, dep_info)
 
     vta_suffixes = [name for _, proc, name in dep_info.execution_order if proc == "vta"]
     layers = collect_layers(comp_dir, vta_suffixes)
@@ -1378,6 +1534,7 @@ def main() -> None:
     def out(filename: str) -> str:
         return os.path.join(outdir, filename)
 
+    gen_hw_config_header(cfg, out("vta_hw_config.h"))
     gen_header(layers, ddr_base, out("nn_ddr_map.h"))
     gen_exec_plan_header(
         dep_info,
