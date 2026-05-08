@@ -314,6 +314,32 @@ class PkgConfig(object):
     def cfg_json(self):
         return json.dumps(self.cfg_dict, indent=2)
 
+    def write_header(self, path):
+        """Write a C header file containing all macro definitions.
+
+        Parameters
+        ----------
+        path : str
+            Destination file path for the generated header.
+        """
+        guard = "VTA_CONFIG_H_"
+        lines = [
+            "#ifndef %s" % guard,
+            "#define %s" % guard,
+            "",
+        ]
+        for d in self.macro_defs:
+            # Each entry is "-DNAME=value" or "-DNAME"
+            rest = d[2:]  # strip leading "-D"
+            if "=" in rest:
+                name, val = rest.split("=", 1)
+                lines.append("#define %s %s" % (name, val))
+            else:
+                lines.append("#define %s" % rest)
+        lines += ["", "#endif  // %s" % guard, ""]
+        with open(path, "w") as f:
+            f.write("\n".join(lines))
+
     def same_config(self, cfg):
         """Compare if cfg is same as current config.
 

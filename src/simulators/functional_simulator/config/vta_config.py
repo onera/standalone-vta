@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """VTA config tool"""
+
 import os
 import sys
 import json
@@ -24,13 +25,15 @@ import argparse
 def pkg_config(cfg):
     """Returns PkgConfig pkg config object."""
     pkg_config_py = os.path.join(
-            os.path.dirname(os.path.abspath(os.path.expanduser(__file__))),
-            "pkg_config.py"
+        os.path.dirname(os.path.abspath(os.path.expanduser(__file__))), "pkg_config.py"
     )
     libpkg = {"__file__": pkg_config_py}
-    exec(compile(open(pkg_config_py, "rb").read(), pkg_config_py, "exec"), libpkg, libpkg)
+    exec(
+        compile(open(pkg_config_py, "rb").read(), pkg_config_py, "exec"), libpkg, libpkg
+    )
     PkgConfig = libpkg["PkgConfig"]
     return PkgConfig(cfg)
+
 
 def gen_target_name(pkg):
     """Emit target macro from config"""
@@ -45,6 +48,7 @@ def gen_target_name(pkg):
     else:
         return None
 
+
 def gen_target_cflags(pkg):
     """Emit target cflags from config"""
     cflags_str = " ".join(pkg.cflags)
@@ -53,12 +57,14 @@ def gen_target_cflags(pkg):
         cflags_str += " -D{}".format(target)
     return cflags_str
 
+
 def calculate_num_wgt_uram(pkg):
     """Calculate number of weight uram from config"""
-    if hasattr(pkg, 'num_wgt_mem_uram'):
+    if hasattr(pkg, "num_wgt_mem_uram"):
         return pkg.num_wgt_mem_uram
     else:
         return 0
+
 
 def gen_tcl_vivado(pkg, file):
     """Export variables to tcl file"""
@@ -68,7 +74,7 @@ def gen_tcl_vivado(pkg, file):
 }"""
     with open(file, "w") as fo:
         fo.write(const_func)
-        fo.write("\nconst CFLAGS \"{}\"".format(gen_target_cflags(pkg)))
+        fo.write('\nconst CFLAGS "{}"'.format(gen_target_cflags(pkg)))
         fo.write("\nconst TARGET {}".format(pkg.TARGET))
         fo.write("\nconst FPGA_DEVICE {}".format(pkg.fpga_device))
         fo.write("\nconst FPGA_FAMILY {}".format(pkg.fpga_family))
@@ -97,83 +103,150 @@ def gen_tcl_vivado(pkg, file):
         fo.write("\nconst COMPUTE_BASE_ADDR {}".format(pkg.compute_base_addr))
         fo.write("\nconst STORE_BASE_ADDR {}".format(pkg.store_base_addr))
 
+
 def main():
-    """Main funciton"""
+    """Main function"""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--use-cfg", type=str, default="",
-                        help="path to the config json")
-    parser.add_argument("--cflags", action="store_true",
-                        help="print the cflags")
-    parser.add_argument("--defs", action="store_true",
-                        help="print the macro defs")
-    parser.add_argument("--sources", action="store_true",
-                        help="print the source file paths")
-    parser.add_argument("--update", action="store_true",
-                        help="Print out the json option.")
-    parser.add_argument("--ldflags", action="store_true",
-                        help="print the ldflags")
-    parser.add_argument("--cfg-json", action="store_true",
-                        help="print all the config json")
-    parser.add_argument("--save-cfg-json", type=str, default="",
-                        help="save config json to file")
-    parser.add_argument("--target", action="store_true",
-                        help="print the target")
-    parser.add_argument("--cfg-str", action="store_true",
-                        help="print the configuration string")
-    parser.add_argument("--get-inp-mem-banks", action="store_true",
-                        help="returns number of input memory banks")
-    parser.add_argument("--get-inp-mem-width", action="store_true",
-                        help="returns input memory read/write port width")
-    parser.add_argument("--get-inp-mem-depth", action="store_true",
-                        help="returns input memory depth")
-    parser.add_argument("--get-inp-mem-axi-ratio", action="store_true",
-                        help="returns ratio between input element width and axi width")
-    parser.add_argument("--get-wgt-mem-banks", action="store_true",
-                        help="returns number of weight memory banks")
-    parser.add_argument("--get-wgt-mem-width", action="store_true",
-                        help="returns weight memory read/write port width")
-    parser.add_argument("--get-wgt-mem-depth", action="store_true",
-                        help="returns weight memory depth")
-    parser.add_argument("--get-wgt-mem-axi-ratio", action="store_true",
-                        help="returns ratio between weight element width and axi width")
-    parser.add_argument("--get-out-mem-banks", action="store_true",
-                        help="returns number of output memory banks")
-    parser.add_argument("--get-out-mem-width", action="store_true",
-                        help="returns output memory read/write port width")
-    parser.add_argument("--get-out-mem-depth", action="store_true",
-                        help="returns output memory depth")
-    parser.add_argument("--get-out-mem-axi-ratio", action="store_true",
-                        help="returns ratio between output element width and axi width")
-    parser.add_argument("--get-num-wgt-mem-uram", action="store_true",
-                        help="returns number of weight memory blocks to be implemented on URAM")
-    parser.add_argument("--get-axi-cache-bits", action="store_true",
-                        help="returns AXI system ARCACHE/AWCACHE hardcoded bit value")
-    parser.add_argument("--get-axi-prot-bits", action="store_true",
-                        help="returns AXI system ARPROT/AWPROT hardcoded bit value")
-    parser.add_argument("--get-ip-reg-map-range", action="store_true",
-                        help="returns ip register map address range")
-    parser.add_argument("--get-fetch-base-addr", action="store_true",
-                        help="returns fetch module base address")
-    parser.add_argument("--get-load-base-addr", action="store_true",
-                        help="returns load module base address")
-    parser.add_argument("--get-compute-base-addr", action="store_true",
-                        help="returns compute module base address")
-    parser.add_argument("--get-store-base-addr", action="store_true",
-                        help="returns store module base address")
-    parser.add_argument("--get-fpga-dev", action="store_true",
-                        help="returns FPGA device target")
-    parser.add_argument("--get-fpga-board", action="store_true",
-                        help="returns FPGA board")
-    parser.add_argument("--get-fpga-board-rev", action="store_true",
-                        help="returns FPGA board version")
-    parser.add_argument("--get-fpga-family", action="store_true",
-                        help="returns FPGA device family")
-    parser.add_argument("--get-fpga-freq", action="store_true",
-                        help="returns FPGA frequency")
-    parser.add_argument("--get-fpga-per", action="store_true",
-                        help="returns HLS target clock period")
-    parser.add_argument("--export-tcl", type=str, default="",
-                        help="export variables to tcl file")
+    parser.add_argument(
+        "--use-cfg", type=str, default="", help="path to the config json"
+    )
+    parser.add_argument("--cflags", action="store_true", help="print the cflags")
+    parser.add_argument("--defs", action="store_true", help="print the macro defs")
+    parser.add_argument(
+        "--sources", action="store_true", help="print the source file paths"
+    )
+    parser.add_argument(
+        "--update", action="store_true", help="Print out the json option."
+    )
+    parser.add_argument("--ldflags", action="store_true", help="print the ldflags")
+    parser.add_argument(
+        "--cfg-json", action="store_true", help="print all the config json"
+    )
+    parser.add_argument(
+        "--save-cfg-json", type=str, default="", help="save config json to file"
+    )
+    parser.add_argument("--target", action="store_true", help="print the target")
+    parser.add_argument(
+        "--cfg-str", action="store_true", help="print the configuration string"
+    )
+    parser.add_argument(
+        "--get-inp-mem-banks",
+        action="store_true",
+        help="returns number of input memory banks",
+    )
+    parser.add_argument(
+        "--get-inp-mem-width",
+        action="store_true",
+        help="returns input memory read/write port width",
+    )
+    parser.add_argument(
+        "--get-inp-mem-depth", action="store_true", help="returns input memory depth"
+    )
+    parser.add_argument(
+        "--get-inp-mem-axi-ratio",
+        action="store_true",
+        help="returns ratio between input element width and axi width",
+    )
+    parser.add_argument(
+        "--get-wgt-mem-banks",
+        action="store_true",
+        help="returns number of weight memory banks",
+    )
+    parser.add_argument(
+        "--get-wgt-mem-width",
+        action="store_true",
+        help="returns weight memory read/write port width",
+    )
+    parser.add_argument(
+        "--get-wgt-mem-depth", action="store_true", help="returns weight memory depth"
+    )
+    parser.add_argument(
+        "--get-wgt-mem-axi-ratio",
+        action="store_true",
+        help="returns ratio between weight element width and axi width",
+    )
+    parser.add_argument(
+        "--get-out-mem-banks",
+        action="store_true",
+        help="returns number of output memory banks",
+    )
+    parser.add_argument(
+        "--get-out-mem-width",
+        action="store_true",
+        help="returns output memory read/write port width",
+    )
+    parser.add_argument(
+        "--get-out-mem-depth", action="store_true", help="returns output memory depth"
+    )
+    parser.add_argument(
+        "--get-out-mem-axi-ratio",
+        action="store_true",
+        help="returns ratio between output element width and axi width",
+    )
+    parser.add_argument(
+        "--get-num-wgt-mem-uram",
+        action="store_true",
+        help="returns number of weight memory blocks to be implemented on URAM",
+    )
+    parser.add_argument(
+        "--get-axi-cache-bits",
+        action="store_true",
+        help="returns AXI system ARCACHE/AWCACHE hardcoded bit value",
+    )
+    parser.add_argument(
+        "--get-axi-prot-bits",
+        action="store_true",
+        help="returns AXI system ARPROT/AWPROT hardcoded bit value",
+    )
+    parser.add_argument(
+        "--get-ip-reg-map-range",
+        action="store_true",
+        help="returns ip register map address range",
+    )
+    parser.add_argument(
+        "--get-fetch-base-addr",
+        action="store_true",
+        help="returns fetch module base address",
+    )
+    parser.add_argument(
+        "--get-load-base-addr",
+        action="store_true",
+        help="returns load module base address",
+    )
+    parser.add_argument(
+        "--get-compute-base-addr",
+        action="store_true",
+        help="returns compute module base address",
+    )
+    parser.add_argument(
+        "--get-store-base-addr",
+        action="store_true",
+        help="returns store module base address",
+    )
+    parser.add_argument(
+        "--get-fpga-dev", action="store_true", help="returns FPGA device target"
+    )
+    parser.add_argument(
+        "--get-fpga-board", action="store_true", help="returns FPGA board"
+    )
+    parser.add_argument(
+        "--get-fpga-board-rev", action="store_true", help="returns FPGA board version"
+    )
+    parser.add_argument(
+        "--get-fpga-family", action="store_true", help="returns FPGA device family"
+    )
+    parser.add_argument(
+        "--get-fpga-freq", action="store_true", help="returns FPGA frequency"
+    )
+    parser.add_argument(
+        "--get-fpga-per", action="store_true", help="returns HLS target clock period"
+    )
+    parser.add_argument(
+        "--export-tcl", type=str, default="", help="export variables to tcl file"
+    )
+    parser.add_argument(
+        "--export-header", type=str, default="", help="write macro definitions to a C header file"
+    )
     args = parser.parse_args()
 
     if len(sys.argv) == 1:
@@ -181,13 +254,13 @@ def main():
         return
 
     # Path to vta config
-    curr_path = os.path.dirname(
-        os.path.abspath(os.path.expanduser(__file__)))
-    
+    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+
     project_root = os.path.abspath(os.path.join(curr_path, "../../../../"))
 
     path_list = [
-        "vta_config.json", os.path.join(project_root, "config", "vta_config.json")
+        "vta_config.json",
+        os.path.join(project_root, "config", "vta_config.json"),
     ]
 
     if args.use_cfg:
@@ -305,6 +378,13 @@ def main():
 
     if args.export_tcl:
         gen_tcl_vivado(pkg, args.export_tcl)
+
+    if args.export_header:
+        target = gen_target_name(pkg)
+        if target:
+            pkg.macro_defs.append("-D%s" % target)
+        pkg.write_header(args.export_header)
+
 
 if __name__ == "__main__":
     main()
