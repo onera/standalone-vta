@@ -71,7 +71,7 @@ ONNX_FILE ?= onnx/qyolo_pattern.onnx
         fsim_inference fsim_single_layer vsim_single_layer vsim_inference tsim \
         run execute compile_and_run compile_all run_all \
         test_gemm test_alu custom_insn \
-        clean cleaner clean_bin clean_csv clean_hw \
+        clean force_clean cleaner clean_bin clean_csv clean_hw \
         debug help FORCE
 
 # ==============================================================================
@@ -250,6 +250,8 @@ clean: | $(COMPILER_OUTPUT_DIR) $(SIMULATOR_OUTPUT_DIR) ## Delete generated comp
 	-rm -f $(EXPORTED_SV_STAMP) $(EXPORTED_SV_CFG_ARGS)
 
 cleaner: clean fsim_clean clean_hw ## Delete generated files and the FSIM build directory
+
+force_clean: cleaner ## backward compatible clean
 
 clean_bin: | $(COMPILER_OUTPUT_DIR) ## Delete binary output files only
 	-rm $(COMPILER_OUTPUT_DIR)/*.bin
