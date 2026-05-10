@@ -38,7 +38,7 @@ Usage
 
   # De-tile VTA block output to NCHW flat for comparison with functional sim:
   python3 scripts/uart_nn.py --port /dev/ttyUSB0 --input input_nn.bin --output out.bin \\
-      --detile --output-shape 64,160,160 --block-size 8
+      --detile --output-shape 64,160,160 --block-size 16
 
 Dependencies
 ------------
@@ -63,12 +63,13 @@ def detile(data: bytes, C: int, H: int, W: int, B: int = 8) -> bytes:
     VTA block layout: [N/B][C/B][B][B] where N = H*W.
     NCHW flat layout: [C][H*W] (same total bytes, channel-major).
     """
-    N  = H * W
+    N = H * W
     Cb = C // B
     Nb = N // B
     if len(data) != N * C:
         raise ValueError(
-            f"detile: expected {N * C} bytes (C={C} H={H} W={W}), got {len(data)}")
+            f"detile: expected {N * C} bytes (C={C} H={H} W={W}), got {len(data)}"
+        )
     out = bytearray(N * C)
     for rb in range(Nb):
         for cbi in range(Cb):
@@ -79,6 +80,7 @@ def detile(data: bytes, C: int, H: int, W: int, B: int = 8) -> bytes:
                     col = cbi * B + c
                     out[col * N + row] = data[blk_base + r * B + c] & 0xFF
     return bytes(out)
+
 
 try:
     import serial
@@ -160,7 +162,9 @@ def recv_bytes(ser: "serial.Serial", n_bytes: int, verbose: bool = False) -> byt
 OUTPUT_SENTINEL = b"OUTPUT\r\n"
 
 
-def drain_logs_until_output(ser: "serial.Serial", timeout: float, verbose: bool) -> None:
+def drain_logs_until_output(
+    ser: "serial.Serial", timeout: float, verbose: bool
+) -> None:
     """Read and optionally print text lines until the OUTPUT sentinel is received.
 
     The board sends all xil_printf step/cycle logs as text lines, then emits
@@ -287,7 +291,7 @@ def main() -> None:
         "--detile",
         action="store_true",
         help="De-tile VTA block output to NCHW flat before saving "
-             "(for comparison with functional-sim final_output.bin).",
+        "(for comparison with functional-sim final_output.bin).",
     )
     parser.add_argument(
         "--output-shape",
@@ -297,9 +301,9 @@ def main() -> None:
     parser.add_argument(
         "--block-size",
         type=int,
-        default=8,
+        default=16,
         metavar="B",
-        help="VTA block size for de-tiling (default: 8).",
+        help="VTA block size for de-tiling (default: 16).",
     )
     args = parser.parse_args()
 
@@ -311,7 +315,9 @@ def main() -> None:
             c, h, w = (int(x) for x in args.output_shape.split(","))
             detile_shape = (c, h, w)
         except ValueError:
-            sys.exit("ERROR: --output-shape must be three comma-separated integers, e.g. 64,160,160")
+            sys.exit(
+                "ERROR: --output-shape must be three comma-separated integers, e.g. 64,160,160"
+            )
 
     # Validate inputs.
     inputs = [Path(p) for p in args.input]

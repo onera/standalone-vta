@@ -104,15 +104,16 @@ python host/gen_nn_baremetal.py <compiler_output_dir> \
     --outdir      gen           \
 ```
 
-| Flag                 | Default | Description                                                           |
-| -------------------- | ------- | --------------------------------------------------------------------- |
-| `--outdir DIR`       | `gen`   | Directory for all generated files                                     |
-| `--ddr-base ADDR`    | `0x0`   | Physical DDR base; all buffer offsets are relative to this            |
-| `--max-addr ADDR`    | -       | Upper DDR limit; script exits with error if any allocation exceeds it |
+| Flag                 | Default | Description                                                                                                     |
+| -------------------- | ------- | --------------------------------------------------------------------------------------------------------------- |
+| `--outdir DIR`       | `gen`   | Directory for all generated files                                                                               |
+| `--ddr-base ADDR`    | `0x0`   | Physical DDR base; all buffer offsets are relative to this                                                      |
+| `--max-addr ADDR`    | -       | Upper DDR limit; script exits with error if any allocation exceeds it                                           |
 | `--config-json PATH` | -       | VTA hardware config JSON; reads `LOG_BLOCK`, `LOG_INP_WIDTH`, `LOG_OUT_WIDTH`, `LOG_WGT_WIDTH`, `LOG_ACC_WIDTH` |
-| `--block-size N`     | `16`    | Override block size directly (takes priority over `--config-json`)    |
+| `--block-size N`     | `16`    | Override block size directly (takes priority over `--config-json`)                                              |
 
 The script warns on non-default configurations:
+
 - **8-bit data width** (`LOG_INP_WIDTH` or `LOG_OUT_WIDTH` = 3): CPU ops use `int8_t`;
   ensure compiler output and network quantization match.
 - **Asymmetric stride** (`sh ≠ sw`): the functional simulator's `im2row` only supports
@@ -120,16 +121,16 @@ The script warns on non-default configurations:
 
 **Generated files**
 
-| File                 | Description                                                                      |
-| -------------------- | -------------------------------------------------------------------------------- |
+| File                 | Description                                                                                                                               |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `vta_hw_config.h`    | C++ type aliases (`vta_inp_t`, `vta_out_t`, `vta_acc_t`, `VTA_BLOCK_SIZE`) derived from the hardware config; required by `vta_cpu_ops.cc` |
-| `nn_ddr_map.h`       | `LayerDesc nn_layers[]` - VCR register values and buffer addresses per VTA layer |
-| `nn_exec_plan.h`     | `NnExecStep nn_exec_steps[]` - ordered VTA + CPU steps for the full model        |
-| `load_nn_static.tcl` | XSDB: loads INSN/UOP/WGT/ACC only (no input)                                     |
-| `load_nn.tcl`        | XSDB: loads INSN/UOP/WGT/ACC + input_nn.bin                                      |
-| `load_input.tcl`     | XSDB: loads input_nn.bin only (companion for ELF loader or standalone)           |
-| `nn_bin_data.S`      | AArch64 assembly with `.incbin` for each static buffer                           |
-| `nn_vta_sections.ld` | Linker fragment placing each `.vta_lN_*` section at its DDR address              |
+| `nn_ddr_map.h`       | `LayerDesc nn_layers[]` - VCR register values and buffer addresses per VTA layer                                                          |
+| `nn_exec_plan.h`     | `NnExecStep nn_exec_steps[]` - ordered VTA + CPU steps for the full model                                                                 |
+| `load_nn_static.tcl` | XSDB: loads INSN/UOP/WGT/ACC only (no input)                                                                                              |
+| `load_nn.tcl`        | XSDB: loads INSN/UOP/WGT/ACC + input_nn.bin                                                                                               |
+| `load_input.tcl`     | XSDB: loads input_nn.bin only (companion for ELF loader or standalone)                                                                    |
+| `nn_bin_data.S`      | AArch64 assembly with `.incbin` for each static buffer                                                                                    |
+| `nn_vta_sections.ld` | Linker fragment placing each `.vta_lN_*` section at its DDR address                                                                       |
 
 ### 2 - Create the Vitis workspace
 
@@ -286,7 +287,7 @@ python host/uart_nn.py \
 | `--verbose`            | -               | Print per-layer board logs during inference                       |
 | `--detile`             | -               | Convert VTA block output to NCHW flat before saving               |
 | `--output-shape C,H,W` | -               | Required with `--detile`; output tensor shape                     |
-| `--block-size N`       | `8`             | VTA block size used for de-tiling                                 |
+| `--block-size N`       | `16`            | VTA block size used for de-tiling                                 |
 
 ---
 
@@ -294,13 +295,13 @@ python host/uart_nn.py \
 
 The library has no dependencies beyond the Xilinx BSP (included by Vitis).
 
-| Header          | Contents                                                                                                                         |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `vta.h`         | VCR register layout, `CTRL_LAUNCH` / `CTRL_DONE` bit definitions                                                                 |
-| `vta_board.h`   | `board_init(baud)` - reinitializes the PS UART to the given baud rate at startup                                                 |
-| `vta_ctrl.h`    | `launch()`, `poll_done()` - thin wrappers around VCR MMIO                                                                        |
-| `vta_mem.h`     | `init_ddr_region()`, `dump_words()` - DDR init and debug helpers                                                                 |
-| `vta_nn.h`      | `LayerDesc`, `run_layer()`, `run_nn()`                                                                                           |
+| Header          | Contents                                                                                                                                                          |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `vta.h`         | VCR register layout, `CTRL_LAUNCH` / `CTRL_DONE` bit definitions                                                                                                  |
+| `vta_board.h`   | `board_init(baud)` - reinitializes the PS UART to the given baud rate at startup                                                                                  |
+| `vta_ctrl.h`    | `launch()`, `poll_done()` - thin wrappers around VCR MMIO                                                                                                         |
+| `vta_mem.h`     | `init_ddr_region()`, `dump_words()` - DDR init and debug helpers                                                                                                  |
+| `vta_nn.h`      | `LayerDesc`, `run_layer()`, `run_nn()`                                                                                                                            |
 | `vta_cpu_ops.h` | `NnFormatInputStep`, `NnIm2RowStep`, `NnQaddStep`, `NnConcatStep`, `NnDequantStep`, `NnQuantStep`, `NnRescaleStep` and the corresponding `vta::run_*()` functions |
 
 `board_init()` must be called at the very top of `main()`, before any
@@ -312,4 +313,3 @@ and `run_nn_uart.cc` call it as their first statement.
 `run_layer()` handles the full hardware interaction for one layer: flush input
 caches, program VCR registers, launch VTA, poll for completion, and invalidate
 the output cache.
-
