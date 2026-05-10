@@ -33,12 +33,6 @@ struct LayerDesc {
     std::uint32_t acc_phys,  acc_bytes;
     std::uint32_t out_phys,  out_bytes;
 
-    // --- Optional post-layer output relocation (reloc_bytes == 0 → disabled) ---
-    // When non-zero: copies [reloc_src, reloc_src+reloc_bytes) to reloc_dst after done.
-    // Use this when the next layer's input is not co-located with this layer's output.
-    std::uint32_t reloc_src;
-    std::uint32_t reloc_dst;
-    std::uint32_t reloc_bytes;
 };
 
 /**
@@ -47,25 +41,26 @@ struct LayerDesc {
  *   2. Program VCR registers and launch VTA
  *   3. Poll finish flag with a timeout
  *   4. Invalidate cache for the output region
- *   5. Optionally relocate output if reloc_bytes > 0
  *
  * @param vcr_base  AXI base address of the VTA VCR peripheral
- * @param layer     Layer descriptor (addresses, sizes, optional reloc)
+ * @param layer     Layer descriptor (addresses and sizes)
  * @param timeout   Maximum poll iterations before giving up (0 = unlimited)
  * @return 0 on success, -1 on timeout
  */
 int run_layer(std::uintptr_t vcr_base, const LayerDesc &layer,
               int timeout = 500000);
 
-/**
- * Run all layers in sequence.
- *
- * @param vcr_base  AXI base address of the VTA VCR peripheral
- * @param layers    Array of layer descriptors
- * @param n_layers  Number of layers
- * @return 0 on full success, -(layer_index + 1) on failure
- */
-int run_nn(std::uintptr_t vcr_base, const LayerDesc *layers, int n_layers);
+// Scans nn_exec_steps[] for the FORMAT_INPUT step.
+// Fills *raw_addr with the scratch DDR address and *input_n_bytes with
+// tensor_ch * tensor_h * tensor_w.  Returns false if not found.
+bool find_input(std::uint32_t *raw_addr, std::uint32_t *input_n_bytes);
+
+// Runs the full inference pipeline (all steps in nn_exec_steps[]).
+// Returns a malloc'd float* when the last output is floating-point (DEQUANT not
+// followed by QUANT); *float_bytes_out is set to the byte count in that case.
+// Returns nullptr for INT8 output (read from NN_OUTPUT_ADDR directly).
+// Sets *ok = false and frees any intermediate allocation on fatal error.
+float *run_nn(std::uint32_t *float_bytes_out, bool *ok);
 
 } // namespace vta
 

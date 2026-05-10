@@ -62,7 +62,7 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 
 SCRIPT_DIR = Path(__file__).resolve().parent  # src/fpga/software/host/
-SOFTWARE_DIR = SCRIPT_DIR.parent              # src/fpga/software/
+SOFTWARE_DIR = SCRIPT_DIR.parent  # src/fpga/software/
 INCLUDE_DIR = SOFTWARE_DIR / "driver" / "include"
 SRC_DIR = SOFTWARE_DIR / "driver" / "src"
 EXAMPLES_DIR = SOFTWARE_DIR / "apps"
@@ -75,16 +75,16 @@ CONFIG_DIR = SOFTWARE_DIR / "gen"
 
 # Source file for each runner, relative to SOFTWARE_DIR
 RUNNER_SOURCE: dict[str, Path] = {
-    "run_nn":      EXAMPLES_DIR / "run_nn.cc",
+    "run_nn": EXAMPLES_DIR / "run_nn.cc",
     "run_nn_uart": EXAMPLES_DIR / "run_nn_uart.cc",
-    "test_gemm":   TEST_GEMM_DIR / "test_gemm.cc",
+    "test_gemm": TEST_GEMM_DIR / "test_gemm.cc",
 }
 
 # Extra files to copy alongside the runner source (e.g. local headers)
 RUNNER_EXTRAS: dict[str, list[Path]] = {
-    "run_nn":      [],
+    "run_nn": [],
     "run_nn_uart": [],
-    "test_gemm":   [TEST_GEMM_DIR / "init_dram.h"],
+    "test_gemm": [TEST_GEMM_DIR / "init_dram.h"],
 }
 
 # Generated config files required by each data-loader
@@ -268,6 +268,7 @@ def _patch_asm_incbin(app_src: Path) -> None:
     lands in its final location.
     """
     import re
+
     asm = app_src / "nn_bin_data.S"
     if not asm.exists():
         return
@@ -278,7 +279,7 @@ def _patch_asm_incbin(app_src: Path) -> None:
         m = pattern.match(line)
         if m:
             rel = Path(os.path.relpath(m.group(2), app_src)).as_posix()
-            line = m.group(1) + rel + m.group(3) + line[m.end():]
+            line = m.group(1) + rel + m.group(3) + line[m.end() :]
         patched.append(line)
     asm.write_text("".join(patched), encoding="utf-8")
     print(f"[asm] Patched .incbin paths in nn_bin_data.S relative to {app_src}")
@@ -328,19 +329,21 @@ def _next_steps(runner: str, data_loader: str | None) -> None:
             print("  5. con  - board runs inference once and exits.")
         else:
             print("  4. con  - board waits for UART trigger.")
-            print("  5. python host/uart_nn.py --port /dev/ttyUSB0 --input input_nn.bin ...")
+            print(
+                "  5. python host/uart_nn.py --port /dev/ttyUSB0 --input input_nn.bin ..."
+            )
     elif dl == "elf":
         print("  1. Add src/nn_bin_data.S to UserConfig.cmake sources in Vitis.")
-        print("  2. Add inside your platform linker script SECTIONS { ... }:")
-        print("       INCLUDE nn_vta_sections.ld")
-        print("  3. Build the ELF in Vitis (static model data loaded by FSBL).")
+        print("  2. Build the ELF in Vitis (static model data loaded by FSBL).")
         if runner == "run_nn":
-            print("  4. In XSDB: dow application.elf")
-            print("  5. source gen/load_input.tcl   (input_nn.bin)")
-            print("  6. con  - board runs inference once and exits.")
+            print("  3. In XSDB: dow application.elf")
+            print("  4. source gen/load_input.tcl   (input_nn.bin)")
+            print("  5. con  - board runs inference once and exits.")
         else:
-            print("  4. In XSDB: dow application.elf, then con.")
-            print("  5. python host/uart_nn.py --port /dev/ttyUSB0 --input input_nn.bin ...")
+            print("  3. In XSDB: dow application.elf, then con.")
+            print(
+                "  4. python host/uart_nn.py --port /dev/ttyUSB0 --input input_nn.bin ..."
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -473,15 +476,19 @@ def main() -> None:
         print(f"  CPU:         {args.cpu}")
         for runner, dl in combos:
             print()
-            print(f"  Application: {app_names[(runner, dl)]}  "
-                  f"(runner={runner}, data-loader={dl or 'n/a'})")
+            print(
+                f"  Application: {app_names[(runner, dl)]}  "
+                f"(runner={runner}, data-loader={dl or 'n/a'})"
+            )
             print("  Files that would be copied:")
             for dest_rel, src_path in collect_sources(runner, dl).items():
                 exists = "ok" if src_path.exists() else "MISSING"
                 rel = src_path.relative_to(SOFTWARE_DIR)
                 print(f"    [{exists:7s}]  {rel} → {dest_rel}")
             if dl == "elf":
-                print("  Linker script: lscript.ld ← INCLUDE nn_vta_sections.ld (appended)")
+                print(
+                    "  Linker script: lscript.ld ← INCLUDE nn_vta_sections.ld (appended)"
+                )
         return
 
     if xsa is not None and not xsa.exists():

@@ -36,6 +36,10 @@ Usage
   python3 scripts/uart_nn.py --port /dev/ttyUSB0 --input-bytes 150528 --output-bytes 200704 \\
       --input input_nn.bin --output out.bin
 
+  # De-tile VTA block output to NCHW flat for comparison with functional sim:
+  python3 scripts/uart_nn.py --port /dev/ttyUSB0 --input input_nn.bin --output out.bin \\
+      --detile --output-shape 64,160,160 --block-size 8
+
 Dependencies
 ------------
   pip install pyserial
@@ -46,6 +50,35 @@ import re
 import sys
 import time
 from pathlib import Path
+
+
+# ---------------------------------------------------------------------------
+# De-tiling: VTA block layout → NCHW flat
+# ---------------------------------------------------------------------------
+
+
+def detile(data: bytes, C: int, H: int, W: int, B: int = 8) -> bytes:
+    """Convert VTA block-tiled INT8 output to NCHW flat.
+
+    VTA block layout: [N/B][C/B][B][B] where N = H*W.
+    NCHW flat layout: [C][H*W] (same total bytes, channel-major).
+    """
+    N  = H * W
+    Cb = C // B
+    Nb = N // B
+    if len(data) != N * C:
+        raise ValueError(
+            f"detile: expected {N * C} bytes (C={C} H={H} W={W}), got {len(data)}")
+    out = bytearray(N * C)
+    for rb in range(Nb):
+        for cbi in range(Cb):
+            blk_base = (rb * Cb + cbi) * B * B
+            for r in range(B):
+                row = rb * B + r
+                for c in range(B):
+                    col = cbi * B + c
+                    out[col * N + row] = data[blk_base + r * B + c] & 0xFF
+    return bytes(out)
 
 try:
     import serial
@@ -250,7 +283,35 @@ def main() -> None:
         action="store_true",
         help="Print byte-level transfer progress.",
     )
+    parser.add_argument(
+        "--detile",
+        action="store_true",
+        help="De-tile VTA block output to NCHW flat before saving "
+             "(for comparison with functional-sim final_output.bin).",
+    )
+    parser.add_argument(
+        "--output-shape",
+        metavar="C,H,W",
+        help="Output tensor shape as 'C,H,W' (required with --detile).",
+    )
+    parser.add_argument(
+        "--block-size",
+        type=int,
+        default=8,
+        metavar="B",
+        help="VTA block size for de-tiling (default: 8).",
+    )
     args = parser.parse_args()
+
+    if args.detile and not args.output_shape:
+        sys.exit("ERROR: --detile requires --output-shape C,H,W")
+    detile_shape: "tuple[int,int,int] | None" = None
+    if args.detile:
+        try:
+            c, h, w = (int(x) for x in args.output_shape.split(","))
+            detile_shape = (c, h, w)
+        except ValueError:
+            sys.exit("ERROR: --output-shape must be three comma-separated integers, e.g. 64,160,160")
 
     # Validate inputs.
     inputs = [Path(p) for p in args.input]
@@ -322,6 +383,14 @@ def main() -> None:
                 out_path = out_dir / f"{tag}_out.bin"
             else:
                 out_path = Path(f"{tag}_out.bin")
+
+            if detile_shape is not None:
+                c, h, w = detile_shape
+                try:
+                    out_data = detile(out_data, c, h, w, args.block_size)
+                    print(f"  de-tiled → NCHW [{c},{h},{w}]  ({len(out_data)} bytes)")
+                except ValueError as exc:
+                    sys.exit(f"ERROR: detile failed: {exc}")
 
             out_path.write_bytes(out_data)
             print(f"  saved {len(out_data)} bytes → {out_path}")

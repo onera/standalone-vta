@@ -1,10 +1,10 @@
 all:
 	@echo "Targets:"
-	@echo "  app       - generate gen/ from compiler output (RUNNER, DATA_LOADER, DDR_BASE)"
+	@echo "  gen       - generate gen/ from compiler output (CONFIG, DDR_BASE, OUTDIR)"
 	@echo "  workspace    - create Vitis workspace (XSA, CPU required)"
 	@echo "  clean        - remove config/ and build/"
 
-.PHONY: all clean config workspace
+.PHONY: all clean gen workspace
 
 COMPILER_OUTPUT ?= ../../../compiler_output
 COMPILER_OUTPUTS = $(wildcard $(COMPILER_OUTPUT)/*)

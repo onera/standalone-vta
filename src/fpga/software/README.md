@@ -38,7 +38,8 @@ software/
 ├── host/
 │   ├── gen_nn_baremetal.py      # Config-file generator (compiler output → gen/)
 │   ├── create_vitis_workspace.py # Vitis workspace / platform / application setup
-│   └── uart_nn.py               # Host-side UART inference client
+│   ├── uart_nn.py               # Host-side UART inference client
+│   └── build_apps.py            # Vitis batch build helper
 ├── pyproject.toml           # Python environment (uv, pyserial)
 └── README.md
 ```
@@ -283,6 +284,9 @@ python host/uart_nn.py \
 | `--banner-timeout SEC` | `20`            | Seconds to wait for banner after sending trigger                  |
 | `--ready-timeout SEC`  | `60`            | Seconds to wait for `READY` before each run                       |
 | `--verbose`            | -               | Print per-layer board logs during inference                       |
+| `--detile`             | -               | Convert VTA block output to NCHW flat before saving               |
+| `--output-shape C,H,W` | -               | Required with `--detile`; output tensor shape                     |
+| `--block-size N`       | `8`             | VTA block size used for de-tiling                                 |
 
 ---
 
@@ -297,7 +301,7 @@ The library has no dependencies beyond the Xilinx BSP (included by Vitis).
 | `vta_ctrl.h`    | `launch()`, `poll_done()` - thin wrappers around VCR MMIO                                                                        |
 | `vta_mem.h`     | `init_ddr_region()`, `dump_words()` - DDR init and debug helpers                                                                 |
 | `vta_nn.h`      | `LayerDesc`, `run_layer()`, `run_nn()`                                                                                           |
-| `vta_cpu_ops.h` | `NnFormatInputStep`, `NnQaddStep`, `NnConcatStep`, `NnDequantStep`, `NnQuantStep` and the corresponding `vta::run_*()` functions |
+| `vta_cpu_ops.h` | `NnFormatInputStep`, `NnIm2RowStep`, `NnQaddStep`, `NnConcatStep`, `NnDequantStep`, `NnQuantStep`, `NnRescaleStep` and the corresponding `vta::run_*()` functions |
 
 `board_init()` must be called at the very top of `main()`, before any
 `xil_printf` / `inbyte` / `outbyte`. The BSP's pre-compiled `libxil.a`
@@ -306,6 +310,6 @@ boots the UART at 115200; `board_init()` reinitializes it to `VTA_UART_BAUD`
 and `run_nn_uart.cc` call it as their first statement.
 
 `run_layer()` handles the full hardware interaction for one layer: flush input
-caches, program VCR registers, launch VTA, poll for completion, invalidate
-output cache, and optionally relocate the output buffer.
+caches, program VCR registers, launch VTA, poll for completion, and invalidate
+the output cache.
 
