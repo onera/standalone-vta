@@ -247,7 +247,6 @@ custom_insn: ## Generate custom instruction test
 clean: | $(COMPILER_OUTPUT_DIR) $(SIMULATOR_OUTPUT_DIR) ## Delete generated compiler and simulator output files
 	-rm $(COMPILER_OUTPUT_DIR)/*.*
 	-rm $(SIMULATOR_OUTPUT_DIR)/*.*
-	-rm -f $(EXPORTED_SV_STAMP) $(EXPORTED_SV_CFG_ARGS)
 
 cleaner: clean fsim_clean clean_hw ## Delete generated files and the FSIM build directory
 
@@ -261,6 +260,7 @@ clean_csv: | $(COMPILER_OUTPUT_DIR) ## Delete CSV output files only
 
 clean_hw: ## Clean Chisel/Mill build outputs
 	cd $(TSIM_DIR) && ./mill cleanOutputs
+	-rm -f $(EXPORTED_SV_STAMP) $(EXPORTED_SV_CFG_ARGS)
 
 # ==============================================================================
 # OUTPUT DIRECTORIES
