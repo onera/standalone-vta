@@ -7,7 +7,6 @@ import vta.parsers.DramInitParser.getMemoryConfigurations
 import vta.parsers.DramInitParser.parseJsonMemoryInitFile
 import vta.parsers.DramInitParser.parseMemorySections
 import vta.test.VTAShellTest
-import vta.util.BinaryReader
 import vta.util.MemoryConfig
 import vta.util.MemoryInitializer.exportHexFiles
 import vta.util.MemoryInitializer.exportHexToMemFiles
@@ -16,8 +15,7 @@ import vta.util.BinaryReader.DataType._
 
 import java.nio.file.Path
 import java.nio.file.Paths
-import vta.core.CoreKey
-import chisel3.Mem
+import scala.io.Source
 
 // FIXME: simple app, needs refinement
 object VTAShellSimulator extends App with VTAShellTest {
@@ -51,32 +49,36 @@ object VTAShellSimulator extends App with VTAShellTest {
 
 object VTAShellSimBinary extends App with VTAShellTest {
 
-  val path = os.pwd / "compiler_output"
+  require(args.size >= 1)
+
+  val path = args.head
   // val path = os.pwd / "src" / "test" / "resources" / "examples_compute/16x16"
 
-  val addresses = os
-    .read(path / "memory_addresses.csv")
-    .split("\n")
+  val memoryFile = Source.fromFile(path + "/memory_addresses.csv")
+  val addresses = memoryFile
+    .getLines()
     .map(_.split(","))
     .map(e => (e.head -> e(1)))
     .toMap
+  memoryFile.close()
   val output = os.pwd / "build" / "mem-bin"
 
   val files = Map(
-    "INP" -> (INSN, path / "input.bin"),
-    "WGT" -> (WGT, path / "weight.bin"),
-    "UOP" -> (UOP, path / "uop.bin"),
-    "OUT" -> (OUT, path / "out_init.bin"),
-    "ACC" -> (ACC, path / "accumulator.bin"),
-    "INSN" -> (INSN, path / "instructions.bin")
+    (INP, path + "/input.bin"),
+    (WGT, path + "/weight.bin"),
+    (UOP, path + "/uop.bin"),
+    (OUT, path + "/out_init.bin"),
+    (ACC, path + "/accumulator.bin"),
+    (INSN, path + "/instructions.bin")
   )
+  import DramInitParser._
   val hex =
     DramInitParser.getHexFromBinaryFiles(
-      files.view.mapValues(p => (p._1, p._2.toString())).toMap,
+      files,
       false
     )
   val memFiles = exportHexToMemFiles(
-    hex.view.mapValues(_._1).toMap,
+    hex.map(p => (p._1.getName(), p._2._1)),
     output
   )
 
@@ -84,9 +86,10 @@ object VTAShellSimBinary extends App with VTAShellTest {
   val memoryConfigs = files
     .map(e =>
       MemoryConfig(
-        name = e._1,
-        path = memFiles(e._1).toString(),
-        baseAddress = BigInt(addresses(e._1).split("x").last, 16).toInt,
+        name = e._1.getName(),
+        path = memFiles(e._1.getName()).toString(),
+        baseAddress =
+          BigInt(addresses(e._1.getName()).split("x").last, 16).toInt,
         numberOfData = hex(e._1)._2,
         words64 = hex(e._1)._1.size
       )
@@ -101,5 +104,5 @@ object VTAShellSimBinary extends App with VTAShellTest {
         ) // the instructions are 128 bits, so 1/2 instruction per word64
       case m: MemoryConfig => m
     }
-  runVtaTestWithInitializedMem(memoryConfigs, waves = true)
+  runVtaTestWithInitializedMem(memoryConfigs, timeout = 10000, waves = true)
 }

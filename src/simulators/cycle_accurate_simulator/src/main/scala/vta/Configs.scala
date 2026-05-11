@@ -40,7 +40,7 @@ class DefaultDe10Config extends Config(new CoreConfig ++ new De10Config)
 trait EmitterApp extends App {
   val defaultDir = os.RelPath("build/emitted/default")
   def outputDir = if (args.nonEmpty) os.Path(args(0)) else os.pwd / defaultDir
-  def showConfig(implicit p: Parameters) = {
+  def getConfig(implicit p: Parameters) = {
     p(CoreKey) match {
       case CoreParams(
             target,
@@ -60,8 +60,7 @@ trait EmitterApp extends App {
             outMemDepth,
             instQueueEntries
           ) =>
-        println(
-          s"""
+        s"""
           |Using following core config for target ${target}:
           | -batch=${batch}
           | -blockOut=${blockOut}
@@ -79,8 +78,10 @@ trait EmitterApp extends App {
           | -outMemDepth=${outMemDepth}
           | -instQueueEntries=${instQueueEntries}
           """.stripMargin
-        )
     }
+  }
+  def showConfig(implicit p: Parameters) = {
+    println(getConfig)
   }
 }
 
@@ -106,7 +107,9 @@ object DefaultXilinxConfig extends EmitterApp {
     name = "VTA",
     version = "0.2.0",
     topModule = "VTAXilinxShell",
-    displayName = "VTA_" + p(CoreKey).target
+    displayName = "VTA_" + p(CoreKey).target,
+    description =
+      "Versatile Tensor Accelerator - Xilinx shell (AXI4-Lite ctrl + AXI4 DRAM)" + getConfig
   )
 
 }

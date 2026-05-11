@@ -13,10 +13,10 @@ object XilinxIpFlow {
       name: String,
       version: String,
       topModule: String,
-      part: String = "xc7z020clg400-1", // PYNQ
+      part: String = "", // PYNQ
       lib: String = "user",
       description: String =
-        "Versatile Tensor Accelerator — Xilinx shell (AXI4-Lite ctrl + AXI4 DRAM)",
+        "Versatile Tensor Accelerator - Xilinx shell (AXI4-Lite ctrl + AXI4 DRAM)",
       displayName: String = "VTA"
   )(implicit config: Parameters) = {
     val header = s"""

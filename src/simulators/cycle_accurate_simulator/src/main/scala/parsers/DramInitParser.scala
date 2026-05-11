@@ -3,21 +3,31 @@ package vta.parsers
 import chisel3._
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
-import vta.util.BinaryReader
+import vta.util.BinaryReader.DataType._
 import vta.util.MemoryConfig
 
 import scala.io.Source
-import chisel3.simulator.PeekPokeAPI.TestableEnum
+import vta.util.BinaryReader.readBinaryFile
 
 object DramInitParser {
+
+  implicit class DataTypeHasName(datatype: DataTypeValue) {
+
+    def getName(): String =
+      datatype match {
+        case INSN => "INSN"
+        case UOP  => "UOP"
+        case OUT  => "OUT"
+        case INP  => "INP"
+        case ACC  => "ACC"
+        case WGT  => "WGT"
+      }
+  }
 
   def parseJsonMemoryInitFile(
       file: String
   ): Map[String, Object] = {
-    val bufferedSource =
-      Source.fromFile(
-        file
-      )
+    val bufferedSource = Source.fromFile(file)
     val mapper = new ObjectMapper()
     mapper.registerModule(DefaultScalaModule)
     val dramInitJson =
@@ -29,30 +39,18 @@ object DramInitParser {
     dramInitJson.head._2
   }
 
-  def parseMemorySection(name: String, map: Map[String, Object]) = {
-    val address = map(name) match {
-      case m: Map[String, String] => m("PhysicalAddr").toInt
-    }
-    val values = map(name) match {
-      case m: Map[String, Object] =>
-        m("values") match {
-          case l: List[String] => l
-        }
-    }
-    (address, values)
-  }
-
   def parseMemorySections(map: Map[String, Object]) = map.map { p =>
     val address = p._2 match {
-      case m: Map[String, String] => {
+      case m: Map[String, String] @unchecked => {
         val s = m("PhysicalAddr")
         ("x" + s).U((s.size * 4).W).litValue.toInt
       }
     }
     val values = p._2 match {
-      case m: Map[String, Object] =>
+      case m: Map[String, Object] @unchecked =>
         m("values") match {
-          case l: List[String] => l.map { s => ("x" + s).U((s.size * 4).W) }
+          case l: List[String] @unchecked =>
+            l.map { s => ("x" + s).U((s.size * 4).W) }
         }
     }
     (p._1 -> (address, values))
@@ -75,43 +73,44 @@ object DramInitParser {
     }.toSeq
   }
 
+  /** Read each binary file and convert it to one hex string per 64-bit memory
+    * word, ready to be consumed by `$readmemh`.
+    *
+    * Source files are interpreted as little-endian byte streams, so the byte
+    * order is swapped within each 64-bit word: byte `i` of the file lands in
+    * bits `[i*8+7 : i*8]` of the memory word.
+    *
+    * @return for each data type: (hex-strings array, raw byte count)
+    */
   def getHexFromBinaryFiles(
-      files: Map[String, (BinaryReader.DataType.DataTypeValue, String)],
+      files: Map[DataTypeValue, String],
       fromResources: Boolean = true
-  ) = {
-    files.map { s =>
-      val bytes = BinaryReader.readBinaryFile(s._2._2, fromResources).get
-      val size = bytes.size
-      s._1 -> (
-        bin2hex(bytes, 8)
-          .map(_.reverse)
-          // .grouped(4) // groups by 32 bits
-          // .foldLeft(Array.empty[Array[String]]) { (arr, word32) =>
-          //   arr :+ bin2hex(word32, 4)
-          // }
-          // .grouped(2)
-          // .flatMap(_.reverse) // invert endianness for 32 bits word
-          // .map(_.reduce(_ ++ _))
-          // // .map(g => g.map(String.format("%02x", _)).reduce(_ + _))
-          .toArray,
-        size
-      )
+  ): Map[DataTypeValue, (Array[String], Int)] = {
+    files.map { case (dt, path) =>
+      val bytes = readBinaryFile(path, fromResources).get
+      dt -> (bin2hex(bytes, bytesPerWord = 8, littleEndian = true), bytes.size)
     }.toMap
   }
 
-  def bin2hex(bytes: Array[Byte], nbBytes: Int = 8) = {
-    val hex = bytes.grouped(nbBytes).map { g =>
-      val string = (if (g.size == nbBytes) g
-                    else Array.fill[Byte](nbBytes - g.size)(0) ++ g)
-        .map(b => String.format("%02x", b).toString)
-        .reduce(_ ++ _)
-
-      if (g.size == nbBytes) string
-      else
-        string.padTo(nbBytes, '0')
-      string
-
-    }
-    hex.toArray
+  /** Convert a byte array into one hex string per `bytesPerWord`-byte group.
+    *
+    * Each output string has exactly `2 * bytesPerWord` characters. A final
+    * short group is zero-padded on the high-order side. When `littleEndian`
+    * is true, each group's bytes are reversed before formatting so the result
+    * reads MSB-first as a single unsigned integer.
+    */
+  def bin2hex(
+      bytes: Array[Byte],
+      bytesPerWord: Int = 8,
+      littleEndian: Boolean = false
+  ): Array[String] = {
+    require(bytesPerWord > 0, s"bytesPerWord must be positive, got $bytesPerWord")
+    bytes.grouped(bytesPerWord).map { g =>
+      val padded =
+        if (g.length == bytesPerWord) g
+        else Array.fill[Byte](bytesPerWord - g.length)(0) ++ g
+      val ordered = if (littleEndian) padded.reverse else padded
+      ordered.iterator.map(b => f"${b & 0xff}%02x").mkString
+    }.toArray
   }
 }

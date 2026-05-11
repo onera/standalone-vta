@@ -42,7 +42,7 @@ trait VTAShellTest extends ChiselSim with AxiFullSimUtils with VcrTestUtils {
 
   def runVtaTestWithInitializedMem(
       content: Seq[MemoryConfig],
-      timeout: Int = 100,
+      timeout: Int = 10000,
       waves: Boolean = false
   )(implicit testingDirectory: HasTestingDirectory, simulator: HasSimulator) = {
     implicit val parameters: Parameters = new DefaultPynqConfig
