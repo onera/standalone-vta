@@ -34,12 +34,15 @@ def generate_vta_test_header(
     output_dtype=np.int32,
     min_val=-128,
     max_val=127,
+    path="gen/",
     filename="init_dram.h"
     ):
 
     # Determine absolute path to avoid writing errors depending on CWD
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    full_path = os.path.join(script_dir, filename)
+    gen_dir_path = os.path.join(os.path.dirname(script_dir), path)
+    os.makedirs(gen_dir_path, exist_ok=True)
+    full_path = os.path.join(gen_dir_path, filename)
 
     # 1. Data generation (algebraic values)
     # Use max_val + 1 because high is exclusive in randint
