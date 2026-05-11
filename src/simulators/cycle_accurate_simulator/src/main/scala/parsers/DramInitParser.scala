@@ -7,6 +7,7 @@ import vta.util.BinaryReader
 import vta.util.MemoryConfig
 
 import scala.io.Source
+import chisel3.simulator.PeekPokeAPI.TestableEnum
 
 object DramInitParser {
 
@@ -65,7 +66,7 @@ object DramInitParser {
         name = a,
         path = (os.pwd / "build" / "mem" / (a + ".mem")).toString,
         baseAddress = b,
-        initialSize = c.size,
+        numberOfData = c.size,
         words64 = {
           val n = c.map(_.getWidth).sum
           if (n % 64 == 0) n / 64 else (n / 64) + 1
@@ -75,25 +76,39 @@ object DramInitParser {
   }
 
   def getHexFromBinaryFiles(
-      files: Map[String, String],
+      files: Map[String, (BinaryReader.DataType.DataTypeValue, String)],
       fromResources: Boolean = true
   ) = {
     files.map { s =>
-      val bytes = BinaryReader.readBinaryFile(s._2, fromResources).get
-      s._1 -> bin2hex(bytes)
+      val bytes = BinaryReader.readBinaryFile(s._2._2, fromResources).get
+      val size = bytes.size
+      s._1 -> (
+        bin2hex(bytes, 8)
+          .map(_.reverse)
+          // .grouped(4) // groups by 32 bits
+          // .foldLeft(Array.empty[Array[String]]) { (arr, word32) =>
+          //   arr :+ bin2hex(word32, 4)
+          // }
+          // .grouped(2)
+          // .flatMap(_.reverse) // invert endianness for 32 bits word
+          // .map(_.reduce(_ ++ _))
+          // // .map(g => g.map(String.format("%02x", _)).reduce(_ + _))
+          .toArray,
+        size
+      )
     }.toMap
   }
 
-  def bin2hex(bytes: Array[Byte], targetBytes: Int = 8) = {
-    val hex = bytes.grouped(targetBytes).map { g =>
-      val string = (if (g.size == targetBytes) g
-                    else g ++ Array.fill[Byte](targetBytes - g.size)(0))
+  def bin2hex(bytes: Array[Byte], nbBytes: Int = 8) = {
+    val hex = bytes.grouped(nbBytes).map { g =>
+      val string = (if (g.size == nbBytes) g
+                    else Array.fill[Byte](nbBytes - g.size)(0) ++ g)
         .map(b => String.format("%02x", b).toString)
         .reduce(_ ++ _)
 
-      if (g.size == targetBytes) string
+      if (g.size == nbBytes) string
       else
-        string.padTo(targetBytes, '0')
+        string.padTo(nbBytes, '0')
       string
 
     }

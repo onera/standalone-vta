@@ -97,7 +97,7 @@ class VTAShellSpec extends AnyFlatSpecSim with Matchers with VTAShellTest {
         name = name,
         path = (os.pwd / "build" / "mem" / (name + ".mem")).toString,
         baseAddress = addr,
-        initialSize = values.size,
+        numberOfData = values.size,
         words64 = {
           val n = values.map(_.getWidth).sum
           if (n % 64 == 0) n / 64 else (n / 64) + 1

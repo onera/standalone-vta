@@ -71,7 +71,7 @@ trait VTAShellTest extends ChiselSim with AxiFullSimUtils with VcrTestUtils {
       // Configure instruction size
 
       writeInstructionCount(
-        content.find(_.name.matches("INSN")).get.initialSize
+        content.find(_.name.matches("INSN")).get.numberOfData
       )
 
       // launch the processing of VTA
@@ -114,7 +114,7 @@ trait VTAShellTest extends ChiselSim with AxiFullSimUtils with VcrTestUtils {
       // Configure instruction size
 
       writeInstructionCount(
-        content.find(_.name.matches("INSN")).get.initialSize
+        content.find(_.name.matches("INSN")).get.numberOfData
       )
 
       // launch the processing of VTA
@@ -135,7 +135,7 @@ trait VTAShellTest extends ChiselSim with AxiFullSimUtils with VcrTestUtils {
       // Configure instruction size
 
       writeInstructionCount(
-        content.find(_.name.matches("INSN")).get.initialSize
+        content.find(_.name.matches("INSN")).get.numberOfData
       )
 
       // launch the processing of VTA

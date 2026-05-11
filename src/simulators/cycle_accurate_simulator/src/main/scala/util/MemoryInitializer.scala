@@ -22,7 +22,7 @@ case class MemoryConfig(
     name: String,
     path: String,
     baseAddress: Int,
-    initialSize: Int,
+    numberOfData: Int,
     words64: Int,
     logging: Boolean = false
 )
@@ -77,17 +77,20 @@ object MemoryInitializer {
   def exportHexToMemFiles(
       content: Map[String, Array[String]],
       file: os.Path
-  ): Unit = {
-    content.foreach { case (name, values) =>
+  ): Map[String, os.Path] = {
+    content.map { case (name, values) =>
 
       require(values.forall { l =>
         !values.exists(s => s.size != l.size)
       })
+
+      val filePath = file / (name + ".mem")
       os.write.over(
-        file / (name + ".mem"),
+        filePath,
         values.mkString("\n"),
         createFolders = true
       )
+      name -> filePath
     }
   }
 }
