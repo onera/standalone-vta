@@ -13,7 +13,7 @@ object XilinxIpFlow {
       name: String,
       version: String,
       topModule: String,
-      part: String = "", // PYNQ
+      part: String = "",
       lib: String = "user",
       description: String =
         "Versatile Tensor Accelerator - Xilinx shell (AXI4-Lite ctrl + AXI4 DRAM)",

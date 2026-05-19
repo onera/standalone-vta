@@ -50,11 +50,13 @@ object VTAShellSimulator extends App with VTAShellTest {
 object VTAShellSimBinary extends App with VTAShellTest {
 
   require(args.size >= 1)
+  val suffix = if (args.size >= 2) {
+    args(1)
+  }
 
   val path = args.head
-  // val path = os.pwd / "src" / "test" / "resources" / "examples_compute/16x16"
 
-  val memoryFile = Source.fromFile(path + "/memory_addresses.csv")
+  val memoryFile = Source.fromFile(path + s"/memory_addresses${suffix}.csv")
   val addresses = memoryFile
     .getLines()
     .map(_.split(","))
@@ -64,12 +66,12 @@ object VTAShellSimBinary extends App with VTAShellTest {
   val output = os.pwd / "build" / "mem-bin"
 
   val files = Map(
-    (INP, path + "/input.bin"),
-    (WGT, path + "/weight.bin"),
-    (UOP, path + "/uop.bin"),
-    (OUT, path + "/out_init.bin"),
-    (ACC, path + "/accumulator.bin"),
-    (INSN, path + "/instructions.bin")
+    (INP, path + s"/input${suffix}.bin"),
+    (WGT, path + s"/weight${suffix}.bin"),
+    (UOP, path + s"/uop${suffix}.bin"),
+    (OUT, path + s"/out_init.bin"),
+    (ACC, path + s"/accumulator${suffix}.bin"),
+    (INSN, path + s"/instructions${suffix}.bin")
   )
   import DramInitParser._
   val hex =
@@ -104,5 +106,5 @@ object VTAShellSimBinary extends App with VTAShellTest {
         ) // the instructions are 128 bits, so 1/2 instruction per word64
       case m: MemoryConfig => m
     }
-  runVtaTestWithInitializedMem(memoryConfigs, timeout = 10000, waves = true)
+  runVtaTestWithInitializedMem(memoryConfigs, timeout = 1000000, waves = true)
 }

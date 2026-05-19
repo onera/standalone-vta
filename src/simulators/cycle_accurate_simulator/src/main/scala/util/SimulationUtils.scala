@@ -10,6 +10,11 @@ import chisel3.layers.Verification
 
 object SimulationUtils {
 
+  /** Verilator simulator with FST waveDump enabled
+    *
+    * @return
+    *   HasSimulator
+    */
   def verilatorWithWaveDump: HasSimulator = HasSimulator.simulators
     .verilator(verilatorSettings =
       svsim.verilator.Backend.CompilationSettings.default.withTraceStyle(
@@ -28,6 +33,10 @@ object SimulationUtils {
 
   val compilationSettings = svsim.CommonCompilationSettings.default
 
+  /** Compilation settings modification for enabling memory initialization from
+    * file It defines the ENABLE_INITIAL_MEM_ pre processor macro that guard
+    * $readmemh calls in system verilog
+    */
   object EnableMemInitVerilog extends CommonSettingsModifications {
 
     override def apply(
@@ -44,6 +53,8 @@ object SimulationUtils {
 
   }
 
+  /** Simulation settings that disable the DebugLayer by default
+    */
   def debugLayerDisabled[A <: chisel3.Module] = {
     val default = Settings.default[A]
     Settings(
