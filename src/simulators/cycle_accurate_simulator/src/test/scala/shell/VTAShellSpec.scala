@@ -11,6 +11,10 @@ import vta.util.SimulationUtils.verilatorWithWaveDump
 import vta.parsers.DramInitParser
 import vta.util.BinaryReader.DataType._
 import chisel3.simulator.HasSimulator
+import scala.io.Source
+import chisel3.simulator.stimulus.RunUntilFinished
+import vta.test.VTAShellTestFull
+import vta.util.SimulationUtils.EnableMemInitVerilog
 
 class VTAShellSpec extends AnyFlatSpecSim with Matchers with VTAShellTest {
   behavior of "VTAShell"
@@ -68,28 +72,33 @@ class VTAShellSpec extends AnyFlatSpecSim with Matchers with VTAShellTest {
     )
 
   }
+}
 
+class VTAShellBinSpec extends AnyFlatSpecSim with Matchers with VTAShellTest {
+  behavior of "VTAShell"
   it should "run the full VTA on binary data" in {
 
-    implicit val simulatorWithWaves = verilatorWithWaveDump
-    val path = os.pwd / "compiler_output"
+    // implicit val simulatorWithWaves = verilatorWithWaveDump
+    val path = "../../../compiler_output"
     // val path = os.pwd / "src" / "test" / "resources" / "examples_compute/16x16"
 
-    val addresses = os
-      .read(path / "memory_addresses.csv")
-      .split("\n")
+    val suffix = ""
+    val memoryFile = Source.fromFile(path + s"/memory_addresses${suffix}.csv")
+    val addresses = memoryFile
+      .getLines()
       .map(_.split(","))
       .map(e => (e.head -> e(1)))
       .toMap
+    memoryFile.close()
     val output = os.pwd / "build" / "mem-bin"
 
     val files = Map(
-      INSN -> path / "input.bin",
-      WGT -> path / "weight.bin",
-      UOP -> path / "uop.bin",
-      OUT -> path / "out_init.bin",
-      ACC -> path / "accumulator.bin",
-      INSN -> path / "instructions.bin"
+      (INP, path + s"/input${suffix}.bin"),
+      (WGT, path + s"/weight${suffix}.bin"),
+      (UOP, path + s"/uop${suffix}.bin"),
+      (OUT, path + s"/out_init.bin"),
+      (ACC, path + s"/accumulator${suffix}.bin"),
+      (INSN, path + s"/instructions${suffix}.bin")
     )
     val hex =
       DramInitParser.getHexFromBinaryFiles(
@@ -102,15 +111,16 @@ class VTAShellSpec extends AnyFlatSpecSim with Matchers with VTAShellTest {
       output
     )
 
+    val offset = BigInt("0", 16).toInt
     val memoryConfigs = files
       .map(e =>
         MemoryConfig(
           name = e._1.getName(),
           path = memFiles(e._1.getName()).toString(),
-          baseAddress = {
-            val s = addresses(e._1.getName())
-            ("x" + s).U((s.size * 4).W).litValue.toInt
-          },
+          baseAddress = BigInt(
+            addresses(e._1.getName()).split("x").last,
+            16
+          ).toInt + offset,
           numberOfData = hex(e._1)._2,
           words64 = hex(e._1)._1.size
         )
@@ -125,10 +135,41 @@ class VTAShellSpec extends AnyFlatSpecSim with Matchers with VTAShellTest {
           ) // the instructions are 128 bits, so 1/2 instruction per word64
         case m: MemoryConfig => m
       }
-    runVtaTestWithInitializedMem(
-      content = memoryConfigs,
-      timeout = 10000,
-      waves = true
-    )
+
+    implicit val enableMemoryInit = EnableMemInitVerilog
+    simulate(
+      new VTAShellTestFull(memoryConfigs),
+      firtoolOpts = Array("--disable-all-randomization")
+    ) { vta =>
+      implicit val clock = vta.clock
+      implicit val axiLiteClient = vta.io.host
+      vta.io.host.b.ready.poke(true.B)
+
+      writeInstructionBaseAddress(
+        memoryConfigs.find(_.name.matches("INSN")).get.baseAddress
+      )
+      writeUopBaseAddress(offset)
+      writeInputBaseAddress(offset)
+      writeWeightBaseAddress(offset)
+      writeAccBaseAddress(offset)
+      writeOutBaseAddress(offset)
+      // Configure instruction size
+
+      writeInstructionCount(
+        memoryConfigs.find(_.name.matches("INSN")).get.numberOfData
+      )
+
+      // launch the processing of VTA
+      launchVTA()
+
+      // step clock until the computation is over
+      // clock.step(timeout)
+      RunUntilFinished.module(1000)
+    }
+    // runVtaTestWithInitializedMem(
+    //   content = memoryConfigs,
+    //   timeout = 10000,
+    //   waves = false
+    // )
   }
 }

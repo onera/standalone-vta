@@ -19,7 +19,7 @@ class VTAShellSimulatorTest extends AnyFlatSpec with Matchers {
 
   it should "run for binary files" in {
     VTAShellSimBinary.main(
-      Array("../../../compiler_output")
+      Array("../../../compiler_output", "QLinearConv1")
     )
   }
 }
