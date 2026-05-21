@@ -118,8 +118,8 @@ def data_definition(matrices_dict, flag_dict, block_size=16,
     # Create the matrix
     C_matrix = matrix_creation(m_row=C_row, n_col=C_col, file=None, dtype=inp_dtype)
 
-    #DEBUG
-    #print(f"\n\nDEBUG: \n A= \n{A_matrix} \n\n B= \n{B_matrix} \n\n X= \n{X_matrix} \n\n C= \n{C_matrix} \n\n")
+    # # DEBUG
+    # print(f"\n\nDEBUG: \n A= \n{A_matrix} \n\n B= \n{B_matrix} \n\n X= \n{X_matrix} \n\n C= \n{C_matrix} \n\n Expected C= \n{np.add(np.matmul(A_matrix, B_matrix), X_matrix)} \n\n")
     
 
     # -------

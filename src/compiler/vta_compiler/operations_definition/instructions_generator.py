@@ -110,7 +110,7 @@ def core_instructions(step, semaphore, flag_dict, dram_addresses, uop_counter=0,
         insn_buffer.extend(new_insn)
         uop_buffer.extend(new_uop)
         # Increment the uop counter
-        uop_counter + len(new_uop)
+        uop_counter = uop_counter + len(new_uop)
 
 
     # 2 - LOAD UOP + GEMM + ALU
@@ -120,6 +120,8 @@ def core_instructions(step, semaphore, flag_dict, dram_addresses, uop_counter=0,
     new_insn, new_uop, semaphore = step_compute(ops, load_A, load_B, load_X, sram_state, uop_addr, uop_buffer_size, uop_counter, doStore, block_size, semaphore)
     insn_buffer.extend(new_insn)
     uop_buffer.extend(new_uop)
+    # Increment the uop counter
+    uop_counter = uop_counter + len(new_uop)
 
 
     # 3 - STORE
@@ -131,7 +133,7 @@ def core_instructions(step, semaphore, flag_dict, dram_addresses, uop_counter=0,
 
     # Return
     # ---
-    return insn_buffer, uop_buffer, semaphore, uop_counter + len(uop_buffer)
+    return insn_buffer, uop_buffer, semaphore, uop_counter
 
 
 # ---------------------------------------------
