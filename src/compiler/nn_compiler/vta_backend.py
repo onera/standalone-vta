@@ -13,7 +13,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.find_project_root import *
 from utils.json_parser import *
 import utils.configuration as conf
-import utils.random_raw_binary_generator as RRBG
 
 import nn_compiler.parser.parse_onnx_to_dict as PO
 import nn_compiler.parser.get_input_nodes as PG
@@ -30,7 +29,7 @@ import nn_compiler.nodes.node_cpu as Ncpu
 # MAIN FUNCTION
 # -------------
 def vta_backend(vta_config_dict, onnx_model_path, 
-                doGenerateBin=False,
+                doExpandBiasAtCompilation=False,
                 debug=True):
 
     # GET CONFIGURATION
@@ -139,7 +138,7 @@ def vta_backend(vta_config_dict, onnx_model_path,
         if (op_type == "QLinearConv"): 
             # Get data from the node
             vta_ir, node_info = \
-                Nconv.node_conv(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, debug=False)
+                Nconv.node_conv(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, doExpandBiasAtCompilation=doExpandBiasAtCompilation, debug=False)
 
         # ---
 
@@ -157,15 +156,6 @@ def vta_backend(vta_config_dict, onnx_model_path,
             vta_ir, node_info = \
                 Npool.node_pool(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, debug=False)
 
-            # Generate the associated binaries
-            if (doGenerateBin):
-                Xh = node_info['matrix_shape'][0]
-                Xw = node_info['matrix_shape'][1]
-
-                str_type = 'int8' if (acc_dtype == np.int8) else 'int32'
-
-                RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accumulator", dtype=str_type, debug=False)
-
         # ---
 
         # Activation
@@ -173,16 +163,6 @@ def vta_backend(vta_config_dict, onnx_model_path,
             # Get data from the node
             vta_ir, node_info = \
                 Nactivation.node_relu(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, debug=False)
-
-            # Generate the associated binaries
-            if (doGenerateBin):
-                Xh = node_info['matrix_shape'][0]
-                Xw = node_info['matrix_shape'][1]
-
-                str_type = 'int8' if (acc_dtype == np.int8) else 'int32'
-
-                RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accumulator", dtype=str_type, debug=False)
-        
 
         # ---
         # ---
@@ -194,17 +174,6 @@ def vta_backend(vta_config_dict, onnx_model_path,
             # Get data from the node
             _, node_info = \
                 Nadd.node_add(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, debug=False)
-
-            # Generate the associated binaries
-            if (doGenerateBin):
-                Xh = node_info['matrix_shape'][0]
-                Xw = node_info['matrix_shape'][1]
-
-                str_type = 'int8' if (acc_dtype == np.int8) else 'int32'
-                
-                RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accumulator", dtype=str_type, debug=False)
-                if (node_info['initAccBis'] == False):
-                    RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accbis", dtype=str_type, debug=False)
 
         # Quantise
         elif (op_type == 'QuantizeLinear' or op_type == "DequantizeLinear"): 
@@ -395,7 +364,7 @@ if __name__ == "__main__":
     To execute: 
         > python vta_backend.py 
             <debug>
-            <doGenerateBin>
+            <doExpandBiasAtCompilation>
             <config_file> 
             <onnx_model_path> 
     """
@@ -406,7 +375,7 @@ if __name__ == "__main__":
     # Read the arguments
     # Debug settings
     debug = True if (sys.argv[1] == 'true' or sys.argv[1] == 'True') else False
-    doGenerateBin = True if (sys.argv[2] == 'true' or sys.argv[2] == 'True') else False
+    doExpandBiasAtCompilation = True if (sys.argv[2] == 'true' or sys.argv[2] == 'True') else False
     # Config file
     vta_config_file = sys.argv[3]
     vta_config_dict = parse_json_to_dict(vta_config_file)
@@ -414,6 +383,6 @@ if __name__ == "__main__":
     onnx_model_path = sys.argv[4]
 
     # Execute the backend
-    result = vta_backend(vta_config_dict, onnx_model_path, doGenerateBin=doGenerateBin, debug=debug)
+    result = vta_backend(vta_config_dict, onnx_model_path, doExpandBiasAtCompilation=doExpandBiasAtCompilation, debug=debug)
 
     # END!

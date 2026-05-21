@@ -26,6 +26,7 @@ DEBUG ?= False
 DEBUG_PARSE ?= True
 COMPILE_SUMMARY ?= True
 DRAM_JSON ?= False
+EXPANDBIAS_AT_COMPILATION ?= True
 # ort, numpy, compare
 REF_MODE ?= numpy
 
@@ -56,7 +57,7 @@ nn_compiler: ## NN compilation: qONNX -> CPU parameters + VTA IRs
 	@date
 	python $(NN_COMPILER_DIR)/vta_backend.py \
 	$(DEBUG_PARSE) \
-	True \
+	$(EXPANDBIAS_AT_COMPILATION) \
 	$(CONFIG)/vta_config.json \
 	$(ONNX_FILE) > $(COMPILER_OUTPUT_DIR)/prompt_vta_backend.txt
 	@date
