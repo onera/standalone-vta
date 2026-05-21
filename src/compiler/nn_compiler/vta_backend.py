@@ -13,6 +13,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.find_project_root import *
 from utils.json_parser import *
 import utils.configuration as conf
+import utils.random_raw_binary_generator as RRBG
 
 import nn_compiler.parser.parse_onnx_to_dict as PO
 import nn_compiler.parser.get_input_nodes as PG
@@ -156,6 +157,15 @@ def vta_backend(vta_config_dict, onnx_model_path,
             vta_ir, node_info = \
                 Npool.node_pool(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, debug=False)
 
+            # Generate the associated binaries (Default input file)
+            Xh = node_info['matrix_shape'][0]
+            Xw = node_info['matrix_shape'][1]
+
+            str_type = 'int8' if (acc_dtype == np.int8) else 'int32'
+
+            RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accumulator", dtype=str_type, debug=False)
+
+
         # ---
 
         # Activation
@@ -163,6 +173,15 @@ def vta_backend(vta_config_dict, onnx_model_path,
             # Get data from the node
             vta_ir, node_info = \
                 Nactivation.node_relu(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, debug=False)
+
+            # Generate the associated binaries (Default input file)
+            Xh = node_info['matrix_shape'][0]
+            Xw = node_info['matrix_shape'][1]
+
+            str_type = 'int8' if (acc_dtype == np.int8) else 'int32'
+
+            RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accumulator", dtype=str_type, debug=False)
+        
 
         # ---
         # ---
@@ -174,6 +193,17 @@ def vta_backend(vta_config_dict, onnx_model_path,
             # Get data from the node
             _, node_info = \
                 Nadd.node_add(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, debug=False)
+
+            # Generate the associated binaries(Default input file)
+            Xh = node_info['matrix_shape'][0]
+            Xw = node_info['matrix_shape'][1]
+
+            str_type = 'int8' if (acc_dtype == np.int8) else 'int32'
+            
+            RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accumulator", dtype=str_type, debug=False)
+            if (node_info['initAccBis'] == False):
+                RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accbis", dtype=str_type, debug=False)
+
 
         # Quantise
         elif (op_type == 'QuantizeLinear' or op_type == "DequantizeLinear"): 

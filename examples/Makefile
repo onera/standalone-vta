@@ -35,8 +35,7 @@ ONNX_FILE ?= onnx/qyolo_pattern.onnx
 # onnx/qyolo_qconvtranspose.onnx
 # onnx/qyolo_qconv_maxpool_qconcat.onnx
 # onnx/qyolo_pattern.onnx
-
-# ../../onnx_zoo/qyolo_debug.onnx
+# onnx/qyolo.onnx
 
 
 ############################################################
