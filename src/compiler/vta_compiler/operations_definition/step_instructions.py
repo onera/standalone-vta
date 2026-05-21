@@ -134,9 +134,10 @@ def step_load(load_A, load_B, inp_addr, wgt_addr, block_size, semaphore):
 
 # STEP LOAD ACC
 # -------------
-def step_load_acc(load_X, sram_state, acc_addr, acc_bis_addr, block_size, semaphore):
-    # Init the buffer
+def step_load_acc(load_X, flag_dict, sram_state, acc_addr, acc_bis_addr, block_size, C_blocks_col, uop_addr, uop_counter, semaphore):
+    # Init the buffers
     insn_buffer = []
+    uop_buffer = []
 
     # Get the number of load
     nb_acc = len(load_X)
@@ -168,13 +169,17 @@ def step_load_acc(load_X, sram_state, acc_addr, acc_bis_addr, block_size, semaph
     else: 
         # Nothing to acknowledge
         next_ack_signal = 0
-    
+
+
+    # Get bias expansion flag
+    doExpandBias = flag_dict["doExpandBias"]
+
 
     # LOAD ACC
     # ---
     # Get the gap between each idx
     idx_gap = check_constant_gap(load_X)
-    if (idx_gap == -1):
+    if (idx_gap == -1 or doExpandBias == True):
         # Block wise load
         for i, block_idx in enumerate(load_X):
             # Semaphore
@@ -183,7 +188,7 @@ def step_load_acc(load_X, sram_state, acc_addr, acc_bis_addr, block_size, semaph
             push_next_dep = next_ready_signal # -> 0
             push_prev_dep = prev_ready_signal # -> 0
 
-            # Check if block_idx is a tuple (i.e., a vector)
+            # Check if block_idx is a tuple (i.e., a vector) -> ALU operation (no bias expansion)
             if isinstance(block_idx, tuple):
                 # Get the idx of the block in DRAM and the location in SRAM
                 current_block_addr = find_logical_block_addr_by_idx(block_idx[0], acc_addr)
@@ -197,15 +202,63 @@ def step_load_acc(load_X, sram_state, acc_addr, acc_bis_addr, block_size, semaph
                 new_insn, semaphore = load_store_instruction(buffer_type="ACC", pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep, sram_base=current_sram_base, dram_base=current_dram, y_size=1, x_size=1, x_stride=1, semaphore=semaphore)
                 insn_buffer.append( new_insn )
 
-            # Or an int (i.e., a full block)
+            # Or an int (i.e., a full block) -> possible bias expansion
             else: 
-                # Get the idx of the block in DRAM and the location in SRAM
-                current_block_addr = find_logical_block_addr_by_idx(block_idx, acc_addr)
-                current_sram_base=0x0000 + i*block_size
+                # BIAS EXPANSION
+                if (doExpandBias == True):
+                    current_block_addr = find_logical_block_addr_by_idx(block_idx%C_blocks_col, acc_addr)
+                    current_sram_base=0x0000 + i*block_size
 
-                # INSN LOAD ACC - load a full block_size x block_size matrix
-                new_insn, semaphore = load_store_instruction(buffer_type="ACC", pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep, sram_base=current_sram_base, dram_base=current_block_addr, y_size=1, x_size=block_size, x_stride=block_size, semaphore=semaphore)
-                insn_buffer.append( new_insn )
+                    # Get the UOP addr
+                    current_uop_addr = find_uop_addr(uop_addr, len(uop_buffer), uop_counter)
+
+                    # UOP - reset
+                    uop_buffer.append(VTAUop( 
+                        dst_idx=current_sram_base, 
+                        src_idx=0,
+                        wgt_idx=0
+                    ))
+                    # UOP - Expansion
+                    uop_buffer.append(VTAUop( 
+                        dst_idx=current_sram_base+1, 
+                        src_idx=current_sram_base,
+                        wgt_idx=0
+                    ))
+                    
+                    # INSN LOAD UOP (2 uops)
+                    new_insn, semaphore = load_store_instruction(buffer_type="UOP", pop_prev_dep=0, pop_next_dep=0, push_prev_dep=0, push_next_dep=0, sram_base=0, dram_base=current_uop_addr, y_size=1, x_size=2, x_stride=2, semaphore=semaphore)
+                    insn_buffer.append( new_insn )
+
+                    # INSN GEMM RESET
+                    new_insn, semaphore = gemm_instruction(reset=1, pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep,
+                                uop_begin=0, uop_end=1,
+                                lp_out=1, dst_out=0, src_out=0, wgt_out=0,
+                                lp_in=block_size, dst_in=1, src_in=0, wgt_in=0,
+                                semaphore=semaphore)
+                    insn_buffer.append( new_insn )
+
+                    # INSN LOAD ACC - load a full block_size x block_size matrix
+                    new_insn, semaphore = load_store_instruction(buffer_type="ACC", pop_prev_dep=0, pop_next_dep=0, push_prev_dep=0, push_next_dep=0, sram_base=current_sram_base, dram_base=current_block_addr, y_size=1, x_size=1, x_stride=1, semaphore=semaphore)
+                    insn_buffer.append( new_insn )
+
+                    # INSN ALU -> EXPANSION (ADD)
+                    new_insn, semaphore = alu_instruction(alu_opcode=2, pop_prev_dep=0, pop_next_dep=0, push_prev_dep=0, push_next_dep=0,
+                                                      uop_begin=1, uop_end=2,
+                                                      lp_out=1, dst_out=0, src_out=0, 
+                                                      lp_in=block_size-1, dst_in=1, src_in=0, 
+                                                      use_imm=0, imm=0,
+                                                      semaphore=semaphore)
+                    insn_buffer.append( new_insn )
+
+
+                else: # NO BIAS EXPANSION
+                    current_block_addr = find_logical_block_addr_by_idx(block_idx, acc_addr)
+                    current_sram_base=0x0000 + i*block_size
+
+                    # INSN LOAD ACC - load a full block_size x block_size matrix
+                    new_insn, semaphore = load_store_instruction(buffer_type="ACC", pop_prev_dep=pop_prev_dep, pop_next_dep=pop_next_dep, push_prev_dep=push_prev_dep, push_next_dep=push_next_dep, sram_base=current_sram_base, dram_base=current_block_addr, y_size=1, x_size=block_size, x_stride=block_size, semaphore=semaphore)
+                    insn_buffer.append( new_insn )
+
 
     # If the gap is constant (i.e., load blocks) -> single load instruction
     else:
@@ -270,7 +323,7 @@ def step_load_acc(load_X, sram_state, acc_addr, acc_bis_addr, block_size, semaph
 
     # Return
     # ---
-    return insn_buffer, semaphore
+    return insn_buffer, uop_buffer, semaphore
 
 # ---------------------------------------------
 

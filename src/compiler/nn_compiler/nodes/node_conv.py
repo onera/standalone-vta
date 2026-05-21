@@ -229,8 +229,10 @@ def node_conv(node, param={}, node_mapping={}, node_info={}, filename='',
     acc_matrix = []
     if (isBias == True):
         acc_matrix = SD.expand_bias(acc_tensor, Ah)
+        #acc_matrix = SD.expand_bias(acc_tensor, 1) # TODO -> For bias expansion
     else:
         acc_matrix = np.zeros((Ah, Bw), dtype=acc_dtype)
+        #acc_matrix = np.zeros((1, Bw), dtype=acc_dtype) # TODO -> For bias expansion
 
 
     # ---
@@ -243,6 +245,7 @@ def node_conv(node, param={}, node_mapping={}, node_info={}, filename='',
             "A": [Ah, Aw_Bh, "input"],
             "B": [Aw_Bh, Bw, "../compiler_output/"+filename+"weight_"+str(Aw_Bh)+"x"+str(Bw)+".bin"],
             "X": [Ah, Bw, "../compiler_output/"+filename+"accumulator_"+str(Ah)+"x"+str(Bw)+".bin"],
+            #"X": [1, Bw, "../compiler_output/"+filename+"accumulator_1x"+str(Bw)+".bin"], # TODO -> For bias expansion
             "C": [Ah, Bw, "output"]
         },
         "LOAD": {
@@ -266,6 +269,7 @@ def node_conv(node, param={}, node_mapping={}, node_info={}, filename='',
     file_wgt_path = filepath_definition(output_dir, filename+"weight_"+str(Aw_Bh)+"x"+str(Bw)+".bin")
     # ACC
     file_acc_path = filepath_definition(output_dir, filename+"accumulator_"+str(Ah)+"x"+str(Bw)+".bin")
+    #file_acc_path = filepath_definition(output_dir, filename+"accumulator_1x"+str(Bw)+".bin") # TODO -> For bias expansion
 
     # WRITE
     with open(file_wgt_path, 'wb') as f:

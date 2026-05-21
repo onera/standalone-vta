@@ -16,7 +16,7 @@ else:
 def operations_definition(strategy=[], dram_addresses=[],
                           operations_dict={}, flag_dict={},
                           block_size=16, uop_buffer_size=8192,
-                          A_blocks_col=1, B_blocks_col=1, X_blocks_col=1,
+                          A_blocks_col=1, B_blocks_col=1, C_blocks_col=1,
                           debug=True):
     # Init the lists of instructions, UOPs and semaphore
     insn_buffer = []
@@ -48,7 +48,7 @@ def operations_definition(strategy=[], dram_addresses=[],
         # Get the status of the SRAM memory
         memory_status = step[3]
         # Create the instructions for each step
-        new_insn, new_buffer, semaphore, uop_counter = step_instructions(step, semaphore, dram_addresses, uop_counter, block_size, uop_buffer_size)
+        new_insn, new_buffer, semaphore, uop_counter = core_instructions(step, semaphore, flag_dict, dram_addresses, uop_counter, block_size, C_blocks_col, uop_buffer_size)
         # Extend the buffers
         insn_buffer.extend(new_insn)
         uop_buffer.extend(new_buffer)

@@ -197,6 +197,24 @@ test_alu:
 	@echo "Execute FSIM"
 	@make fsim_single_layer
 
+test_bias_expansion:
+	@make clean
+	@echo "Copy VTA IR in compiler/output"
+	@cp ./vta_ir/matmul_bias_expansion.json $(COMPILER_OUTPUT_DIR)
+	@echo "Generate random data"
+	@python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 32 32 input int32
+	@python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 32 32 weight int32
+	@python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 1 32 accumulator int32
+	@echo ""
+	@echo "Compile VTA IR"
+	@make vta_compiler
+	@echo ""
+	@echo "Compile FSIM"
+	@make fsim_compile_single_layer
+	@echo ""
+	@echo "Execute FSIM"
+	@make fsim_single_layer
+
 custom_insn:
 	@python $(COMPILER_DIR)/utils/tests_instructions.py > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
 

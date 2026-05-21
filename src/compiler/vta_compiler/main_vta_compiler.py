@@ -55,95 +55,127 @@ def main(vta_config_dict, operations_dict, base_address, dram_offset,
     uop_buffer_size = conf.buffer_size(vta_config_dict["LOG_UOP_BUFF_SIZE"], 5, 1)
 
 
-    # DECODE VTA IR (JSON file)
-    # -------------------------
-    # Init some variables
-    doGemm = False # Perform a GEMM
-    doMulConstant = False # Perform a GEMM with a scalar
-    doAlu = False # Perform ALU operations
-    doAddMatrix = False # PERFORM ADD_ACC operation
+    # INIT VARIABLES AND FLAGS (METADATA)
+    # -----------------------------------
+    flag_dict = {
+        "doGemm": False, # Perform a GEMM
+        "doExpandBias": False, # Expand the bias
+        "doMulConstant": False, # Perform a GEMM with a scalar
+        "doAlu": False, # Perform ALU operations
+        "doAddMatrix": False, # Perform an element-wise addition between two matrices
 
-    doLoadInp = False
-    doLoadWgt = False
-    doLoadAcc = False
-    doLoadAccBis = False
-    doStoreFullMatrix = False
+        "doLoadInp": False, # Load INP
+        "doLoadWgt": False, # Load WGT
+        "doLoadAcc": False, # Load ACC
+        "doLoadAccBis": False, # Load ACC_BIS (two ACC matrices)
+        "doStoreFullMatrix": False # Store the entire OUT matrix
+    }
 
+    # Define constants
+    mulConstant = 0
+    strategy_selector = 1
+
+    # Lists of operations
+    gemm_op = []
+    alu_list = []
+    flat_store_list = []
+
+    # Default matrix names
     input_name = ''
     weight_name = ''
     acc_name = ''
     acc_bis_name = ''
     output_name = ''
 
-    mulConstant = 0
-    
-    gemm_op = []
-    alu_list = []
-    flat_store_list = []
 
-    # Name
+    # DECODE VTA IR (JSON file)
+    # -------------------------
+    # Get VTA IR sections (name, matrix, load operation)
     name = operations_dict["NAME"]
-
-    # Load
+    matrices_dict = operations_dict["MATRICES"]
     load_dict = operations_dict["LOAD"]
+
+
+    # Define the matrix name through the load operations
     if "INP" in load_dict:
-        doLoadInp = True
+        flag_dict["doLoadInp"] = True
         input_name = load_dict["INP"][0]
     if "WGT" in load_dict:
-        doLoadWgt = True
+        flag_dict["doLoadWgt"] = True
         weight_name = load_dict["WGT"][0]
     if "ACC" in load_dict:
-        doLoadAcc = True
+        flag_dict["doLoadAcc"] = True
         acc_name = load_dict["ACC"][0]
         if ( len(load_dict["ACC"]) > 1):
             if ( type(load_dict["ACC"][1]) == str ):
-                doLoadAccBis = True
+                flag_dict["doLoadAccBis"] = True
                 acc_bis_name = load_dict["ACC"][1]
+    
 
-    # Matrices
-    matrices_dict = operations_dict["MATRICES"]
+    # Define the output matrix name 
     for key in matrices_dict.keys():
         if ( matrices_dict[key][2] == "output" ):
             output_name = key
             break
-    
-    # Operations
+
+
+    # Check the matrix dimensions
+    if (input_name != '' and weight_name != ''):
+        if (matrices_dict[input_name][1] != matrices_dict[weight_name][0] or \
+            matrices_dict[input_name][0] != matrices_dict[output_name][0] or \
+            matrices_dict[weight_name][1] != matrices_dict[output_name][1]):
+            raise Exception(f"ERROR: Dimension inconsistency: INP=({matrices_dict[input_name][0]},{matrices_dict[input_name][1]}), WGT=({matrices_dict[weight_name][0]},{matrices_dict[weight_name][1]}) and OUT=({matrices_dict[output_name][0]},{matrices_dict[output_name][1]})! \n")
+    if (acc_name != ''):
+        if (matrices_dict[acc_name][0] != matrices_dict[output_name][0]):
+            # Specific case, Bias can be expanded
+            if (matrices_dict[acc_name][0] == 1):
+                flag_dict["doExpandBias"] = True
+            else:
+                raise Exception(f"ERROR: Dimension inconsistency: ACC=({matrices_dict[acc_name][0]},{matrices_dict[acc_name][1]}) and OUT=({matrices_dict[output_name][0]},{matrices_dict[output_name][1]})! \n")
+        if (matrices_dict[acc_name][1] != matrices_dict[output_name][1]):
+            raise Exception(f"ERROR: Dimension inconsistency: ACC=({matrices_dict[acc_name][0]},{matrices_dict[acc_name][1]}) and OUT=({matrices_dict[output_name][0]},{matrices_dict[output_name][1]})! \n")
+    if (acc_bis_name != ''):
+        if (matrices_dict[acc_bis_name][0] != matrices_dict[output_name][0] or \
+            matrices_dict[acc_bis_name][1] != matrices_dict[output_name][1]):
+            raise Exception(f"ERROR: Dimension inconsistency: ACC_BIS=({matrices_dict[acc_bis_name][0]},{matrices_dict[acc_bis_name][1]}) and OUT=({matrices_dict[output_name][0]},{matrices_dict[output_name][1]})! \n")
+
+
+    # Define the compute operations to perform (either: GEMM, MulConstant or ALU)
     if "GEMM" in operations_dict:
         gemm_op = operations_dict["GEMM"]
         if ( type(gemm_op[2]) == int ):
-            doMulConstant = True
+            flag_dict["doMulConstant"] = True
             mulConstant = gemm_op[2]
         else:
-            doGemm = True
-        # Check if the operation correct
+            flag_dict["doGemm"] = True
+        # Finally, check if the operation correct
         if ( (gemm_op[0] != output_name or gemm_op[1] != input_name) or \
-             (gemm_op[2] != weight_name and doMulConstant == False) ):
+             (gemm_op[2] != weight_name and flag_dict["doMulConstant"] == False) ):
             raise Exception(f"ERROR: GEMM declaration must be GEMM(OUT, INP, WGT|scalar)! \n")
-
     if "ALU" in operations_dict:
         # Check if ACC is init
-        if ((doLoadAcc == False) and (doGemm == False and doMulConstant == False)):
+        if ((flag_dict["doLoadAcc"] == False) and (flag_dict["doGemm"] == False and flag_dict["doMulConstant"] == False)):
             raise Exception(f"ERROR: no ACC loaded! \n")
-        
         # Check if ALU is performed on the right matrice
         if not (output_name in operations_dict["ALU"]):
             raise Exception(f"ERROR: ALU must be performed on OUTPUT buffer! \n")
-
+        # Define the list of alu operations
         alu_list = operations_dict["ALU"][output_name]
         if ( alu_list[0][0] == "ADD_ACC" ):
-            doAddMatrix = True
+            flag_dict["doAddMatrix"] = True
         else:
-            doAlu = True
+            flag_dict["doAlu"] = True
     
-    # Store
+
+    # Define the store operation to perform
     if not (output_name in operations_dict["STORE"]):
         raise Exception(f"ERROR: STORE must store OUTPUT buffer! \n")
 
     store_list = operations_dict["STORE"][output_name]
     if ( type(store_list[0]) == str ):
-        doStoreFullMatrix = True
-        if (doAlu == True and \
-            doLoadInp == False and doLoadWgt == False and doLoadAcc == True):
+        flag_dict["doStoreFullMatrix"] = True
+        if (flag_dict["doAlu"] == True and \
+            flag_dict["doLoadInp"] == False and flag_dict["doLoadWgt"] == False and flag_dict["doLoadAcc"] == True):
             flat_store_list = list(range(0, matrices_dict[output_name][0])) 
     else: # Compute the matrix row to store
         for store in store_list:
@@ -152,8 +184,8 @@ def main(vta_config_dict, operations_dict, base_address, dram_offset,
             for i in range(0, nb_loop):
                 flat_store_list.append( dst_idx + dst_step * i )
 
-    # Strategy (1, 2, 3, 4)
-    strategy_selector = 1
+
+    # Define the matrix partitioning strategy (1, 2, 3, 4)
     if ("STRATEGY" in operations_dict):
         strategy_selector = operations_dict["STRATEGY"]
         if ( type(strategy_selector) != int ):
@@ -164,7 +196,7 @@ def main(vta_config_dict, operations_dict, base_address, dram_offset,
     # ADD EXTRA INFORMATION TO IR
     # ---------------------------
     # Update ALU 
-    if (doAlu):
+    if (flag_dict["doAlu"]):
         C_row = matrices_dict[output_name][0]
         C_col = matrices_dict[output_name][1]
         alu_list = ALU.alu_operations(alu_operations=alu_list, shape=(C_row,C_col), block_size=block_size)
@@ -175,14 +207,14 @@ def main(vta_config_dict, operations_dict, base_address, dram_offset,
     # ---------------
     A_blocks, A_blocks_col, B_blocks, B_blocks_col, \
         X_blocks, Y_blocks, C_blocks, C_blocks_col, \
-        A_matrix, X_matrix, Y_matrix, metadata = \
-        DF.data_definition(matrices_dict, block_size=block_size,
-                           doLoadInp=doLoadInp, input_name=input_name, inp_dtype=inp_dtype, 
-                           doLoadWgt=doLoadWgt, weight_name=weight_name, wgt_dtype=wgt_dtype, 
-                           doMulConstant=doMulConstant, mulConstant=mulConstant,
-                           doLoadAcc=doLoadAcc, acc_name=acc_name, acc_dtype=acc_dtype,
-                           doLoadAccBis=doLoadAccBis, acc_bis_name=acc_bis_name, # dtype = acc_dtype
-                           doStoreFullMatrix=doStoreFullMatrix, output_name=output_name, flat_store_list=flat_store_list, # dtype = inp_dtype
+        A_matrix, X_matrix, Y_matrix, metadata, flag_dict = \
+        DF.data_definition(matrices_dict=matrices_dict, flag_dict=flag_dict, block_size=block_size,
+                           input_name=input_name, inp_dtype=inp_dtype, 
+                           weight_name=weight_name, wgt_dtype=wgt_dtype, 
+                           mulConstant=mulConstant,
+                           acc_name=acc_name, acc_dtype=acc_dtype,
+                           acc_bis_name=acc_bis_name, # dtype = acc_dtype
+                           output_name=output_name, flat_store_list=flat_store_list, # dtype = inp_dtype
                            debug=debug)
 
 
@@ -207,29 +239,17 @@ def main(vta_config_dict, operations_dict, base_address, dram_offset,
 
 
     # ---------------------------------------------
-    # MATRIX PARTITIONING # TODO: update
+    # MATRIX PARTITIONING
     # -------------------
-    # Create a dict
-    flag_dict = {
-        "doGemm": doGemm,
-        "doMulConstant": doMulConstant,
-        "doAlu": doAlu,
-        "doAddMatrix": doAddMatrix,
-        "doLoadInp": doLoadInp,
-        "doLoadWgt": doLoadWgt,
-        "doLoadAcc": doLoadAcc,
-        "doLoadAccBis": doLoadAccBis,
-        "doStoreFullMatrix": doStoreFullMatrix
-    }
-
     # Compute the data for matrix partitioning
-    if (doGemm == True or doMulConstant == True):
+    if (flag_dict["doGemm"] == True or flag_dict["doMulConstant"] == True):
         nb_A = len(A_blocks)
         nb_B = len(B_blocks)
     else:
         nb_A = 0
         nb_B = 0
     nb_X = len(X_blocks)
+    nb_C = len(C_blocks)
 
     # Refine the idx_to_store (block vectors)
     idx_to_store = [] # if empty <=> doStoreFullMatrix == True
@@ -245,7 +265,7 @@ def main(vta_config_dict, operations_dict, base_address, dram_offset,
     # Apply matrix partitioning (check is overfit then applies selected trategy)
     strategy, flag_dict = \
         MP.matrix_partitioning(nb_A=nb_A, A_blocks_col=A_blocks_col, nb_B=nb_B, B_blocks_col=B_blocks_col, 
-                               nb_X=nb_X, X_blocks_col=C_blocks_col,
+                               nb_X=nb_X, nb_C=nb_C, C_blocks_col=C_blocks_col,
                                inp_buffer_size=inp_buffer_size, wgt_buffer_size=wgt_buffer_size, 
                                acc_buffer_size=acc_buffer_size, out_buffer_size=out_buffer_size,
                                alu_operations=alu_list, idx_to_store=idx_to_store,
@@ -255,13 +275,13 @@ def main(vta_config_dict, operations_dict, base_address, dram_offset,
 	
 
     # ---------------------------------------------
-    # OPERATIONS DEFINITION # TODO: update
+    # OPERATIONS DEFINITION
     # ---------------------
     insn_buffer, uop_buffer = \
         OP.operations_definition(strategy=strategy, dram_addresses=base_addresses_list,
                                  operations_dict=operations_dict, flag_dict=flag_dict,
                                  block_size=block_size, uop_buffer_size=uop_buffer_size,
-                                 A_blocks_col=A_blocks_col, B_blocks_col=B_blocks_col, X_blocks_col=C_blocks_col,
+                                 A_blocks_col=A_blocks_col, B_blocks_col=B_blocks_col, C_blocks_col=C_blocks_col,
                                  debug=debug)
 
 
