@@ -5,7 +5,8 @@
 MAKEFILE_DIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 PROJECT_DIR  := $(abspath $(MAKEFILE_DIR)/..)
 COMPILER_OUTPUT_DIR := $(PROJECT_DIR)/compiler_output
-SIMULATOR_OUTPUT_DIR := $(PROJECT_DIR)/simulators_output
+#SIMULATOR_OUTPUT_DIR := $(PROJECT_DIR)/simulator_output
+LOG_OUTPUT_DIR := $(PROJECT_DIR)/log_output
 SRC_DIR := $(PROJECT_DIR)/src
 COMPILER_DIR := $(SRC_DIR)/compiler
 VTA_COMPILER_DIR := $(COMPILER_DIR)/vta_compiler
@@ -30,12 +31,14 @@ EXPANDBIAS_AT_COMPILATION ?= True
 # ort, numpy, compare
 REF_MODE ?= numpy
 
-ONNX_FILE ?= onnx/qyolo_pattern.onnx
+ONNX_FILE ?= onnx/qlinearconv_debug.onnx
 # onnx/qlinearconv_debug.onnx
 # onnx/qyolo_qconvtranspose.onnx
 # onnx/qyolo_qconv_maxpool_qconcat.onnx
 # onnx/qyolo_pattern.onnx
-# onnx/qyolo.onnx
+# onnx/qyolo.onnx # -> around 30% of the value with +/-3
+
+# ../../onnx_zoo/qyolo_debug.onnx # -> Bit-accurate result
 
 
 ############################################################
@@ -58,7 +61,7 @@ nn_compiler: ## NN compilation: qONNX -> CPU parameters + VTA IRs
 	$(DEBUG_PARSE) \
 	$(EXPANDBIAS_AT_COMPILATION) \
 	$(CONFIG)/vta_config.json \
-	$(ONNX_FILE) > $(COMPILER_OUTPUT_DIR)/prompt_vta_backend.txt
+	$(ONNX_FILE) > $(LOG_OUTPUT_DIR)/prompt_vta_backend.txt
 	@date
 
 
@@ -74,7 +77,7 @@ vta_compiler: ## VTA compilation: VTA IRs -> VTA code
 	$(COMPILE_SUMMARY) \
 	$(DRAM_JSON) \
 	$(CONFIG)/vta_config.json \
-	$(JSON_FILES) > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
+	$(JSON_FILES) > $(LOG_OUTPUT_DIR)/prompt_vta_compiler.txt
 	@date
 
 
@@ -98,11 +101,11 @@ reference:
 	python $(COMPILER_DIR)/reference_computation/reference_onnx.py \
 	$(DEBUG) \
 	$(REF_MODE) \
-	$(ONNX_FILE) > $(COMPILER_OUTPUT_DIR)/prompt_reference.txt
+	$(ONNX_FILE) > $(LOG_OUTPUT_DIR)/prompt_reference.txt
 
 check:
 	python $(COMPILER_DIR)/reference_computation/check_bin.py \
-	$(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_checker.txt
+	$(DEBUG) > $(LOG_OUTPUT_DIR)/prompt_checker.txt
 	@echo ""
 	@echo "SUCCESS!"
 
@@ -113,7 +116,7 @@ fsim_inference: ## Infer FSIM with random values
 	@echo ""
 	@echo "RUN functional simulation (for NN)..."
 	@date
-	cd $(FSIM_DIR) && make -s nn_execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
+	cd $(FSIM_DIR) && make -s nn_execute > $(LOG_OUTPUT_DIR)/fsim_report.txt
 	@date
 	@echo ""
 	@echo "FINAL_OUTPUT.BIN generated!"
@@ -122,7 +125,7 @@ fsim_single_layer:
 	@echo ""
 	@echo "RUN functional simulation (for single layer)..."
 	@date
-	cd $(FSIM_DIR) && make -s execute > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
+	cd $(FSIM_DIR) && make -s execute > $(LOG_OUTPUT_DIR)/fsim_report.txt
 	@date
 	@echo ""
 	@echo "FSIM DONE!"
@@ -151,11 +154,11 @@ compile_and_run: ## Compile FSIM and run
 
 # CYCLE ACCURATE TSIM
 #####################
-tsim:
+tsim: # Work only with unamed files (e.g., test_gemm)
 	@echo ""
 	@echo "RUN TSIM..."
 	@date
-	cd $(TSIM_DIR) && sbt "runMain org.scalatest.run cli.ComputeApp" > $(SIMULATOR_OUTPUT_DIR)/tsim_report.txt
+	cd $(TSIM_DIR) && sbt "runMain org.scalatest.run cli.ComputeApp" > $(LOG_OUTPUT_DIR)/tsim_report.txt
 	@date
 	@echo ""
 	@echo "TSIM DONE!"
@@ -180,6 +183,9 @@ test_gemm:
 	@echo ""
 	@echo "Execute FSIM"
 	@make fsim_single_layer
+	@echo ""
+	@echo "Execute TSIM"
+	@make tsim
 
 test_alu:
 	@make clean
@@ -196,6 +202,9 @@ test_alu:
 	@echo ""
 	@echo "Execute FSIM"
 	@make fsim_single_layer
+	@echo ""
+	@echo "Execute TSIM"
+	@make tsim
 
 test_bias_expansion:
 	@make clean
@@ -214,9 +223,12 @@ test_bias_expansion:
 	@echo ""
 	@echo "Execute FSIM"
 	@make fsim_single_layer
+	@echo ""
+	@echo "Execute TSIM"
+	@make tsim
 
 custom_insn:
-	@python $(COMPILER_DIR)/utils/tests_instructions.py > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
+	@python $(COMPILER_DIR)/utils/tests_instructions.py > $(LOG_OUTPUT_DIR)/prompt_vta_compiler.txt
 
 
 ############################################################
@@ -227,16 +239,19 @@ custom_insn:
 ############################
 $(COMPILER_OUTPUT_DIR):
 	mkdir $(COMPILER_OUTPUT_DIR)
-$(SIMULATOR_OUTPUT_DIR):
-	mkdir $(SIMULATOR_OUTPUT_DIR)
+#$(SIMULATOR_OUTPUT_DIR):
+#	mkdir $(SIMULATOR_OUTPUT_DIR)
+$(LOG_OUTPUT_DIR):
+	mkdir $(LOG_OUTPUT_DIR)
 
 
 # CLEAN
 #######
 .PHONY: debug help clean force_clean
-clean: | $(COMPILER_OUTPUT_DIR) $(SIMULATOR_OUTPUT_DIR) ## Clean the project generated files (standalone/compiler_output/ and standalone/simulator_output/)
+clean: | $(COMPILER_OUTPUT_DIR) $(LOG_OUTPUT_DIR) ## Clean the project generated files (standalone/compiler_output/ and standalone/log_output/)
 	-rm $(COMPILER_OUTPUT_DIR)/*.*
-	-rm $(SIMULATOR_OUTPUT_DIR)/*.*
+	-rm $(LOG_OUTPUT_DIR)/*.*
+#	-rm $(SIMULATOR_OUTPUT_DIR)/*.*
 
 force_clean: ## Clean the FSIM directory
 	make clean
@@ -254,7 +269,7 @@ debug:
 	@echo "--- PATHS ---"
 	@echo "PROJECT_DIR: $(PROJECT_DIR)"
 	@echo "COMPILER_OUTPUT_DIR: $(COMPILER_OUTPUT_DIR)"
-	@echo "SIMULATOR_OUTPUT_DIR: $(SIMULATOR_OUTPUT_DIR)"
+	@echo "LOG_OUTPUT_DIR: $(LOG_OUTPUT_DIR)"
 	@echo "SRC_DIR: $(SRC_DIR)"
 	@echo "COMPILER_DIR: $(COMPILER_DIR)"
 	@echo "VTA_COMPILER_DIR: $(VTA_COMPILER_DIR)"

@@ -18,6 +18,8 @@
 /**/compiler_output/*
 /**/simulators_output/
 /**/simulators_output/*
+/**/log_output/
+/**/log_output/*
 
 # Do not consider binary files (nor executable)
 # ----------------------------
