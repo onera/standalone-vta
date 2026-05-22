@@ -31,7 +31,7 @@ EXPANDBIAS_AT_COMPILATION ?= True
 # ort, numpy, compare
 REF_MODE ?= numpy
 
-ONNX_FILE ?= onnx/qlinearconv_debug.onnx
+ONNX_FILE ?= onnx/qyolo_pattern.onnx
 # onnx/qlinearconv_debug.onnx
 # onnx/qyolo_qconvtranspose.onnx
 # onnx/qyolo_qconv_maxpool_qconcat.onnx
