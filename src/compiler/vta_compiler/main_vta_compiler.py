@@ -348,7 +348,7 @@ def main(vta_config_dict, operations_dict, base_address, dram_offset,
     with open(metadata_file_path, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         for data in metadata:
-            writer.writerow([data['type'], data['rows'], data['columns']])
+            writer.writerow([data['type'], data['rows'], data['columns'], data['square']])
 
 
 
@@ -358,6 +358,7 @@ def main(vta_config_dict, operations_dict, base_address, dram_offset,
     base_addresses_file_path = filepath_definition(output_dir, 'memory_addresses'+name+'.csv')
     with open(base_addresses_file_path, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
+        writer.writerow(["Buffer type", "Physical address (hex)", "Logical address (hex)"]) # Header
         for obj_addr in base_addresses_list:
             writer.writerow([obj_addr['type'], obj_addr['physical_base_address'], obj_addr['logical_base_address']])
 
@@ -546,8 +547,10 @@ if __name__ == "__main__":
     with open(file_path, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         # Write the number of JSON and the debug flag
+        writer.writerow(["Line identifier", "Nb of VTA IR", "Provide execution log"]) # Header
         writer.writerow(["nb_vta_ir", len(layer_addr_name), summary])
         # Write the information
+        writer.writerow(["Line identifier", "VTA IR name", "Last physical DRAM address allocated by the layer"]) # Header
         for i, (add, n) in enumerate(layer_addr_name):
             writer.writerow([i, n, hex(add)])
     

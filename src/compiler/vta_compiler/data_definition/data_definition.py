@@ -163,8 +163,8 @@ def data_definition(matrices_dict, flag_dict, block_size=16,
     # ----------------
     outIsSquare = True if (flag_dict["doStoreFullMatrix"] == True) else False
     metadata = [
-        {"type": "BS", "rows": outIsSquare, "columns": block_size, "square": outIsSquare}, # TODO: replace by the next line
-        #{"type": "BS", "rows": block_size, "columns": block_size, "square": outIsSquare},
+        {"type": "Matrix (or Block Size)", "rows": "Nb rows", "columns": "Nb columns", "square": "Is it square?"}, 
+        {"type": "BS", "rows": block_size, "columns": block_size, "square": True},
         {"type": "A", "rows": A_row, "columns": A_col, "square": True},
         {"type": "X", "rows": X_row, "columns": X_col, "square": flag_dict["doExpandBias"]},
         {"type": "Y", "rows": Y_row, "columns": Y_col, "square": True},

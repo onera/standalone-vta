@@ -123,7 +123,7 @@ int fsim_nn() {
         // C. READ METADATA INFO
         // ---
         // Block size
-        block_size = strToInt(get_csv_value(metadata_map, "BS", 2));
+        block_size = strToInt(get_csv_value(metadata_map, "BS", 1));
 
         // Dimensions and square flag
         int A_row = strToInt(get_csv_value(metadata_map, "A", 1));
