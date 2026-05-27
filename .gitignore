@@ -18,6 +18,7 @@
 /**/compiler_output/*
 /**/simulators_output/
 /**/simulators_output/*
+/**/src/fpga/software/gen/*
 
 # Do not consider binary files (nor executable)
 # ----------------------------
