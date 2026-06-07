@@ -12,9 +12,21 @@ What this script does:
 
 Runners (--runner)
 ------------------
-  run_nn       - one-shot inference; input pre-loaded before execution
-  run_nn_uart  - interactive UART loop; input received over UART each iteration
-  test_gemm    - standalone GEMM hardware correctness test (no generated headers needed)
+  run_nn            - one-shot inference; input pre-loaded before execution.
+  run_nn_uart       - interactive UART loop; input received over UART each iteration
+  run_nn_debug      - per-layer VTA isolation check (debug): each layer runs on fsim
+                      golden inputs, output compared vs fsim golden output. Requires
+                      the elf loader + gen_nn_baremetal.py --emit-layer-check;
+                      sets the NN_CHECK_LAYERS compile definition automatically.
+                      Add --pl-reset-between-layers to pulse a PL-only fabric reset
+                      (ZynqMP pl_resetn0) before each layer.
+  run_nn_cpu_debug  - per-CPU-op isolation check (debug, sibling of run_nn_debug):
+                      each FORMAT_INPUT / IM2ROW / INT32_CHAIN step runs alone and
+                      its output is compared vs the consumer layer's golden input
+                      dump.  Requires the elf loader + gen_nn_baremetal.py
+                      --emit-layer-check --emit-cpu-check; sets NN_CHECK_CPU_OPS_ISO.
+  test_gemm         - standalone GEMM hardware correctness test
+                      (requires gen/init_dram.h from `make gen-test_gemm`)
 
 Data loaders (--data-loader, not applicable to test_gemm)
 ----------------------------------------------------------
@@ -26,6 +38,8 @@ Generated files copied for both data loaders (produced by gen_nn_baremetal.py)
                       hardware config; required by vta_cpu_ops.cc at compile time
   nn_ddr_map.h      - LayerDesc array with per-layer DDR addresses
   nn_exec_plan.h    - typed execution step array (VTA + CPU ops)
+  nn_debug_map.h    - (run_nn_debug only) DebugLayerDesc array with per-layer golden
+                      input/output addresses and the input destination buffer
 
 Usage
 -----
@@ -77,6 +91,8 @@ CONFIG_DIR = SOFTWARE_DIR / "gen"
 RUNNER_SOURCE: dict[str, Path] = {
     "run_nn": EXAMPLES_DIR / "run_nn.cc",
     "run_nn_uart": EXAMPLES_DIR / "run_nn_uart.cc",
+    "run_nn_debug": EXAMPLES_DIR / "run_nn_debug.cc",
+    "run_nn_cpu_debug": EXAMPLES_DIR / "run_nn_cpu_debug.cc",
     "test_gemm": TEST_GEMM_DIR / "test_gemm.cc",
 }
 
@@ -84,7 +100,25 @@ RUNNER_SOURCE: dict[str, Path] = {
 RUNNER_EXTRAS: dict[str, list[Path]] = {
     "run_nn": [],
     "run_nn_uart": [],
-    "test_gemm": [TEST_GEMM_DIR / "init_dram.h"],
+    "run_nn_debug": [],
+    "run_nn_cpu_debug": [],
+    "test_gemm": [CONFIG_DIR / "init_dram.h"],
+}
+
+# Extra generated headers (from CONFIG_DIR) required by specific runners,
+# beyond what the data-loader already provides.
+RUNNER_GENERATED_EXTRA: dict[str, list[str]] = {
+    "run_nn_debug": ["nn_debug_map.h"],         # gen_nn_baremetal.py --emit-layer-check
+    "run_nn_cpu_debug": [
+        "nn_debug_map.h",                       # CPU-op debug shares the same golden DRAM regions
+        "nn_cpu_debug_map.h",                   # gen_nn_baremetal.py --emit-cpu-check
+    ],
+}
+
+# Extra compile definitions for specific runners.
+RUNNER_DEFINES: dict[str, list[str]] = {
+    "run_nn_debug": ["NN_CHECK_LAYERS"],            # enables the VTA isolation checker
+    "run_nn_cpu_debug": ["NN_CHECK_CPU_OPS_ISO"],   # enables the CPU-op isolation checker
 }
 
 # Generated config files required by each data-loader
@@ -104,15 +138,21 @@ DATA_LOADER_GENERATED: dict[str, list[str]] = {
     ],
 }
 
-# Runners that require a data-loader selection
-RUNNERS_WITH_DATA_LOADER = {"run_nn", "run_nn_uart"}
+# Runners that require a data-loader selection.  run_nn_debug and
+# run_nn_cpu_debug embed their golden data via .incbin, so they only make
+# sense with the "elf" loader.
+RUNNERS_WITH_DATA_LOADER = {
+    "run_nn", "run_nn_uart", "run_nn_debug", "run_nn_cpu_debug",
+}
 
 # ---------------------------------------------------------------------------
 # Source file collection
 # ---------------------------------------------------------------------------
 
 
-def collect_sources(runner: str, data_loader: str | None) -> dict[Path, Path]:
+def collect_sources(
+    runner: str, data_loader: str | None
+) -> dict[Path, Path]:
     """
     Return {dest_relative_path: src_path} for files copied into the app.
 
@@ -137,6 +177,9 @@ def collect_sources(runner: str, data_loader: str | None) -> dict[Path, Path]:
     if data_loader is not None:
         for fname in DATA_LOADER_GENERATED[data_loader]:
             files[Path(fname)] = CONFIG_DIR / fname
+
+    for fname in RUNNER_GENERATED_EXTRA.get(runner, []):
+        files[Path(fname)] = CONFIG_DIR / fname
 
     return files
 
@@ -209,13 +252,18 @@ def create_app(
     return app_src
 
 
-def _patch_user_config(app_src: Path, baud: int = 921600) -> None:
+def _patch_user_config(
+    app_src: Path, baud: int = 115200, extra_defines: list[str] | None = None
+) -> None:
     """Append driver paths and compile definitions to UserConfig.cmake.
 
     The driver is referenced from its repository location, so no files are
     copied.  Appending at the end overrides the empty USER_* declarations
     that Vitis wrote earlier in the file; CMakeLists.txt reads the final
     values after the full include() of UserConfig.cmake completes.
+
+    extra_defines are added to USER_COMPILE_DEFINITIONS (e.g. NN_CHECK_LAYERS
+    for the run_nn_debug isolation app).
     """
     cfg = app_src / "UserConfig.cmake"
     if not cfg.exists():
@@ -223,6 +271,8 @@ def _patch_user_config(app_src: Path, baud: int = 921600) -> None:
         return
     include_rel = Path(os.path.relpath(INCLUDE_DIR, app_src)).as_posix()
     src_rel = Path(os.path.relpath(SRC_DIR, app_src)).as_posix()
+    defines = [f"VTA_UART_BAUD={baud}"] + list(extra_defines or [])
+    defines_str = ";".join(defines)
     with cfg.open("a") as f:
         f.write(
             "\n# VTA driver - referenced in-place from the repository\n"
@@ -232,9 +282,11 @@ def _patch_user_config(app_src: Path, baud: int = 921600) -> None:
             # data-loader; empty glob is harmless for the TCL loader.
             'file(GLOB _asm_sources "${CMAKE_CURRENT_SOURCE_DIR}/*.S")\n'
             "set(USER_COMPILE_SOURCES ${_drv_sources} ${_asm_sources})\n"
-            f'set(USER_COMPILE_DEFINITIONS "VTA_UART_BAUD={baud}")\n'
+            f'set(USER_COMPILE_DEFINITIONS "{defines_str}")\n'
         )
-    print(f"[copy] Added driver paths and VTA_UART_BAUD={baud} to UserConfig.cmake.")
+    print(
+        f"[copy] Added driver paths and definitions [{defines_str}] to UserConfig.cmake."
+    )
 
 
 def _patch_linker_script(app_src: Path, ld_fragment: str) -> None:
@@ -286,7 +338,11 @@ def _patch_asm_incbin(app_src: Path) -> None:
 
 
 def copy_sources(
-    app_src: Path, runner: str, data_loader: str | None, baud: int = 921600
+    app_src: Path,
+    runner: str,
+    data_loader: str | None,
+    baud: int = 115200,
+    extra_defines: list[str] | None = None,
 ) -> None:
     sources = collect_sources(runner, data_loader)
     print(f"[copy] Copying files to {app_src}")
@@ -301,7 +357,9 @@ def copy_sources(
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src_path, dest)
         print(f"       {src_path.relative_to(SOFTWARE_DIR)} → {dest_rel}")
-    _patch_user_config(app_src, baud)
+    defines = list(RUNNER_DEFINES.get(runner, []))
+    defines += list(extra_defines or [])
+    _patch_user_config(app_src, baud, defines)
     if data_loader == "elf":
         _patch_asm_incbin(app_src)
         _patch_linker_script(app_src, "nn_vta_sections.ld")
@@ -319,6 +377,32 @@ def _next_steps(runner: str, data_loader: str | None) -> None:
     if runner == "test_gemm":
         print("  1. Build the application in Vitis.")
         print("  2. In XSDB: dow application.elf, then con.")
+        return
+    if runner == "run_nn_debug":
+        if dl != "elf":
+            print(
+                "  WARNING: run_nn_debug embeds golden data via .incbin and needs"
+                " the 'elf' data-loader; 'tcl' will not load the references."
+            )
+        print("  1. Build the ELF in Vitis (static model data + golden in/out"
+              " loaded by FSBL/.incbin; NN_CHECK_LAYERS is set).")
+        print("  2. In XSDB: dow application.elf, then con.")
+        print("  3. Read UART: each layer prints PASS or 'k/N mismatches'.")
+        print("     The first mismatching layer is the VTA-introduced corruption.")
+        return
+    if runner == "run_nn_cpu_debug":
+        if dl != "elf":
+            print(
+                "  WARNING: run_nn_cpu_debug embeds golden data via .incbin and"
+                " needs the 'elf' data-loader; 'tcl' will not load references."
+            )
+        print("  1. Generate sources with --emit-layer-check --emit-cpu-check"
+              " (the CPU-op map references the layer-check golden regions).")
+        print("  2. Build the ELF in Vitis (NN_CHECK_CPU_OPS_ISO is set).")
+        print("  3. In XSDB: dow application.elf, then con.")
+        print("  4. Read UART: each FORMAT_INPUT / IM2ROW / INT32_CHAIN step"
+              " prints PASS or 'k/N mismatches'.")
+        print("     The first mismatching step is the CPU-op-introduced corruption.")
         return
     if dl == "tcl":
         print("  1. Build the application in Vitis.")
@@ -420,9 +504,19 @@ def main() -> None:
     parser.add_argument(
         "--baud",
         type=int,
-        default=921600,
+        default=115200,
         metavar="RATE",
         help="UART baud rate passed to VTA_UART_BAUD compile definition.",
+    )
+    parser.add_argument(
+        "--pl-reset-between-layers",
+        action="store_true",
+        help=(
+            "run_nn_debug only: pulse a PL-only fabric reset (ZynqMP pl_resetn0 "
+            "= GPIO pin 173) before each layer so every layer runs on pristine "
+            "VTA hardware state. Adds the NN_PL_RESET_BETWEEN_LAYERS define. "
+            "Ignored for other runners."
+        ),
     )
     parser.add_argument(
         "--dry-run",
@@ -443,7 +537,7 @@ def main() -> None:
             f"ERROR: --data-loader {{tcl,elf}} is required for runner(s): {needs_loader}"
         )
 
-    # Build (runner, data_loader) combos — one app per pair
+    # Build (runner, data_loader) combos - one app per pair
     combos: list[tuple[str, str | None]] = []
     for r in runners:
         if r in RUNNERS_WITH_DATA_LOADER:
@@ -466,6 +560,12 @@ def main() -> None:
         for r, dl in combos
     }
 
+    # --pl-reset-between-layers only applies to the per-layer isolation runner.
+    def _extra_defines_for(runner: str) -> list[str]:
+        if args.pl_reset_between_layers and runner == "run_nn_debug":
+            return ["NN_PL_RESET_BETWEEN_LAYERS"]
+        return []
+
     if args.dry_run:
         mode = "update (add app to existing workspace)" if xsa is None else "create"
         print("=== DRY RUN ===")
@@ -485,6 +585,8 @@ def main() -> None:
                 exists = "ok" if src_path.exists() else "MISSING"
                 rel = src_path.relative_to(SOFTWARE_DIR)
                 print(f"    [{exists:7s}]  {rel} → {dest_rel}")
+            for d in RUNNER_DEFINES.get(runner, []) + _extra_defines_for(runner):
+                print(f"  Define: {d}")
             if dl == "elf":
                 print(
                     "  Linker script: lscript.ld ← INCLUDE nn_vta_sections.ld (appended)"
@@ -507,7 +609,7 @@ def main() -> None:
         sys.exit(
             "ERROR: 'vitis' Python module not found.\n"
             "       Source the Vitis settings script first:\n"
-            "         source ~/Xilinx/2025.2/Vitis/settings64.sh\n"
+            "         source /opt/Xilinx/2025.2/Vitis/settings64.sh\n"
             "       or run this script with the Vitis Python interpreter:\n"
             "         $VITIS_INSTALL/bin/python3 create_vitis_workspace.py ..."
         )
@@ -533,7 +635,9 @@ def main() -> None:
         client.close()
 
     for (runner, dl), app_src in app_srcs.items():
-        copy_sources(app_src, runner, dl, args.baud)
+        copy_sources(
+            app_src, runner, dl, args.baud, _extra_defines_for(runner)
+        )
 
     print()
     print("=== Done ===")

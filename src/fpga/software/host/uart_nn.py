@@ -60,26 +60,49 @@ from pathlib import Path
 def detile(data: bytes, C: int, H: int, W: int, B: int = 8) -> bytes:
     """Convert VTA block-tiled INT8 output to NCHW flat.
 
-    VTA block layout: [N/B][C/B][B][B] where N = H*W.
-    NCHW flat layout: [C][H*W] (same total bytes, channel-major).
+    VTA block layout: [Nb][Cb][B][B] (row-major over Nb=ceil(N/B) row-blocks and
+    Cb=ceil(C/B) col-blocks); within a block element [rr][cc] -> (spatial rr, channel cc).
+    NCHW flat layout: [C][H*W] (channel-major).
+
+    Pad-aware to match the source-of-truth unsplit()/output_tensor() in
+    cpu_functions.h: when N=H*W or C is not a multiple of B the tiled buffer is
+    zero-padded up to the block grid, and the padding cells are skipped here.
     """
     N = H * W
-    Cb = C // B
-    Nb = N // B
-    if len(data) != N * C:
+    Cb = (C + B - 1) // B
+    Nb = (N + B - 1) // B
+    tiled_len = Nb * Cb * B * B
+    if len(data) < tiled_len:
         raise ValueError(
-            f"detile: expected {N * C} bytes (C={C} H={H} W={W}), got {len(data)}"
+            f"detile: expected >= {tiled_len} tiled bytes (C={C} H={H} W={W} B={B}), "
+            f"got {len(data)}"
         )
     out = bytearray(N * C)
-    for rb in range(Nb):
-        for cbi in range(Cb):
-            blk_base = (rb * Cb + cbi) * B * B
-            for r in range(B):
-                row = rb * B + r
-                for c in range(B):
-                    col = cbi * B + c
-                    out[col * N + row] = data[blk_base + r * B + c] & 0xFF
+    for row in range(N):
+        rb, rr = divmod(row, B)
+        for col in range(C):
+            cbi, cc = divmod(col, B)
+            out[col * N + row] = data[(rb * Cb + cbi) * B * B + rr * B + cc] & 0xFF
     return bytes(out)
+
+
+def _check_output(raw_out: bytes, shape: "tuple[int,int,int]", block: int, ref_path: str) -> None:
+    """Detile the raw block-tiled output to NCHW and diff it against the
+    reference bin. Delegates to check_output.py so the layout logic lives in one
+    place."""
+    try:
+        import numpy as np
+
+        import check_output as co
+    except Exception as exc:  # numpy not installed, etc.
+        print(f"  [check] skipped: {exc}")
+        return
+    c, h, w = shape
+    raw = np.frombuffer(raw_out, dtype=np.int8)
+    ref = np.fromfile(ref_path, dtype=np.int8)
+    print(f"  [check] vs {ref_path}  (C,H,W={c},{h},{w} block={block})")
+    ok = co.report_diff("  detiled vs NCHW ref", co.detile(raw, c, h, w, block), ref)
+    print("  [check] PASS" if ok else "  [check] FAIL - output diverges")
 
 
 try:
@@ -228,7 +251,7 @@ def main() -> None:
     parser.add_argument(
         "--baud",
         type=int,
-        default=921600,
+        default=115200,
         metavar="N",
         help="Baud rate (must match VTA_UART_BAUD compiled into the firmware).",
     )
@@ -305,6 +328,17 @@ def main() -> None:
         metavar="B",
         help="VTA block size for de-tiling (default: 16).",
     )
+    parser.add_argument(
+        "--check",
+        nargs="?",
+        const="",
+        default=None,
+        metavar="REF",
+        help="After each run, compare the raw output against a reference NCHW bin "
+        "(functional-sim final_output.bin). With no value, uses "
+        "../../../../compiler_output/final_output.bin relative to this script. "
+        "Requires --output-shape (or it is read from dependency.csv).",
+    )
     args = parser.parse_args()
 
     if args.detile and not args.output_shape:
@@ -318,6 +352,31 @@ def main() -> None:
             sys.exit(
                 "ERROR: --output-shape must be three comma-separated integers, e.g. 64,160,160"
             )
+
+    # Resolve reference + shape for --check (compares raw output to functional sim).
+    check_ref: "str | None" = None
+    check_shape: "tuple[int,int,int] | None" = None
+    if args.check is not None:
+        here = Path(__file__).resolve().parent
+        check_ref = args.check or str(here / ".." / ".." / ".." / ".." / "compiler_output" / "final_output.bin")
+        if not Path(check_ref).exists():
+            sys.exit(f"ERROR: --check reference not found: {check_ref}")
+        if detile_shape is not None:
+            check_shape = detile_shape
+        elif args.output_shape:
+            c, h, w = (int(x) for x in args.output_shape.split(","))
+            check_shape = (c, h, w)
+        else:
+            try:
+                import gen_nn_baremetal as gen
+
+                dep = gen.load_dependency_csv(
+                    str(here / ".." / ".." / ".." / ".." / "compiler_output" / "dependency.csv")
+                )
+                ld = dep.layers.get(dep.output_layer)
+                check_shape = (ld.out_ch, ld.out_h, ld.out_w)
+            except Exception as exc:
+                sys.exit(f"ERROR: --check needs --output-shape (could not auto-read: {exc})")
 
     # Validate inputs.
     inputs = [Path(p) for p in args.input]
@@ -382,6 +441,10 @@ def main() -> None:
             out_data = run_inference(
                 ser, raw, out_n_bytes, args.ready_timeout, args.verbose
             )
+            raw_out = out_data  # block-tiled bytes, before any detile
+
+            if check_shape is not None:
+                _check_output(raw_out, check_shape, args.block_size, check_ref)
 
             if args.output:
                 out_path = Path(args.output)
