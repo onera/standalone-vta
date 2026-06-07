@@ -13,6 +13,7 @@ import toolbox.matrix_to_block_index as MTB
 import toolbox.sort_idx_to_store as SIS
 
 import data_definition.data_definition as DF
+import data_definition.accumulator_blocks as ACCB
 import dram_allocation.dram_allocation as DA
 import matrix_partitioning.matrix_partitioning as MP
 import operations_definition.operations_definition as OP
@@ -392,6 +393,9 @@ def main(
     # Write Y_matrix
     with open(Y_matrix_file_path, "wb") as f:
         Y_matrix.tofile(f)
+
+    # Block-tiled accumulator siblings for baremetal/HW DRAM init.
+    ACCB.export_accumulator_blocks(output_dir, name, X_blocks, Y_blocks)
 
     # INSTRUCTIONS + UOP
     # ---
