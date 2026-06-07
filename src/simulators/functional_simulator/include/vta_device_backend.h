@@ -44,6 +44,11 @@ struct VerilatorRunConfig {
   std::string sv_log_file = ""; // empty → no redirect
   uint32_t timeout_cycles =
       500000; // max RTL clock cycles before abort; 0 = no timeout
+  // If true (default), assert core reset before every layer's Run() - the
+  // historical harness behavior. If false, the core is reset only once (first
+  // layer) and subsequent layers re-launch on the live core, reproducing the
+  // baremetal run_layer() flow which never resets the VTA between layers.
+  bool reset_between_layers = true;
 };
 extern VerilatorRunConfig g_verilator_config;
 #endif // VERILATOR_BUILD_ENABLED

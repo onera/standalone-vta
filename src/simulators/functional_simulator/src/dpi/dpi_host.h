@@ -13,7 +13,7 @@
  * VTASimDPI_SetExit() when the finish bit is observed.
  */
 
-/** Reset all internal state — call before each Run(). */
+/** Reset all internal state - call before each Run(). */
 void VTAHostDPI_Reset();
 
 /** Enqueue a VCR register write. */

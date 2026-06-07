@@ -47,6 +47,11 @@ namespace sim {
 /*! \brief debug flag for skipping computation */
 enum DebugFlagMask { kSkipExec = 1 };
 
+/*! \brief Non-zero DRAM base offset (bytes) added to every device data access.
+ *  Models the baremetal ddr_base / HW ptr base register. 0 = base-0 (default,
+ *  matches the compiler's dram_offset=0).  Set via VTASetDramBase(). */
+uint64_t g_dram_base = 0;
+
 /*!
  * \brief Helper class to pack and unpack bits
  *  Applies truncation when pack to low level bits.
@@ -156,8 +161,8 @@ public:
     if (skip_exec)
       return;
     DType *sram_ptr = data_ + op->sram_base;
-    uint8_t *dram_ptr =
-        static_cast<uint8_t *>(dram->GetAddr(op->dram_base * kElemBytes));
+    uint8_t *dram_ptr = static_cast<uint8_t *>(
+        dram->GetAddr(op->dram_base * kElemBytes + g_dram_base));
     uint64_t xtotal = op->x_size + op->x_pad_0 + op->x_pad_1;
     uint32_t ytotal = op->y_size + op->y_pad_0 + op->y_pad_1;
     uint64_t sram_end = op->sram_base + xtotal * ytotal;
@@ -192,7 +197,7 @@ public:
       return;
     DType *sram_ptr = data_ + op->sram_base;
     int8_t *dram_ptr = static_cast<int8_t *>(
-        dram->GetAddr(op->dram_base * kElemBytes / factor));
+        dram->GetAddr(op->dram_base * kElemBytes / factor + g_dram_base));
     uint64_t xtotal = op->x_size + op->x_pad_0 + op->x_pad_1;
     uint32_t ytotal = op->y_size + op->y_pad_0 + op->y_pad_1;
     uint64_t sram_end = op->sram_base + xtotal * ytotal;
@@ -228,7 +233,8 @@ public:
     CHECK_EQ(op->y_pad_1, 0);
     int target_width = (target_bits * kLane + 7) / 8;
     BitPacker<kBits> src(data_ + op->sram_base);
-    BitPacker<target_bits> dst(dram->GetAddr(op->dram_base * target_width));
+    BitPacker<target_bits> dst(
+        dram->GetAddr(op->dram_base * target_width + g_dram_base));
     for (uint32_t y = 0; y < op->y_size; ++y) {
       for (uint32_t x = 0; x < op->x_size; ++x) {
         uint32_t sram_base = y * op->x_size + x;
@@ -562,6 +568,17 @@ vta_phy_addr_t VTAMemGetPhyAddr(void *buf) {
   return vta::sim::DRAM::Global()->GetPhyAddr(buf);
 }
 
+void VTASetDramBase(uint64_t base_bytes) {
+  vta::sim::g_dram_base = base_bytes;
+  if (base_bytes != 0) {
+    // Shift all subsequent allocations up by base_bytes so the data the
+    // instructions reference at (logical*elem) now lives at (base + logical*elem).
+    vta::sim::DRAM::Global()->ReserveBase(base_bytes);
+  }
+}
+
+uint64_t VTAGetDramBase(void) { return vta::sim::g_dram_base; }
+
 void VTAMemCopyFromHost(void *dst, const void *src, size_t size) {
   memcpy(dst, src, size);
 }
@@ -577,7 +594,7 @@ void VTAInvalidateCache(void *vir_addr, vta_phy_addr_t phy_addr, int size) {}
 bool g_use_verilator = false;
 
 #ifdef VERILATOR_BUILD_ENABLED
-// Forward declaration — defined in verilated_device.cc
+// Forward declaration - defined in verilated_device.cc
 class VerilatedDevice;
 extern VTADeviceBackend *CreateVerilatedDevice();
 

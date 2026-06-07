@@ -4,7 +4,7 @@
  *
  * Architecture:
  *   Test.sv (Verilated top)
- *     ├── VTAShell  — the DUT
+ *     ├── VTAShell  - the DUT
  *     └── SimShell
  *           ├── VTASim    → VTASimDPI.v   → VTASimDPI()   (dpi_sim.cc)
  *           ├── VTAHost   → VTAHostDPI.v  → VTAHostDPI()  (dpi_host.cc)
@@ -50,8 +50,10 @@ static constexpr const char *DEFAULT_TRACE_FILE = "vtashell.fst";
 
 #include <cstdint>
 #include <cstdio>
+#include <fcntl.h>
 #include <filesystem>
 #include <memory>
+#include <system_error>
 #include <unistd.h>
 
 // VCR register byte addresses (AXI-Lite, 32-bit registers, 4-byte stride)
@@ -85,21 +87,49 @@ class VerilatedDevice : public VTADeviceBackend {
 public:
   VerilatedDevice()
       : top_(std::make_unique<VTest>()), bufAddrs_{}, tfp_(nullptr), cycle_(0),
-        sv_log_stdout_backup_(-1) {
+        sv_log_stderr_backup_(-1), did_first_reset_(false) {
 
+    // --sv-log redirects only the SystemVerilog $display/$fwrite output.
+    // firtool emits SV printfs as $fwrite(32'h80000002, ...) which Verilator
+    // routes to the C stderr stream (fd 2). Redirecting fd 2 to the log file
+    // keeps the console clean (the C++ stdout stream is untouched, so a pipe
+    // on the binary still captures only C++ logs).
     if (!g_verilator_config.sv_log_file.empty()) {
-      sv_log_stdout_backup_ = dup(STDOUT_FILENO);
-      if (freopen(g_verilator_config.sv_log_file.c_str(), "w", stdout) ==
-          nullptr) {
+      // Ensure parent directory exists (auto-default targets simulators_output/
+      // which may not exist yet on a fresh clone).
+      auto parent =
+          std::filesystem::path(g_verilator_config.sv_log_file).parent_path();
+      if (!parent.empty()) {
+        std::error_code ec;
+        std::filesystem::create_directories(parent, ec);
+      }
+      std::fflush(stderr);
+      sv_log_stderr_backup_ = dup(STDERR_FILENO);
+      int log_fd = open(g_verilator_config.sv_log_file.c_str(),
+                        O_WRONLY | O_CREAT | O_TRUNC, 0644);
+      if (log_fd < 0 ||
+          dup2(log_fd, STDERR_FILENO) < 0) {
+        // dup() succeeded but the file open or dup2 failed; restore stderr.
+        if (sv_log_stderr_backup_ >= 0) {
+          dup2(sv_log_stderr_backup_, STDERR_FILENO);
+          close(sv_log_stderr_backup_);
+          sv_log_stderr_backup_ = -1;
+        }
+        if (log_fd >= 0)
+          close(log_fd);
         fprintf(stderr,
                 "[VerilatedDevice] Warning: could not open sv-log '%s'\n",
                 g_verilator_config.sv_log_file.c_str());
-        sv_log_stdout_backup_ = -1;
+        // Clear so the final-summary banner in fsim_main doesn't lie about
+        // a file that isn't actually being written to.
+        g_verilator_config.sv_log_file.clear();
+      } else {
+        close(log_fd);
+        // The "SV log: <path>" banner is printed by fsim_main at the very
+        // end of the run, alongside the "Tensor successfully written ..."
+        // summary, so the user reads it last instead of scrolling for it.
       }
     }
-    if (sv_log_stdout_backup_ >= 0)
-      fprintf(stderr, "[VerilatedDevice] SV log: %s\n",
-              g_verilator_config.sv_log_file.c_str());
 
     if (g_verilator_config.trace_enabled)
       Verilated::traceEverOn(true);
@@ -107,10 +137,10 @@ public:
 
   ~VerilatedDevice() override {
     CloseTrace();
-    if (sv_log_stdout_backup_ >= 0) {
-      fflush(stdout);
-      dup2(sv_log_stdout_backup_, STDOUT_FILENO);
-      close(sv_log_stdout_backup_);
+    if (sv_log_stderr_backup_ >= 0) {
+      std::fflush(stderr);
+      dup2(sv_log_stderr_backup_, STDERR_FILENO);
+      close(sv_log_stderr_backup_);
     }
   }
 
@@ -136,21 +166,38 @@ public:
       OpenTrace(path);
     }
 
+    // VCR pointer base: mirror the baremetal driver, which sets all data base
+    // pointers (UOP/INP/WGT/ACC/OUT) to ddr_base and lets the RTL add it to the
+    // base-0 logical addresses in the instruction/uop streams.  insn_phy_addr is
+    // already absolute (shifted by VTAMemGetPhyAddr after ReserveBase), like the
+    // baremetal's absolute ptr[0]=insn_addr.  base==0 → unchanged behavior.
+    const uint32_t base = static_cast<uint32_t>(VTAGetDramBase());
+
     // Enqueue VCR register writes (processed by VTAHostDPI() during eval())
     VTAHostDPI_QueueWrite(VCR_VALS0, insn_count);
     VTAHostDPI_QueueWrite(VCR_PTR_INSN, static_cast<uint32_t>(insn_phy_addr));
-    VTAHostDPI_QueueWrite(VCR_PTR_UOP, 0u);
-    VTAHostDPI_QueueWrite(VCR_PTR_INP, 0u);
-    VTAHostDPI_QueueWrite(VCR_PTR_WGT, 0u);
-    VTAHostDPI_QueueWrite(VCR_PTR_ACC, 0u);
-    VTAHostDPI_QueueWrite(VCR_PTR_OUT, 0u);
+    VTAHostDPI_QueueWrite(VCR_PTR_UOP, base);
+    VTAHostDPI_QueueWrite(VCR_PTR_INP, base);
+    VTAHostDPI_QueueWrite(VCR_PTR_WGT, base);
+    VTAHostDPI_QueueWrite(VCR_PTR_ACC, base);
+    VTAHostDPI_QueueWrite(VCR_PTR_OUT, base);
     VTAHostDPI_QueueWrite(VCR_CTRL, 1u); // launch
 
-    // Reset for RESET_CYCLES (follows tsim_device.cc pattern)
-    top_->reset = 1;
-    for (uint32_t i = 0; i < RESET_CYCLES; ++i)
-      ClockEdge();
-    top_->reset = 0;
+    // Reset for RESET_CYCLES (follows tsim_device.cc pattern).
+    // With reset_between_layers=false we reset only on the first layer and let
+    // subsequent layers re-launch on the live core - reproducing the baremetal
+    // run_layer() flow, which never resets the VTA between consecutive launches.
+    if (g_verilator_config.reset_between_layers || !did_first_reset_) {
+      top_->reset = 1;
+      for (uint32_t i = 0; i < RESET_CYCLES; ++i)
+        ClockEdge();
+      top_->reset = 0;
+      did_first_reset_ = true;
+    } else {
+      // Advance a few cycles so the new VCR launch is observed by the live core.
+      for (uint32_t i = 0; i < RESET_CYCLES; ++i)
+        ClockEdge();
+    }
 
     // VTASimDPI.v has a $finish block that checks __exit every posedge.
     // __exit=1 can linger from the previous layer's end, and Verilator may
@@ -187,18 +234,18 @@ public:
         ++cycle_;
         if (Verilated::gotFinish()) {
           CloseTrace();
-          fprintf(stderr, "[VerilatedDevice] ecnt (total cycles)   = %u\n",
-                  VTAHostDPI_GetECnt());
-          fprintf(stderr, "[VerilatedDevice] ucnt (compute cycles) = %u\n",
-                  VTAHostDPI_GetUCnt());
+          printf("[VerilatedDevice] ecnt (total cycles)   = %u\n",
+                 VTAHostDPI_GetECnt());
+          printf("[VerilatedDevice] ucnt (compute cycles) = %u\n",
+                 VTAHostDPI_GetUCnt());
           return 0;
         }
       }
     }
 
     CloseTrace();
-    fprintf(stderr, "[VerilatedDevice] Timeout after %u cycles.\n",
-            g_verilator_config.timeout_cycles);
+    printf("[VerilatedDevice] Timeout after %u cycles.\n",
+           g_verilator_config.timeout_cycles);
     return 1;
   }
 
@@ -212,7 +259,7 @@ private:
     tfp_ = new TraceType();
     top_->trace(tfp_, 99);
     tfp_->open(path.c_str());
-    fprintf(stderr, "[VerilatedDevice] Trace: %s\n", path.c_str());
+    printf("[VerilatedDevice] Trace: %s\n", path.c_str());
   }
 
   void CloseTrace() {
@@ -247,7 +294,8 @@ private:
   VTABufferAddrs bufAddrs_;
   TraceType *tfp_;
   uint64_t cycle_;
-  int sv_log_stdout_backup_;
+  int sv_log_stderr_backup_;
+  bool did_first_reset_;
 };
 
 VTADeviceBackend *CreateVerilatedDevice() { return new VerilatedDevice(); }

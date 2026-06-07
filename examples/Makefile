@@ -87,7 +87,7 @@ view_profiler: ## Open profiler output in snakeviz
 # COMPILATION
 # ==============================================================================
 
-nn_compiler: ## Stage 1 — qONNX → CPU parameters + VTA IRs
+nn_compiler: ## Stage 1 - qONNX → CPU parameters + VTA IRs
 	$(MAKE) clean
 	@echo "Parsing ONNX..."
 	@date
@@ -96,7 +96,7 @@ nn_compiler: ## Stage 1 — qONNX → CPU parameters + VTA IRs
 	  > $(COMPILER_OUTPUT_DIR)/prompt_vta_backend.txt
 	@date
 
-vta_compiler: ## Stage 2 — VTA IRs → VTA binary
+vta_compiler: ## Stage 2 - VTA IRs → VTA binary
 	@echo "Compiling VTA IRs..."
 	@date
 	$(PYTHON_CMD) $(VTA_COMPILER_DIR)/main_vta_compiler.py \
@@ -113,10 +113,10 @@ fsim_clean: ## Clean the FSIM build directory
 	$(MAKE) -C $(FSIM_DIR) clean
 
 fsim_compile: ## Build fsim_nn
-	$(MAKE) -C $(FSIM_DIR) CONFIG=$(CONFIG) build/fsim_nn
+	$(MAKE) -C $(FSIM_DIR) CONFIG=$(CONFIG) build/fsim
 
 fsim_compile_single_layer: ## Build fsim_single_layer
-	$(MAKE) -C $(FSIM_DIR) CONFIG=$(CONFIG) build/fsim_single_layer
+	$(MAKE) -C $(FSIM_DIR) CONFIG=$(CONFIG) build/fsim
 
 # ==============================================================================
 # VSIM BUILD (RTL)
@@ -137,10 +137,10 @@ $(EXPORTED_SV_STAMP): $(CONFIG) $(EXPORTED_SV_CFG_ARGS)
 exported_sv: $(EXPORTED_SV_STAMP) ## Generate VTAShell SystemVerilog from Chisel (reruns on config change)
 
 vsim_compile: exported_sv ## Generate Verilated C++ model and build fsim_nn_rtl
-	$(MAKE) -C $(FSIM_DIR) CONFIG=$(CONFIG) build/fsim_nn_rtl
+	$(MAKE) -C $(FSIM_DIR) CONFIG=$(CONFIG) build/vsim
 
 vsim_compile_single_layer: exported_sv ## Generate Verilated C++ model and build fsim_single_layer_rtl
-	$(MAKE) -C $(FSIM_DIR) CONFIG=$(CONFIG) build/fsim_single_layer_rtl
+	$(MAKE) -C $(FSIM_DIR) CONFIG=$(CONFIG) build/vsim
 
 # ==============================================================================
 # REFERENCE

@@ -3,10 +3,10 @@
 
 #include "dpi_types.h"
 
-/** Signal simulation end — called by dpi_host.cc when finish bit is seen. */
+/** Signal simulation end - called by dpi_host.cc when finish bit is seen. */
 void VTASimDPI_SetExit();
 
-/** Reset exit flag — called before starting a new run. */
+/** Reset exit flag - called before starting a new run. */
 void VTASimDPI_Reset();
 
 /** Returns non-zero when simulation should terminate. */

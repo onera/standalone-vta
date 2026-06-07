@@ -67,6 +67,15 @@ class VirtualMemoryManager {
    */
   void* Alloc(size_t size);
   /*!
+   * \brief Reserve a page-aligned base offset before any allocation.
+   *  Advances the page table by bytes/kPageSize null slots (no backing memory)
+   *  so the first real Alloc lands at physical address (bytes + kPageSize).
+   *  Used to model a non-zero DRAM base (baremetal ddr_base) in simulation.
+   *  Must be called before the first Alloc.
+   * \param bytes The page-aligned base offset in bytes.
+   */
+  void ReserveBase(uint64_t bytes);
+  /*!
    * \brief Free the memory.
    * \param size The size of memory
    * \return The virtual address

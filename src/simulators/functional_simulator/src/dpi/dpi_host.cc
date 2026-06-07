@@ -4,7 +4,7 @@
  *
  * Implements the DPI-C function imported by VTAHostDPI.v.  The SV side
  * (VTAHostDPIToAXI.sv) translates the DPI request/response protocol into
- * AXI-Lite transactions to VTAShell's VCR port — no AXI logic is needed here.
+ * AXI-Lite transactions to VTAShell's VCR port - no AXI logic is needed here.
  *
  * Transaction model:
  *   - verilated_device.cc calls VTAHostDPI_QueueWrite() to pre-load VCR writes.
@@ -109,7 +109,7 @@ extern "C" void VTAHostDPI(
         s_launched = true;
       s_pending = false;
     } else {
-      // Read address accepted — wait for read data response
+      // Read address accepted - wait for read data response
       s_awaiting_resp = true;
       return;
     }

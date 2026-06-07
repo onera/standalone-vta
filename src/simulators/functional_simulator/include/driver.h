@@ -141,6 +141,24 @@ void VTAFlushCache(void* vir_addr, vta_phy_addr_t phy_addr, int size);
  */
 void VTAInvalidateCache(void* vir_addr, vta_phy_addr_t phy_addr, int size);
 
+/*!
+ * \brief Set a non-zero DRAM base offset for the functional backend.
+ *  Models the baremetal ddr_base: shifts all device buffers up by base_bytes
+ *  (via the vmem ReserveBase) and adds base_bytes to every DRAM data access,
+ *  exactly as the FPGA hardware adds the ptr base register to the base-0
+ *  logical addresses baked into the instruction/uop streams.
+ *  Must be called before the first VTAMemAlloc.  base_bytes must be page-aligned.
+ *  base_bytes == 0 (default) leaves behavior unchanged.
+ */
+void VTASetDramBase(uint64_t base_bytes);
+
+/*!
+ * \brief Get the current non-zero DRAM base offset (bytes), 0 if unset.
+ *  Used by the verilated backend to program the VCR data pointers so the RTL
+ *  adds the same base the functional backend adds in software.
+ */
+uint64_t VTAGetDramBase(void);
+
 /* ADDED FUNCTION */
 int CheckTestDriver(int value); // ADDED
 /* END ADDED FUNCTION */

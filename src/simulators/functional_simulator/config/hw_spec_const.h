@@ -152,6 +152,29 @@
 #define VTA_MEMOP_PAD_VAL_BIT_WIDTH 2
 /*! GEMM/ALU Instruction: loop max iter bits */
 #define VTA_LOOP_ITER_WIDTH 14
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * ISA-fixed micro-op / GEMM-ALU index and uop-range field widths.
+ *
+ * These widths are FIXED by the task ISA: they are identical in the Python
+ * compiler (operations_definition/structures.py) and the Chisel RTL
+ * (core/ISA.scala: C_UOP_BGN_BITS/C_UOP_END_BITS/C_AIDX_BITS/C_IIDX_BITS/
+ * C_WIDX_BITS). They must NOT be derived from VTA_LOG_*_BUFF_DEPTH - those
+ * depths change with the block size, which silently shifts every bitfield and
+ * corrupts the decoded uop/instruction indices for any configuration whose
+ * block size != 16 (only at block 16 do the depths coincide with these
+ * constants). See VTAUop / VTAGemInsn / VTAAluInsn in hw_spec.h.
+ * ────────────────────────────────────────────────────────────────────────── */
+/*! GEMM/ALU micro-op begin field bitwidth (== Chisel C_UOP_BGN_BITS) */
+#define VTA_UOP_BGN_BIT_WIDTH 13
+/*! GEMM/ALU micro-op end field bitwidth (== Chisel C_UOP_END_BITS) */
+#define VTA_UOP_END_BIT_WIDTH 14
+/*! Accumulator (dst) index/factor field bitwidth (== Chisel C_AIDX_BITS) */
+#define VTA_ACC_IDX_BIT_WIDTH 11
+/*! Input (src) index/factor field bitwidth (== Chisel C_IIDX_BITS) */
+#define VTA_INP_IDX_BIT_WIDTH 11
+/*! Weight index/factor field bitwidth (== Chisel C_WIDX_BITS) */
+#define VTA_WGT_IDX_BIT_WIDTH 10
 /*! ALU Instruction: immediate bitwidth*/
 #define VTA_ALUOP_IMM_BIT_WIDTH 16
 /*! ALU Instruction: shift arg bitwidth*/

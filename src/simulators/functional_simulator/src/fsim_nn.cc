@@ -1,87 +1,29 @@
 /***************************
     PRE-PROCESSOR DIRECTIVES
 ****************************/
-#include "../include/simulator_header.h"
-#include "../include/vta_device_backend.h"
-
-// Define the data type
-#if (VTA_LOG_INP_WIDTH == 3)
-using inp_dtype = int8_t;
-#else
-using inp_dtype = int32_t;
-#endif
-
-#if (VTA_LOG_WGT_WIDTH == 3)
-using wgt_dtype = int8_t;
-#else
-using wgt_dtype = int32_t;
-#endif
-#if (VTA_LOG_ACC_WIDTH == 3)
-using acc_dtype = int8_t;
-#else
-using acc_dtype = int32_t;
-#endif
-
-#if (VTA_LOG_OUT_WIDTH == 3)
-using out_dtype = int8_t;
-#else
-using out_dtype = int32_t;
-#endif
-
-extern bool g_use_verilator;
-#ifdef VERILATOR_BUILD_ENABLED
-extern VerilatorRunConfig g_verilator_config;
-#endif
-
-// structure to hold all data specific to one layer
-struct LayerContext {
-  int id;
-  std::string suffix;
-
-  // Buffers (Host side)
-  std::vector<inp_dtype> inpA;
-  std::vector<out_dtype> outC;
-  std::vector<wgt_dtype> wgtB;
-  std::vector<acc_dtype> accX, accY;
-  std::vector<uop_t> uop_buffer;
-  std::vector<instruction_t> insn_buffer;
-
-  // Other buffer for execution
-  std::vector<int8_t> res;  // Result
-  std::vector<float> value; // Float values
-
-  // Memory Pointers (VTA side)
-  void *mem_inpA = nullptr;
-  void *mem_wgtB = nullptr;
-  void *mem_accX = nullptr;
-  void *mem_accY = nullptr;
-  void *mem_outC = nullptr;
-  void *mem_uop = nullptr;
-  void *mem_insn = nullptr;
-
-  // Physical Addresses
-  vta_phy_addr_t phy_add_insn;
-};
+#include "../include/fsim_options.h"
+#include "../include/fsim_layer.h" // dtypes, LayerContext, shared load/free/profiler helpers
+#include <cstdint>
 
 /********************
     FSIM_NN
 *********************/
-int fsim_nn() {
+int run_nn(const FsimOptions &opts) {
   // Variable to print results
   bool doPrint = false;
 
   // Define the current location
   std::filesystem::path currentPath = std::filesystem::current_path();
 
-  // Helper for paths
+  // Path helpers (shared impl in fsim_layer.cc). compiler_output and the
+  // checker's expected output dir are the same (compiler_output); per-layer
+  // dumps go to simulators_output (same dir as verilator traces).
   auto construct_path = [&](const std::string &filename) {
-    return (currentPath / ".." / ".." / ".." / "compiler_output" / filename)
-        .string();
+    return compiler_output_path(currentPath, filename);
   };
-  auto construct_output_path = [&](const std::string &filename) {
-    return (currentPath / ".." / ".." / ".." / "compiler_output" /
-            filename) // FIXME: checks from compiler looks in compiler_output
-        .string();
+  auto construct_output_path = construct_path;
+  auto construct_sim_output_path = [&](const std::string &filename) {
+    return sim_output_path(currentPath, filename);
   };
 
   // 0. DEFINE GLOBAL FILE PATHES
@@ -129,130 +71,31 @@ int fsim_nn() {
   std::vector<std::string> loaded_layer_names;
   loaded_layer_names.reserve(nb_vta_ir); // Only VTA nodes
 
+  // Per-layer dumps: raw activation input fed to the VTA and the raw
+  // (pre-rescale) VTA output, written to simulators_output/. Toggled by
+  // --dump-layers (parsed in fsim_main.cc).
+  const bool dump_layers = opts.dump_layers;
+
   // 2. LOAD AND ALLOCATE ALL LAYERS
   // -------------------------------
   int block_size;
   for (int i = 0; i < nb_vta_ir; ++i) {
     LayerContext ctx;
     ctx.id = i;
-
-    // A. GET SUFFIX OF THE CURRENT LAYER
-    // ---
     ctx.suffix = get_csv_value(layers_name_map, std::to_string(i), 1);
 
     if (debug)
       printf("\n--- Loading Layer %d (Suffix: %s) ---\n", i,
              ctx.suffix.c_str());
 
-    // B. LOAD LAYER-RELATED FILES
-    // ----
-    // Layer general information (create a MAP)
-    std::string fileMetadataPath =
-        construct_path("metadata" + ctx.suffix + ".csv");
-    CsvMap metadata_map = load_csv_to_map(fileMetadataPath);
+    // Load + allocate this layer's buffers (shared with single-layer mode).
+    // The NN path leaves inpA empty here - it is filled later via the chaining
+    // step - and allocates/copies every buffer unconditionally.
+    load_and_allocate_layer(ctx, currentPath, block_size,
+                            /*load_input=*/false, /*guard_empty=*/false);
 
-    // Binaries
-    std::string fileWgtPath = construct_path("weight" + ctx.suffix + ".bin");
-    std::string fileAccPath =
-        construct_path("accumulator" + ctx.suffix + ".bin");
-    std::string fileAddAccPath =
-        construct_path("add_accumulator" + ctx.suffix + ".bin");
-    std::string fileUopPath = construct_path("uop" + ctx.suffix + ".bin");
-    std::string fileInsnPath =
-        construct_path("instructions" + ctx.suffix + ".bin");
-
-    // C. READ METADATA INFO
-    // ---
-    // Block size and square
-    block_size = strToInt(get_csv_value(metadata_map, "BS", 2));
-    std::string out_square_str = get_csv_value(metadata_map, "BS", 1);
-    bool out_square = (out_square_str == "True");
-
-    // Dimensions
-    int A_row = strToInt(get_csv_value(metadata_map, "A", 1));
-    int A_col = strToInt(get_csv_value(metadata_map, "A", 2));
-    int X_row = strToInt(get_csv_value(metadata_map, "X", 1));
-    int X_col = strToInt(get_csv_value(metadata_map, "X", 2));
-    int Y_row = strToInt(get_csv_value(metadata_map, "Y", 1));
-    int Y_col = strToInt(get_csv_value(metadata_map, "Y", 2));
-    int C_row = strToInt(get_csv_value(metadata_map, "C", 1));
-    int C_col = strToInt(get_csv_value(metadata_map, "C", 2));
-
-    // D. READ AND SHAPE THE DATA
-    // ---
-    // Input A
-    std::vector<inp_dtype> raw_inpA;
-    if (A_row <= 0 || A_col <= 0)
-      ctx.inpA = raw_inpA;
-    else
-      ctx.inpA = data_formatting(raw_inpA, A_row, A_col, block_size, true);
-
-    // Weight B
-    ctx.wgtB = read_binary_file<wgt_dtype>(fileWgtPath);
-
-    // Acc X
-    std::vector<acc_dtype> raw_accX = read_binary_file<acc_dtype>(fileAccPath);
-    if (X_row <= 0 || X_col <= 0)
-      ctx.accX = raw_accX;
-    else
-      ctx.accX = data_formatting(raw_accX, X_row, X_col, block_size, true);
-
-    // Acc Y
-    std::vector<acc_dtype> raw_accY =
-        read_binary_file<acc_dtype>(fileAddAccPath);
-    if (Y_row <= 0 || Y_col <= 0)
-      ctx.accY = raw_accY;
-    else
-      ctx.accY = data_formatting(raw_accY, Y_row, Y_col, block_size, true);
-
-    // Output C (buffer space)
-    std::vector<out_dtype> raw_outC;
-    if (C_row <= 0 || C_col <= 0)
-      ctx.outC = raw_outC;
-    else
-      ctx.outC =
-          data_formatting(raw_outC, C_row, C_col, block_size, out_square);
-
-    // Instructions & UOPs
-    ctx.uop_buffer = read_binary_file<uop_t>(fileUopPath);
-    ctx.insn_buffer = read_binary_file<instruction_t>(fileInsnPath);
-
-    // E. ALLOCATE VTA MEMORY (virtual DRAM)
-    // ---
-    ctx.mem_inpA = VTAMemAlloc(ctx.inpA.size() * sizeof(inp_dtype), 1);
-    ctx.mem_wgtB = VTAMemAlloc(ctx.wgtB.size() * sizeof(wgt_dtype), 1);
-    ctx.mem_accX = VTAMemAlloc(ctx.accX.size() * sizeof(acc_dtype), 1);
-    ctx.mem_accY = VTAMemAlloc(ctx.accY.size() * sizeof(acc_dtype), 1);
-    ctx.mem_outC = VTAMemAlloc(ctx.outC.size() * sizeof(out_dtype), 1);
-    ctx.mem_uop = VTAMemAlloc(ctx.uop_buffer.size() * sizeof(uop_t), 1);
-    ctx.mem_insn =
-        VTAMemAlloc(ctx.insn_buffer.size() * sizeof(instruction_t), 1);
-
-    // Get physical address for instructions
-    ctx.phy_add_insn = VTAMemGetPhyAddr(ctx.mem_insn);
-
-    // F. WRITE THE DATA IN VIRTUAL DRAM
-    // ---
-    VTAMemCopyFromHost(ctx.mem_inpA, ctx.inpA.data(),
-                       ctx.inpA.size() * sizeof(inp_dtype));
-    VTAMemCopyFromHost(ctx.mem_wgtB, ctx.wgtB.data(),
-                       ctx.wgtB.size() * sizeof(wgt_dtype));
-    VTAMemCopyFromHost(ctx.mem_accX, ctx.accX.data(),
-                       ctx.accX.size() * sizeof(acc_dtype));
-    VTAMemCopyFromHost(ctx.mem_accY, ctx.accY.data(),
-                       ctx.accY.size() * sizeof(acc_dtype));
-    VTAMemCopyFromHost(ctx.mem_outC, ctx.outC.data(),
-                       ctx.outC.size() * sizeof(out_dtype));
-    VTAMemCopyFromHost(ctx.mem_uop, ctx.uop_buffer.data(),
-                       ctx.uop_buffer.size() * sizeof(uop_t));
-    VTAMemCopyFromHost(ctx.mem_insn, ctx.insn_buffer.data(),
-                       ctx.insn_buffer.size() * sizeof(instruction_t));
-
-    // G. STOCK THE LAYER IN THE MAP AND PUSH
-    // ---
-    // Stock in the map
+    // Stock in the map, keep the load order.
     layers_map[ctx.suffix] = ctx;
-    // Keep the load order
     loaded_layer_names.push_back(ctx.suffix);
   }
 
@@ -270,26 +113,10 @@ int fsim_nn() {
 
   // 3. PROFILER SETUP
   // -----------------
-  const tvm::runtime::PackedFunc *profiler_clear = nullptr;
-  const tvm::runtime::PackedFunc *profiler_status = nullptr;
-  const tvm::runtime::PackedFunc *profiler_debug_mode = nullptr;
-
-  if (!g_use_verilator) {
-    profiler_clear =
-        tvm::runtime::Registry::Get("vta.simulator.profiler_clear");
-    profiler_status =
-        tvm::runtime::Registry::Get("vta.simulator.profiler_status");
-    profiler_debug_mode =
-        tvm::runtime::Registry::Get("vta.simulator.profiler_debug_mode");
-
-    if (!profiler_clear || !profiler_status || !profiler_debug_mode) {
-      std::cerr << "ERROR: Profiler functions not found." << std::endl;
-      return -1;
-    }
-    (*profiler_clear)();
-    int debug_flag = 0;
-    (*profiler_debug_mode)(debug_flag);
-  }
+  // Functional backend only; returns null handles under the verilated backend.
+  ProfilerHandles prof = setup_profiler();
+  if (!g_use_verilator && !prof.clear)
+    return -1;
 
   // 4. DEFINE THE EXECUTION ORDER AND LAYER INFO
   // --------------------------------------------
@@ -610,20 +437,29 @@ int fsim_nn() {
     // D. EXECUTE THE VTA OR THE CPU
     // ---
     if (processor == "vta") {
-#ifdef VERILATOR_BUILD_ENABLED
-      // Per-layer trace: update trace_file before Run() reads it.
-      if (g_use_verilator && g_verilator_config.trace_enabled) {
-#ifdef TRACE_FORMAT_VCD
-        const std::string trace_ext = ".vcd";
-#else
-        const std::string trace_ext = ".fst";
-#endif
-        g_verilator_config.trace_file =
-            (currentPath / ".." / ".." / ".." / "simulators_output" /
-             ("trace_" + ctx.suffix + trace_ext))
-                .string();
+      // Dump the raw activation fed to the VTA, just before it runs. Picks the
+      // buffer that section C wrote to device memory for this reshape path.
+      if (dump_layers) {
+        const std::string in_path =
+            construct_sim_output_path("input" + ctx.suffix + ".bin");
+        if (reshape_info == "im2row") {
+          write_binary_file(in_path, ctx.inpA);
+        } else if (reshape_info == "int32") {
+          write_binary_file(in_path, ctx.accX);
+          if (!ctx.accY.empty())
+            write_binary_file(
+                construct_sim_output_path("input" + ctx.suffix + "_Y.bin"),
+                ctx.accY);
+        } else if (!ctx.inpA.empty()) {
+          write_binary_file(in_path, ctx.inpA);
+        } else {
+          write_binary_file(in_path, ctx.accX);
+        }
       }
-#endif
+      // Per-layer trace: update trace_file before Run() reads it (verilated
+      // backend only; no-op otherwise).
+      update_trace_file(currentPath, ctx.suffix);
+
       // Execute the layer
       int flag =
           VTADeviceRun(vta_device, ctx.phy_add_insn, ctx.insn_buffer.size(), 0);
@@ -639,6 +475,13 @@ int fsim_nn() {
       // Copy Result Back
       VTAMemCopyToHost(ctx.outC.data(), ctx.mem_outC,
                        ctx.outC.size() * sizeof(out_dtype));
+
+      // Dump the raw VTA output (block-formatted device bytes), before the
+      // rescaling in step E - matches the FPGA's out DRAM region.
+      if (dump_layers)
+        write_binary_file(
+            construct_sim_output_path("output" + ctx.suffix + ".bin"),
+            ctx.outC);
     }
     // ELSE CPU OPERATIONS
     else if (processor == "qadd") {
@@ -836,24 +679,14 @@ int fsim_nn() {
 
   // 6. FREE ALL LAYERS
   // ------------------
-  if (!g_use_verilator && debug) {
-    std::string profile_json = (*profiler_status)();
+  if (prof.status && debug) {
+    std::string profile_json = (*prof.status)();
     std::cout << "\n--- Profiler Status ---" << std::endl
               << profile_json << std::endl;
   }
 
-  for (const std::string &layer_name : loaded_layer_names) {
-    LayerContext &ctx = layers_map[layer_name];
-
-    // Free Memory
-    VTAMemFree(ctx.mem_inpA);
-    VTAMemFree(ctx.mem_wgtB);
-    VTAMemFree(ctx.mem_accX);
-    VTAMemFree(ctx.mem_accY);
-    VTAMemFree(ctx.mem_outC);
-    VTAMemFree(ctx.mem_uop);
-    VTAMemFree(ctx.mem_insn);
-  }
+  for (const std::string &layer_name : loaded_layer_names)
+    free_layer(layers_map[layer_name]);
 
   // Free the VTA
   VTADeviceFree(vta_device);
@@ -892,70 +725,3 @@ int fsim_nn() {
   // Return OK
   return EXIT_SUCCESS;
 }
-
-/****************
-    MAIN FUNCTION
-*****************/
-#ifdef VERILATOR_BUILD_ENABLED
-static void print_usage(const char *prog) {
-
-  fprintf(stderr,
-          "Usage: %s [OPTIONS]\n"
-          "--verilator: toggle verilator backend simulation\n"
-          "\tVerilator-only flags:\n"
-          "\t\t[--trace]              Enable waveform tracing (format set at "
-          "compile time)\n"
-          "\t\t[--trace-file PATH]    Waveform output file (default: "
-          "vtashell.fst/.vcd)\n"
-          "\t\t[--sv-log PATH]        Redirect SV $display output to PATH\n"
-          "\t\t[--timeout-cycles N]   Max RTL clock cycles before abort "
-          "(default: 500000)\n"
-          "\t\t[--no-timeout]         Disable cycle timeout (run until "
-          "finish)\n",
-          prog);
-}
-int main(int argc, char **argv) {
-  // Verilator-only config values (populated below, applied after parsing)
-  bool parsed_trace = false;
-  std::string trace_file_arg = "";
-  std::string sv_log_arg = "";
-  uint32_t timeout_cycles = 500000;
-
-  for (int i = 1; i < argc; ++i) {
-    if (strcmp(argv[i], "--verilator") == 0) {
-      g_use_verilator = true;
-    } else if (strcmp(argv[i], "--trace") == 0) {
-      parsed_trace = true;
-    } else if (strcmp(argv[i], "--trace-file") == 0 && i + 1 < argc) {
-      trace_file_arg = argv[++i];
-    } else if (strcmp(argv[i], "--sv-log") == 0 && i + 1 < argc) {
-      sv_log_arg = argv[++i];
-    } else if (strcmp(argv[i], "--timeout-cycles") == 0 && i + 1 < argc) {
-      timeout_cycles = static_cast<uint32_t>(atoi(argv[++i]));
-    } else if (strcmp(argv[i], "--no-timeout") == 0) {
-      timeout_cycles = 0;
-    } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
-      print_usage(argv[0]);
-      return 0;
-    } else {
-      fprintf(stderr, "Unknown argument: %s\n", argv[i]);
-      print_usage(argv[0]);
-      return 1;
-    }
-  }
-  g_verilator_config.trace_enabled = parsed_trace;
-  g_verilator_config.trace_file = trace_file_arg;
-  g_verilator_config.timeout_cycles = timeout_cycles;
-  if (g_use_verilator) {
-    printf("[Cycle Accurate Simulation] Backend: Verilated RTL\n");
-    if (parsed_trace) {
-      printf("[Info] tracing is enabled: performance may suffer");
-    }
-  } else {
-    printf("[Functional Simulation] Backend: C++ functional model\n");
-  }
-  return fsim_nn();
-}
-#else
-int main() { return fsim_nn(); }
-#endif

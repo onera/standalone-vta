@@ -7,7 +7,7 @@
  * clean per-beat read/write signals here.  We only need to read/write the
  * VirtualMemoryManager (shared DRAM) beat by beat.
  *
- * For the default VTA configuration (DATA_BITS=64), blockNb=1 — each beat
+ * For the default VTA configuration (DATA_BITS=64), blockNb=1 - each beat
  * is a single 64-bit word.  The svOpenArrayHandle wr_value / rd_value each
  * hold one element.
  */
@@ -81,7 +81,17 @@ extern "C" void VTAMemDPI(
     const dpi64_t *wr_ptr = static_cast<const dpi64_t *>(svGetArrayPtr(wr_value));
     uint8_t *mem = static_cast<uint8_t *>(
         DRAM::Global()->GetAddr(static_cast<uint64_t>(s_wr_addr)));
-    memcpy(mem, wr_ptr, kBytesPerBeat);
+    // Honor the AXI write-strobe (byte-enable) mask. Dense stores drive
+    // strb=0xff (full beat), but partial/sparse stores - e.g. the block-4
+    // MaxPool output, where two 32-bit tensors share one 64-bit cacheline and
+    // are written by separate single-tensor beats - drive strb=0x0f/0xf0. A
+    // full memcpy would let each beat clobber the masked half (the other
+    // tensor's bytes) with don't-care bus data, corrupting the neighbour.
+    const uint8_t *src = reinterpret_cast<const uint8_t *>(wr_ptr);
+    const uint64_t strb = static_cast<uint64_t>(wr_strb);
+    for (int i = 0; i < kBytesPerBeat; ++i) {
+      if (strb & (uint64_t(1) << i)) mem[i] = src[i];
+    }
     s_wr_addr += kBytesPerBeat;
   }
 
