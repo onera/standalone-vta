@@ -104,6 +104,30 @@ object `package` extends SbtModule with PublishModule with ScalafixModule {
     println(s"[INFO] VTA FPGA config emitted in ${outDir}")
   }
 
+  def emitVtaPostSynthTb(args: Args) = Task.Command {
+    val outDir =
+      if (args.value.isEmpty)
+        BuildCtx.workspaceRoot / "build" / "emitted" / "vta-postsynth-tb"
+      else os.Path(args.value.head)
+    os.makeDir.all(outDir)
+
+    // Forward the optional emit knobs from the Mill JVM's -D props as program
+    // args, so they reach the forked run JVM regardless of -D propagation.
+    val forwarded = Seq(
+      "compilerOutDir",
+      "layers",
+      "reloStride",
+      "perLayerTimeout"
+    ).flatMap(k => sys.props.get(s"vta.$k").map(v => s"--$k=$v"))
+
+    runner().run(
+      args = Seq(outDir.toString) ++ forwarded,
+      mainClass = "vta.EmitPostSynthTb",
+      workingDir = BuildCtx.workspaceRoot
+    )
+    println(s"[INFO] VTA post-synth TB emitted in ${outDir}")
+  }
+
   def cleanOutputs() = Task.Command {
     val outputDir = BuildCtx.workspaceRoot / "build"
     println(s"[Clean] removing all outputs")
