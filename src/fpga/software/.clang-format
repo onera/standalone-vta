@@ -1,0 +1,4 @@
+# Style for the baremetal VTA PS-side software (driver/, apps/, test/).
+# Matches the formatting the tree was normalised to
+# (clang-format --style=LLVM); pinned here so editors and CI stay consistent.
+BasedOnStyle: LLVM

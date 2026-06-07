@@ -1,5 +1,8 @@
 #include "../include/vta_ctrl.h"
 #include "../include/vta.h"
+extern "C" {
+#include "xil_io.h" // dsb()/dmb()/isb() via xpseudo_asm.h
+}
 namespace vta {
 
 void write_reg(std::uintptr_t base, std::uint32_t offset, std::uint32_t value) {
@@ -19,7 +22,11 @@ void write_config(std::uintptr_t base, const VTARegs &r) {
     write_reg(base, REG_PTR(i), r.ptr[i]);
   }
 }
-void launch(std::uintptr_t base) { write_reg(base, REG_CTRL, CTRL_LAUNCH); }
+void launch(std::uintptr_t base) {
+  // explicit Data synchronization barrier
+  dsb();
+  write_reg(base, REG_CTRL, CTRL_LAUNCH);
+}
 
 void dump_config(std::uintptr_t base) {
   xil_printf("ctrl = 0x%08x\r\n", read_reg(base, REG_CTRL));

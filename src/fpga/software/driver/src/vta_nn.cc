@@ -1,8 +1,8 @@
 #include "../include/vta_nn.h"
 #include "../include/vta_cpu_ops.h"
 #include "../include/vta_ctrl.h"
-#include "nn_ddr_map.h"
-#include "nn_exec_plan.h"
+#include "vta_hw_config.h"
+
 #include <cstdlib>
 extern "C" {
 #include "sleep.h"
@@ -10,8 +10,6 @@ extern "C" {
 #include "xil_printf.h"
 #include "xparameters.h"
 }
-
-static constexpr std::uintptr_t VTA_VCR_BASE = XPAR_VTA_0_BASEADDR;
 
 namespace vta {
 
@@ -77,10 +75,11 @@ int run_layer(std::uintptr_t vcr_base, const LayerDesc &layer, int timeout) {
   return 0;
 }
 
-bool find_input(std::uint32_t *raw_addr, std::uint32_t *input_n_bytes) {
-  for (unsigned i = 0; i < NN_NUM_STEPS; ++i) {
-    if (nn_exec_steps[i].type == NN_STEP_FORMAT_INPUT) {
-      const auto &fi = nn_exec_steps[i].format_input;
+bool find_input(const NnExecStep *steps, unsigned num_steps,
+                std::uint32_t *raw_addr, std::uint32_t *input_n_bytes) {
+  for (unsigned i = 0; i < num_steps; ++i) {
+    if (steps[i].type == NN_STEP_FORMAT_INPUT) {
+      const auto &fi = steps[i].format_input;
       *raw_addr = fi.raw_addr;
       *input_n_bytes = fi.tensor_ch * fi.tensor_h * fi.tensor_w;
       return true;
@@ -89,26 +88,51 @@ bool find_input(std::uint32_t *raw_addr, std::uint32_t *input_n_bytes) {
   return false;
 }
 
-float *run_nn(std::uint32_t *float_bytes_out, bool *ok) {
+float *run_nn(std::uintptr_t vcr_base, const NnExecStep *steps,
+              unsigned num_steps, const LayerDesc *layers, unsigned num_layers,
+              std::uint32_t *float_bytes_out, bool *ok) {
   *ok = true;
   *float_bytes_out = 0;
   float *float_buf = nullptr;
 
-  for (unsigned i = 0u; i < NN_NUM_STEPS; ++i) {
-    const NnExecStep &s = nn_exec_steps[i];
-    xil_printf("[vta] step %u/%u: %s\r\n", i, NN_NUM_STEPS - 1u, s.name);
+  // Loader-provided static data (INSN/UOP/WGT/ACC) is placed in DRAM by an
+  // external loader (.incbin section / JTAG download) that bypasses the PS
+  // D-cache.  The VTA reads DRAM directly over AXI, so any stale/uninitialised
+  // cache line for these regions must be reconciled with DRAM before the first
+  // launch.  Do it once up front (like apps/test_gemm/test_gemm.cc):
+  // Xil_DCacheFlushRange is clean+invalidate on Zynq, which both pushes any
+  // cached copy to DRAM and drops stale lines.  CPU-produced INP is handled by
+  // CPU-produced INP/OUT is flushed per-step in the dispatch loop below.
+  for (unsigned L = 0u; L < num_layers; ++L) {
+    const LayerDesc &ld = layers[L];
+    Xil_DCacheFlushRange(static_cast<UINTPTR>(ld.insn_addr),
+                         static_cast<INTPTR>(ld.insn_count * 16u));
+    if (ld.uop_bytes > 0u)
+      Xil_DCacheFlushRange(static_cast<UINTPTR>(ld.uop_phys),
+                           static_cast<INTPTR>(ld.uop_bytes));
+    if (ld.wgt_bytes > 0u)
+      Xil_DCacheFlushRange(static_cast<UINTPTR>(ld.wgt_phys),
+                           static_cast<INTPTR>(ld.wgt_bytes));
+    if (ld.acc_bytes > 0u)
+      Xil_DCacheFlushRange(static_cast<UINTPTR>(ld.acc_phys),
+                           static_cast<INTPTR>(ld.acc_bytes));
+  }
+
+  for (unsigned i = 0u; i < num_steps; ++i) {
+    const NnExecStep &s = steps[i];
+    xil_printf("[vta] step %u/%u: %s\r\n", i, num_steps - 1u, s.name);
 
     switch (s.type) {
     case NN_STEP_VTA:
       if (s.vta.layer_idx < 0 ||
-          s.vta.layer_idx >= static_cast<int>(NN_NUM_LAYERS)) {
+          s.vta.layer_idx >= static_cast<int>(num_layers)) {
         xil_printf("=== bad layer_idx %d at step %u ===\r\n", s.vta.layer_idx,
                    i);
         std::free(float_buf);
         *ok = false;
         return nullptr;
       }
-      if (run_layer(VTA_VCR_BASE, nn_layers[s.vta.layer_idx]) != 0) {
+      if (run_layer(vcr_base, layers[s.vta.layer_idx]) != 0) {
         xil_printf("=== VTA layer failed at step %u ===\r\n", i);
         std::free(float_buf);
         *ok = false;
@@ -118,10 +142,16 @@ float *run_nn(std::uint32_t *float_bytes_out, bool *ok) {
 
     case NN_STEP_QADD:
       run_qadd(s.qadd);
+      Xil_DCacheFlushRange(static_cast<UINTPTR>(s.qadd.out),
+                           static_cast<INTPTR>(s.qadd.n_elems));
       break;
 
     case NN_STEP_CONCAT:
       run_concat(s.concat);
+      Xil_DCacheFlushRange(
+          static_cast<UINTPTR>(s.concat.out),
+          static_cast<INTPTR>(s.concat.n_rows * s.concat.n_ch_per_inp *
+                              static_cast<std::uint32_t>(s.concat.nb_inp)));
       break;
 
     case NN_STEP_DEQUANT:
@@ -138,21 +168,46 @@ float *run_nn(std::uint32_t *float_bytes_out, bool *ok) {
 
     case NN_STEP_QUANT:
       run_quant(s.quant, float_buf);
+      Xil_DCacheFlushRange(static_cast<UINTPTR>(s.quant.out_addr),
+                           static_cast<INTPTR>(s.quant.n_elems));
       std::free(float_buf);
       float_buf = nullptr;
       *float_bytes_out = 0;
       break;
 
     case NN_STEP_FORMAT_INPUT:
+      Xil_DCacheFlushRange(static_cast<UINTPTR>(s.format_input.raw_addr),
+                           static_cast<INTPTR>(s.format_input.tensor_ch *
+                                               s.format_input.tensor_h *
+                                               s.format_input.tensor_w));
       run_format_input(s.format_input);
+      Xil_DCacheFlushRange(
+          static_cast<UINTPTR>(s.format_input.inp_addr),
+          static_cast<INTPTR>(s.format_input.out_h * s.format_input.out_w *
+                              s.format_input.tensor_ch * s.format_input.kh *
+                              s.format_input.kw * sizeof(vta_inp_t)));
       break;
 
     case NN_STEP_IM2ROW:
       run_im2row(s.im2row);
+      Xil_DCacheFlushRange(static_cast<UINTPTR>(s.im2row.dst_addr),
+                           static_cast<INTPTR>(s.im2row.out_h * s.im2row.out_w *
+                                               s.im2row.tensor_ch *
+                                               s.im2row.kh * s.im2row.kw *
+                                               sizeof(vta_inp_t)));
       break;
 
     case NN_STEP_RESCALE:
       run_rescale(s.rescale);
+      Xil_DCacheFlushRange(static_cast<UINTPTR>(s.rescale.addr),
+                           static_cast<INTPTR>(s.rescale.n_elems));
+      break;
+
+    case NN_STEP_INT32_CHAIN:
+      run_int32_chain(s.int32_chain);
+      Xil_DCacheFlushRange(
+          static_cast<UINTPTR>(s.int32_chain.dst_addr),
+          static_cast<INTPTR>(s.int32_chain.n_elems * sizeof(vta_acc_t)));
       break;
     }
   }

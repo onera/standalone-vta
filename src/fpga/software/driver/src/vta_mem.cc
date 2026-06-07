@@ -17,8 +17,7 @@ void init_ddr_region(std::uintptr_t dst_addr, const void *src,
   Xil_DCacheFlushRange(static_cast<UINTPTR>(dst_addr), bytes);
 
   xil_printf("%s init: dst=0x%08x bytes=%u\r\n", name,
-             static_cast<unsigned>(dst_addr),
-             static_cast<unsigned>(bytes));
+             static_cast<unsigned>(dst_addr), static_cast<unsigned>(bytes));
 }
 
 void copy_insns_to_vta(volatile std::uint32_t *dst, const VTAInsn *src,

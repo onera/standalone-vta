@@ -13,9 +13,11 @@
  *       --config-json ../../../config/vta_config.json
  */
 
-#include "vta_board.h"
-#include "vta_nn.h"
+#include "nn_ddr_map.h"
 #include "nn_exec_plan.h"
+#include "vta_board.h"
+#include "vta_hw_config.h"
+#include "vta_nn.h"
 #include <cstdlib>
 extern "C" {
 #include "xil_printf.h"
@@ -28,10 +30,12 @@ int main() {
 
   std::uint32_t float_bytes = 0;
   bool ok = false;
-  float *float_buf = vta::run_nn(&float_bytes, &ok);
+  float *float_buf = vta::run_nn(VTA_VCR_BASE, nn_exec_steps, NN_NUM_STEPS,
+                                 nn_layers, NN_NUM_LAYERS, &float_bytes, &ok);
   std::free(float_buf);
 
-  if (!ok) return -1;
+  if (!ok)
+    return -1;
   xil_printf("=== NN done ===\r\n");
   return 0;
 }

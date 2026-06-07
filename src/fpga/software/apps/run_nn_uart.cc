@@ -19,9 +19,11 @@
  *                  or float bytes if the last step is DEQUANT with no QUANT)
  */
 
-#include "vta_board.h"
-#include "vta_nn.h"
+#include "nn_ddr_map.h"
 #include "nn_exec_plan.h"
+#include "vta_board.h"
+#include "vta_hw_config.h"
+#include "vta_nn.h"
 #include <cstdint>
 #include <cstdlib>
 extern "C" {
@@ -34,7 +36,8 @@ extern "C" {
 // ---------------------------------------------------------------------------
 
 static void wait_for_trigger() {
-  while (inbyte() != '\x01') {}
+  while (inbyte() != '\x01') {
+  }
 }
 
 static void uart_recv(void *dst, std::uint32_t n) {
@@ -59,12 +62,13 @@ int main() {
              static_cast<unsigned>(NN_NUM_STEPS));
 
   std::uint32_t raw_addr = 0, input_n_bytes = 0;
-  if (!vta::find_input(&raw_addr, &input_n_bytes)) {
+  if (!vta::find_input(nn_exec_steps, NN_NUM_STEPS, &raw_addr,
+                       &input_n_bytes)) {
     xil_printf("ERROR: no FORMAT_INPUT step - cannot use UART loop\r\n");
     return -1;
   }
 
-  constexpr std::uint32_t out_addr    = NN_OUTPUT_ADDR;
+  constexpr std::uint32_t out_addr = NN_OUTPUT_ADDR;
   constexpr std::uint32_t out_n_bytes = NN_OUTPUT_BYTES;
 
   while (true) {
@@ -79,7 +83,8 @@ int main() {
     // Run the full inference pipeline.
     std::uint32_t float_bytes = 0;
     bool ok = false;
-    float *float_buf = vta::run_nn(&float_bytes, &ok);
+    float *float_buf = vta::run_nn(VTA_VCR_BASE, nn_exec_steps, NN_NUM_STEPS,
+                                   nn_layers, NN_NUM_LAYERS, &float_bytes, &ok);
 
     if (!ok) {
       xil_printf("=== inference failed, skipping output ===\r\n");
@@ -90,7 +95,8 @@ int main() {
     // to raw binary receive to avoid mixing log output with payload bytes.
     xil_printf("OUTPUT\r\n");
 
-    // Send output: float buffer if DEQUANT was the last step, INT8 OUT otherwise.
+    // Send output: float buffer if DEQUANT was the last step, INT8 OUT
+    // otherwise.
     if (float_buf != nullptr) {
       uart_send(float_buf, float_bytes);
       std::free(float_buf);

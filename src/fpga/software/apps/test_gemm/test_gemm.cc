@@ -1,12 +1,16 @@
+#include "init_dram.h"
 #include "vta.h"
 #include "vta_ctrl.h"
 #include "vta_mem.h"
-#include "init_dram.h"
 #include "xil_cache.h"
 #include "xil_printf.h"
 #include <cstdint>
+#include <type_traits>
 #include <xil_io.h>
 #include <xparameters.h>
+
+using vta_out_t =
+    std::remove_const_t<std::remove_extent_t<decltype(expected_out)>>;
 
 constexpr std::uintptr_t DDR_VTA_BASE = 0x10000000u;
 constexpr std::uintptr_t DDR_UOP_BASE = DDR_VTA_BASE + 0x5000u;
@@ -73,7 +77,7 @@ int main() {
       vta::print_cycles(VTA_VCR_BASE);
 
       Xil_DCacheInvalidateRange(DDR_OUT_BASE, sizeof(expected_out));
-      auto *out_ptr = reinterpret_cast<std::int32_t *>(DDR_OUT_BASE);
+      auto *out_ptr = reinterpret_cast<vta_out_t *>(DDR_OUT_BASE);
       int errors = 0;
       for (size_t i = 0; i < sizeof(expected_out) / sizeof(expected_out[0]);
            ++i) {
@@ -81,7 +85,8 @@ int main() {
           errors++;
           if (errors < 10) {
             xil_printf("Error at index %d: expected %d, got %d\r\n", i,
-                       expected_out[i], out_ptr[i]);
+                       static_cast<int>(expected_out[i]),
+                       static_cast<int>(out_ptr[i]));
           }
         }
       }
