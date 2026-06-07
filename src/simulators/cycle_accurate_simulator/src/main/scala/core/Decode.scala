@@ -196,6 +196,20 @@ class ComputeDecode extends Module {
     val isGemm = Output(Bool())
     val isFinish = Output(Bool())
   })
+  // The decode Bundles must span the full instruction word; a width drift
+  // between these layouts and the ISA encoding would silently misalign fields.
+  require(
+    (new MemDecode).getWidth == INST_BITS,
+    "-F- MemDecode width must equal INST_BITS"
+  )
+  require(
+    (new GemmDecode).getWidth == INST_BITS,
+    "-F- GemmDecode width must equal INST_BITS"
+  )
+  require(
+    (new AluDecode).getWidth == INST_BITS,
+    "-F- AluDecode width must equal INST_BITS"
+  )
   val dec = io.inst.asTypeOf(new MemDecode)
   io.push_next := dec.push_next
   io.push_prev := dec.push_prev

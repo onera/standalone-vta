@@ -256,6 +256,7 @@ class MatrixVectorMultiplicationBypass(implicit p: Parameters) extends Module {
 class TensorGemmIndexGenerator(implicit p: Parameters) extends Module {
   val io = IO(new Bundle {
     val start = Input(Bool())
+    val flush = Input(Bool())
     val last = Output(Bool())
 
     val dec = Input(new GemmDecode)
@@ -269,66 +270,43 @@ class TensorGemmIndexGenerator(implicit p: Parameters) extends Module {
     val valid = Output(Bool())
   })
 
-  io.last := false.B
+  // Triple-nested loop shared with the ALU; see NestedLoopCounter. GEMM advances
+  // every running cycle (advance := true), carrying three index streams
+  // (acc, inp, wgt).
+  val accW = new TensorParams(tensorType = "acc").memAddrBits
+  val inpW = new TensorParams(tensorType = "inp").memAddrBits
+  val wgtW = new TensorParams(tensorType = "wgt").memAddrBits
 
-  val running = RegInit(false.B)
-  when(!running && io.start) {
-    running := true.B
-  }.elsewhen(io.last) {
-    running := false.B
-  }
+  val counter = Module(
+    new NestedLoopCounter(
+      idxWidths = Seq(accW, inpW, wgtW),
+      strideWidths =
+        Seq(io.dec.acc0.getWidth, io.dec.inp0.getWidth, io.dec.wgt0.getWidth),
+      loopBits0 = io.dec.lp0.getWidth,
+      loopBits1 = io.dec.lp1.getWidth,
+      uopBits = io.dec.uopEnd.getWidth
+    )
+  )
+  counter.io.start := io.start
+  counter.io.flush := io.flush
+  counter.io.advance := true.B
+  counter.io.lp_0 := io.dec.lp0
+  counter.io.lp_1 := io.dec.lp1
+  counter.io.uop_begin := io.dec.uopBegin
+  counter.io.uop_end := io.dec.uopEnd
+  counter.io.stride_0(0) := io.dec.acc0
+  counter.io.stride_0(1) := io.dec.inp0
+  counter.io.stride_0(2) := io.dec.wgt0
+  counter.io.stride_1(0) := io.dec.acc1
+  counter.io.stride_1(1) := io.dec.inp1
+  counter.io.stride_1(2) := io.dec.wgt1
 
-  val cnt_i = Reg(chiselTypeOf(io.dec.lp1))
-  val acc_i = Reg(chiselTypeOf(io.acc_i))
-  val inp_i = Reg(chiselTypeOf(io.inp_i))
-  val wgt_i = Reg(chiselTypeOf(io.wgt_i))
-
-  val cnt_o = Reg(chiselTypeOf(io.dec.lp0))
-  val acc_o = Reg(chiselTypeOf(io.acc_i))
-  val inp_o = Reg(chiselTypeOf(io.inp_i))
-  val wgt_o = Reg(chiselTypeOf(io.wgt_i))
-
-  val uop_idx = Reg(chiselTypeOf(io.dec.uopEnd))
-
-  io.valid := running
-  io.acc_i := acc_i
-  io.inp_i := inp_i
-  io.wgt_i := wgt_i
-  io.uop_idx := uop_idx
-
-  when(!running) {
-    cnt_i := 0.U; acc_i := 0.U; inp_i := 0.U; wgt_i := 0.U
-    cnt_o := 0.U; acc_o := 0.U; inp_o := 0.U; wgt_o := 0.U
-    uop_idx := io.dec.uopBegin
-  }.otherwise {
-    when(uop_idx =/= io.dec.uopEnd - 1.U) {
-      uop_idx := uop_idx + 1.U
-    }.otherwise {
-      uop_idx := io.dec.uopBegin
-      when(cnt_i =/= io.dec.lp1 - 1.U) {
-        cnt_i := cnt_i + 1.U
-        acc_i := acc_i + io.dec.acc1
-        inp_i := inp_i + io.dec.inp1
-        wgt_i := wgt_i + io.dec.wgt1
-      }.otherwise {
-        when(cnt_o =/= io.dec.lp0 - 1.U) {
-          val acc_tmp = acc_o + io.dec.acc0
-          val inp_tmp = inp_o + io.dec.inp0
-          val wgt_tmp = wgt_o + io.dec.wgt0
-          cnt_o := cnt_o + 1.U
-          acc_o := acc_tmp
-          inp_o := inp_tmp
-          wgt_o := wgt_tmp
-          cnt_i := 0.U
-          acc_i := acc_tmp
-          inp_i := inp_tmp
-          wgt_i := wgt_tmp
-        }.otherwise {
-          io.last := true.B
-        }
-      }
-    }
-  }
+  io.acc_i := counter.io.idx(0)
+  io.inp_i := counter.io.idx(1)
+  io.wgt_i := counter.io.idx(2)
+  io.uop_idx := counter.io.uop_idx
+  io.valid := counter.io.running
+  io.last := counter.io.last
 }
 
 abstract class TensorGemmIfc(implicit p: Parameters) extends Module {
@@ -336,6 +314,12 @@ abstract class TensorGemmIfc(implicit p: Parameters) extends Module {
   val inflightBits = 4
   val io = IO(new Bundle {
     val start = Input(Bool())
+    // flush: Compute asserts this whenever the GEMM must not be running (any
+    // cycle that is not "Compute in sExe executing a GEMM instruction"). It
+    // force-resets the FSM / index generator / inflight to clean idle so a
+    // stale decode or residual count cannot survive into the next layer. Mirrors
+    // TensorAlu.io.flush. See Compute.scala.
+    val flush = Input(Bool())
     val done = Output(Bool())
     val dec = Input(new GemmDecode)
     val uop = new UopMaster
@@ -611,12 +595,14 @@ class TensorGemmPipelinedSplit(implicit p: Parameters) extends TensorGemmIfc {
 
   val capture_dec = Reg(chiselTypeOf(io.dec))
 
+  // flush takes priority: force clean idle without pulsing done (mirrors
+  // TensorAluPipelined).
   io.done := false.B
-  when(state === sIdle && io.start) {
+  when(io.flush) {
+    state := sIdle
+  }.elsewhen(state === sIdle && io.start) {
     state := sRun
     capture_dec := io.dec
-    // if (io.dec.empty_0 != None) assert(io.dec.empty_0.get === 0.U)
-    // if (io.dec.empty_1 != None) assert(io.dec.empty_1.get === 0.U)
   }.elsewhen(state === sRun && indexGenerator.io.last) {
     state := sWait
   }.elsewhen(state === sWait && inflight === 0.U) {
@@ -625,10 +611,15 @@ class TensorGemmPipelinedSplit(implicit p: Parameters) extends TensorGemmIfc {
   }
   io.state := state
 
-  assert(state =/= sRun || capture_dec.asUInt === io.dec.asUInt)
-  assert(state =/= sWait || capture_dec.asUInt === io.dec.asUInt)
+  assert(io.flush || state =/= sRun || capture_dec.asUInt === io.dec.asUInt)
+  assert(io.flush || state =/= sWait || capture_dec.asUInt === io.dec.asUInt)
+  assert(
+    !io.start || io.dec.empty0 === 0.U,
+    "[TensorGemm] reserved field nonzero - malformed instruction"
+  )
 
   indexGenerator.io.start := io.start
+  indexGenerator.io.flush := io.flush
 
   indexGenerator.io.dec := io.dec
   io.uop.idx.bits := indexGenerator.io.uop_idx
@@ -731,7 +722,9 @@ class TensorGemmPipelinedSplit(implicit p: Parameters) extends TensorGemmIfc {
     assert(io.acc.rd(idx).data.valid === wrpipe(idx).io.deq.valid)
   }
 
-  when(indexGenerator.io.valid && wrpipeNs.io.deq.valid) {}
+  when(io.flush) {
+    inflight := 0.U
+  }.elsewhen(indexGenerator.io.valid && wrpipeNs.io.deq.valid) {}
     .elsewhen(indexGenerator.io.valid) {
       assert(inflight =/= ((1 << inflightBits) - 1).U)
       inflight := inflight + 1.U
@@ -740,7 +733,7 @@ class TensorGemmPipelinedSplit(implicit p: Parameters) extends TensorGemmIfc {
       assert(inflight =/= 0.U)
       inflight := inflight - 1.U
     }
-  when(state === sIdle) {
+  when(state === sIdle && !io.flush) {
     assert(inflight === 0.U)
     inflight := 0.U
   }

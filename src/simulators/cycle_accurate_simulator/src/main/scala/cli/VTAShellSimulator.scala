@@ -11,6 +11,7 @@ import vta.util.MemoryConfig
 import vta.util.MemoryInitializer.exportHexFiles
 import vta.util.MemoryInitializer.exportHexToMemFiles
 import vta.util.SimulationUtils.verilatorWithWaveDump
+import vta.util.SimulationUtils.EnableMemInitVerilog
 import vta.util.BinaryReader.DataType._
 
 import java.nio.file.Path
@@ -26,6 +27,8 @@ object VTAShellSimulator extends App with VTAShellTest {
   exportHexFiles(parseMemorySections(dramInit), os.pwd / "build" / "mem")
 
   implicit val simulator: HasSimulator = verilatorWithWaveDump
+  implicit val enableMemoryInit: svsim.CommonSettingsModifications =
+    EnableMemInitVerilog
 
   implicit val hasTestingDirectory: HasTestingDirectory = if (args.size >= 2) {
     new HasTestingDirectory {
@@ -69,7 +72,7 @@ object VTAShellSimBinary extends App with VTAShellTest {
     (INP, path + s"/input${suffix}.bin"),
     (WGT, path + s"/weight${suffix}.bin"),
     (UOP, path + s"/uop${suffix}.bin"),
-    (OUT, path + s"/out_init.bin"),
+    (OUT, ""),
     (ACC, path + s"/accumulator${suffix}.bin"),
     (INSN, path + s"/instructions${suffix}.bin")
   )
@@ -85,6 +88,25 @@ object VTAShellSimBinary extends App with VTAShellTest {
   )
 
   implicit val simulatorWithFst = verilatorWithWaveDump
+  implicit val enableMemoryInit: svsim.CommonSettingsModifications =
+    EnableMemInitVerilog
+
+  // The OUT region must be sized for *this* layer's store output. out_init.bin
+  // is shared across layers (it only reflects the last-compiled one), so size
+  // OUT from the layer metadata instead: the output element count, padded the
+  // same way the compiler pads it, times the configured OUT element width.
+  val outElemBytes = {
+    val configFile = System.getProperty("vta.config.file", "vta_config.json")
+    val fromResources =
+      System.getProperty("vta.config.fromResources", "false").toBoolean
+    vta.util.BinaryReader
+      .computeJSONFile(configFile, fromResources)("LOG_OUT_WIDTH") / 8
+  }
+  val outWords64 = DramInitParser.outRegionWords64(
+    DramInitParser.parseMetadata(path + s"/metadata${suffix}.csv"),
+    outElemBytes
+  )
+
   val memoryConfigs = files
     .map(e =>
       MemoryConfig(
@@ -99,7 +121,10 @@ object VTAShellSimBinary extends App with VTAShellTest {
     .toSeq
     .map {
       case m: MemoryConfig if m.name.matches("OUT") =>
-        m.copy(logging = true) // Enable logging the output
+        m.copy(
+          logging = true, // Enable logging the output
+          words64 = outWords64 // size OUT for this layer, not out_init.bin
+        )
       case m: MemoryConfig if m.name.matches("INSN") =>
         m.copy(numberOfData =
           m.words64 / 2

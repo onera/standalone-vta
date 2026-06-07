@@ -1,4 +1,5 @@
 {
+  "_comment": "TODO(JSON typo): expected[15] should be 80000000, not 00000000. The Alu module computes `a << m` where m = ~imm[4:0] + 1 = 31 for imm=1. The result per lane is (bit_0(a) << 31), so odd `a` produces 0x80000000 and even `a` produces 0. With use_imm=1 the operand `a` is read from src_idx = acc[u1=0] = [-8,-7,...,7]; lane 15's input is 7 (odd) and the hardware unambiguously writes 0x80000000 - matching every other odd-input lane (1, 3, 5, 7, 9, 11, 13). The expected vector below has 0x80000000 for those lanes but 0x00000000 for lane 15, which is internally inconsistent with the hardware (16-way parallel SIMD with identical per-lane logic). Ignored in TensorAluJsonTester until lane 15 is corrected. See docs/tensoralu_bypass_and_test_harness.md §6.",
   "inst": {
     "reset": "0",
     "uop_begin": "0000",

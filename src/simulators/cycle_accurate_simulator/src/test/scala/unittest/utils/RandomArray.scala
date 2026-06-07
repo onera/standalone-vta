@@ -23,21 +23,22 @@ import scala.util.Random
 import scala.math.pow
 
 class RandomArray(val len: Int, val bits: Int, val r: Random) {
-  if (bits < 1) throw new IllegalArgumentException ("bits should be greater than 1")
+  if (bits < 1)
+    throw new IllegalArgumentException("bits should be greater than 1")
 
   def this(len: Int, bits: Int) = {
     this(len, bits, new Random)
   }
 
-  def any : Array[Int] = {
-    Array.fill(len) { r.nextInt(pow(2, bits).toInt) - pow(2, bits-1).toInt }
+  def any: Array[Int] = {
+    Array.fill(len) { r.nextInt(pow(2, bits).toInt) - pow(2, bits - 1).toInt }
   }
 
-  def positive : Array[Int] = {
-    Array.fill(len) { r.nextInt(pow(2, bits-1).toInt) }
+  def positive: Array[Int] = {
+    Array.fill(len) { r.nextInt(pow(2, bits - 1).toInt) }
   }
 
-  def negative : Array[Int] = {
-    Array.fill(len) { 0 - r.nextInt(pow(2, bits-1).toInt) }
+  def negative: Array[Int] = {
+    Array.fill(len) { 0 - r.nextInt(pow(2, bits - 1).toInt) }
   }
 }

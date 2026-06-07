@@ -23,4 +23,5 @@ package vta.util.genericbundle
 
 import chisel3._
 
-abstract class GenericParameterizedBundle[+T <: Object](val params: T) extends Bundle {}
+abstract class GenericParameterizedBundle[+T <: Object](val params: T)
+    extends Bundle {}

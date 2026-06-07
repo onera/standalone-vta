@@ -68,6 +68,12 @@ class LoadUopTop(debug: Boolean = false)(implicit val p: Parameters)
   // define simple tensor load
   val forceSimpleLoadUop = false;
 
+  // Debug handle to the active wide-VME uop loader (None when the simple loader
+  // is forced). Exposed so XilinxDebugShell can bore its commandsDone /
+  // clInFlight for the FPGA uop-load hang investigation. Not synthesized unless
+  // a probe reads it.
+  var loadUopWide: Option[TensorLoadWideVME] = None
+
   if (forceSimpleLoadUop) {
     require(
       mp.dataBits == 64,
@@ -87,6 +93,10 @@ class LoadUopTop(debug: Boolean = false)(implicit val p: Parameters)
 
   } else {
     val loadUop = Module(TensorLoad(tensorType = "uop", debug))
+    loadUopWide = loadUop match {
+      case w: TensorLoadWideVME => Some(w)
+      case _                    => None
+    }
     loadUop.io.tensor.tieoffWrite()
 
     loadUop.io.start := io.start

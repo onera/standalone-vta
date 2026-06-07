@@ -3,13 +3,14 @@ package vta.test
 import chisel3._
 import chisel3.simulator.scalatest.ChiselSim
 import chisel3.util.MuxCase
+import chisel3.util.log2Ceil
 import chisel3.util.experimental.loadMemoryFromFileInline
 import org.scalatest.flatspec.AnyFlatSpec
 import vta.interface.axi.AXIClient
 import vta.interface.axi.AXIParams
 import vta.interface.axi.AxiLike._
 import vta.util.MemoryConfig
-import vta.util.SimulationUtils.EnableMemInitVerilog
+import vta.util.EnableMemInit
 import vta.util.SimulationUtils.verilatorWithWaveDump
 
 /** A simulation utility module to connect several memories (sync write async
@@ -17,10 +18,24 @@ import vta.util.SimulationUtils.verilatorWithWaveDump
   *
   * @param memoryConfigs
   *   the configuration of each memory
+  * @param enforceOutBounds
+  *   when true (default), emit a runtime assertion that every AXI write burst
+  *   lies fully inside some OUT-named region. The check is useful for
+  *   single-layer testbenches where OUT sizing is well-defined, but the
+  *   compiler's per-layer CSV-declared OUT sizes are sometimes tighter than
+  *   what the compiler actually writes (the binaries emit stores up to the
+  *   natural end of the tile tensor, not the conservative reserved span).
+  *   Multi-layer harnesses that ingest the compiler CSVs verbatim should pass
+  *   `false` to suppress the assertion; the per-layer reloStride layout already
+  *   ensures cross-layer isolation, so a wrong-region write is more readily
+  *   caught by the layer's output mismatch.
   * @param param
   *   the AXI parameters configuration
   */
-class MultiMemAxiClient(memoryConfigs: Seq[MemoryConfig])(implicit
+class MultiMemAxiClient(
+    memoryConfigs: Seq[MemoryConfig],
+    enforceOutBounds: Boolean = true
+)(implicit
     val param: AXIParams
 ) extends Module {
   val io = IO(new AXIClient(param))
@@ -29,6 +44,14 @@ class MultiMemAxiClient(memoryConfigs: Seq[MemoryConfig])(implicit
   val writeEnable = RegInit(true.B)
   val readHandle = io.readHandler(readEnable)
   val writeHandle = io.writeHandler(writeEnable)
+
+  // AXI AxADDR is a *byte* address (AMBA AXI spec A3.1.6: Start_Addr is in
+  // bytes, increments by Size bytes/beat). The memories below are 64-bit-word
+  // wide and word-indexed, so a byte address must be divided by the data-bus
+  // byte width to obtain a word index. baseAddress/words64 are likewise the
+  // byte base and the 64-bit-word count of each region.
+  val bytesPerWord = param.dataBits / 8
+  val wordShift = log2Ceil(bytesPerWord)
 
   def enCondition(bAddr: BigInt, hAddr: BigInt, addressW: UInt) =
     bAddr.U <= addressW && addressW < (hAddr).U
@@ -40,32 +63,80 @@ class MultiMemAxiClient(memoryConfigs: Seq[MemoryConfig])(implicit
       loadMemoryFromFileInline(m, p.path)
     }
 
+    val highByteAddr = p.baseAddress + p.words64 * bytesPerWord
     (
-      enCondition(p.baseAddress, p.baseAddress + p.words64, writeHandle),
-      enCondition(p.baseAddress, p.baseAddress + p.words64, readHandle),
+      enCondition(p.baseAddress, highByteAddr, writeHandle),
+      enCondition(p.baseAddress, highByteAddr, readHandle),
       m,
       p
     )
   }
 
+  // Allow any entry whose name starts with "OUT" to receive AXI writes. The
+  // single-layer case ("OUT") still works; multi-layer harnesses can pass
+  // several OUT_<suffix> entries at non-overlapping addresses (per-layer
+  // output buffers) and writes will be accepted if they fall in ANY of them.
+  val outEntries = memoryConfigs.filter(_.name.startsWith("OUT"))
+  require(
+    outEntries.nonEmpty,
+    "MultiMemAxiClient: at least one OUT-named region is required"
+  )
+  if (enforceOutBounds) {
+    // io.aw.bits.len is a beat count (Length-1); the burst spans
+    // len*bytesPerWord bytes above the start byte address.
+    val awEndAddr = io.aw.bits.addr + (io.aw.bits.len << wordShift)
+    val anyOutHit = outEntries
+      .map { r =>
+        val high = r.baseAddress + r.words64 * bytesPerWord
+        (r.baseAddress.U <= io.aw.bits.addr) && (awEndAddr < high.U)
+      }
+      .reduce(_ || _)
+    when(io.aw.fire) {
+      assert(
+        anyOutHit,
+        cf"Trying to write at ${io.aw.bits.addr}:${awEndAddr}, outside of any OUT region"
+      )
+    }
+  }
   val log = SimLog.file("output.log")
   val rdata = for {
     (isSelForWrite, isSelForRead, mem, p) <- memories
   } yield {
 
     if (p.logging) {
-      // Log any written data in a logfile for the current memory
-      when(io.w.fire) {
-        val splitted = io.w.bits.data.asTypeOf(Vec(2, SInt(32.W)))
-        splitted.foreach { e => log.printf(cf"${e}%x\n") }
-
+      // Log every accepted write beat for this region as
+      //   <byteAddr> <data> <strb> <last>
+      // (all hex except last). `writeHandle` is the per-beat byte address, so a
+      // sparse/strobed store (block-4 OUT writes a 64-bit word in two partial
+      // beats, strb 0x0f then 0xf0) is faithfully recoverable: a reader applies
+      // `strb` per byte at `byteAddr` rather than assuming dense, sequential
+      // writes. Logging only the two int32 halves with no address would silently
+      // mis-attribute bytes whenever the store is not dense.
+      when(io.w.fire && isSelForWrite) {
+        log.printf(
+          cf"${writeHandle}%x ${io.w.bits.data}%x ${io.w.bits.strb}%x ${io.w.bits.last}\n"
+        )
       }
     }
 
+    // Honor the AXI write-strobe (byte-enable) mask via read-modify-write.
+    // Dense stores drive strb=all-ones (full beat); block-4 sparse/strided
+    // stores drive partial strobes (e.g. 0x0f/0xf0) and must leave the masked
+    // bytes untouched - matching dpi_mem.cc. Using strb also keeps VTAShell's
+    // io_mem_w_bits_strb port live (otherwise firtool prunes the dead input).
     when(io.w.fire && isSelForWrite) {
-      mem(writeHandle - p.baseAddress.U) := io.w.bits.data
+      val idx = (writeHandle - p.baseAddress.U) >> wordShift
+      val curBytes = mem(idx).asTypeOf(Vec(bytesPerWord, UInt(8.W)))
+      val newBytes = io.w.bits.data.asTypeOf(Vec(bytesPerWord, UInt(8.W)))
+      val merged = VecInit((0 until bytesPerWord).map { b =>
+        Mux(io.w.bits.strb(b), newBytes(b), curBytes(b))
+      }).asUInt
+      mem(idx) := merged
     }
-    (isSelForRead, Mux(isSelForRead, mem(readHandle - p.baseAddress.U), 0.U))
+    (
+      isSelForRead,
+      Mux(isSelForRead, mem((readHandle - p.baseAddress.U) >> wordShift), 0.U)
+    )
 
   }
 
@@ -78,14 +149,14 @@ class MultiMemAxiClient(memoryConfigs: Seq[MemoryConfig])(implicit
 class MultiMemAxiClientSpec
     extends AnyFlatSpec
     with ChiselSim
-    with AxiFullSimUtils {
+    with AxiFullSimUtils
+    with EnableMemInit {
   behavior of "MultiMemAxiClient"
 
   it should "read a burst to the first memory and second memory" in {
     val path = os.pwd / "build" / "mem"
     implicit val param = AXIParams()
     implicit val withWaves = verilatorWithWaveDump
-    implicit val enableMemoryInit = EnableMemInitVerilog
     simulate(
       new MultiMemAxiClient(
         Seq(

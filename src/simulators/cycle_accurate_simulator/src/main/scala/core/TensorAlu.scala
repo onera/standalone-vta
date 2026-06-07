@@ -111,6 +111,7 @@ class TensorAluIndexGenerator(debug: Boolean = false)(implicit p: Parameters)
 
   val io = IO(new Bundle {
     val start = Input(Bool())
+    val flush = Input(Bool())
     val last = Output(Bool())
     val dec = Input(new AluDecode)
     val valid = Output(Bool())
@@ -124,77 +125,64 @@ class TensorAluIndexGenerator(debug: Boolean = false)(implicit p: Parameters)
     val cnt_i = Output(UInt(cnt_i_width.W))
   })
 
-  io.last := false.B
+  val accW = new TensorParams(tensorType = "acc").memAddrBits
 
-  val running = RegInit(false.B)
+  // ALU-specific pacing: advance only on the compute cycle. The stutter reg
+  // alternates source-read / compute when not using an immediate. The triple
+  // nested loop itself lives in the shared NestedLoopCounter.
   val stutter = RegInit(false.B)
-
   val advance = io.dec.alu_use_imm || stutter
 
-  when(!running && io.start) {
-    running := true.B
+  val counter = Module(
+    new NestedLoopCounter(
+      idxWidths = Seq(accW, accW),
+      strideWidths = Seq(io.dec.dst_0.getWidth, io.dec.src_0.getWidth),
+      loopBits0 = io.dec.lp_0.getWidth,
+      loopBits1 = io.dec.lp_1.getWidth,
+      uopBits = io.dec.uop_end.getWidth
+    )
+  )
+  counter.io.start := io.start
+  counter.io.flush := io.flush
+  counter.io.advance := advance
+  counter.io.lp_0 := io.dec.lp_0
+  counter.io.lp_1 := io.dec.lp_1
+  counter.io.uop_begin := io.dec.uop_begin
+  counter.io.uop_end := io.dec.uop_end
+  counter.io.stride_0(0) := io.dec.dst_0
+  counter.io.stride_0(1) := io.dec.src_0
+  counter.io.stride_1(0) := io.dec.dst_1
+  counter.io.stride_1(1) := io.dec.src_1
+
+  val running = counter.io.running
+  when(io.flush) {
+    stutter := false.B
   }.elsewhen(running && !advance) {
     stutter := true.B
   }.elsewhen(running && advance) {
-    when(io.last) {
-      running := false.B
-    }
     stutter := false.B
   }
 
-  val cnt_i = Reg(chiselTypeOf(io.dec.lp_1))
-  val dst_i = Reg(chiselTypeOf(io.dst_idx))
-  val src_i = Reg(chiselTypeOf(io.src_idx))
-
-  val cnt_o = Reg(chiselTypeOf(io.dec.lp_0))
-  val dst_o = Reg(chiselTypeOf(io.dst_idx))
-  val src_o = Reg(chiselTypeOf(io.src_idx))
-
-  val uop_idx = Reg(chiselTypeOf(io.dec.uop_end))
-
   io.valid := running && advance
   io.src_valid := running && !advance
-  io.dst_idx := dst_i
-  io.src_idx := src_i
-  io.uop_idx := uop_idx
-  io.cnt_o := cnt_o
-  io.cnt_i := cnt_i
-
-  when(!running) {
-    cnt_i := 0.U; dst_i := 0.U; src_i := 0.U;
-    cnt_o := 0.U; dst_o := 0.U; src_o := 0.U;
-    uop_idx := io.dec.uop_begin
-  }.elsewhen(advance) {
-    when(uop_idx =/= io.dec.uop_end - 1.U) {
-      uop_idx := uop_idx + 1.U
-    }.otherwise {
-      uop_idx := io.dec.uop_begin
-      when(cnt_i =/= io.dec.lp_1 - 1.U) {
-        cnt_i := cnt_i + 1.U
-        dst_i := dst_i + io.dec.dst_1
-        src_i := src_i + io.dec.src_1
-      }.otherwise {
-        when(cnt_o =/= io.dec.lp_0 - 1.U) {
-          val dst_tmp = dst_o + io.dec.dst_0
-          val src_tmp = src_o + io.dec.src_0
-          cnt_o := cnt_o + 1.U
-          dst_o := dst_tmp
-          src_o := src_tmp
-          cnt_i := 0.U
-          dst_i := dst_tmp
-          src_i := src_tmp
-        }.otherwise {
-          io.last := true.B
-        }
-      }
-    }
-  }
+  io.dst_idx := counter.io.idx(0)
+  io.src_idx := counter.io.idx(1)
+  io.uop_idx := counter.io.uop_idx
+  io.cnt_o := counter.io.cnt_o
+  io.cnt_i := counter.io.cnt_i
+  io.last := counter.io.last
 }
 
 class TensorAluIfc(implicit p: Parameters) extends Module {
   val aluBits = p(CoreKey).accBits
   val io = IO(new Bundle {
     val start = Input(Bool())
+    // flush: Compute asserts this whenever the ALU must not be running (i.e.
+    // any cycle that is not "Compute in sExe executing an ALU instruction").
+    // It force-resets the FSM / index generator / inflight to clean idle so a
+    // stale decode or residual count cannot survive into the next layer and
+    // live-lock the index generator. See Compute.scala.
+    val flush = Input(Bool())
     val done = Output(Bool())
     val dec = Input(new AluDecode)
     val uop = new UopMaster
@@ -203,9 +191,7 @@ class TensorAluIfc(implicit p: Parameters) extends Module {
   })
 }
 
-class TensorAluPipelined(debug: Boolean = false)(implicit p: Parameters)
-    extends TensorAluIfc {
-  val stateBits = 2
+class TensorAluPipelined(implicit p: Parameters) extends TensorAluIfc {
   val inflightBits = 4
   val dataSplitFactor = p(CoreKey).blockOutFactor
 
@@ -216,9 +202,28 @@ class TensorAluPipelined(debug: Boolean = false)(implicit p: Parameters)
   val indexGenerator = Module(new TensorAluIndexGenerator)
   val aluDataReadPipeDelay = 0 // available for pipelining
 
-  // State Machine for compute io.done correctly
-  io.done := false.B
+  // Latch the decode at start and drive the run from it (mirrors
+  // TensorGemmPipelinedSplit.capture_dec). decStable == io.dec during a
+  // well-formed run, so values/timing are unchanged; it only diverges if the
+  // queue head changes mid-run, in which case the latched decode keeps the
+  // index generator iterating toward a reachable terminal instead of garbage.
+  val capture_dec = Reg(chiselTypeOf(io.dec))
   when(state === sIdle && io.start) {
+    capture_dec := io.dec
+  }
+  val decStable = Mux(io.start, io.dec, capture_dec)
+
+  assert(
+    !io.start || io.dec.empty_0 === 0.U,
+    "[TensorAlu] reserved field nonzero - malformed instruction"
+  )
+
+  // State Machine for compute io.done correctly.
+  // flush takes priority: force clean idle without pulsing done.
+  io.done := false.B
+  when(io.flush) {
+    state := sIdle
+  }.elsewhen(state === sIdle && io.start) {
     state := sRun
   }.elsewhen(state === sRun && indexGenerator.io.last) {
     state := sWait
@@ -228,7 +233,8 @@ class TensorAluPipelined(debug: Boolean = false)(implicit p: Parameters)
   }
 
   indexGenerator.io.start := io.start
-  indexGenerator.io.dec := io.dec
+  indexGenerator.io.flush := io.flush
+  indexGenerator.io.dec := decStable
 
   // second term works around funny clearing in uop register file flopped output
   io.uop.idx.valid := indexGenerator.io.valid || indexGenerator.io.src_valid
@@ -244,7 +250,9 @@ class TensorAluPipelined(debug: Boolean = false)(implicit p: Parameters)
   val validR3 = RegNext(validR2, init = false.B)
   val validR4 = RegNext(validR3, init = false.B)
 
-  when(indexGenerator.io.valid && validR4) {}
+  when(io.flush) {
+    inflight := 0.U
+  }.elsewhen(indexGenerator.io.valid && validR4) {}
     .elsewhen(indexGenerator.io.valid) {
       assert(
         inflight =/= ((1 << inflightBits) - 1).U,
@@ -256,7 +264,7 @@ class TensorAluPipelined(debug: Boolean = false)(implicit p: Parameters)
       assert(inflight =/= 0.U, "[TensorAlu] inflight is zero")
       inflight := inflight - 1.U
     }
-  when(state === sIdle) {
+  when(state === sIdle && !io.flush) {
     assert(inflight === 0.U, "[TensorAlu] is not zero")
     inflight := 0.U
   }
@@ -289,7 +297,12 @@ class TensorAluPipelined(debug: Boolean = false)(implicit p: Parameters)
   // split registers of stage 2 by data groups
   val accRdIdxValid = valid_r1 || srcValidR1
   for (idx <- 0 until dataSplitFactor) {
-    io.acc.rd(idx).idx.valid := RegNext(accRdIdxValid)
+    // init = false.B: this register drives the output idx.valid that downstream
+    // memory mocks sample, including before the first clock step. Without an
+    // init a random reset value can assert idx.valid out of reset and trip the
+    // read-index data-valid assertion below. The other valid pipeline regs
+    // (validR2/3/4, srcValidR2/3/4) carry init = false.B for the same reason.
+    io.acc.rd(idx).idx.valid := RegNext(accRdIdxValid, init = false.B)
   }
 
   val new_src_idx_r1 = src_idx_r1 + src_offset
@@ -303,13 +316,13 @@ class TensorAluPipelined(debug: Boolean = false)(implicit p: Parameters)
 
   // split registers of stage 2 by data groups
   val accRdIdxBits =
-    Mux(srcValidR1 || io.dec.alu_use_imm, new_src_idx_r1, new_dst_idx_r1)
+    Mux(srcValidR1 || decStable.alu_use_imm, new_src_idx_r1, new_dst_idx_r1)
   for (idx <- 0 until dataSplitFactor) {
     io.acc.rd(idx).idx.bits := RegNext(accRdIdxBits)
-    // assert(
-    //   io.acc.rd(idx).data.valid === (validR3 || srcValidR3),
-    //   "[TensorAlu] read index data valid incorrect"
-    // )
+    assert(
+      io.acc.rd(idx).data.valid === (validR3 || srcValidR3),
+      "[TensorAlu] read index data valid incorrect"
+    )
   }
 
   require(
@@ -320,13 +333,34 @@ class TensorAluPipelined(debug: Boolean = false)(implicit p: Parameters)
   val outData = Wire(chiselTypeOf(io.out.wr(0).bits.data))
   val dataRemapB = Wire(Vec(numVecUnits, chiselTypeOf(io.acc.rd(0).data.bits)))
   val dataRemapA = Wire(Vec(numVecUnits, chiselTypeOf(io.acc.rd(0).data.bits)))
+
+  // RAW hazard detection: when the stage-3 read and the stage-4 write fire on
+  // the same cycle, the SyncReadMem read returns memory contents from before
+  // that cycle's write commits. If read and write target the same accumulator
+  // index the read is stale; the up-to-date value is alu.io.acc_y.data.bits on
+  // that cycle.
+  //
+  // bypass_src: the index generator's stutter/advance pattern makes srcValidR3
+  // overlap with validR4 on the same cycle, so a same-cycle compare suffices.
+  //
+  // bypass_dst: for non-imm uops validR3 lands one cycle after validR4 (each
+  // advance is preceded by a stutter), so two terms are needed. bypass_dst_now
+  // catches the imm-mode same-cycle collision; bypass_dst_prev catches the
+  // one-cycle-delayed stutter case. Without _prev, consecutive same-dst
+  // (MaxPool-shaped) reductions drop the older uop's contribution.
+  val validR4_d1 = RegNext(validR4, init = false.B)
+  val dst_idx_r4_d1 = RegNext(dst_idx_r4)
+  val bypass_dst_now = validR3 && validR4 && (dst_idx_r4 === dst_idx_r3)
+  val bypass_dst_prev = validR3 && validR4_d1 && (dst_idx_r4_d1 === dst_idx_r3)
+  val bypass_dst = bypass_dst_now || bypass_dst_prev
+  val bypass_src = srcValidR3 && validR4 && (dst_idx_r4 === src_idx_r3)
   // numVecUnits is a pow of 2
   // split dec bits pipe further if there are many vecUnits
   val decSplitNb0 = if (numVecUnits < 8) 1 else 2
   val decSplit0 = Wire(Vec(decSplitNb0, chiselTypeOf(io.dec)))
   for (idx <- 0 until decSplitNb0) {
     decSplit0(idx) := ShiftRegister(
-      io.dec,
+      decStable,
       if (aluDataReadPipeDelay < 2) 0 else 1
     )
   }
@@ -342,7 +376,10 @@ class TensorAluPipelined(debug: Boolean = false)(implicit p: Parameters)
           io.acc.rd(accGrpIdx).data.bits(accLenIdx)(accWdtIdx)
       }
     }
-    val save_src = RegNext(dataRemapB(idx))
+    // src-read bypass: when bypass_src fires, latch the current ALU write
+    // (alu.io.acc_y.data.bits) into save_src instead of the stale memory read.
+    val srcBypassed = Mux(bypass_src, alu.io.acc_y.data.bits, dataRemapB(idx))
+    val save_src = RegNext(srcBypassed)
     val tensorImm = Wire(new TensorClientData(tensorType = "acc"))
     tensorImm.data.valid := validR3
     val tensorImmBits_piped = ShiftRegister(
@@ -380,7 +417,9 @@ class TensorAluPipelined(debug: Boolean = false)(implicit p: Parameters)
       "[TensorAlu] condition de con"
     )
 
-    alu.io.acc_a.data.valid := RegNext(validR2) // valid_r3 split
+    // init = false.B mirrors validR2/3/4: without an init a random reset value
+    // could assert this valid out of reset, latching a junk acc_a operand.
+    alu.io.acc_a.data.valid := RegNext(validR2, init = false.B)
 
     for (aluLenIdx <- 0 until alu.io.acc_a.lenSplit) {
       for (aluWdtIdx <- 0 until alu.io.acc_a.widthSplit) {
@@ -388,9 +427,19 @@ class TensorAluPipelined(debug: Boolean = false)(implicit p: Parameters)
           alu.io.acc_a.reindexDataFromGroup(idx, aluLenIdx, aluWdtIdx)
         dataRemapA(idx)(aluLenIdx)(aluWdtIdx) :=
           io.acc.rd(accGrpIdx).data.bits(accLenIdx)(accWdtIdx)
-        alu.io.acc_a.data.bits := dataRemapA(idx)
       }
     }
+    // dst-read bypass mux:
+    //   - bypass_dst_now  -> live alu.io.acc_y.data.bits (imm-mode same-cycle hazard)
+    //   - bypass_dst_prev -> acc_y_d1, a one-cycle-delayed snapshot of the just-
+    //                        written value (stutter-pattern non-imm hazard)
+    //   - else            -> live dataRemapA(idx) (fresh memory read)
+    val acc_y_d1 = RegNext(alu.io.acc_y.data.bits)
+    alu.io.acc_a.data.bits := Mux(
+      bypass_dst_now,
+      alu.io.acc_y.data.bits,
+      Mux(bypass_dst_prev, acc_y_d1, dataRemapA(idx))
+    )
     val tensorUseImmBits_piped = ShiftRegister(
       decSplit0(idx / (numVecUnits / decSplitNb0)).alu_use_imm,
       if (aluDataReadPipeDelay < 2) aluDataReadPipeDelay
@@ -407,10 +456,10 @@ class TensorAluPipelined(debug: Boolean = false)(implicit p: Parameters)
       save_src
     )
 
-    // assert(
-    //   alu.io.acc_y.data.valid === validR4,
-    //   "[TensorAlu] acc_y valid not sync with validR4"
-    // )
+    assert(
+      alu.io.acc_y.data.valid === validR4,
+      "[TensorAlu] acc_y valid not sync with validR4"
+    )
     io.acc.wr(idx).valid := validR4
     io.acc.wr(idx).bits.idx := dst_idx_r4
 
@@ -439,18 +488,6 @@ class TensorAluPipelined(debug: Boolean = false)(implicit p: Parameters)
   io.out.wr(0).bits.data := outData
   io.out.tieoffRead()
 
-  val bypass_dst = validR3 && validR4 && (dst_idx_r4 === dst_idx_r3)
-  val bypass_src = srcValidR3 && validR4 && (dst_idx_r4 === src_idx_r3)
-
-  // Do we need a bypass
-  assert(
-    !bypass_dst,
-    cf"Bypass required on dst_idx read $dst_idx_r3 RAW with write $dst_idx_r4\n"
-  )
-  assert(
-    !bypass_src,
-    cf"Bypass required on src_idx read $src_idx_r3 RAW with write $dst_idx_r4\n"
-  )
 }
 
 /** TensorAluOrig. This unit instantiate the ALU vector unit (AluVector) and go
@@ -679,4 +716,4 @@ class TensorAluOrig(debug: Boolean = false)(implicit p: Parameters)
 }
 
 class TensorAlu(debug: Boolean = false)(implicit p: Parameters)
-    extends TensorAluPipelined(debug)
+    extends TensorAluPipelined

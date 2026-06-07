@@ -65,6 +65,19 @@ trait DebugLayerCliOption {
     )
   )
 }
+
+/** Enables `$readmemh` memory initialization for tests that load simulation
+  * memories from external `.mem` files. Mix in after [[AnyFlatSpecSim]] so the
+  * override wins; it layers mem-init on top of the CLI options rather than
+  * replacing them.
+  */
+trait EnableMemInit extends HasCliOptions { this: org.scalatest.TestSuite =>
+  override implicit def commonSettingsModifications
+      : svsim.CommonSettingsModifications =
+    (s: svsim.CommonCompilationSettings) =>
+      SimulationUtils.EnableMemInitVerilog(super.commonSettingsModifications(s))
+}
+
 trait AnyFlatSpecSim
     extends AnyFlatSpec
     with ChiselSim

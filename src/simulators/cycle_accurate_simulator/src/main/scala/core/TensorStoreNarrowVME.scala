@@ -170,7 +170,11 @@ case class TensorStoreNarrowVME(
 
   // write-to-sram
   val tensorFile = Seq.fill(tensorLength) {
-    Mem(memDepth, Vec(numMemBlock, UInt(memBlockBits.W)))
+    SyncReadMem(
+      memDepth,
+      Vec(numMemBlock, UInt(memBlockBits.W)),
+      SyncReadMem.ReadFirst
+    )
   }
   val wdata_t = Wire(Vec(numMemBlock, UInt(memBlockBits.W)))
   val no_mask = Wire(Vec(numMemBlock, Bool()))
@@ -234,20 +238,15 @@ case class TensorStoreNarrowVME(
     raddrNxt := raddrNxt + dec.xsize
   }
 
-  val rread = Reg(Vec(tensorLength, Vec(numMemBlock, UInt(memBlockBits.W))))
-  when(state === sWriteCmd | state === sReadMem) {
-    rread := VecInit(
-      tensorFile.map(
-        _.read(
-          raddrCur
-        )
-      )
-    )
-  }
+  // SyncReadMem registered-address read (always enabled). A SyncReadMem read port
+  // only holds a defined value the cycle after its enable was high, but one row is
+  // consumed across numMemBlock beats (tag 0..numMemBlock-1) in successive
+  // sWriteData cycles; raddrCur is constant for the duration of a row (it advances
+  // only at a row boundary, behind the sReadMem / sWriteCmd bubble), so the
+  // always-on read holds the correct row data across all beats.
+  val rread = VecInit(tensorFile.map(_.read(raddrCur)))
   val tread = Seq.tabulate(tensorLength) { i =>
-    i.U ->
-      // tensorFile(i).read(raddrCur, state === sWriteCmd | state === sReadMem)
-      rread(i)
+    i.U -> rread(i)
   }
   val mdata = MuxLookup(set, 0.U.asTypeOf(chiselTypeOf(wdata_t)))(tread)
 

@@ -186,6 +186,11 @@ case class TensorStoreWideVME(
   val isLastPulse = io.vmeWr.data.fire && xcnt === readLen - 1.U
   val spReadAddrReg = Reg(UInt(M_SRAM_OFFSET_BITS.W))
   val spReadAddr = Wire(chiselTypeOf(spReadAddrReg))
+  // Last address actually presented to the scratchpad read port. While the VME
+  // write-data channel stalls (e.g. the cmd->data startup gap), we keep the read
+  // enabled on this held address so the SyncReadMem output for the pending beat
+  // does not decay before it is consumed.
+  val spReadAddrHold = RegNext(spReadAddr)
   val srcElemOffsetReg = Reg(UInt(log2Ceil(tp.clSizeRatio).W))
   val srcElemOffset = Wire(chiselTypeOf(srcElemOffsetReg))
   val incrFstIdx = Mux(
@@ -201,13 +206,29 @@ case class TensorStoreWideVME(
     spReadAddr := spElemIdx >> log2Ceil(tp.clSizeRatio)
     spReadAddrReg := spReadAddr + incrFstIdx
     srcElemOffset := spElemIdx % tp.clSizeRatio.U
-    srcElemOffsetReg := (spElemIdx + firstPulseTenzorsNb) % tp.clSizeRatio.U
+    // Held value for the cmd->data startup stall that precedes the FIRST beat:
+    // it must be the first-pulse scratchpad-bank offset (spElemIdx % clSizeRatio),
+    // NOT the subsequent-beat offset (which folds in the dram-half alignment via
+    // firstPulseTenzorsNb). For a single-beat / dram-unaligned store (the block-4
+    // MaxPool sparse output: one tensor per beat, simultaneously first and last)
+    // the subsequent-beat offset would bump the held read to the wrong scratchpad
+    // row during the stall, so the VALID half of the beat would read an unwritten
+    // neighbour row. For dram-aligned dense stores (fstPulseDataStart==0) the two
+    // offsets coincide, so the conv-output store path is unaffected. The
+    // subsequent-beat offset is installed into srcElemOffsetReg by the data.fire
+    // branch below.
+    srcElemOffsetReg := spElemIdx % tp.clSizeRatio.U
   }.elsewhen(io.vmeWr.data.fire) {
     spReadAddrReg := spReadAddrReg + 1.U
     spReadAddr := spReadAddrReg
     srcElemOffset := (spElemIdx + firstPulseTenzorsNb) % tp.clSizeRatio.U
     srcElemOffsetReg := srcElemOffset
   }.otherwise {
+    // Consumer stalled: hold the read address so the pending beat's data stays
+    // valid at the scratchpad read port (combined with the always-on read enable
+    // below). A DontCare here would let the SyncReadMem output decay during the
+    // startup stall, so the first beat would read zeros.
+    spReadAddr := spReadAddrHold
     spReadAddrReg := spReadAddrReg
     srcElemOffsetReg := srcElemOffsetReg
     srcElemOffset := srcElemOffsetReg
@@ -236,7 +257,10 @@ case class TensorStoreWideVME(
     srcData(i) := VecInit(for (grpIdx <- 0 until splitDataFactor) yield {
       tensorFile(i * splitDataFactor + grpIdx).read(
         srcMemIdx(i),
-        state === sWriteCmd | (state === sWriteData && io.vmeWr.data.fire)
+        // Keep reading throughout sWriteData (not only on data.fire) so the
+        // SyncReadMem output holds across consumer stalls; combined with the
+        // held spReadAddr above, the pending beat's data stays valid until fire.
+        state === sWriteCmd | state === sWriteData
       )
     }).asTypeOf(UInt(tp.tensorSizeBits.W))
 

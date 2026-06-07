@@ -47,7 +47,7 @@ case class AXIParams(
   val sizeConst = log2Ceil(dataBits / 8)
   val idConst = 0
   val userConst = if (coherent) 1 else 0
-  val burstConst = 1
+  val burstConst = BurstType.increment
   val lockConst = 0
   val cacheConst = if (coherent) 15 else 3
   val protConst = if (coherent) 4 else 0
@@ -55,6 +55,9 @@ case class AXIParams(
   val regionConst = 0
 }
 
+object BurstType extends ChiselEnum {
+  val fixed, increment, wrapped = Value
+}
 abstract class AXIBase(params: AXIParams)
     extends GenericParameterizedBundle(params)
 
@@ -124,7 +127,7 @@ class AXIAddress(params: AXIParams) extends AXILiteAddress(params) {
   val user = UInt(params.userBits.W)
   val len = UInt(params.lenBits.W)
   val size = UInt(params.sizeBits.W)
-  val burst = UInt(params.burstBits.W)
+  val burst = BurstType()
   val lock = UInt(params.lockBits.W)
   val cache = UInt(params.cacheBits.W)
   val prot = UInt(params.protBits.W)
@@ -196,7 +199,7 @@ class AXIMaster(params: AXIParams) extends AXIBase(params) {
   // alternative behavior
   def setConst(): Unit = {
     aw.bits.user := params.userConst.U
-    aw.bits.burst := params.burstConst.U
+    aw.bits.burst := params.burstConst
     aw.bits.lock := params.lockConst.U
     aw.bits.cache := params.cacheConst.U
     aw.bits.prot := params.protConst.U
@@ -205,7 +208,7 @@ class AXIMaster(params: AXIParams) extends AXIBase(params) {
     aw.bits.size := params.sizeConst.U
     w.bits.user := params.userConst.U
     ar.bits.user := params.userConst.U
-    ar.bits.burst := params.burstConst.U
+    ar.bits.burst := params.burstConst
     ar.bits.lock := params.lockConst.U
     ar.bits.cache := params.cacheConst.U
     ar.bits.prot := params.protConst.U
@@ -271,7 +274,7 @@ class XilinxAXIMaster(params: AXIParams) extends AXIBase(params) {
   val AWUSER = Output(UInt(params.userBits.W))
   val AWLEN = Output(UInt(params.lenBits.W))
   val AWSIZE = Output(UInt(params.sizeBits.W))
-  val AWBURST = Output(UInt(params.burstBits.W))
+  val AWBURST = Output(BurstType())
   val AWLOCK = Output(UInt(params.lockBits.W))
   val AWCACHE = Output(UInt(params.cacheBits.W))
   val AWPROT = Output(UInt(params.protBits.W))
@@ -296,7 +299,7 @@ class XilinxAXIMaster(params: AXIParams) extends AXIBase(params) {
   val ARUSER = Output(UInt(params.userBits.W))
   val ARLEN = Output(UInt(params.lenBits.W))
   val ARSIZE = Output(UInt(params.sizeBits.W))
-  val ARBURST = Output(UInt(params.burstBits.W))
+  val ARBURST = Output(BurstType())
   val ARLOCK = Output(UInt(params.lockBits.W))
   val ARCACHE = Output(UInt(params.cacheBits.W))
   val ARPROT = Output(UInt(params.protBits.W))

@@ -57,8 +57,15 @@ class Compute(implicit
   val sIdle :: sSync :: sExe :: Nil = Enum(3)
   val state = RegInit(sIdle)
 
+  // Counters sized for the worst-case outstanding posts (a producer can run up
+  // to instQueueEntries ahead); a saturating counter would drop posts and stall.
   val s = Seq.tabulate(2)(_ =>
-    Module(new Semaphore(counterBits = 8, counterInitValue = 0))
+    Module(
+      new Semaphore(
+        counterBits = log2Ceil(p(CoreKey).instQueueEntries) + 1,
+        counterInitValue = 0
+      )
+    )
   )
 
   val loadUop = Module(new LoadUopTop)
@@ -85,20 +92,30 @@ class Compute(implicit
       dec.io.isLoadAcc,
       dec.io.isLoadUop
     ).asUInt
+  assert(
+    !inst_q.io.deq.valid || PopCount(inst_type) <= 1.U,
+    "[Compute] instruction decoded to multiple categories"
+  )
+  // Reserved field must be zero for load instructions; a nonzero value means the
+  // instruction is misaligned/malformed at the queue head.
+  val memDec = inst_q.io.deq.bits.asTypeOf(new MemDecode)
 
   val sprev = inst_q.io.deq.valid & Mux(dec.io.pop_prev, s(0).io.sready, true.B)
   val snext = inst_q.io.deq.valid & Mux(dec.io.pop_next, s(1).io.sready, true.B)
   val start = snext & sprev
-  val done = MuxLookup(
-    inst_type,
-    false.B // default
-  )(
+  assert(
+    !(state === sIdle & start & (dec.io.isLoadUop | dec.io.isLoadAcc)) ||
+      memDec.empty_0 === 0.U,
+    "[Compute] load reserved field nonzero - malformed instruction"
+  )
+  val done = MuxCase(
+    false.B,
     Seq(
-      "h_01".U -> loadUop.io.done,
-      "h_02".U -> tensorAcc.io.done,
-      "h_04".U -> tensorGemm.io.done,
-      "h_08".U -> tensorAlu.io.done,
-      "h_10".U -> true.B // Finish
+      dec.io.isLoadUop -> loadUop.io.done,
+      dec.io.isLoadAcc -> tensorAcc.io.done,
+      dec.io.isGemm -> tensorGemm.io.done,
+      dec.io.isAlu -> tensorAlu.io.done,
+      dec.io.isFinish -> true.B
     )
   )
 
@@ -132,17 +149,13 @@ class Compute(implicit
   loadUop.io.inst := inst_q.io.deq.bits
   loadUop.io.baddr := io.uop_baddr
   io.vme_rd(0) <> loadUop.io.vme_rd
-//  loadUop.io.uop.idx <> Mux(dec.io.isGemm, tensorGemm.io.uop.idx, tensorAlu.io.uop.idx)
+  // uni-directional drive (:=, not <>): the uop idx port is muxed between the
+  // gemm and alu index generators, only one of which is valid at a time.
   loadUop.io.uop.idx := Mux(
     dec.io.isGemm,
     tensorGemm.io.uop.idx,
     tensorAlu.io.uop.idx
-  ) // MODIFICATION '<>' into ':=' (other alternative behind)
-//  when(dec.io.isGemm) {
-//    loadUop.io.uop.idx <> tensorGemm.io.uop.idx
-//  }.otherwise {
-//    loadUop.io.uop.idx <> tensorAlu.io.uop.idx
-//  }
+  )
   assert(!tensorGemm.io.uop.idx.valid || !tensorAlu.io.uop.idx.valid)
 
   // acc
@@ -169,13 +182,15 @@ class Compute(implicit
     else dec.io.isGemm
   }
 
+  // uni-directional drive (:=, not <>): the acc read/write ports are muxed
+  // between the gemm and alu units, with a one-cycle RegNext select latency.
   for (idx <- 0 until tensorAcc.io.tensor.splitWidth) {
-    tensorAcc.io.tensor.rd(idx).idx := Mux( // MODIFICATION '<>' into ':='
+    tensorAcc.io.tensor.rd(idx).idx := Mux(
       RegNext(accRdSelectL0(idx / splitFactorL0), init = false.B),
       tensorGemm.io.acc.rd(idx).idx,
       tensorAlu.io.acc.rd(idx).idx
     )
-    tensorAcc.io.tensor.wr(idx) := Mux( // MODIFICATION '<>' into ':='
+    tensorAcc.io.tensor.wr(idx) := Mux(
       RegNext(accRdSelectL0(idx / splitFactorL0), init = false.B),
       tensorGemm.io.acc.wr(idx),
       tensorAlu.io.acc.wr(idx)
@@ -189,6 +204,11 @@ class Compute(implicit
     state === sIdle & start & dec.io.isGemm,
     init = false.B
   )
+  // Mirror tensorAlu.io.flush: the GEMM may be non-idle only while Compute is
+  // executing a GEMM instruction; any other cycle pins it to clean idle so a
+  // stale decode or residual count cannot live-lock or propagate into the next
+  // layer.
+  tensorGemm.io.flush := !(state === sExe & dec.io.isGemm)
   tensorGemm.io.dec := inst_q.io.deq.bits.asTypeOf(new GemmDecode)
   tensorGemm.io.uop.data.valid := loadUop.io.uop.data.valid & dec.io.isGemm
   tensorGemm.io.uop.data.bits <> loadUop.io.uop.data.bits
@@ -213,6 +233,15 @@ class Compute(implicit
     state === sIdle & start & dec.io.isAlu,
     init = false.B
   )
+  // The ALU may be non-idle only while Compute is executing an ALU instruction
+  // (sExe with an ALU op at the queue head). Any other cycle - GEMM/load/sync/
+  // finish, idle, or a desync where the head moved off the ALU instr - flush it
+  // back to clean idle so a stale decode or residual count cannot live-lock the
+  // index generator or propagate into the next layer. The ALU only becomes
+  // non-idle one cycle after io.start (which is itself RegNext-delayed), by
+  // which point this condition is already high, so a legitimate run is never
+  // flushed.
+  tensorAlu.io.flush := !(state === sExe & dec.io.isAlu)
   tensorAlu.io.dec := inst_q.io.deq.bits.asTypeOf(new AluDecode)
   tensorAlu.io.uop.data.valid := loadUop.io.uop.data.valid & dec.io.isAlu
   tensorAlu.io.uop.data.bits <> loadUop.io.uop.data.bits
@@ -233,7 +262,7 @@ class Compute(implicit
   // out
   for (idx <- 0 until tensorGemm.io.out.splitWidth) {
     io.out.rd(idx).idx := Mux(
-      dec.io.isGemm, // MODIFICATION '<>' into ':='
+      dec.io.isGemm,
       tensorGemm.io.out.rd(idx).idx,
       tensorAlu.io.out.rd(idx).idx
     )

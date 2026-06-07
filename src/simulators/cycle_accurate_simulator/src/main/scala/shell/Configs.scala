@@ -36,12 +36,12 @@ class PynqConfig
           userBits = 0
         ),
         memParams = AXIParams(
-          coherent = true,
+          // coherent = true,  // enable for coherent memory access
           addrBits = 32,
           idBits = 8,
           dataBits = 64,
           lenBits = 8,
-          userBits = 0
+          userBits = 1
         ),
         vcrParams = VCRParams(),
         vmeParams = VMEParams()

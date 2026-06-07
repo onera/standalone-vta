@@ -1,4 +1,5 @@
 {
+  "_comment": "VSHR (alu_op=3, use_imm=0): per-lane arithmetic right shift. a = acc[u0=0x100][i], n = acc[u1=0][i][4:0]. The expected vector deliberately tests four properties: (1) zero-input → zero (lane 0, a=0), (2) zero-shift → identity (lane 8, b=0, a=2), (3) small positive a flushes to zero under any non-zero shift (even lanes a=2), (4) **a=-1 sign-extends to -1 regardless of shift amount** (odd lanes). Property (4) requires acc[0x100][odd] = 0xFFFFFFFF; the original fixture authored them as 0x00000001 which made odd lanes fail (1 >>> N = 0, never -1). Fixed 2026-05-29 - see docs/tensoralu_bypass_and_test_harness.md §6 for the history. Pattern matches the rest of the shift-test suite, which alternates positive and negative inputs in acc[0x100] to exercise sign behaviour.",
   "inst": {
     "reset": "0",
     "uop_begin": "0000",
@@ -39,21 +40,21 @@
       "idx": "00000100",
       "vec": [
         "00000000",
-        "00000001",
+        "FFFFFFFF",
         "00000002",
-        "00000001",
+        "FFFFFFFF",
         "00000002",
-        "00000001",
+        "FFFFFFFF",
         "00000002",
-        "00000001",
+        "FFFFFFFF",
         "00000002",
-        "00000001",
+        "FFFFFFFF",
         "00000002",
-        "00000001",
+        "FFFFFFFF",
         "00000002",
-        "00000001",
+        "FFFFFFFF",
         "00000002",
-        "00000001"
+        "FFFFFFFF"
       ]
     }
   ],

@@ -45,7 +45,14 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val sIdle :: sSync :: sExe :: Nil = Enum(3)
   val state = RegInit(sIdle)
 
-  val sem = Module(new Semaphore(counterBits = 8, counterInitValue = 0))
+  // Counter sized for the worst-case outstanding posts (a producer can run up
+  // to instQueueEntries ahead); a saturating counter would drop posts and stall.
+  val sem = Module(
+    new Semaphore(
+      counterBits = log2Ceil(p(CoreKey).instQueueEntries) + 1,
+      counterInitValue = 0
+    )
+  )
   val instructionQueue = Module(
     new Queue(UInt(INST_BITS.W), p(CoreKey).instQueueEntries)
   )

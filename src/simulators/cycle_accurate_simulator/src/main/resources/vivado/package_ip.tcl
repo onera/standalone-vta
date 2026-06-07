@@ -91,7 +91,7 @@ set_property ipi_drc {ignore_freq_hz true} [ipx::current_core]
 # ---------------------------------------------------------------------------
 set check_result [ipx::check_integrity [ipx::current_core]]
 if {$check_result != 0} {
-    puts "WARNING: ipx::check_integrity returned $check_result — review messages above."
+    puts "WARNING: ipx::check_integrity returned $check_result - review messages above."
 }
 ipx::save_core [ipx::current_core]
 

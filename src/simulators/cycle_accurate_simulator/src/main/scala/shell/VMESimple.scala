@@ -23,12 +23,12 @@ import chisel3.util._
 import vta.interface.axi._
 import vta.util.config._
 
-
 /** VTA Memory Engine (VME).
- *
- * This unit multiplexes the memory controller interface for the Core. Currently,
- * it supports single-writer and multiple-reader mode and it is also based on AXI.
- */
+  *
+  * This unit multiplexes the memory controller interface for the Core.
+  * Currently, it supports single-writer and multiple-reader mode and it is also
+  * based on AXI.
+  */
 class VMESimple(implicit p: Parameters) extends Module {
   val io = IO(new Bundle {
     val mem = new AXIMaster(p(ShellKey).memParams)
@@ -90,7 +90,8 @@ class VMESimple(implicit p: Parameters) extends Module {
         io.vme
           .wr(0)
           .data
-          .valid && io.mem.w.ready && wr_cnt === io.vme.wr(0).cmd.bits.len) {
+          .valid && io.mem.w.ready && wr_cnt === io.vme.wr(0).cmd.bits.len
+      ) {
         wstate := sWriteResp
       }
     }
@@ -121,7 +122,9 @@ class VMESimple(implicit p: Parameters) extends Module {
   // rd arb
   rd_arb.io.out.ready := rstate === sReadIdle
 
-  val localTag = Reg(Vec(nReadClients, UInt(p(ShellKey).vmeParams.clientTagBitWidth.W)))
+  val localTag = Reg(
+    Vec(nReadClients, UInt(p(ShellKey).vmeParams.clientTagBitWidth.W))
+  )
   // vme
   for (i <- 0 until nReadClients) {
     io.vme.rd(i).data.valid := rd_arb_chosen === i.asUInt & io.mem.r.valid
@@ -129,7 +132,7 @@ class VMESimple(implicit p: Parameters) extends Module {
     io.vme.rd(i).data.bits.last := io.mem.r.bits.last
     io.vme.rd(i).data.bits.tag := localTag(i)
 
-    when (io.vme.rd(i).cmd.fire) {
+    when(io.vme.rd(i).cmd.fire) {
       localTag(i) := io.vme.rd(i).cmd.bits.tag
     }
   }
@@ -153,7 +156,7 @@ class VMESimple(implicit p: Parameters) extends Module {
   io.mem.ar.valid := rstate === sReadAddr
   io.mem.ar.bits.addr := rd_addr
   io.mem.ar.bits.len := rd_len
-  io.mem.ar.bits.id  := 0.U
+  io.mem.ar.bits.id := 0.U
 
   io.mem.r.ready := rstate === sReadData & io.vme.rd(rd_arb_chosen).data.ready
 

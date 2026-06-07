@@ -84,4 +84,3 @@ class FilterTest extends AnyFlatSpec with should.Matchers {
     }
   }
 }
-

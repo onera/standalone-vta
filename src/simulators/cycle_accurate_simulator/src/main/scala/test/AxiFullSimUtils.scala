@@ -53,7 +53,7 @@ trait AxiFullSimUtils extends PeekPokeAPI {
 
   def readAxiData()(implicit
       clock: Clock,
-      axi: AXIClient,
+      axi: AXIClient
   ): Option[UInt] = {
     // clock.stepUntil(axi.r.valid, 1, timeout)
     axi.r.ready.poke(true.B)
@@ -67,7 +67,7 @@ trait AxiFullSimUtils extends PeekPokeAPI {
 
   def writeAxiBurst(baseAddress: Int, data: Seq[Int])(implicit
       clock: Clock,
-      axi: AXIClient,
+      axi: AXIClient
   ): Unit = {
     writeAxiWriteAddress(baseAddress, 1, data.size - 1)
     clock.step()

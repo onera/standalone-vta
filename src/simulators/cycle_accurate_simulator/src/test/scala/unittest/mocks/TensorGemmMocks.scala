@@ -111,6 +111,7 @@ class TensorGemmGenericTester[T <: TensorGemmIfc](c: T) extends PeekPokeAPI {
   ) = {
 
     require(uopBegin < uopEnd, "uop begin cannot be greater than uop end")
+    c.io.flush.poke(0)
     c.io.dec.reset.poke(0)
     c.io.dec.uopBegin.poke(uopBegin)
     c.io.dec.uopEnd.poke(uopEnd)
@@ -260,6 +261,7 @@ class TensorGemmIndexGeneratorTester(
   c.io.dec.inp1.poke(inp1)
   c.io.dec.wgt0.poke(wgt0)
   c.io.dec.wgt1.poke(wgt1)
+  c.io.flush.poke(0)
   // Don't need empty_0,{push,pop}_{next,prev},op
 
   class Mocks {
@@ -321,6 +323,7 @@ class TensorGemmPipelinedTester(
     debug: Boolean = false
 ) extends PeekPokeAPI {
   c.io.start.poke(0)
+  c.io.flush.poke(0)
 
   val uopBegin = 0
   val uopEnd = 2

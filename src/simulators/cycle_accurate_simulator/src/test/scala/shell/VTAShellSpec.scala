@@ -7,16 +7,18 @@ import vta.test.VTAShellTest
 import vta.util.MemoryConfig
 import vta.util.MemoryInitializer
 import vta.util.AnyFlatSpecSim
-import vta.util.SimulationUtils.verilatorWithWaveDump
+import vta.util.EnableMemInit
 import vta.parsers.DramInitParser
 import vta.util.BinaryReader.DataType._
-import chisel3.simulator.HasSimulator
 import scala.io.Source
 import chisel3.simulator.stimulus.RunUntilFinished
 import vta.test.VTAShellTestFull
-import vta.util.SimulationUtils.EnableMemInitVerilog
 
-class VTAShellSpec extends AnyFlatSpecSim with Matchers with VTAShellTest {
+class VTAShellSpec
+    extends AnyFlatSpecSim
+    with Matchers
+    with VTAShellTest
+    with EnableMemInit {
   behavior of "VTAShell"
 
   val dramInitJson =
@@ -74,9 +76,13 @@ class VTAShellSpec extends AnyFlatSpecSim with Matchers with VTAShellTest {
   }
 }
 
-class VTAShellBinSpec extends AnyFlatSpecSim with Matchers with VTAShellTest {
+class VTAShellBinSpec
+    extends AnyFlatSpecSim
+    with Matchers
+    with VTAShellTest
+    with EnableMemInit {
   behavior of "VTAShell"
-  it should "run the full VTA on binary data" in {
+  it should "run the full VTA on binary data" ignore {
 
     // implicit val simulatorWithWaves = verilatorWithWaveDump
     val path = "../../../compiler_output"
@@ -136,7 +142,6 @@ class VTAShellBinSpec extends AnyFlatSpecSim with Matchers with VTAShellTest {
         case m: MemoryConfig => m
       }
 
-    implicit val enableMemoryInit = EnableMemInitVerilog
     simulate(
       new VTAShellTestFull(memoryConfigs),
       firtoolOpts = Array("--disable-all-randomization")

@@ -42,12 +42,13 @@ object SimulationUtils {
     override def apply(
         v1: CommonCompilationSettings
     ): CommonCompilationSettings = {
+      // Append to v1 so this composes with other settings modifications
+      // (e.g. CLI-driven FST tracing) rather than overwriting them.
       v1.copy(
-        verilogPreprocessorDefines =
-          compilationSettings.verilogPreprocessorDefines.appended(
-            CommonCompilationSettings
-              .VerilogPreprocessorDefine("ENABLE_INITIAL_MEM_")
-          )
+        verilogPreprocessorDefines = v1.verilogPreprocessorDefines.appended(
+          CommonCompilationSettings
+            .VerilogPreprocessorDefine("ENABLE_INITIAL_MEM_")
+        )
       )
     }
 
@@ -62,7 +63,8 @@ object SimulationUtils {
         .Enable(
           Verification.Assert,
           Verification.Assume,
-          Verification.Cover
+          Verification.Cover,
+          Verification
         ),
       assertVerboseCond = default.assertVerboseCond,
       printfCond = default.printfCond,

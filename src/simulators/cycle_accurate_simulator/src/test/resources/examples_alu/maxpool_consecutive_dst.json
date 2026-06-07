@@ -1,0 +1,67 @@
+{
+  "_comment": "Two consecutive uops, both writing to dst=0x000 (read-modify-write the same accumulator slot, like the standalone compiler's MaxPool row0/row1 lowering). uop0 reduces with src=acc[1], uop1 reduces with src=acc[2]. With the bypass_dst stutter-timing gap, uop1's dst read at SyncReadMem returns pre-uop0 state (=initial acc[0]=0) instead of uop0's freshly-written max. Result: final dst = max(initial=0, acc[2]) instead of max(initial=0, acc[1], acc[2]). The fixture seeds acc[1] strictly larger than acc[2] so the lost contribution is detectable per lane.",
+  "inst": {
+    "reset": "0",
+    "uop_begin": "0000",
+    "uop_end": "0002",
+    "lp_0": "0001",
+    "lp_1": "0001",
+    "dst_0": "000",
+    "dst_1": "000",
+    "src_0": "000",
+    "src_1": "000",
+    "alu_op": "1",
+    "use_imm": "0",
+    "imm": "0000"
+  },
+  "acc": [
+    {
+      "idx": "00000000",
+      "vec": [
+        "00000000", "00000000", "00000000", "00000000",
+        "00000000", "00000000", "00000000", "00000000",
+        "00000000", "00000000", "00000000", "00000000",
+        "00000000", "00000000", "00000000", "00000000"
+      ]
+    },
+    {
+      "idx": "00000001",
+      "vec": [
+        "00000020", "00000021", "00000022", "00000023",
+        "00000024", "00000025", "00000026", "00000027",
+        "00000028", "00000029", "0000002a", "0000002b",
+        "0000002c", "0000002d", "0000002e", "0000002f"
+      ]
+    },
+    {
+      "idx": "00000002",
+      "vec": [
+        "00000001", "00000002", "00000003", "00000004",
+        "00000005", "00000006", "00000007", "00000008",
+        "00000009", "0000000a", "0000000b", "0000000c",
+        "0000000d", "0000000e", "0000000f", "00000010"
+      ]
+    }
+  ],
+  "acc_expect": [
+    {
+      "idx": "00000000",
+      "vec": [
+        "00000020", "00000021", "00000022", "00000023",
+        "00000024", "00000025", "00000026", "00000027",
+        "00000028", "00000029", "0000002a", "0000002b",
+        "0000002c", "0000002d", "0000002e", "0000002f"
+      ]
+    }
+  ],
+  "uop": [
+    {
+      "idx": "00000000",
+      "vec": [ "00000000", "00000001" ]
+    },
+    {
+      "idx": "00000001",
+      "vec": [ "00000000", "00000002" ]
+    }
+  ]
+}

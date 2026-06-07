@@ -128,4 +128,3 @@ class ReshapeTest extends AnyFlatSpec with should.Matchers {
     }
   }
 }
-

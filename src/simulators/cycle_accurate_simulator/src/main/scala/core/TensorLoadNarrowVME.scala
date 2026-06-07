@@ -74,10 +74,15 @@ case class TensorLoadNarrowVME(
   val commandsDone = vmeCmd.io.done
 
   // count how many blocks not received
+  // +1: a load that fills the whole scratchpad has tsSizeRatio*memDepth blocks,
+  // and under read latency ALL of them can be outstanding at once before the
+  // first data beat returns. The counter must hold the value tsSizeRatio*memDepth
+  // itself (not just up to -1), else it wraps to 0 and localDone fires before any
+  // data arrives - the loaded data then lands while state==sIdle and is dropped by
+  // the direct-write mux (block-4 acc bias-reload bug: bias never reaches SRAM).
   val blkIdxWdth = log2Ceil(
-    tp.tsSizeRatio * tp.memDepth
-  ) // the size of scratchpad in blocks
-  // Nb of data blocks requestd, not received. TODO: smaller width parameter
+    tp.tsSizeRatio * tp.memDepth + 1
+  ) // the size of scratchpad in blocks (inclusive count)
   val blocksInFlight = Reg(UInt(blkIdxWdth.W))
   when(io.start) {
     blocksInFlight := 0.U

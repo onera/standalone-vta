@@ -6,7 +6,7 @@ import vta.interface.axi.AxiLike._
 import vta.util.config.Parameters
 import vta.tags.tagObjects.UnitTests
 import vta.util.AnyFlatSpecSim
-import vta.util.SimulationUtils.EnableMemInitVerilog
+import vta.util.EnableMemInit
 
 class SyncAxiDram(memoryFile: String = "", size: Int)(implicit
     p: Parameters
@@ -32,7 +32,10 @@ class SyncAxiDram(memoryFile: String = "", size: Int)(implicit
   io.axis.r.bits.user := DontCare
 }
 
-class SyncAxiDramSpec extends AnyFlatSpecSim with vta.test.AxiFullSimUtils {
+class SyncAxiDramSpec
+    extends AnyFlatSpecSim
+    with vta.test.AxiFullSimUtils
+    with EnableMemInit {
 
   class InitMemInline(memoryFile: String = "", size: Int, width: Int)
       extends Module {
@@ -61,7 +64,6 @@ class SyncAxiDramSpec extends AnyFlatSpecSim with vta.test.AxiFullSimUtils {
     val resource = "examples_shell/simple.mem"
 
     val file = getClass.getClassLoader.getResource(resource).getFile()
-    implicit val memoryInit = EnableMemInitVerilog
 
     simulate(
       new InitMemInline(file, 16, 32),

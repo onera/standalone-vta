@@ -1,7 +1,8 @@
 package vta.interface.axi
 
 import chisel3._
-import chisel3.util.{is, switch}
+import chisel3.util._
+import vta.interface.axi.BurstType.fixed
 
 trait AxiLike[T <: Data] {
 
@@ -41,13 +42,14 @@ object AxiLike {
       val bValid = RegInit(false.B)
       val bResp = RegInit(false.B)
       val awLen = RegInit(0.U.asTypeOf(axi.aw.bits.len))
-      val awBurst = RegInit(0.U)
+      val awBurst = RegInit(BurstType.fixed)
       val bId = RegInit(0.U.asTypeOf(axi.b.bits.id))
 
       val awLenCounter = RegInit(0.U.asTypeOf(axi.aw.bits.len))
       val awAddr = RegInit(0.U.asTypeOf(axi.aw.bits.addr))
       val awWrapSize = awLen * (dataWidth / 8).U
       val awWrapEn = (awAddr & awWrapSize) === awWrapSize
+      val awSize = RegInit(0.U.asTypeOf(axi.aw.bits.size))
       val writeState = RegInit(WriteState.idle)
 
       axi.aw.ready := awReady
@@ -83,6 +85,7 @@ object AxiLike {
 
             })
             awBurst := axi.aw.bits.burst
+            awSize := axi.aw.bits.size
             awLen := axi.aw.bits.len
             bId := axi.aw.bits.id
           }.otherwise({
@@ -111,7 +114,7 @@ object AxiLike {
         when(axi.w.valid) {
           awLenCounter := 1.U
           when(
-            awBurstWire === 0.U || (awBurstWire === 1.U && !(axi.aw.bits.len === 0.U))
+            awBurstWire === BurstType.fixed || (awBurstWire === BurstType.increment && !(axi.aw.bits.len === 0.U))
           ) {
             awAddr := axi.aw.bits.addr
           }
@@ -124,23 +127,19 @@ object AxiLike {
         .elsewhen(awLenCounter < awLen && axi.w.valid) {
           awLenCounter := awLenCounter + 1.U
           switch(awBurst) {
-            is(0.U) {
+            is(BurstType.fixed) {
               awAddr := awAddr
             }
-            is(1.U) {
-              awAddr := awAddr + 1.U
+            is(BurstType.increment) {
+              awAddr := awAddr + (1.U << awSize)
             }
-            is(2.U) {
+            is(BurstType.wrapped) {
               when(awWrapEn) {
                 awAddr := awAddr - awWrapSize
               }.otherwise {
-                awAddr := awAddr + 1.U
+                awAddr := awAddr + 1.U << awSize
               }
             }
-            is(3.U) {
-              awAddr := awAddr
-            }
-
           }
         }
 
@@ -155,7 +154,7 @@ object AxiLike {
 
       val arReady = RegInit(false.B)
       val arLen = RegInit(0.U.asTypeOf(axi.ar.bits.len))
-      val arBurst = RegInit(0.U)
+      val arBurst = RegInit(BurstType.fixed)
       val rValid = RegInit(false.B)
       val rReady = RegInit(false.B)
       val rLast = RegInit(false.B)
@@ -170,6 +169,7 @@ object AxiLike {
 
       val arLenCounter = RegInit(0.U.asTypeOf(axi.ar.bits.len))
 
+      val arSize = RegInit(0.U.asTypeOf(axi.ar.bits.size))
       val arBurstWire = axi.ar.bits.burst
       // ReadState machine
 
@@ -186,6 +186,7 @@ object AxiLike {
             rId := axi.r.bits.id
             arBurst := axi.ar.bits.burst
             arLen := axi.ar.bits.len
+            arSize := axi.ar.bits.size
           }.otherwise(readState := readState)
         }
         is(rdata) {
@@ -210,7 +211,7 @@ object AxiLike {
         when(axi.r.fire) {
           arLenCounter := 1.U
           when(
-            arBurstWire === 0.U || (arBurstWire === 1.U && !(axi.ar.bits.len === 0.U))
+            arBurstWire === BurstType.fixed || (arBurstWire === BurstType.increment && !(axi.ar.bits.len === 0.U))
           ) {
             arAddr := axi.ar.bits.addr
           }
@@ -223,23 +224,19 @@ object AxiLike {
         .elsewhen(arLenCounter <= arLen && axi.r.fire) {
           arLenCounter := arLenCounter + 1.U
           switch(arBurst) {
-            is(0.U) {
+            is(BurstType.fixed) {
               arAddr := arAddr
             }
-            is(1.U) {
-              arAddr := arAddr + 1.U
+            is(BurstType.increment) {
+              arAddr := arAddr + (1.U << arSize)
             }
-            is(2.U) {
+            is(BurstType.wrapped) {
               when(arWrapEn) {
                 arAddr := arAddr - arWrapSize
               }.otherwise {
-                arAddr := arAddr + 1.U
+                arAddr := arAddr + (1.U << arSize)
               }
             }
-            is(3.U) {
-              arAddr := arAddr
-            }
-
           }
 
         }
@@ -390,6 +387,70 @@ object AxiLike {
         arAddr := axi.ar.bits.addr
       }
       arAddr
+    }
+  }
+
+  /** Master-side counterpart of the slave AxiLike handlers. The existing
+    * AxiLike trait (writeHandler/readHandler returning the latched address) is
+    * slave-shaped, so these master helpers live alongside as the master
+    * counterpart rather than implementing that trait signature. Each helper
+    * instantiates one single-beat, single-outstanding FSM (call once per
+    * AXILiteMaster) and drives its own disjoint channels: writeHandler drives
+    * aw/w/b, readHandler drives ar/r.
+    */
+  implicit class AXILiteMasterIsAxiLike(axi: AXILiteMaster) {
+
+    /** Single-beat AXI-Lite write. Pulse `start` for one cycle; addr/data are
+      * latched on start. Returns a one-cycle `done` strobe on B handshake.
+      */
+    def writeHandler(start: Bool, addr: UInt, data: UInt): Bool = {
+      val sIdle :: sAw :: sW :: sB :: Nil = Enum(4)
+      val st = RegInit(sIdle)
+      val addrR = Reg(UInt(axi.params.addrBits.W))
+      val dataR = Reg(UInt(axi.params.dataBits.W))
+      val done = WireDefault(false.B)
+
+      axi.aw.valid := st === sAw
+      axi.aw.bits.addr := addrR
+      axi.w.valid := st === sW
+      axi.w.bits.data := dataR
+      axi.w.bits.strb := Fill(axi.params.strbBits, 1.U)
+      axi.b.ready := st === sB
+
+      switch(st) {
+        is(sIdle) { when(start) { addrR := addr; dataR := data; st := sAw } }
+        is(sAw) { when(axi.aw.fire) { st := sW } }
+        is(sW) { when(axi.w.fire) { st := sB } }
+        is(sB) { when(axi.b.fire) { st := sIdle; done := true.B } }
+      }
+      done
+    }
+
+    /** Single-beat AXI-Lite read. Pulse `start` for one cycle; addr latched on
+      * start. Returns (data, done) where data is valid on the done strobe.
+      */
+    def readHandler(start: Bool, addr: UInt): (UInt, Bool) = {
+      val sIdle :: sAr :: sR :: Nil = Enum(3)
+      val st = RegInit(sIdle)
+      val addrR = Reg(UInt(axi.params.addrBits.W))
+      val dataR = RegInit(0.U(axi.params.dataBits.W))
+      val done = WireDefault(false.B)
+
+      axi.ar.valid := st === sAr
+      axi.ar.bits.addr := addrR
+      axi.r.ready := st === sR
+
+      switch(st) {
+        is(sIdle) { when(start) { addrR := addr; st := sAr } }
+        is(sAr) { when(axi.ar.fire) { st := sR } }
+        is(sR) {
+          when(axi.r.fire) {
+            dataR := axi.r.bits.data; st := sIdle; done := true.B
+          }
+        }
+      }
+      // data valid live on the done cycle, held in dataR afterwards
+      (Mux(done, axi.r.bits.data, dataR), done)
     }
   }
 }

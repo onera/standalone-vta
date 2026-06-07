@@ -204,7 +204,11 @@ class VME(implicit p: Parameters) extends Module {
       val addr = UInt(RequestQueueAddrWidth.W)
     }
   }
-  val vmeTagArray = SyncReadMem(RequestQueueDepth, (new (ClientTag)))
+  // Combinational-read tag array (Mem, not SyncReadMem): the client a returning
+  // read beat belongs to must be known in the same cycle the beat is presented,
+  // so the VME can backpressure the AXI read channel on that client's readiness
+  // instead of silently dropping the beat (see io.mem.r.ready below).
+  val vmeTagArray = Mem(RequestQueueDepth, new ClientTag)
   val vmeTagArrayIf = Wire(new VmeTagArrayIf)
 
   val localTagOut = Wire(new (ClientTag))
@@ -215,10 +219,19 @@ class VME(implicit p: Parameters) extends Module {
   val (resetEntry, newEntry, firstPostn) = firstOneOH(availableEntries.asUInt)
   val updateEntry = Wire(UInt(RequestQueueDepth.W))
 
-  when(io.mem.r.bits.last & io.mem.r.valid) {
+  // Resolve the destination client of the beat currently on the AXI R channel
+  // (combinational tag lookup, localTagOut below) and only accept the beat when
+  // that client can take it. A beat is consumed iff io.mem.r fires (rFire), so
+  // the tag slot must be freed on rFire (not merely r.valid) too.
+  val rReady = MuxLookup(localTagOut.client_id, true.B)(
+    (0 until nReadClients).map(i => i.U -> io.vme.rd(i).data.ready)
+  )
+  val rFire = io.mem.r.valid & rReady
+
+  when(io.mem.r.bits.last & rFire) {
     availableEntriesNext := updateEntry | availableEntries
   }.elsewhen(
-    availableEntriesEn && availableEntries =/= 0.U && !(io.mem.r.bits.last & io.mem.r.valid)
+    availableEntriesEn && availableEntries =/= 0.U && !(io.mem.r.bits.last & rFire)
   ) {
     availableEntriesNext := newEntry
   }.otherwise {
@@ -229,8 +242,13 @@ class VME(implicit p: Parameters) extends Module {
     updateEntry := 0.U
   }.otherwise {
     availableEntries := availableEntriesNext
+    // Free the slot identified by the low RequestQueueAddrWidth bits of the
+    // returned id -- the only bits the VME ever issued (ar.bits.id is the slot
+    // index, zero-extended). Truncating matches the read-routing path
+    // (vmeTagArrayIf.rd.addr); comparing the full idBits value could fail to
+    // free the slot if the interconnect returns dirty upper bits.
     updateEntry := VecInit(IndexedSeq.tabulate(RequestQueueDepth) { i =>
-      i.U === (io.mem.r.bits.id).asUInt
+      i.U === io.mem.r.bits.id(RequestQueueAddrWidth - 1, 0)
     }).asUInt
   }
   // Cmd Queues for eaach VME client
@@ -272,7 +290,7 @@ class VME(implicit p: Parameters) extends Module {
     VMEcmdQs(i).io.enq.bits := io.vme.rd(i).cmd.bits
     VMEcmdQs(i).io.deq.ready := io.mem.ar.ready &
       (vme_select === i.U) & (availableEntries.asUInt =/= 0.U) &
-      !(io.mem.r.bits.last & io.mem.r.valid)
+      !(io.mem.r.bits.last & rFire)
     io.vme.rd(i).cmd.ready := VMEcmdQs(i).io.enq.ready
   }
 
@@ -284,8 +302,7 @@ class VME(implicit p: Parameters) extends Module {
   vmeTagArrayIf.wr.en := anyCmdReady
 
   when(vmeTagArrayIf.wr.en) {
-    val rdwrPort = vmeTagArray(vmeTagArrayIf.wr.addr)
-    rdwrPort := vmeTagArrayIf.wr.data
+    vmeTagArray.write(vmeTagArrayIf.wr.addr, vmeTagArrayIf.wr.data)
   }
 
   io.mem.ar.bits.addr := 0.U
@@ -307,25 +324,23 @@ class VME(implicit p: Parameters) extends Module {
     }
   }
 
-  // We need one clock cycle to look up the local tag from the
-  // centralized tag buffer vmeTag_array
-  // Adding a flop stage for mem.r.data, mem.r.last, mem.r.valid
-  // till local tag lookup is performed.
-  io.mem.r.ready := true.B
+  // vmeTagArray is a combinational-read Mem, so the destination client of a
+  // returning beat is known the same cycle it is on the bus. This lets the VME
+  // hold the AXI read channel (r.ready low) when the client cannot accept the
+  // beat, rather than dropping it.
+  io.mem.r.ready := rReady
   vmeTagArrayIf.rd.addr := io.mem.r.bits.id
   localTagOut := vmeTagArray(vmeTagArrayIf.rd.addr)
   freeTagLocation := localTagOut.client_mask
 
   for (i <- 0 until nReadClients) {
-    io.vme.rd(i).data.valid := ((RegNext(
-      io.mem.r.valid,
-      init = false.B
-    )) && ((localTagOut.client_id) === i.U)
-      && io.vme.rd(i).data.ready)
-    // VME doesnt stop on not ready
-    assert(io.vme.rd(i).data.ready || ~io.vme.rd(i).data.valid)
-    io.vme.rd(i).data.bits.data := RegNext(io.mem.r.bits.data, init = false.B)
-    io.vme.rd(i).data.bits.last := RegNext(io.mem.r.bits.last, init = false.B)
+    // Lossless handshake: present the beat to its client while it is on the
+    // bus; the client's data.ready feeds back into rReady / io.mem.r.ready, so
+    // the beat is only consumed from AXI once the client accepts it.
+    io.vme.rd(i).data.valid :=
+      io.mem.r.valid && (localTagOut.client_id === i.U)
+    io.vme.rd(i).data.bits.data := io.mem.r.bits.data
+    io.vme.rd(i).data.bits.last := io.mem.r.bits.last
     io.vme.rd(i).data.bits.tag := localTagOut.client_tag
   }
 
@@ -341,6 +356,7 @@ class VME(implicit p: Parameters) extends Module {
   io.mem.aw.valid := wstate === sWriteAddr
   io.mem.aw.bits.addr := wrAddr
   io.mem.aw.bits.len := wrLen
+  io.mem.aw.bits.size := 0.U
   io.mem.aw.bits.id := p(
     ShellKey
   ).memParams.idConst.U // no support for multiple writes
