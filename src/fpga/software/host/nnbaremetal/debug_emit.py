@@ -4,8 +4,17 @@ import os
 from typing import Dict, List, Tuple
 
 from .config import ConfigParams, _elem_bytes
-from .model import DependencyInfo, LayerInfo, _align_page, hex32, ref_input_path, ref_input_y_path, ref_output_path
+from .model import (
+    DependencyInfo,
+    LayerInfo,
+    _align_page,
+    hex32,
+    ref_input_path,
+    ref_input_y_path,
+    ref_output_path,
+)
 from .layout import scratch_addr
+
 
 def assign_layer_check_regions(
     layers: List[LayerInfo],
@@ -129,6 +138,8 @@ def assign_layer_check_regions(
             )
 
     return alloc_ptr
+
+
 def gen_debug_map(
     layers: List[LayerInfo],
     out_path: str,
@@ -168,6 +179,8 @@ def gen_debug_map(
     with open(out_path, "w") as f:
         f.write("\n".join(L) + "\n")
     print(f"[gen] Debug map written to {out_path}")
+
+
 def gen_cpu_debug_map(
     dep_info: DependencyInfo,
     layers: List[LayerInfo],
@@ -276,13 +289,21 @@ def gen_cpu_debug_map(
                 )
                 if src_ref_bytes == 0:
                     skipped.append(f"{name} (no upstream golden - isolation fallback)")
-                entries.append((
-                    emitted, kind, name,
-                    consumer.in_dst_addr, consumer.in_ref_size,
-                    consumer.in_ref_addr, consumer.in_ref_size,
-                    elem_bytes,
-                    src_ref_phys, src_ref_bytes, src_dst_phys,
-                ))
+                entries.append(
+                    (
+                        emitted,
+                        kind,
+                        name,
+                        consumer.in_dst_addr,
+                        consumer.in_ref_size,
+                        consumer.in_ref_addr,
+                        consumer.in_ref_size,
+                        elem_bytes,
+                        src_ref_phys,
+                        src_ref_bytes,
+                        src_dst_phys,
+                    )
+                )
 
             if layer_name in format_input_layers:
                 _record("format_input", f"format_{layer_name}", inp_bytes)
@@ -312,7 +333,9 @@ def gen_cpu_debug_map(
     L.append("")
     L.append("/*")
     L.append(" * Coverage: only CPU ops whose output buffer equals a VTA layer's")
-    L.append(" * golden INP/ACC dump are checked (FORMAT_INPUT / IM2ROW / INT32_CHAIN).")
+    L.append(
+        " * golden INP/ACC dump are checked (FORMAT_INPUT / IM2ROW / INT32_CHAIN)."
+    )
     L.append(" * Other CPU ops (rescale / qadd / concat / dequant / quant) are")
     L.append(" * absent from the table and silently skipped at runtime.")
     L.append(" *")
@@ -339,9 +362,19 @@ def gen_cpu_debug_map(
     else:
         L.append("static const vta::DebugCpuStep nn_cpu_debug[NN_NUM_CPU_DEBUG] = {")
         for i, e in enumerate(entries):
-            (step_idx, kind, name, out_phys, out_bytes,
-             ref_phys, ref_bytes, elem_bytes,
-             src_ref_phys, src_ref_bytes, src_dst_phys) = e
+            (
+                step_idx,
+                kind,
+                name,
+                out_phys,
+                out_bytes,
+                ref_phys,
+                ref_bytes,
+                elem_bytes,
+                src_ref_phys,
+                src_ref_bytes,
+                src_dst_phys,
+            ) = e
             comma = "," if i < len(entries) - 1 else ""
             L.append(f"    /* {kind} */")
             L.append("    {")

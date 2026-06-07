@@ -7,14 +7,26 @@ import os
 import sys
 from pathlib import Path
 
-from .config import _elem_bytes, check_config_compat, gen_hw_config_header, load_config_params
+from .config import (
+    _elem_bytes,
+    check_config_compat,
+    gen_hw_config_header,
+    load_config_params,
+)
 from .model import _align_page
 from .parse import collect_layers, load_dependency_csv
 from .layout import _build_cpu_out_addrs
 from .emit_headers import gen_exec_plan_header, gen_header
 from .emit_load import gen_asm_incbin, gen_input_tcl, gen_linker_fragment, gen_tcl
 from .debug_emit import assign_layer_check_regions, gen_cpu_debug_map, gen_debug_map
-from .checks import check_binary_fits, check_buffer_overlaps, check_cpu_output_fits, check_memory_fit, print_summary
+from .checks import (
+    check_binary_fits,
+    check_buffer_overlaps,
+    check_cpu_output_fits,
+    check_memory_fit,
+    print_summary,
+)
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -130,7 +142,12 @@ def main() -> None:
     if not check_binary_fits(layers, comp_dir):
         sys.exit(1)
     if not check_cpu_output_fits(
-        dep_info, layers, ddr_base, suffix_to_idx, cpu_out, block_size,
+        dep_info,
+        layers,
+        ddr_base,
+        suffix_to_idx,
+        cpu_out,
+        block_size,
         inp_elem_bytes=_elem_bytes(cfg.log_inp_width),
     ):
         sys.exit(1)
@@ -197,8 +214,13 @@ def main() -> None:
         gen_debug_map(layers, out("nn_debug_map.h"))
     if args.emit_cpu_check:
         gen_cpu_debug_map(
-            dep_info, layers, cfg, out("nn_cpu_debug_map.h"), suffix_to_idx,
-            ddr_base, comp_dir,
+            dep_info,
+            layers,
+            cfg,
+            out("nn_cpu_debug_map.h"),
+            suffix_to_idx,
+            ddr_base,
+            comp_dir,
         )
 
     print_summary(layers, ddr_base)

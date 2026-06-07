@@ -51,7 +51,6 @@ import sys
 import time
 from pathlib import Path
 
-
 # ---------------------------------------------------------------------------
 # De-tiling: VTA block layout → NCHW flat
 # ---------------------------------------------------------------------------
@@ -86,7 +85,9 @@ def detile(data: bytes, C: int, H: int, W: int, B: int = 8) -> bytes:
     return bytes(out)
 
 
-def _check_output(raw_out: bytes, shape: "tuple[int,int,int]", block: int, ref_path: str) -> None:
+def _check_output(
+    raw_out: bytes, shape: "tuple[int,int,int]", block: int, ref_path: str
+) -> None:
     """Detile the raw block-tiled output to NCHW and diff it against the
     reference bin. Delegates to check_output.py so the layout logic lives in one
     place."""
@@ -358,7 +359,9 @@ def main() -> None:
     check_shape: "tuple[int,int,int] | None" = None
     if args.check is not None:
         here = Path(__file__).resolve().parent
-        check_ref = args.check or str(here / ".." / ".." / ".." / ".." / "compiler_output" / "final_output.bin")
+        check_ref = args.check or str(
+            here / ".." / ".." / ".." / ".." / "compiler_output" / "final_output.bin"
+        )
         if not Path(check_ref).exists():
             sys.exit(f"ERROR: --check reference not found: {check_ref}")
         if detile_shape is not None:
@@ -371,12 +374,22 @@ def main() -> None:
                 import gen_nn_baremetal as gen
 
                 dep = gen.load_dependency_csv(
-                    str(here / ".." / ".." / ".." / ".." / "compiler_output" / "dependency.csv")
+                    str(
+                        here
+                        / ".."
+                        / ".."
+                        / ".."
+                        / ".."
+                        / "compiler_output"
+                        / "dependency.csv"
+                    )
                 )
                 ld = dep.layers.get(dep.output_layer)
                 check_shape = (ld.out_ch, ld.out_h, ld.out_w)
             except Exception as exc:
-                sys.exit(f"ERROR: --check needs --output-shape (could not auto-read: {exc})")
+                sys.exit(
+                    f"ERROR: --check needs --output-shape (could not auto-read: {exc})"
+                )
 
     # Validate inputs.
     inputs = [Path(p) for p in args.input]

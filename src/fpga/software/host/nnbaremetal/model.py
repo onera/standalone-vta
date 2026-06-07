@@ -8,6 +8,8 @@ from typing import Dict, List, Optional, Tuple
 
 BUFFER_TYPES = ("INP", "WGT", "ACC", "OUT", "UOP", "INSN")
 STATIC_LOAD_ORDER = ("INSN", "UOP", "WGT", "ACC")
+
+
 def _is_runtime_acc(layer: "LayerInfo", buf_type: str) -> bool:
     """True when a buffer must NOT be statically pre-loaded into the ELF.
 
@@ -18,6 +20,8 @@ def _is_runtime_acc(layer: "LayerInfo", buf_type: str) -> bool:
     result.  Conv ACC (a bias) stays static.  See STATIC_LOAD_ORDER callers.
     """
     return buf_type == "ACC" and layer.reshape_info == "int32"
+
+
 def iter_static_buffers(layers: List["LayerInfo"]):
     """Yield (i, layer, buf_type, mem) for each statically pre-loaded buffer.
 
@@ -32,17 +36,25 @@ def iter_static_buffers(layers: List["LayerInfo"]):
             if m.size == 0 or _is_runtime_acc(layer, buf_type):
                 continue
             yield i, layer, buf_type, m
+
+
 _PAGE = 0x1000
 INSN_BYTES = 16
 INCBIN_ALIGN_LOG2 = 6
+
+
 def _align_page(n: int) -> int:
     return ((n + _PAGE - 1) // _PAGE) * _PAGE
+
+
 @dataclass
 class MemAddr:
     """Offset and size relative to DDR base, from memory_addresses csv."""
 
     offset: int
     size: int
+
+
 @dataclass
 class LayerInfo:
     suffix: str
@@ -68,6 +80,8 @@ class LayerInfo:
     insn_ref_size: int = 0  # golden instruction byte count
     uop_ref_addr: int = 0  # DRAM address of the embedded golden micro-ops
     uop_ref_size: int = 0  # golden micro-op byte count
+
+
 @dataclass
 class LayerDep:
     """Per-layer entry parsed from dependency.csv."""
@@ -98,6 +112,8 @@ class LayerDep:
     scale: float
     nb_inp: int
     deps: List[str]
+
+
 @dataclass
 class DependencyInfo:
     execution_order: List[Tuple[int, str, str]]  # (step_idx, processor, layer_name)
@@ -105,6 +121,8 @@ class DependencyInfo:
     image_h: int
     image_w: int
     output_layer: str
+
+
 BIN_BASENAME: Dict[str, str] = {
     "INP": "input",
     "WGT": "weight",
@@ -113,6 +131,8 @@ BIN_BASENAME: Dict[str, str] = {
     "UOP": "uop",
     "INSN": "instructions",
 }
+
+
 def layer_binfile(comp_dir: str, buf_type: str, suffix: str) -> str:
     # ACC uses the block-formatted sibling: the raw "accumulator{suffix}.bin"
     # written by the vta_compiler is (Ah x Bw) row-major and is shorter than
@@ -123,22 +143,36 @@ def layer_binfile(comp_dir: str, buf_type: str, suffix: str) -> str:
     if buf_type == "ACC":
         return os.path.join(comp_dir, f"{BIN_BASENAME[buf_type]}{suffix}_block.bin")
     return os.path.join(comp_dir, f"{BIN_BASENAME[buf_type]}{suffix}.bin")
+
+
 def mem_addresses_path(comp_dir: str, suffix: str) -> str:
     return os.path.join(comp_dir, f"memory_addresses{suffix}.csv")
+
+
 def ref_input_path(ref_dir: str, suffix: str) -> str:
     """fsim golden input dump for a layer (VTA_DUMP_LAYERS=1)."""
     return os.path.join(ref_dir, f"input{suffix}.bin")
+
+
 def ref_input_y_path(ref_dir: str, suffix: str) -> str:
     """fsim golden secondary-operand input dump (dual-operand int32 layers)."""
     return os.path.join(ref_dir, f"input{suffix}_Y.bin")
+
+
 def ref_output_path(ref_dir: str, suffix: str) -> str:
     """fsim golden output dump for a layer (raw OUT, pre-rescale)."""
     return os.path.join(ref_dir, f"output{suffix}.bin")
+
+
 def _relpath_posix(abs_path: str, base_dir: str) -> str:
     """Return a POSIX-style relative path from base_dir to abs_path."""
     return Path(os.path.relpath(abs_path, base_dir)).as_posix()
+
+
 def hex32(v: int) -> str:
     return f"0x{v:08X}u"
+
+
 def insn_count_from_file(bin_path: str, csv_size: int) -> int:
     """Instruction count from actual .bin file size (not padded CSV region size)."""
     if os.path.isfile(bin_path):
@@ -150,6 +184,8 @@ def insn_count_from_file(bin_path: str, csv_size: int) -> int:
         return file_bytes // INSN_BYTES
     print(f"WARNING: {bin_path} not found - falling back to CSV region size")
     return csv_size // INSN_BYTES
+
+
 def safe_c_name(suffix: str, index: int) -> str:
     if not suffix:
         return f"l{index}"

@@ -5,7 +5,17 @@ import os
 import sys
 from typing import Dict, List, Optional, Tuple
 
-from .model import BUFFER_TYPES, DependencyInfo, LayerDep, LayerInfo, MemAddr, _align_page, layer_binfile, mem_addresses_path
+from .model import (
+    BUFFER_TYPES,
+    DependencyInfo,
+    LayerDep,
+    LayerInfo,
+    MemAddr,
+    _align_page,
+    layer_binfile,
+    mem_addresses_path,
+)
+
 
 def load_memory_addresses(path: str) -> Dict[str, MemAddr]:
     """Parse a memory_addresses[SUFFIX].csv → dict keyed by buffer type."""
@@ -20,6 +30,8 @@ def load_memory_addresses(path: str) -> Dict[str, MemAddr]:
                 continue
             result[buf_type] = MemAddr(offset=int(row[1], 16), size=int(row[2], 16))
     return result
+
+
 def load_dependency_csv(path: str) -> DependencyInfo:
     """
     Parse dependency.csv.
@@ -119,6 +131,8 @@ def load_dependency_csv(path: str) -> DependencyInfo:
         image_w=image_w,
         output_layer=output_layer,
     )
+
+
 def _recompute_sizes_from_offsets(layers: List[LayerInfo], comp_dir: str) -> None:
     """Replace CSV-derived pseudo-sizes with real allocated byte sizes.
 
@@ -155,6 +169,8 @@ def _recompute_sizes_from_offsets(layers: List[LayerInfo], comp_dir: str) -> Non
                     f"WARNING: cannot determine size for last buffer "
                     f"layer {i} ({layers[i].suffix}) {buf_type} - no binary file found"
                 )
+
+
 def collect_layers(comp_dir: str, vta_suffixes: List[str]) -> List[LayerInfo]:
     """Build LayerInfo list from per-layer memory_addresses CSVs, in execution order."""
     if not vta_suffixes:
@@ -178,6 +194,8 @@ def collect_layers(comp_dir: str, vta_suffixes: List[str]) -> List[LayerInfo]:
 
     _recompute_sizes_from_offsets(layers, comp_dir)
     return layers
+
+
 def find_image_layer(dep_info: DependencyInfo) -> Optional[str]:
     """Return the layer_name of the first step whose primary dep is 'image'."""
     for _, _, name in dep_info.execution_order:

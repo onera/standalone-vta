@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Tuple
 
 from .model import BUFFER_TYPES, DependencyInfo, LayerInfo, _PAGE, _align_page, hex32
 
+
 def scratch_addr(layers: List[LayerInfo], ddr_base: int) -> int:
     """Return the first page-aligned DDR address after all VTA allocations."""
     max_end = ddr_base
@@ -15,6 +16,8 @@ def scratch_addr(layers: List[LayerInfo], ddr_base: int) -> int:
             if end > max_end:
                 max_end = end
     return _align_page(max_end)
+
+
 def _out_addr(
     layer_name: str,
     dep_info: DependencyInfo,
@@ -34,6 +37,8 @@ def _out_addr(
     if cpu_out is not None:
         return cpu_out.get(layer_name, 0)
     return 0
+
+
 def _find_vta_consumer_addr(
     layer_name: str,
     dep_info: DependencyInfo,
@@ -67,6 +72,8 @@ def _find_vta_consumer_addr(
                 return 0
         # CPU consumer: keep scanning - a later VTA consumer may exist
     return 0
+
+
 def _build_cpu_out_addrs(
     dep_info: DependencyInfo,
     layers: List[LayerInfo],
@@ -127,6 +134,8 @@ def _build_cpu_out_addrs(
     # the raw-input scratch, and any CPU-op scratch - the safe base for the
     # isolation-check golden regions.
     return cpu_out, alloc_ptr, cpu_scratch
+
+
 def _cpu_out_addr(
     cpu_name: str,
     dep_info: DependencyInfo,

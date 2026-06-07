@@ -63,9 +63,11 @@ def report_diff(name: str, a: np.ndarray, b: np.ndarray) -> bool:
         print(f"[{name}] MATCH ({n} elements identical)")
         return True
     first = int(nz[0]) if nz.size else -1
-    print(f"[{name}] MISMATCH: {nz.size}/{n} differ "
-          f"({100.0 * nz.size / n:.3f}%), max|diff|={int(np.abs(diff).max())}, "
-          f"first @ idx {first}")
+    print(
+        f"[{name}] MISMATCH: {nz.size}/{n} differ "
+        f"({100.0 * nz.size / n:.3f}%), max|diff|={int(np.abs(diff).max())}, "
+        f"first @ idx {first}"
+    )
     if first >= 0:
         lo, hi = max(0, first - 4), min(n, first + 12)
         print(f"        idx[{lo}:{hi}] got = {a32[lo:hi].tolist()}")
@@ -74,12 +76,22 @@ def report_diff(name: str, a: np.ndarray, b: np.ndarray) -> bool:
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(description="Compare baremetal VTA output to final_output.bin")
-    p.add_argument("baremetal_out", help="raw output dump from the board (int8, block-tiled)")
-    p.add_argument("--ref", default=None, help="reference NCHW bin (default <comp-dir>/final_output.bin)")
+    p = argparse.ArgumentParser(
+        description="Compare baremetal VTA output to final_output.bin"
+    )
+    p.add_argument(
+        "baremetal_out", help="raw output dump from the board (int8, block-tiled)"
+    )
+    p.add_argument(
+        "--ref",
+        default=None,
+        help="reference NCHW bin (default <comp-dir>/final_output.bin)",
+    )
     p.add_argument("--comp-dir", default=_DEF_COMP)
     p.add_argument("--config-json", default=_DEF_CFG)
-    p.add_argument("--shape", default=None, help="C,H,W override (else read from dependency.csv)")
+    p.add_argument(
+        "--shape", default=None, help="C,H,W override (else read from dependency.csv)"
+    )
     p.add_argument("--block-size", type=int, default=None)
     args = p.parse_args()
 
@@ -92,7 +104,9 @@ def main() -> int:
         dep = gen.load_dependency_csv(os.path.join(args.comp_dir, "dependency.csv"))
         ld = dep.layers.get(dep.output_layer)
         if ld is None:
-            sys.exit(f"ERROR: output layer '{dep.output_layer}' not in dependency.csv; pass --shape")
+            sys.exit(
+                f"ERROR: output layer '{dep.output_layer}' not in dependency.csv; pass --shape"
+            )
         C, H, W = ld.out_ch, ld.out_h, ld.out_w
 
     ref_path = args.ref or os.path.join(args.comp_dir, "final_output.bin")
@@ -100,11 +114,19 @@ def main() -> int:
     ref = np.fromfile(ref_path, dtype=np.int8)
 
     print(f"shape C,H,W = {C},{H},{W}  block={B}")
-    print(f"baremetal raw: {raw.size} B   reference (NCHW): {ref.size} B   ({ref_path})\n")
+    print(
+        f"baremetal raw: {raw.size} B   reference (NCHW): {ref.size} B   ({ref_path})\n"
+    )
 
     ok = report_diff("detiled vs NCHW ref", detile(raw, C, H, W, B), ref)
-    print("\nRESULT:", "PASS - matches the functional simulator." if ok
-          else "FAIL - output diverges from the functional simulator.")
+    print(
+        "\nRESULT:",
+        (
+            "PASS - matches the functional simulator."
+            if ok
+            else "FAIL - output diverges from the functional simulator."
+        ),
+    )
     return 0 if ok else 1
 
 

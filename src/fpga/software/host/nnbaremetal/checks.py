@@ -11,8 +11,14 @@ import math
 import os
 from typing import Dict, List, Optional, Tuple
 
-from .model import (BUFFER_TYPES, DependencyInfo, LayerInfo, _align_page, hex32,
-                    iter_static_buffers)
+from .model import (
+    BUFFER_TYPES,
+    DependencyInfo,
+    LayerInfo,
+    _align_page,
+    hex32,
+    iter_static_buffers,
+)
 from .layout import scratch_addr
 
 
@@ -35,11 +41,21 @@ def _live_regions(
                 start = ddr_base + m.offset
                 regions.append((start, start + m.size, f"L{i} {layer.suffix} {bt}"))
         if layer.in_ref_size:
-            regions.append((layer.in_ref_addr, layer.in_ref_addr + layer.in_ref_size,
-                            f"L{i} {layer.suffix} INREF"))
+            regions.append(
+                (
+                    layer.in_ref_addr,
+                    layer.in_ref_addr + layer.in_ref_size,
+                    f"L{i} {layer.suffix} INREF",
+                )
+            )
         if layer.out_ref_size:
-            regions.append((layer.out_ref_addr, layer.out_ref_addr + layer.out_ref_size,
-                            f"L{i} {layer.suffix} OUTREF"))
+            regions.append(
+                (
+                    layer.out_ref_addr,
+                    layer.out_ref_addr + layer.out_ref_size,
+                    f"L{i} {layer.suffix} OUTREF",
+                )
+            )
     return regions
 
 
@@ -56,8 +72,10 @@ def check_buffer_overlaps(
         for k in range(j + 1, len(regions)):
             s2, e2, l2 = regions[k]
             if s1 < e2 and s2 < e1:
-                conflicts.append(f"  {l1} [0x{s1:08X}-0x{e1:08X}) overlaps "
-                                 f"{l2} [0x{s2:08X}-0x{e2:08X})")
+                conflicts.append(
+                    f"  {l1} [0x{s1:08X}-0x{e1:08X}) overlaps "
+                    f"{l2} [0x{s2:08X}-0x{e2:08X})"
+                )
     if conflicts:
         print(f"[overlap] FAIL - {len(conflicts)} overlap(s):")
         print("\n".join(conflicts))
@@ -184,4 +202,6 @@ def print_summary(layers: List[LayerInfo], ddr_base: int) -> None:
         for bt in BUFFER_TYPES:
             m = layer.mem[bt]
             tag = "*" if bt in ("INP", "OUT") else " "
-            print(f"  L{i:<2} {bt:<4} {hex32(ddr_base + m.offset)} {hex32(m.size):>10} {tag}")
+            print(
+                f"  L{i:<2} {bt:<4} {hex32(ddr_base + m.offset)} {hex32(m.size):>10} {tag}"
+            )

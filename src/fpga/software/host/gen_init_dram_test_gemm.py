@@ -1,7 +1,6 @@
 import numpy as np
 import os
 
-
 _DTYPE_FROM_STORAGE = {
     "int8": np.int8,
     "int16": np.int16,
@@ -16,17 +15,50 @@ _DTYPE_FROM_STORAGE = {
 # `make test_gemm` invocations keep emitting the same program they always did.
 _HARDCODED_INSN_WORDS = np.array(
     [
-        0x00000000, 0x00000050, 0x00010001, 0x00000001,
-        0x002000A2, 0x00200008, 0x00000810, 0x00000000,
-        0x00000110, 0x00000001, 0x00100001, 0x00000010,
-        0x200000C0, 0x00000000, 0x00010001, 0x00000001,
-        0x00000188, 0x00000003, 0x00100001, 0x00000010,
-        0x04000000, 0x00000050, 0x00010001, 0x00000001,
-        0x00200062, 0x00200008, 0x00000800, 0x00000002,
-        0x00000229, 0x00000004, 0x00100001, 0x00000010,
-        0x00000150, 0x00000000, 0x00000000, 0x00000000,
-        0x00000018, 0x00000000, 0x00000000, 0x00000000,
-        0x00000003, 0x00000000, 0x00000000, 0x00000000,
+        0x00000000,
+        0x00000050,
+        0x00010001,
+        0x00000001,
+        0x002000A2,
+        0x00200008,
+        0x00000810,
+        0x00000000,
+        0x00000110,
+        0x00000001,
+        0x00100001,
+        0x00000010,
+        0x200000C0,
+        0x00000000,
+        0x00010001,
+        0x00000001,
+        0x00000188,
+        0x00000003,
+        0x00100001,
+        0x00000010,
+        0x04000000,
+        0x00000050,
+        0x00010001,
+        0x00000001,
+        0x00200062,
+        0x00200008,
+        0x00000800,
+        0x00000002,
+        0x00000229,
+        0x00000004,
+        0x00100001,
+        0x00000010,
+        0x00000150,
+        0x00000000,
+        0x00000000,
+        0x00000000,
+        0x00000018,
+        0x00000000,
+        0x00000000,
+        0x00000000,
+        0x00000003,
+        0x00000000,
+        0x00000000,
+        0x00000000,
     ],
     dtype=np.uint32,
 )
@@ -226,16 +258,14 @@ def generate_vta_test_header(
     full_path = os.path.join(gen_dir_path, filename)
 
     if compiler_output_dir is not None:
-        inp, wgt, acc, out_golden, uop_words, insn_words = (
-            _load_from_compiler_output(
-                compiler_output_dir,
-                suffix,
-                n,
-                _DTYPE_FROM_STORAGE[inp_storage_dtype],
-                _DTYPE_FROM_STORAGE[wgt_storage_dtype],
-                _DTYPE_FROM_STORAGE[acc_storage_dtype],
-                out_dtype,
-            )
+        inp, wgt, acc, out_golden, uop_words, insn_words = _load_from_compiler_output(
+            compiler_output_dir,
+            suffix,
+            n,
+            _DTYPE_FROM_STORAGE[inp_storage_dtype],
+            _DTYPE_FROM_STORAGE[wgt_storage_dtype],
+            _DTYPE_FROM_STORAGE[acc_storage_dtype],
+            out_dtype,
         )
     else:
         inp, wgt, acc, out_golden, uop_words, insn_words = _generate_random(
@@ -310,7 +340,7 @@ if __name__ == "__main__":
         "--suffix",
         type=str,
         default="",
-        help='Layer-name suffix appended to each binary basename '
+        help="Layer-name suffix appended to each binary basename "
         '(e.g. "QLinearConv1" -> inputQLinearConv1.bin). Default: empty.',
     )
     parser.add_argument(

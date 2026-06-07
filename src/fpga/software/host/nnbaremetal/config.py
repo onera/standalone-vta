@@ -10,6 +10,8 @@ DEFAULT_LOG_INP_WIDTH = 5  # 32-bit (reference config)
 DEFAULT_LOG_OUT_WIDTH = 5
 DEFAULT_LOG_WGT_WIDTH = 5
 DEFAULT_LOG_ACC_WIDTH = 5
+
+
 @dataclass
 class ConfigParams:
     block_size: int  # 1 << LOG_BLOCK
@@ -18,6 +20,8 @@ class ConfigParams:
     log_wgt_width: int  # LOG_WGT_WIDTH
     log_acc_width: int  # LOG_ACC_WIDTH
     target: Optional[str] = None  # config "TARGET"; the Xilinx IP is named VTA_<TARGET>
+
+
 def load_config_params(
     config_json_path: Optional[str], cli_block_size: Optional[int]
 ) -> ConfigParams:
@@ -84,11 +88,15 @@ def load_config_params(
         log_acc_width=log_acc,
         target=target,
     )
+
+
 def _ctype_from_log_width(log_width: int) -> str:
     bits = 1 << log_width
     return {8: "std::int8_t", 16: "std::int16_t", 32: "std::int32_t"}.get(
         bits, f"/* unsupported {bits}-bit */"
     )
+
+
 def _elem_bytes(log_width: int) -> int:
     """Bytes per element for a buffer of width 2**log_width bits (LOG_*_WIDTH).
 
@@ -96,6 +104,8 @@ def _elem_bytes(log_width: int) -> int:
     conversions stay correct across VTA configs (e.g. int8 INP/OUT vs int32).
     """
     return (1 << log_width) // 8
+
+
 def gen_hw_config_header(cfg: ConfigParams, path: str) -> None:
     """Generate vta_hw_config.h with type aliases derived from the hardware config."""
     inp_t = _ctype_from_log_width(cfg.log_inp_width)
@@ -119,9 +129,11 @@ def gen_hw_config_header(cfg: ConfigParams, path: str) -> None:
         # older/classic BSPs may expose XPAR_VTA_0_BASEADDR. Try the target-specific
         # name first, then the generic one, and fail clearly if neither exists.
         *(
-            [f"#if defined(XPAR_VTA_{cfg.target.upper()}_0_BASEADDR)",
-             f"#define VTA_VCR_BASE_ADDR XPAR_VTA_{cfg.target.upper()}_0_BASEADDR",
-             "#elif defined(XPAR_VTA_0_BASEADDR)"]
+            [
+                f"#if defined(XPAR_VTA_{cfg.target.upper()}_0_BASEADDR)",
+                f"#define VTA_VCR_BASE_ADDR XPAR_VTA_{cfg.target.upper()}_0_BASEADDR",
+                "#elif defined(XPAR_VTA_0_BASEADDR)",
+            ]
             if cfg.target
             else ["#if defined(XPAR_VTA_0_BASEADDR)"]
         ),
@@ -142,6 +154,8 @@ def gen_hw_config_header(cfg: ConfigParams, path: str) -> None:
     with open(path, "w") as f:
         f.write("\n".join(lines) + "\n")
     print(f"[gen] {path}")
+
+
 def check_config_compat(cfg: ConfigParams, dep_info: "DependencyInfo") -> None:
     """Emit warnings/errors for known FPGA software incompatibilities."""
     if cfg.log_inp_width == 3 or cfg.log_out_width == 3:

@@ -4,8 +4,16 @@ import os
 from pathlib import Path
 from typing import List, Optional
 
-from .model import DependencyInfo, INCBIN_ALIGN_LOG2, LayerInfo, STATIC_LOAD_ORDER, _is_runtime_acc, iter_static_buffers
+from .model import (
+    DependencyInfo,
+    INCBIN_ALIGN_LOG2,
+    LayerInfo,
+    STATIC_LOAD_ORDER,
+    _is_runtime_acc,
+    iter_static_buffers,
+)
 from .layout import scratch_addr
+
 
 def gen_tcl(
     layers: List[LayerInfo],
@@ -86,6 +94,8 @@ def gen_tcl(
     with open(out_path, "w") as f:
         f.write("\n".join(L) + "\n")
     print(f"[gen] XSDB Tcl script written to {out_path}")
+
+
 def gen_asm_incbin(
     layers: List[LayerInfo], out_path: str, emit_check: bool = False
 ) -> None:
@@ -140,6 +150,8 @@ def gen_asm_incbin(
     with open(out_path, "w", encoding="utf-8") as f:
         f.write("\n".join(L) + "\n")
     print(f"[gen] Assembly incbin file written to {out_path}")
+
+
 def gen_linker_fragment(
     layers: List[LayerInfo], ddr_base: int, out_path: str, emit_check: bool = False
 ) -> None:
@@ -188,6 +200,8 @@ def gen_linker_fragment(
     with open(out_path, "w") as f:
         f.write("\n".join(L) + "\n")
     print(f"[gen] Linker fragment written to {out_path}")
+
+
 def gen_input_tcl(
     layers: List[LayerInfo],
     ddr_base: int,

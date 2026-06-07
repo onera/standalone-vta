@@ -108,17 +108,19 @@ RUNNER_EXTRAS: dict[str, list[Path]] = {
 # Extra generated headers (from CONFIG_DIR) required by specific runners,
 # beyond what the data-loader already provides.
 RUNNER_GENERATED_EXTRA: dict[str, list[str]] = {
-    "run_nn_debug": ["nn_debug_map.h"],         # gen_nn_baremetal.py --emit-layer-check
+    "run_nn_debug": ["nn_debug_map.h"],  # gen_nn_baremetal.py --emit-layer-check
     "run_nn_cpu_debug": [
-        "nn_debug_map.h",                       # CPU-op debug shares the same golden DRAM regions
-        "nn_cpu_debug_map.h",                   # gen_nn_baremetal.py --emit-cpu-check
+        "nn_debug_map.h",  # CPU-op debug shares the same golden DRAM regions
+        "nn_cpu_debug_map.h",  # gen_nn_baremetal.py --emit-cpu-check
     ],
 }
 
 # Extra compile definitions for specific runners.
 RUNNER_DEFINES: dict[str, list[str]] = {
-    "run_nn_debug": ["NN_CHECK_LAYERS"],            # enables the VTA isolation checker
-    "run_nn_cpu_debug": ["NN_CHECK_CPU_OPS_ISO"],   # enables the CPU-op isolation checker
+    "run_nn_debug": ["NN_CHECK_LAYERS"],  # enables the VTA isolation checker
+    "run_nn_cpu_debug": [
+        "NN_CHECK_CPU_OPS_ISO"
+    ],  # enables the CPU-op isolation checker
 }
 
 # Generated config files required by each data-loader
@@ -142,7 +144,10 @@ DATA_LOADER_GENERATED: dict[str, list[str]] = {
 # run_nn_cpu_debug embed their golden data via .incbin, so they only make
 # sense with the "elf" loader.
 RUNNERS_WITH_DATA_LOADER = {
-    "run_nn", "run_nn_uart", "run_nn_debug", "run_nn_cpu_debug",
+    "run_nn",
+    "run_nn_uart",
+    "run_nn_debug",
+    "run_nn_cpu_debug",
 }
 
 # ---------------------------------------------------------------------------
@@ -150,9 +155,7 @@ RUNNERS_WITH_DATA_LOADER = {
 # ---------------------------------------------------------------------------
 
 
-def collect_sources(
-    runner: str, data_loader: str | None
-) -> dict[Path, Path]:
+def collect_sources(runner: str, data_loader: str | None) -> dict[Path, Path]:
     """
     Return {dest_relative_path: src_path} for files copied into the app.
 
@@ -384,8 +387,10 @@ def _next_steps(runner: str, data_loader: str | None) -> None:
                 "  WARNING: run_nn_debug embeds golden data via .incbin and needs"
                 " the 'elf' data-loader; 'tcl' will not load the references."
             )
-        print("  1. Build the ELF in Vitis (static model data + golden in/out"
-              " loaded by FSBL/.incbin; NN_CHECK_LAYERS is set).")
+        print(
+            "  1. Build the ELF in Vitis (static model data + golden in/out"
+            " loaded by FSBL/.incbin; NN_CHECK_LAYERS is set)."
+        )
         print("  2. In XSDB: dow application.elf, then con.")
         print("  3. Read UART: each layer prints PASS or 'k/N mismatches'.")
         print("     The first mismatching layer is the VTA-introduced corruption.")
@@ -396,12 +401,16 @@ def _next_steps(runner: str, data_loader: str | None) -> None:
                 "  WARNING: run_nn_cpu_debug embeds golden data via .incbin and"
                 " needs the 'elf' data-loader; 'tcl' will not load references."
             )
-        print("  1. Generate sources with --emit-layer-check --emit-cpu-check"
-              " (the CPU-op map references the layer-check golden regions).")
+        print(
+            "  1. Generate sources with --emit-layer-check --emit-cpu-check"
+            " (the CPU-op map references the layer-check golden regions)."
+        )
         print("  2. Build the ELF in Vitis (NN_CHECK_CPU_OPS_ISO is set).")
         print("  3. In XSDB: dow application.elf, then con.")
-        print("  4. Read UART: each FORMAT_INPUT / IM2ROW / INT32_CHAIN step"
-              " prints PASS or 'k/N mismatches'.")
+        print(
+            "  4. Read UART: each FORMAT_INPUT / IM2ROW / INT32_CHAIN step"
+            " prints PASS or 'k/N mismatches'."
+        )
         print("     The first mismatching step is the CPU-op-introduced corruption.")
         return
     if dl == "tcl":
@@ -635,9 +644,7 @@ def main() -> None:
         client.close()
 
     for (runner, dl), app_src in app_srcs.items():
-        copy_sources(
-            app_src, runner, dl, args.baud, _extra_defines_for(runner)
-        )
+        copy_sources(app_src, runner, dl, args.baud, _extra_defines_for(runner))
 
     print()
     print("=== Done ===")
