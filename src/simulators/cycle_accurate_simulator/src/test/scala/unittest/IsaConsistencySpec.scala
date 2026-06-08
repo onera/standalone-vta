@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package simulatorTest.isa
+package unittest.isa
 
 import chisel3._
 import chisel3.util.BitPat
