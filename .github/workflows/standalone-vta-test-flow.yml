@@ -37,9 +37,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Cache Scala
-        uses: coursier/cache-action@v6
+        uses: coursier/cache-action@v8
       - name: Setup Scala
-        uses: coursier/setup-action@v1
+        uses: coursier/setup-action@v3
         with:
           jvm: adopt:11
       - name: Install Verilator
@@ -57,9 +57,9 @@ jobs:
       steps:
         - uses: actions/checkout@v6
         - name: Cache Scala
-          uses: coursier/cache-action@v6
+          uses: coursier/cache-action@v8
         - name: Setup Scala
-          uses: coursier/setup-action@v1
+          uses: coursier/setup-action@v3
           with:
             jvm: adopt:11
         - name: Install Verilator
