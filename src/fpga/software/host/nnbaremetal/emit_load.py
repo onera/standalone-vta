@@ -124,7 +124,7 @@ def gen_asm_incbin(
             print(f"WARNING: {abs_bin} not found - section will be empty")
         L.append("")
 
-    for i, layer, buf_type, _m in iter_static_buffers(layers):
+    for i, layer, buf_type, _ in iter_static_buffers(layers):
         emit_section(
             f".vta_l{i}_{buf_type.lower()}",
             os.path.abspath(layer.bin_files[buf_type]),

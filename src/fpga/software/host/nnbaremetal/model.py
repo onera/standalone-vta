@@ -60,7 +60,7 @@ class LayerInfo:
     suffix: str
     mem: Dict[str, MemAddr]
     bin_files: Dict[str, str]
-    # reshape_info from dependency.csv ("im2row", "int32", …); populated in
+    # reshape_info from dependency.csv ("im2row", "int32", ...); populated in
     # main() from dep_info.  Defaults to "im2row" so any layer left unannotated
     # keeps the historical conv behaviour (ACC = static bias).
     reshape_info: str = "im2row"
@@ -87,7 +87,7 @@ class LayerDep:
     """Per-layer entry parsed from dependency.csv."""
 
     processor: str  # "vta", "qadd", "concat", "dequant", "quant", "convtranspose"
-    reshape_info: str  # "im2row", "int32", …
+    reshape_info: str  # "im2row", "int32", ...
     offset_a: int
     scale_a: float
     offset_b: int

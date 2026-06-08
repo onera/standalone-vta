@@ -1,12 +1,5 @@
 """Command-line entry point: wires parse -> layout -> checks -> emit."""
 
-import argparse
-import csv
-import json
-import os
-import sys
-from pathlib import Path
-
 from .config import (
     _elem_bytes,
     check_config_compat,
@@ -26,6 +19,13 @@ from .checks import (
     check_memory_fit,
     print_summary,
 )
+
+import argparse
+import csv
+import json
+import os
+import sys
+from pathlib import Path
 
 
 def main() -> None:
@@ -166,7 +166,7 @@ def main() -> None:
         )
         print(
             f"[gen] isolation-check golden regions: 0x{_align_page(alloc_top):08X}"
-            f"–0x{check_top:08X}"
+            f"-0x{check_top:08X}"
         )
         if not check_buffer_overlaps(layers, ddr_base, cpu_scratch):
             sys.exit(1)

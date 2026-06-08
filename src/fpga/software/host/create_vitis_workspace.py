@@ -34,7 +34,7 @@ Data loaders (--data-loader, not applicable to test_gemm)
   elf  - static model data embedded in the ELF via .incbin; FSBL loads it
 
 Generated files copied for both data loaders (produced by gen_nn_baremetal.py)
-  vta_hw_config.h   - C++ type aliases (vta_inp_t, vta_out_t, …) derived from the
+  vta_hw_config.h   - C++ type aliases (vta_inp_t, vta_out_t, ...) derived from the
                       hardware config; required by vta_cpu_ops.cc at compile time
   nn_ddr_map.h      - LayerDesc array with per-layer DDR addresses
   nn_exec_plan.h    - typed execution step array (VTA + CPU ops)
@@ -165,7 +165,7 @@ def collect_sources(runner: str, data_loader: str | None) -> dict[Path, Path]:
 
       <runner>.cc   - runner entry point (root; picked up by aux_source_directory)
       <extras>      - e.g. init_dram.h for test_gemm (root)
-      <generated>   - nn_ddr_map.h, nn_exec_plan.h, nn_bin_data.S, … (root)
+      <generated>   - nn_ddr_map.h, nn_exec_plan.h, nn_bin_data.S, ... (root)
     """
     files: dict[Path, Path] = {}
 
@@ -225,9 +225,9 @@ def create_workspace_and_platform(
         cpu=cpu,
     )
 
-    print("[vitis] Building platform…")
+    print("[vitis] Building platform...")
     platform.build()
-    print(f"[vitis] Platform built → {xpfm}")
+    print(f"[vitis] Platform built -> {xpfm}")
     return xpfm
 
 
@@ -359,7 +359,7 @@ def copy_sources(
         dest = app_src / dest_rel
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src_path, dest)
-        print(f"       {src_path.relative_to(SOFTWARE_DIR)} → {dest_rel}")
+        print(f"       {src_path.relative_to(SOFTWARE_DIR)} -> {dest_rel}")
     defines = list(RUNNER_DEFINES.get(runner, []))
     defines += list(extra_defines or [])
     _patch_user_config(app_src, baud, defines)
@@ -478,7 +478,7 @@ def main() -> None:
         metavar="RUNNER",
         help=(
             "One or more runner applications to create as separate app components. "
-            "Choices: run_nn, run_nn_uart, test_gemm. "
+            "Choices: run_nn, run_nn_uart, test_gemm, run_nn_debug, run_nn_cpu_debug. "
             "Example: --runner run_nn run_nn_uart"
         ),
     )
@@ -593,12 +593,12 @@ def main() -> None:
             for dest_rel, src_path in collect_sources(runner, dl).items():
                 exists = "ok" if src_path.exists() else "MISSING"
                 rel = src_path.relative_to(SOFTWARE_DIR)
-                print(f"    [{exists:7s}]  {rel} → {dest_rel}")
+                print(f"    [{exists:7s}]  {rel} -> {dest_rel}")
             for d in RUNNER_DEFINES.get(runner, []) + _extra_defines_for(runner):
                 print(f"  Define: {d}")
             if dl == "elf":
                 print(
-                    "  Linker script: lscript.ld ← INCLUDE nn_vta_sections.ld (appended)"
+                    "  Linker script: lscript.ld <- INCLUDE nn_vta_sections.ld (appended)"
                 )
         return
 

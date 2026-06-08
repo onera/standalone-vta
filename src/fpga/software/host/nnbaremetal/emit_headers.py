@@ -101,9 +101,9 @@ def gen_exec_plan_header(
 
     # Build reshape steps for all VTA layers with reshape_info == "im2row".
     # Two sub-cases:
-    #   deps[0] == "image" → NN_STEP_FORMAT_INPUT (reads HWC-flat raw image)
-    #   deps[0] != "image" → NN_STEP_IM2ROW       (reads VTA block-tiled OUT)
-    # Maps: layer_name → step params dict
+    #   deps[0] == "image" -> NN_STEP_FORMAT_INPUT (reads HWC-flat raw image)
+    #   deps[0] != "image" -> NN_STEP_IM2ROW       (reads VTA block-tiled OUT)
+    # Maps: layer_name -> step params dict
     format_input_steps: Dict[str, Dict] = {}
     im2row_steps: Dict[str, Dict] = {}
     raw_phys = scratch_addr(layers, ddr_base)

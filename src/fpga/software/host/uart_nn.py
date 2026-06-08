@@ -52,7 +52,7 @@ import time
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
-# De-tiling: VTA block layout → NCHW flat
+# De-tiling: VTA block layout -> NCHW flat
 # ---------------------------------------------------------------------------
 
 
@@ -225,11 +225,11 @@ def run_inference(
 ) -> bytes:
     """Send input, drain inference logs, receive output. Call after sync()."""
     if verbose:
-        print(f"  [>] sending {len(input_data)} bytes …")
+        print(f"  [>] sending {len(input_data)} bytes ...")
     send_bytes(ser, input_data, verbose=verbose)
     drain_logs_until_output(ser, timeout=ready_timeout, verbose=verbose)
     if verbose:
-        print(f"  [<] receiving {out_n_bytes} bytes …")
+        print(f"  [<] receiving {out_n_bytes} bytes ...")
     return recv_bytes(ser, out_n_bytes, verbose=verbose)
 
 
@@ -406,7 +406,7 @@ def main() -> None:
     if out_dir:
         out_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"[uart] Opening {args.port} at {args.baud} baud …")
+    print(f"[uart] Opening {args.port} at {args.baud} baud ...")
     ser = serial.Serial(args.port, args.baud, timeout=1.0)
 
     # Sizes are discovered from the banner on the first run, or overridden by flags.
@@ -470,12 +470,12 @@ def main() -> None:
                 c, h, w = detile_shape
                 try:
                     out_data = detile(out_data, c, h, w, args.block_size)
-                    print(f"  de-tiled → NCHW [{c},{h},{w}]  ({len(out_data)} bytes)")
+                    print(f"  de-tiled -> NCHW [{c},{h},{w}]  ({len(out_data)} bytes)")
                 except ValueError as exc:
                     sys.exit(f"ERROR: detile failed: {exc}")
 
             out_path.write_bytes(out_data)
-            print(f"  saved {len(out_data)} bytes → {out_path}")
+            print(f"  saved {len(out_data)} bytes -> {out_path}")
 
     ser.close()
     print("[uart] Done.")

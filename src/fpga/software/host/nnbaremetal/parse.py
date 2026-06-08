@@ -18,7 +18,7 @@ from .model import (
 
 
 def load_memory_addresses(path: str) -> Dict[str, MemAddr]:
-    """Parse a memory_addresses[SUFFIX].csv → dict keyed by buffer type."""
+    """Parse a memory_addresses[SUFFIX].csv -> dict keyed by buffer type."""
     result: Dict[str, MemAddr] = {}
     with open(path, newline="") as f:
         for row in csv.reader(f):
@@ -38,8 +38,8 @@ def load_dependency_csv(path: str) -> DependencyInfo:
 
     Row types (identified by whether col[0] parses as int):
       nb_steps, <N>
-      <int_idx>, <processor>, <layer_name>      ← execution order
-      <layer_name>, <processor>, <reshape>, …  ← layer details
+      <int_idx>, <processor>, <layer_name>      <- execution order
+      <layer_name>, <processor>, <reshape>, ...  <- layer details
       image, <H>, <W>
       output, <layer_name>, <C>, <H>, <W>
 

@@ -101,12 +101,12 @@ def format_c_array(name, data, storage_dtype_str, chunk_size):
 def format_insn_array(name, insn_words):
     """Emit `static const VTAInsn name[] = { ... };` from a uint32 word stream.
 
-    Each VTAInsn is 4 × uint32 (128-bit). Length must be a multiple of 4.
+    Each VTAInsn is 4 x uint32 (128-bit). Length must be a multiple of 4.
     """
     if insn_words.size % 4 != 0:
         raise ValueError(
             f"Instruction stream has {insn_words.size} uint32 words; "
-            f"expected a multiple of 4 (each VTAInsn is 4 × uint32)."
+            f"expected a multiple of 4 (each VTAInsn is 4 x uint32)."
         )
     rows = insn_words.reshape(-1, 4)
     lines = [f"static const VTAInsn {name}[] = {{"]

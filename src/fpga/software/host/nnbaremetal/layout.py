@@ -80,7 +80,7 @@ def _build_cpu_out_addrs(
     ddr_base: int,
     suffix_to_idx: Dict[str, int],
     comp_dir: str,
-) -> Tuple[Dict[str, int], int]:
+) -> Tuple[Dict[str, int], int, List[Tuple[str, int, int]]]:
     """Pre-resolve every CPU op's output DDR address.
 
     For ops that write into a VTA layer's INP/ACC the VTA address is used
@@ -125,7 +125,7 @@ def _build_cpu_out_addrs(
             cpu_scratch.append((layer_name, alloc_ptr, n_bytes))
             alloc_ptr += _align_page(n_bytes)
             print(
-                f"[gen] CPU scratch alloc: {layer_name} → "
+                f"[gen] CPU scratch alloc: {layer_name} -> "
                 f"{hex32(cpu_out[layer_name])} ({n_bytes} bytes)"
             )
         # quant with no VTA consumer is unusual; leave address as 0 (warning below)
