@@ -65,7 +65,7 @@ class AluReg(implicit p: Parameters) extends Module {
   val alu = Module(new Alu)
   val rA = RegEnable(io.a.bits, io.a.valid)
   val rB = RegEnable(io.b.bits, io.b.valid)
-  val valid = RegNext(io.b.valid)
+  val valid = RegNext(io.b.valid, init = false.B)
 
   alu.io.opcode := io.opcode
 
