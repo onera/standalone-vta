@@ -137,15 +137,6 @@ def gen_asm_incbin(
                 emit_section(f".vta_l{i}_inref", os.path.abspath(layer.in_ref_file))
             if layer.out_ref_size > 0 and layer.out_ref_file:
                 emit_section(f".vta_l{i}_outref", os.path.abspath(layer.out_ref_file))
-            # Golden insn/uop: re-embed the same compiler .bin as the live section.
-            if layer.insn_ref_size > 0:
-                emit_section(
-                    f".vta_l{i}_insnref", os.path.abspath(layer.bin_files["INSN"])
-                )
-            if layer.uop_ref_size > 0:
-                emit_section(
-                    f".vta_l{i}_uopref", os.path.abspath(layer.bin_files["UOP"])
-                )
 
     with open(out_path, "w", encoding="utf-8") as f:
         f.write("\n".join(L) + "\n")
@@ -184,16 +175,6 @@ def gen_linker_fragment(
                 L.append(
                     f".vta_l{i}_outref 0x{layer.out_ref_addr:08X} :"
                     f" {{ KEEP(*(.vta_l{i}_outref)) }}"
-                )
-            if layer.insn_ref_size > 0:
-                L.append(
-                    f".vta_l{i}_insnref 0x{layer.insn_ref_addr:08X} :"
-                    f" {{ KEEP(*(.vta_l{i}_insnref)) }}"
-                )
-            if layer.uop_ref_size > 0:
-                L.append(
-                    f".vta_l{i}_uopref 0x{layer.uop_ref_addr:08X} :"
-                    f" {{ KEEP(*(.vta_l{i}_uopref)) }}"
                 )
 
     L.append("}")

@@ -73,13 +73,6 @@ class LayerInfo:
     out_ref_file: Optional[str] = None  # fsim golden output (output<suffix>.bin)
     out_ref_addr: int = 0  # DRAM address of the embedded golden output
     out_ref_size: int = 0  # golden output byte count
-    # Golden copies of the layer's instruction / micro-op streams (same compiler
-    # .bin as the live INSN/UOP sections), embedded at a reserved DRAM region so
-    # the runtime can detect a prior layer corrupting them in DDR.
-    insn_ref_addr: int = 0  # DRAM address of the embedded golden instructions
-    insn_ref_size: int = 0  # golden instruction byte count
-    uop_ref_addr: int = 0  # DRAM address of the embedded golden micro-ops
-    uop_ref_size: int = 0  # golden micro-op byte count
 
 
 @dataclass

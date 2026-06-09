@@ -23,16 +23,15 @@ def assign_layer_check_regions(
     ref_dir: str,
     base_top: int,
 ) -> int:
-    """Lay out the golden bins (in/out + insn/uop) in a reserved DRAM region.
+    """Lay out the golden in/out bins in a reserved DRAM region.
 
     Regions start at base_top (the first free address above all VTA buffers,
     raw-input scratch, and CPU-op scratch) and grow page-aligned upward, so they
     never collide with live data.  Populates the in_ref/out_ref fields (fsim
-    golden activations) and the insn_ref/uop_ref fields (a second copy of each
-    layer's instruction/uop .bin) of each LayerInfo.  The golden input
-    destination is the layer's INP buffer for im2row layers and its ACC buffer
-    for int32 layers (matching fsim's dump, fsim_nn.cc:650-666).  Returns the new
-    free-top address.
+    golden activations) of each LayerInfo.  The golden input destination is the
+    layer's INP buffer for im2row layers and its ACC buffer for int32 layers
+    (matching fsim's dump, fsim_nn.cc:650-666).  Returns the new free-top
+    address.
     """
     alloc_ptr = _align_page(base_top)
 
@@ -94,40 +93,6 @@ def assign_layer_check_regions(
                 f" - layer '{suffix}' will run on its preloaded buffer"
             )
 
-        # Golden copies of the instruction / micro-op streams - the same
-        # compiler .bin used for the live INSN/UOP sections, embedded a second
-        # time at a reserved address.  Comparing live-vs-golden before the layer
-        # runs catches a prior layer clobbering these static bytes in DDR.  The
-        # golden size is the *actual stream length* (the .bin file size); the
-        # live INSN region the VTA fetches is exactly insn_count*16 (== file
-        # size) and the live UOP buffer is page-padded but only the first
-        # file-size bytes are ever fetched, so the padded tail is not compared.
-        for buf_type, addr_attr, size_attr in (
-            ("INSN", "insn_ref_addr", "insn_ref_size"),
-            ("UOP", "uop_ref_addr", "uop_ref_size"),
-        ):
-            mem = layer.mem.get(buf_type)
-            bin_path = layer.bin_files.get(buf_type)
-            if mem is None or mem.size == 0 or not bin_path:
-                continue
-            if not os.path.isfile(bin_path):
-                print(
-                    f"WARNING: {buf_type} binary not found for layer '{suffix}':"
-                    f" {bin_path} - golden {buf_type.lower()} check skipped"
-                )
-                continue
-            fsize = os.path.getsize(bin_path)
-            if fsize > mem.size:
-                print(
-                    f"WARNING: {buf_type} bin for layer '{suffix}' is {fsize} B"
-                    f" but live buffer is only {mem.size} B - golden check would"
-                    f" read past the buffer; skipped"
-                )
-                continue
-            setattr(layer, addr_attr, alloc_ptr)
-            setattr(layer, size_attr, fsize)
-            alloc_ptr += _align_page(fsize)
-
         # Dual-operand isolation is not wired up (no such VTA layer in current
         # nets; nb_inp==2 int32 is the CPU qadd path).
         y_file = ref_input_y_path(ref_dir, suffix)
@@ -167,10 +132,6 @@ def gen_debug_map(
         L.append(f"        .in_dst_phys   = {hex32(layer.in_dst_addr)},")
         L.append(f"        .out_ref_phys  = {hex32(layer.out_ref_addr)},")
         L.append(f"        .out_ref_bytes = {hex32(layer.out_ref_size)},")
-        L.append(f"        .insn_ref_phys  = {hex32(layer.insn_ref_addr)},")
-        L.append(f"        .insn_ref_bytes = {hex32(layer.insn_ref_size)},")
-        L.append(f"        .uop_ref_phys   = {hex32(layer.uop_ref_addr)},")
-        L.append(f"        .uop_ref_bytes  = {hex32(layer.uop_ref_size)},")
         L.append(f'        .name          = "{layer.suffix}",')
         L.append("    }" + ("," if i < len(layers) - 1 else ""))
 
