@@ -196,6 +196,12 @@ fsim: build/fsim
 vsim: build/vsim
 	./build/vsim --no-timeout
 
+fsim_single_layer: build/fsim
+	./build/fsim --layer 0
+
+vsim_single_layer: build/vsim
+	./build/vsim --layer 0
+
 # Canned vsim configurations. The cached Verilated archive and the C++ objects
 # that read VTA_VERIF_DEBUG aren't tracked as make dependencies, so wipe them
 # before re-verilating / recompiling.

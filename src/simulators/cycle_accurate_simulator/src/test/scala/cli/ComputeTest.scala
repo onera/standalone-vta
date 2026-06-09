@@ -31,9 +31,10 @@ trait ComputeTest extends AnyFlatSpecSim {
       fromResources: Boolean = true
   ) = {
 
-    // FIXME: need to disable-all-randomization for the matrix 32x32 tests to pass.
-    // Those tests should be check to add an accumulation buffer reset (i.e. load a ), otherwise it picks random values as initialization
-    simulate(new Compute, firtoolOpts = Array("--disable-all-randomization")) {
+    // The 32x32 tests rely on the acc scratchpad (a memory) powering up zeroed,
+    // so only memory randomization is disabled; register randomization stays on.
+    // FIXME: proper fix is to reset/load the acc buffer in those fixtures.
+    simulate(new Compute, firtoolOpts = Array("--disable-mem-randomization")) {
       c =>
         new ComputeSimulator(
           c,

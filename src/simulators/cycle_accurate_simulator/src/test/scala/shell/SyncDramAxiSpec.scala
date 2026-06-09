@@ -67,7 +67,7 @@ class SyncAxiDramSpec
 
     simulate(
       new InitMemInline(file, 16, 32),
-      firtoolOpts = Array("--disable-all-randomization")
+      firtoolOpts = Array("--disable-mem-randomization")
     ) { mem =>
       mem.io.enable.poke(true)
       for (i <- 1 until 10) {

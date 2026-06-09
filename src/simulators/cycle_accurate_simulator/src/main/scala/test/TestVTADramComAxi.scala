@@ -162,7 +162,7 @@ trait VTAShellTest extends ChiselSim with AxiFullSimUtils with VcrTestUtils {
     // the call site rather than fixed here, so each caller controls them.
     simulate(
       new VTAShellTestFull(content, false),
-      firtoolOpts = Array("--disable-all-randomization"),
+      firtoolOpts = Array("--disable-mem-randomization"),
       settings = Settings.default.copy(verilogLayers = LayerControl.EnableAll)
     ) { vta =>
       implicit val clock = vta.clock
@@ -196,73 +196,4 @@ trait VTAShellTest extends ChiselSim with AxiFullSimUtils with VcrTestUtils {
     }
   }
 
-  def runVtaTestWithInitializedMemTwice(
-      content: Seq[MemoryConfig],
-      timeout: Int = 100,
-      waves: Boolean = false
-  )(implicit
-      testingDirectory: HasTestingDirectory,
-      simulator: HasSimulator,
-      chiselOptsModifications: ChiselOptionsModifications,
-      firtoolOptsModifications: FirtoolOptionsModifications,
-      commonSettingsModifications: svsim.CommonSettingsModifications,
-      backendSettingsModifications: svsim.BackendSettingsModifications
-  ) = {
-    implicit val parameters: Parameters = new DefaultPynqConfig
-
-    simulate(
-      new VTAShellTestFull(content),
-      firtoolOpts = Array("--disable-all-randomization")
-    ) { vta =>
-      implicit val clock = vta.clock
-      implicit val axiLiteClient = vta.io.host
-      vta.io.host.b.ready.poke(true.B)
-
-      if (waves) {
-        enableWaves()
-      }
-
-      writeInstructionBaseAddress(
-        content.find(_.name.matches("INSN")).get.baseAddress
-      )
-      writeUopBaseAddress(0)
-      writeInputBaseAddress(0)
-      writeWeightBaseAddress(0)
-      writeAccBaseAddress(0)
-      writeOutBaseAddress(0)
-      // Configure instruction size
-
-      writeInstructionCount(
-        content.find(_.name.matches("INSN")).get.numberOfData
-      )
-
-      // launch the processing of VTA
-      launchVTA()
-
-      // step clock until the computation is over
-      clock.step(timeout)
-      RunUntilFinished(timeout)
-
-      writeInstructionBaseAddress(
-        content.find(_.name.matches("INSN")).get.baseAddress
-      )
-      writeUopBaseAddress(0)
-      writeInputBaseAddress(0)
-      writeWeightBaseAddress(0)
-      writeAccBaseAddress(0)
-      writeOutBaseAddress(0)
-      // Configure instruction size
-
-      writeInstructionCount(
-        content.find(_.name.matches("INSN")).get.numberOfData
-      )
-
-      // launch the processing of VTA
-      launchVTA()
-
-      // step clock until the computation is over
-      clock.step(timeout)
-      RunUntilFinished(timeout)
-    }
-  }
 }

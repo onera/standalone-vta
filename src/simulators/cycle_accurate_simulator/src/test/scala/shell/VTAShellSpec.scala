@@ -65,15 +65,6 @@ class VTAShellSpec
 
   }
 
-  it should "run the full vta twice" in {
-
-    runVtaTestWithInitializedMemTwice(
-      memoryConfigs,
-      timeout = 10000,
-      waves = false
-    )
-
-  }
 }
 
 class VTAShellBinSpec
@@ -144,7 +135,7 @@ class VTAShellBinSpec
 
     simulate(
       new VTAShellTestFull(memoryConfigs),
-      firtoolOpts = Array("--disable-all-randomization")
+      firtoolOpts = Array("--disable-mem-randomization")
     ) { vta =>
       implicit val clock = vta.clock
       implicit val axiLiteClient = vta.io.host

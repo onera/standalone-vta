@@ -164,7 +164,7 @@ class MultiMemAxiClientSpec
           MemoryConfig("UOP", (path / "UOP.mem").toString(), 100, 5, 3)
         )
       ),
-      firtoolOpts = Array("--disable-all-randomization")
+      firtoolOpts = Array("--disable-mem-randomization")
     ) { dut =>
       implicit val axi = dut.io
       implicit val clock = dut.clock
