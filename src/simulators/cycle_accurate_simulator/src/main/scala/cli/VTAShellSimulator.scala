@@ -17,6 +17,7 @@ import vta.util.BinaryReader.DataType._
 import java.nio.file.Path
 import java.nio.file.Paths
 import scala.io.Source
+import java.io.File
 
 // FIXME: simple app, needs refinement
 object VTAShellSimulator extends App with VTAShellTest {
@@ -102,11 +103,14 @@ object VTAShellSimBinary extends App with VTAShellTest {
     vta.util.BinaryReader
       .computeJSONFile(configFile, fromResources)("LOG_OUT_WIDTH") / 8
   }
-  val outWords64 = DramInitParser.outRegionWords64(
-    DramInitParser.parseMetadata(path + s"/metadata${suffix}.csv"),
-    outElemBytes
-  )
+  val metadataFile = new File(path + s"/metadata${suffix}.csv")
+  val outWords64 = if (metadataFile.isFile()) {
 
+    DramInitParser.outRegionWords64(
+      DramInitParser.parseMetadata(path + s"/metadata${suffix}.csv"),
+      outElemBytes
+    )
+  } else 1000
   val memoryConfigs = files
     .map(e =>
       MemoryConfig(

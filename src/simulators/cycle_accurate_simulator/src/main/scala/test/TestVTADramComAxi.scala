@@ -161,7 +161,7 @@ trait VTAShellTest extends ChiselSim with AxiFullSimUtils with VcrTestUtils {
     // Settings modifications (mem-init, FST tracing, ...) are forwarded from
     // the call site rather than fixed here, so each caller controls them.
     simulate(
-      new VTAShellTestFull(content),
+      new VTAShellTestFull(content, false),
       firtoolOpts = Array("--disable-all-randomization"),
       settings = Settings.default.copy(verilogLayers = LayerControl.EnableAll)
     ) { vta =>
