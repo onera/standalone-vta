@@ -25,6 +25,7 @@ class DriverVcrHarness(layers: Seq[LaunchParams])(implicit p: Parameters)
   val vcr = Module(new VCR)
   drv.io.host <> vcr.io.host
   vcr.io.vcr.finish := io.finish
+  drv.io.finishHint := io.finish
   vcr.io.vcr.ecnt.foreach { e => e.valid := false.B; e.bits := 0.U }
   vcr.io.vcr.ucnt.foreach { u => u.valid := false.B; u.bits := 0.U }
   io.launch := vcr.io.vcr.launch

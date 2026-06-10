@@ -20,15 +20,7 @@ import vta.util.SimulationUtils.verilatorWithWaveDump
   *   the configuration of each memory
   * @param enforceOutBounds
   *   when true (default), emit a runtime assertion that every AXI write burst
-  *   lies fully inside some OUT-named region. The check is useful for
-  *   single-layer testbenches where OUT sizing is well-defined, but the
-  *   compiler's per-layer CSV-declared OUT sizes are sometimes tighter than
-  *   what the compiler actually writes (the binaries emit stores up to the
-  *   natural end of the tile tensor, not the conservative reserved span).
-  *   Multi-layer harnesses that ingest the compiler CSVs verbatim should pass
-  *   `false` to suppress the assertion; the per-layer reloStride layout already
-  *   ensures cross-layer isolation, so a wrong-region write is more readily
-  *   caught by the layer's output mismatch.
+  *   lies fully inside some OUT-named region.
   * @param param
   *   the AXI parameters configuration
   */
@@ -72,9 +64,8 @@ class MultiMemAxiClient(
     )
   }
 
-  // Allow any entry whose name starts with "OUT" to receive AXI writes. The
-  // single-layer case ("OUT") still works; multi-layer harnesses can pass
-  // several OUT_<suffix> entries at non-overlapping addresses (per-layer
+  // Allow any entry whose name starts with "OUT" to receive AXI writes.;
+  // multi-layer harnesses can pass several OUT_<suffix> entries at non-overlapping addresses (per-layer
   // output buffers) and writes will be accepted if they fall in ANY of them.
   val outEntries = memoryConfigs.filter(_.name.startsWith("OUT"))
   require(
@@ -122,8 +113,7 @@ class MultiMemAxiClient(
     // Honor the AXI write-strobe (byte-enable) mask via read-modify-write.
     // Dense stores drive strb=all-ones (full beat); block-4 sparse/strided
     // stores drive partial strobes (e.g. 0x0f/0xf0) and must leave the masked
-    // bytes untouched - matching dpi_mem.cc. Using strb also keeps VTAShell's
-    // io_mem_w_bits_strb port live (otherwise firtool prunes the dead input).
+    // bytes untouched - matching dpi_mem.cc.
     when(io.w.fire && isSelForWrite) {
       val idx = (writeHandle - p.baseAddress.U) >> wordShift
       val curBytes = mem(idx).asTypeOf(Vec(bytesPerWord, UInt(8.W)))

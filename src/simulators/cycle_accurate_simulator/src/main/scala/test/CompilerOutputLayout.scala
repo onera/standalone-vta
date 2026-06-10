@@ -12,9 +12,10 @@ import vta.util.MemoryInitializer.exportHexToMemFiles
   * DRAM `MemoryConfig` list and the per-layer launch table consumed by both the
   * Scala multilayer spec and the synthesizable VtaHostDriver ROM.
   *
-  * The relocation/layout strategy places each layer's regions at csvBase + RELO_L
-  * (RELO_L = layerIndex * reloStride) so the VTA's `baddr | (offset<<shift)`
-  * address math reduces to baddr + offset with no cross-layer overlap.
+  * The relocation/layout strategy places each layer's regions at csvBase +
+  * RELO_L (RELO_L = layerIndex * reloStride) so the VTA's
+  * `baddr | (offset<<shift)` address math reduces to baddr + offset with no
+  * cross-layer overlap.
   */
 object CompilerOutputLayout {
 
@@ -126,12 +127,18 @@ object CompilerOutputLayout {
             val wordCount = if (cacheValid) {
               os.read.lines(memFile).size
             } else {
-              val hex = DramInitParser.getHexFromBinaryFiles(
-                Map(dt -> binPath),
-                fromResources = false
+              // val hex = DramInitParser.getHexFromBinaryFiles(
+              //   Map(dt -> binPath),
+              //   fromResources = false
+              // )
+              // exportHexToMemFiles(Map(memName -> hex(dt)._1), memOutDir)
+              DramInitParser.fileBin2hex(
+                binPath,
+                memOutDir,
+                dt,
+                fromResource = false
               )
-              exportHexToMemFiles(Map(memName -> hex(dt)._1), memOutDir)
-              hex(dt)._1.length
+              // hex(dt)._1.length
             }
             val numData =
               if (r.name == "INSN") wordCount / 2 else binSize.toInt

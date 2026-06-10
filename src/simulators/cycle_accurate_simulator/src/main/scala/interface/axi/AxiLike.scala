@@ -3,6 +3,7 @@ package vta.interface.axi
 import chisel3._
 import chisel3.util._
 import vta.interface.axi.BurstType.fixed
+import vta.interface.axi.BurstType.wrapped
 
 trait AxiLike[T <: Data] {
 
@@ -143,6 +144,22 @@ object AxiLike {
           }
         }
 
+      // TODO: add assertions for proper verification of the axi protocol
+      // when(axi.aw.fire) {
+      //   assert(
+      //     axi.aw.bits.burst === fixed && axi.aw.bits.len + 1.U >= 16.U,
+      //     "[AXI] for fixed bursts, length can be up to 16"
+      //   )
+      //   assert(
+      //     axi.aw.bits.addr % 4096.U === ((axi.aw.bits.addr + (axi.aw.bits.len + 1.U) * axi.aw.bits.size)) % 4096.U,
+      //     "[AXI] a transaction should not cross 4kB boundary"
+      //   )
+      //   assert(
+      //     (axi.aw.bits.len + 1.U) * axi.aw.bits.size < 4096.U,
+      //     "[AXI] a transaction cannot issue more than 4KB in a single burst"
+      //   )
+      // }
+
       awAddr
 
     }
@@ -154,7 +171,7 @@ object AxiLike {
 
       val arReady = RegInit(false.B)
       val arLen = RegInit(0.U.asTypeOf(axi.ar.bits.len))
-      val arBurst = RegInit(BurstType.fixed)
+      val arBurst = RegInit(BurstType.increment)
       val rValid = RegInit(false.B)
       val rReady = RegInit(false.B)
       val rLast = RegInit(false.B)

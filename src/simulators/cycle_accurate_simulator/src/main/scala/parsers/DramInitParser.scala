@@ -8,6 +8,10 @@ import vta.util.MemoryConfig
 
 import scala.io.Source
 import vta.util.BinaryReader.readBinaryFile
+import java.io.FileInputStream
+import java.io.BufferedInputStream
+import vta.util.MemoryInitializer.exportHexToMemFiles
+import vta.util.MemoryInitializer.exportHexToMemFile
 
 object DramInitParser {
 
@@ -162,6 +166,44 @@ object DramInitParser {
         )
       }
     }.toMap
+  }
+
+  def fileBin2hex(
+      fileIn: String,
+      dirOut: os.Path,
+      dt: DataTypeValue,
+      fromResource: Boolean = true
+  ) = {
+    if (fileIn.trim.isEmpty) {
+      0
+    } else {
+      val bis = new BufferedInputStream(new FileInputStream(fileIn))
+      val size = bis.available()
+      try {
+        val hexIt = Iterator
+          .continually(bis.readNBytes(8))
+          .takeWhile(_.nonEmpty)
+          .map(bin2hexIt(_, bytesPerWord = 8, littleEndian = true))
+
+        exportHexToMemFile(dt.getName(), hexIt, dirOut)
+      } finally bis.close()
+      size
+    }
+  }
+  def bin2hexIt(
+      bytes: Array[Byte],
+      bytesPerWord: Int = 8,
+      littleEndian: Boolean = false
+  ): String = {
+    require(
+      bytesPerWord > 0,
+      s"bytesPerWord must be positive, got $bytesPerWord"
+    )
+    val pad = Array.fill[Byte](bytesPerWord - bytes.length)(0)
+    val ordered =
+      if (littleEndian) pad ++ bytes.reverse
+      else pad ++ bytes
+    ordered.iterator.map(b => f"${b & 0xff}%02x").mkString
   }
 
   /** Convert a byte array into one hex string per `bytesPerWord`-byte group.

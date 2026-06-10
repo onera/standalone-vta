@@ -50,6 +50,7 @@ class XilinxShell(implicit p: Parameters) extends RawModule {
   shell.io.mem <> m_axi_gmem.viewAs[AXIMaster]
   shell.io.host <> s_axi_control.viewAs[AXILiteClient]
 }
+
 class XilinxDebugShell(implicit p: Parameters) extends RawModule {
 
   override def desiredName: String = "VTAXilinxShell"

@@ -2,6 +2,9 @@ package vta.util
 
 import chisel3._
 import java.io.File
+import java.io.FileOutputStream
+import os.Source.WritableSource
+import java.io.BufferedOutputStream
 
 /** Utility case class for defining mock memories for simulation
   *
@@ -92,5 +95,16 @@ object MemoryInitializer {
       )
       name -> filePath
     }
+  }
+  def exportHexToMemFile(
+      name: String,
+      content: Iterator[String],
+      file: os.Path
+  ): (String, os.Path) = {
+
+    val filePath = file / (name + ".mem")
+    os.write.over(filePath, content.mkString("\n"))
+
+    name -> filePath
   }
 }

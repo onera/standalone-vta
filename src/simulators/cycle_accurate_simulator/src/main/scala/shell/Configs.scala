@@ -36,7 +36,7 @@ class PynqConfig
           userBits = 0
         ),
         memParams = AXIParams(
-          // coherent = true,  // enable for coherent memory access
+          coherent = true, // enable for coherent memory access
           addrBits = 32,
           idBits = 8,
           dataBits = 64,

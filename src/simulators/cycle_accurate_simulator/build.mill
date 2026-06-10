@@ -166,7 +166,7 @@ object `package` extends SbtModule with PublishModule with ScalafixModule {
     }
 
     def testWaves(args: String*) = Task.Command{
-      testOnly(args ++ Seq("--","-DemitVcd=1")*)()
+      testOnly(args ++ Seq("--","-DemitFst=1")*)()
     }
 
   }

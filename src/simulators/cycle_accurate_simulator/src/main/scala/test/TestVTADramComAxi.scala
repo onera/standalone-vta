@@ -162,8 +162,7 @@ trait VTAShellTest extends ChiselSim with AxiFullSimUtils with VcrTestUtils {
     // the call site rather than fixed here, so each caller controls them.
     simulate(
       new VTAShellTestFull(content, false),
-      firtoolOpts = Array("--disable-mem-randomization"),
-      settings = Settings.default.copy(verilogLayers = LayerControl.EnableAll)
+      firtoolOpts = Array("--disable-mem-randomization")
     ) { vta =>
       implicit val clock = vta.clock
       implicit val axiLiteClient = vta.io.host

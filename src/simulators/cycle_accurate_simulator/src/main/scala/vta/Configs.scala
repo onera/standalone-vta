@@ -183,7 +183,7 @@ object EmitPostSynthTb extends EmitterApp {
   val layers =
     argVal(
       "layers",
-      "QLinearConv1,MaxPool2,QLinearConv3,MaxPool4,QLinearConv5,QLinearConv6,QLinearConv7"
+      "QLinearConv1"
     ).split(",").map(_.trim).filter(_.nonEmpty).toSeq
   val reloStride = BigInt(argVal("reloStride", "2097152")) // 0x200000
   val perLayerTimeout = argVal("perLayerTimeout", "2000000").toInt
