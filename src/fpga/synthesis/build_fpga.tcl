@@ -59,47 +59,188 @@ if {[llength [get_ipdefs -all $vta_vlnv]] == 0} {
 set bd block_design
 create_bd_design $bd
 
-# --- Processing system: instantiate, apply the board preset, then our deltas ---
+# --- Processing system: instantiate, apply the board preset (if defined), then our deltas ---
 set ps [create_bd_cell -type ip -vlnv $ps_ip $ps_cell]
-apply_bd_automation -rule $ps_preset_rule -config $ps_preset_config $ps
+if {$ps_preset_rule ne "" && $ps_preset_config ne ""} {
+  apply_bd_automation -rule $ps_preset_rule -config $ps_preset_config $ps
+}
 set ps_props {}
 foreach {k v} $ps_config { lappend ps_props CONFIG.$k $v }
 # PL clock frequency: single source of truth (pl_clock_mhz); the property name is
 # PS-family-specific (ZynqMP vs Zynq-7000), so it comes from the board JSON.
-lappend ps_props CONFIG.$pl_clock_property $pl_clock_mhz
+if {$pl_clock_property ne ""} {
+  lappend ps_props CONFIG.$pl_clock_property $pl_clock_mhz
+}
 if {[llength $ps_props] > 0} { set_property -dict $ps_props $ps }
 
 # --- VTA IP (by VLNV - survives RTL/config changes) ---
 set vta [create_bd_cell -type ip -vlnv $vta_vlnv $vta_cell]
 
-# --- AXI SmartConnect (2 SI / 2 MI) + synchronized reset ---
-set smc [create_bd_cell -type ip -vlnv xilinx.com:ip:smartconnect:1.0 axi_smc]
-set_property -dict {CONFIG.NUM_SI 2 CONFIG.NUM_MI 2} $smc
-set rst [create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 proc_sys_reset_0]
+if {[info exists is_versal] && $is_versal} {
+  # --- Versal-specific Block Design ---
 
-# --- Interface connections (topology is identical for ZynqMP and Zynq-7000) ---
-#   VTA DRAM master -> SmC S00 ; SmC M00 -> VTA ctrl slave
-#   SmC M01 -> PS DRAM slave   ; PS ctrl master -> SmC S01
-connect_bd_intf_net [get_bd_intf_pins $vta_cell/$port_vta_dram_master] [get_bd_intf_pins axi_smc/S00_AXI]
-connect_bd_intf_net [get_bd_intf_pins axi_smc/M00_AXI]                  [get_bd_intf_pins $vta_cell/$port_vta_ctrl_slave]
-connect_bd_intf_net [get_bd_intf_pins axi_smc/M01_AXI]                  [get_bd_intf_pins $ps_cell/$port_ps_dram_slave]
-connect_bd_intf_net [get_bd_intf_pins $ps_cell/$port_ps_ctrl_master]    [get_bd_intf_pins axi_smc/S01_AXI]
+  # 1. Create external interface ports for LPDDR4 memory
+  set ch0_lpddr4_trip1 [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:lpddr4_rtl:1.0 ch0_lpddr4_trip1 ]
+  set ch1_lpddr4_trip1 [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:lpddr4_rtl:1.0 ch1_lpddr4_trip1 ]
+  set lpddr4_clk1 [ create_bd_intf_port -mode Slave -vlnv xilinx.com:interface:diff_clock_rtl:1.0 lpddr4_clk1 ]
+  set_property -dict [ list CONFIG.FREQ_HZ {200000000} ] $lpddr4_clk1
 
-# --- Clock fan-out: single PL clock drives VTA, SmC, reset, and the PS AXI aclks ---
-set clk_src [get_bd_pins $ps_cell/$port_ps_clk]
-set clk_sinks [list \
-  $vta_cell/$port_vta_clk \
-  axi_smc/aclk \
-  proc_sys_reset_0/slowest_sync_clk]
-foreach a $ps_clk_aclks { lappend clk_sinks $ps_cell/$a }
-set clk_pins {}
-foreach s $clk_sinks { lappend clk_pins [get_bd_pins $s] }
-connect_bd_net $clk_src {*}$clk_pins
+  # 2. Instantiate and configure AXI NoC
+  set noc [create_bd_cell -type ip -vlnv xilinx.com:ip:axi_noc:1.1 axi_noc_0]
+  set_property -dict [list \
+    CONFIG.CH0_LPDDR4_0_BOARD_INTERFACE {ch0_lpddr4_trip1} \
+    CONFIG.CH1_LPDDR4_0_BOARD_INTERFACE {ch1_lpddr4_trip1} \
+    CONFIG.MC2_FLIPPED_PINOUT {true} \
+    CONFIG.MC_CHANNEL_INTERLEAVING {true} \
+    CONFIG.MC_CHAN_REGION1 {DDR_LOW1} \
+    CONFIG.MC_LP4_OVERWRITE_IO_PROP {true} \
+    CONFIG.MC_LP4_PIN_EFFICIENT {true} \
+    CONFIG.MC_SYSTEM_CLOCK {Differential} \
+    CONFIG.NUM_CLKS {7} \
+    CONFIG.NUM_MC {1} \
+    CONFIG.NUM_MCP {4} \
+    CONFIG.NUM_MI {0} \
+    CONFIG.NUM_SI {7} \
+    CONFIG.sys_clk0_BOARD_INTERFACE {lpddr4_clk1} \
+  ] $noc
 
-# --- Reset: PS pl_resetn -> proc_sys_reset ; peripheral_aresetn -> VTA + SmC ---
-connect_bd_net [get_bd_pins $ps_cell/$port_ps_resetn] [get_bd_pins proc_sys_reset_0/ext_reset_in]
-connect_bd_net [get_bd_pins proc_sys_reset_0/peripheral_aresetn] \
-  [get_bd_pins $vta_cell/$port_vta_resetn] [get_bd_pins axi_smc/aresetn]
+  # Configure NoC ports
+  set_property -dict [ list \
+    CONFIG.REGION {0} \
+    CONFIG.CONNECTIONS {MC_3 {read_bw {100} write_bw {100} read_avg_burst {4} write_avg_burst {4} initial_boot {true} }} \
+    CONFIG.NOC_PARAMS {} \
+    CONFIG.CATEGORY {ps_cci} \
+  ] [get_bd_intf_pins axi_noc_0/S00_AXI]
+
+  set_property -dict [ list \
+    CONFIG.REGION {0} \
+    CONFIG.CONNECTIONS {MC_2 {read_bw {100} write_bw {100} read_avg_burst {4} write_avg_burst {4} initial_boot {true} }} \
+    CONFIG.NOC_PARAMS {} \
+    CONFIG.CATEGORY {ps_cci} \
+  ] [get_bd_intf_pins axi_noc_0/S01_AXI]
+
+  set_property -dict [ list \
+    CONFIG.REGION {0} \
+    CONFIG.CONNECTIONS {MC_0 {read_bw {100} write_bw {100} read_avg_burst {4} write_avg_burst {4} initial_boot {true} }} \
+    CONFIG.NOC_PARAMS {} \
+    CONFIG.CATEGORY {ps_cci} \
+  ] [get_bd_intf_pins axi_noc_0/S02_AXI]
+
+  set_property -dict [ list \
+    CONFIG.REGION {0} \
+    CONFIG.CONNECTIONS {MC_1 {read_bw {100} write_bw {100} read_avg_burst {4} write_avg_burst {4} initial_boot {true} }} \
+    CONFIG.NOC_PARAMS {} \
+    CONFIG.CATEGORY {ps_cci} \
+  ] [get_bd_intf_pins axi_noc_0/S03_AXI]
+
+  set_property -dict [ list \
+    CONFIG.REGION {0} \
+    CONFIG.CONNECTIONS {MC_3 {read_bw {100} write_bw {100} read_avg_burst {4} write_avg_burst {4} initial_boot {true} }} \
+    CONFIG.NOC_PARAMS {} \
+    CONFIG.CATEGORY {ps_rpu} \
+  ] [get_bd_intf_pins axi_noc_0/S04_AXI]
+
+  set_property -dict [ list \
+    CONFIG.REGION {0} \
+    CONFIG.CONNECTIONS {MC_2 {read_bw {100} write_bw {100} read_avg_burst {4} write_avg_burst {4} initial_boot {true} }} \
+    CONFIG.NOC_PARAMS {} \
+    CONFIG.CATEGORY {ps_pmc} \
+  ] [get_bd_intf_pins axi_noc_0/S05_AXI]
+
+  set_property -dict [ list \
+    CONFIG.CONNECTIONS {MC_0 {read_bw {500} write_bw {500} read_avg_burst {4} write_avg_burst {4} }} \
+    CONFIG.NOC_PARAMS {} \
+    CONFIG.CATEGORY {pl} \
+  ] [get_bd_intf_pins axi_noc_0/S06_AXI]
+
+  set_property -dict [ list CONFIG.ASSOCIATED_BUSIF {S00_AXI} ] [get_bd_pins axi_noc_0/aclk0]
+  set_property -dict [ list CONFIG.ASSOCIATED_BUSIF {S01_AXI} ] [get_bd_pins axi_noc_0/aclk1]
+  set_property -dict [ list CONFIG.ASSOCIATED_BUSIF {S02_AXI} ] [get_bd_pins axi_noc_0/aclk2]
+  set_property -dict [ list CONFIG.ASSOCIATED_BUSIF {S03_AXI} ] [get_bd_pins axi_noc_0/aclk3]
+  set_property -dict [ list CONFIG.ASSOCIATED_BUSIF {S04_AXI} ] [get_bd_pins axi_noc_0/aclk4]
+  set_property -dict [ list CONFIG.ASSOCIATED_BUSIF {S05_AXI} ] [get_bd_pins axi_noc_0/aclk5]
+  set_property -dict [ list CONFIG.ASSOCIATED_BUSIF {S06_AXI} ] [get_bd_pins axi_noc_0/aclk6]
+
+  # 3. Instantiate SmartConnect (1 SI / 1 MI)
+  set smc [create_bd_cell -type ip -vlnv xilinx.com:ip:smartconnect:1.0 axi_smc]
+  set_property -dict {CONFIG.NUM_SI 1 CONFIG.NUM_MI 1} $smc
+
+  # 4. Instantiate proc_sys_reset
+  set rst [create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 proc_sys_reset_0]
+
+  # 5. Interface connections
+  # Connect VTA DRAM master (m_axi_gmem) to NoC S06_AXI
+  connect_bd_intf_net [get_bd_intf_pins $vta_cell/$port_vta_dram_master] [get_bd_intf_pins axi_noc_0/S06_AXI]
+  # Connect NoC channels to external memory interface ports
+  connect_bd_intf_net [get_bd_intf_ports ch0_lpddr4_trip1] [get_bd_intf_pins axi_noc_0/CH0_LPDDR4_0]
+  connect_bd_intf_net [get_bd_intf_ports ch1_lpddr4_trip1] [get_bd_intf_pins axi_noc_0/CH1_LPDDR4_0]
+  # Connect external clock to NoC system clock
+  connect_bd_intf_net [get_bd_intf_ports lpddr4_clk1] [get_bd_intf_pins axi_noc_0/sys_clk0]
+  # Connect SmartConnect to VTA control slave
+  connect_bd_intf_net [get_bd_intf_pins axi_smc/M00_AXI] [get_bd_intf_pins $vta_cell/$port_vta_ctrl_slave]
+  # Connect CIPS master AXI FPD to SmartConnect S00
+  connect_bd_intf_net [get_bd_intf_pins $ps_cell/$port_ps_ctrl_master] [get_bd_intf_pins axi_smc/S00_AXI]
+
+  # Connect internal CIPS memory ports to NoC S00-S05
+  connect_bd_intf_net [get_bd_intf_pins $ps_cell/FPD_CCI_NOC_0] [get_bd_intf_pins axi_noc_0/S00_AXI]
+  connect_bd_intf_net [get_bd_intf_pins $ps_cell/FPD_CCI_NOC_1] [get_bd_intf_pins axi_noc_0/S01_AXI]
+  connect_bd_intf_net [get_bd_intf_pins $ps_cell/FPD_CCI_NOC_2] [get_bd_intf_pins axi_noc_0/S02_AXI]
+  connect_bd_intf_net [get_bd_intf_pins $ps_cell/FPD_CCI_NOC_3] [get_bd_intf_pins axi_noc_0/S03_AXI]
+  connect_bd_intf_net [get_bd_intf_pins $ps_cell/LPD_AXI_NOC_0] [get_bd_intf_pins axi_noc_0/S04_AXI]
+  connect_bd_intf_net [get_bd_intf_pins $ps_cell/PMC_NOC_AXI_0] [get_bd_intf_pins axi_noc_0/S05_AXI]
+
+  # 6. Clocks and Reset Net connections
+  connect_bd_net [get_bd_pins proc_sys_reset_0/peripheral_aresetn] \
+    [get_bd_pins $vta_cell/$port_vta_resetn] [get_bd_pins axi_smc/aresetn]
+
+  connect_bd_net [get_bd_pins $ps_cell/fpd_cci_noc_axi0_clk] [get_bd_pins axi_noc_0/aclk0]
+  connect_bd_net [get_bd_pins $ps_cell/fpd_cci_noc_axi1_clk] [get_bd_pins axi_noc_0/aclk1]
+  connect_bd_net [get_bd_pins $ps_cell/fpd_cci_noc_axi2_clk] [get_bd_pins axi_noc_0/aclk2]
+  connect_bd_net [get_bd_pins $ps_cell/fpd_cci_noc_axi3_clk] [get_bd_pins axi_noc_0/aclk3]
+  connect_bd_net [get_bd_pins $ps_cell/lpd_axi_noc_clk] [get_bd_pins axi_noc_0/aclk4]
+  connect_bd_net [get_bd_pins $ps_cell/pmc_axi_noc_axi0_clk] [get_bd_pins axi_noc_0/aclk5]
+
+  connect_bd_net [get_bd_pins $ps_cell/$port_ps_clk] \
+    [get_bd_pins $vta_cell/$port_vta_clk] \
+    [get_bd_pins axi_noc_0/aclk6] \
+    [get_bd_pins proc_sys_reset_0/slowest_sync_clk] \
+    [get_bd_pins axi_smc/aclk] \
+    [get_bd_pins $ps_cell/m_axi_fpd_aclk]
+
+  connect_bd_net [get_bd_pins $ps_cell/$port_ps_resetn] [get_bd_pins proc_sys_reset_0/ext_reset_in]
+
+} else {
+  # --- Original ZynqMP / Zynq-7000 recipe ---
+
+  # --- AXI SmartConnect (2 SI / 2 MI) + synchronized reset ---
+  set smc [create_bd_cell -type ip -vlnv xilinx.com:ip:smartconnect:1.0 axi_smc]
+  set_property -dict {CONFIG.NUM_SI 2 CONFIG.NUM_MI 2} $smc
+  set rst [create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 proc_sys_reset_0]
+
+  # --- Interface connections (topology is identical for ZynqMP and Zynq-7000) ---
+  #   VTA DRAM master -> SmC S00 ; SmC M00 -> VTA ctrl slave
+  #   SmC M01 -> PS DRAM slave   ; PS ctrl master -> SmC S01
+  connect_bd_intf_net [get_bd_intf_pins $vta_cell/$port_vta_dram_master] [get_bd_intf_pins axi_smc/S00_AXI]
+  connect_bd_intf_net [get_bd_intf_pins axi_smc/M00_AXI]                  [get_bd_intf_pins $vta_cell/$port_vta_ctrl_slave]
+  connect_bd_intf_net [get_bd_intf_pins axi_smc/M01_AXI]                  [get_bd_intf_pins $ps_cell/$port_ps_dram_slave]
+  connect_bd_intf_net [get_bd_intf_pins $ps_cell/$port_ps_ctrl_master]    [get_bd_intf_pins axi_smc/S01_AXI]
+
+  # --- Clock fan-out: single PL clock drives VTA, SmC, reset, and the PS AXI aclks ---
+  set clk_src [get_bd_pins $ps_cell/$port_ps_clk]
+  set clk_sinks [list \
+    $vta_cell/$port_vta_clk \
+    axi_smc/aclk \
+    proc_sys_reset_0/slowest_sync_clk]
+  foreach a $ps_clk_aclks { lappend clk_sinks $ps_cell/$a }
+  set clk_pins {}
+  foreach s $clk_sinks { lappend clk_pins [get_bd_pins $s] }
+  connect_bd_net $clk_src {*}$clk_pins
+
+  # --- Reset: PS pl_resetn -> proc_sys_reset ; peripheral_aresetn -> VTA + SmC ---
+  connect_bd_net [get_bd_pins $ps_cell/$port_ps_resetn] [get_bd_pins proc_sys_reset_0/ext_reset_in]
+  connect_bd_net [get_bd_pins proc_sys_reset_0/peripheral_aresetn] \
+    [get_bd_pins $vta_cell/$port_vta_resetn] [get_bd_pins axi_smc/aresetn]
+}
 
 # --- Address map (explicit for reproducibility) ---
 # Resolve a segment by its literal IP-XACT path, falling back to "the single
@@ -164,6 +305,10 @@ set impl_dir [get_property DIRECTORY [get_runs impl_1]]
 set bit [file join $impl_dir $top_name.bit]
 if {[file exists $bit]} {
   file copy -force $bit [file join $out_dir vta_$board_name.bit]
+}
+set pdi [file join $impl_dir $top_name.pdi]
+if {[file exists $pdi]} {
+  file copy -force $pdi [file join $out_dir vta_$board_name.pdi]
 }
 
 open_run impl_1

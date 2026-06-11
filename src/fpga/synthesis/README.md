@@ -18,19 +18,25 @@ config.json + boards/<board>.json
 source <Xilinx>/2025.2/Vivado/settings64.sh          # Vivado on PATH
 
 make bitstream BOARD=zcu104 CONFIG=../../../config/vta_config.json
+# or for vek280:
+make bitstream BOARD=vek280 CONFIG=../../../config/vta_config.json
 # or, equivalently:
-python build_fpga.py --board zcu104 --config ../../../config/vta_config.json
+python build_fpga.py --board vek280 --config ../../../config/vta_config.json
 ```
 
-The XSA lands in `build/vta_zcu104.xsa`. Feed it straight to the software half:
+The XSA lands in `build/vta_<board>.xsa`. Feed it straight to the software half:
 
 ```sh
+# For ZCU104:
 make -C ../software workspace XSA=$(pwd)/build/vta_zcu104.xsa CPU=psu_cortexa53_0
+
+# For VEK280:
+make -C ../software workspace XSA=$(pwd)/build/vta_vek280.xsa CPU=psv_cortexa72_0
 ```
 
 Useful flags:
 
-- `make dry-run BOARD=zcu104` - print the plan and the generated `board_params.tcl`,
+- `make dry-run BOARD=vek280` - print the plan and the generated `board_params.tcl`,
   run nothing (works without Xilinx tools installed).
 - `make bitstream SKIP_EMIT=1` - reuse RTL already emitted under the emit dir.
 - `make bitstream JOBS=8` - parallelism for synth/impl.
@@ -41,21 +47,22 @@ Useful flags:
 | File | Role |
 |------|------|
 | `build_fpga.py` | Orchestrator: runs the 3 stages, derives the IP VLNV from the emit, writes `manifest.json`. Styled on `../software/host/create_vitis_workspace.py`. |
-| `build_fpga.tcl` | Board-agnostic Vivado recipe. Builds the block design, assigns addresses, runs to bitstream, exports the XSA. Parameterized entirely by a generated `board_params.tcl`. |
-| `boards/<board>.json` | The only place board specifics live: part, board preset, CPU, PL clock, AXI port wiring, address map. |
+| `build_fpga.tcl` | Board-agnostic Vivado recipe. Builds the block design, assigns addresses, runs to bitstream/device image, exports the XSA. Parameterized entirely by a generated `board_params.tcl`. |
+| `boards/<board>.json` | The only place board specifics live: part, board preset, CPU, PL clock, AXI/NoC port wiring, address map. |
 | `Makefile` | Thin `make bitstream` / `dry-run` / `clean` entry. |
 | `legacy/vta_zcu104.tcl` | The old 919-line `write_project_tcl` GUI dump, kept for reference. See below. |
 
 ## Adding a board
 
 Copy an existing board JSON and change `part` / `board_part` / `cpu` / clock and
-the `ps_*` / `ports` fields. A worked example ships here:
+the `ps_*` / `ports` fields. Two worked examples ship here:
 
 - `boards/zcu104.json` - Zynq UltraScale+ (`zynq_ultra_ps_e`), board files shipped
   with Vivado.
+- `boards/vek280.json` - Versal AI Edge (`versal_cips` + `axi_noc`), board files shipped
+  with Vivado.
 
-The AXI topology (master -> SmartConnect -> slave) and `build_fpga.tcl` stay
-unchanged - a new board is a JSON file, not a script edit.
+The block design recipe and `build_fpga.tcl` automatically adapt to both ZynqMP and Versal architectures depending on the `is_versal` configuration.
 
 ## Timing verdict
 

@@ -19,6 +19,7 @@
 /**/simulators_output/
 /**/simulators_output/*
 /**/src/fpga/software/gen/*
+/**/src/fpga/software/vitis_workspace/*
 
 # Do not consider binary files (nor executable)
 # ----------------------------

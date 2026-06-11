@@ -126,13 +126,14 @@ def render_board_params(
         f"set board_name {_tcl_brace(board['name'])}",
         f"set part {_tcl_brace(board['part'])}",
         f"set board_part {_tcl_brace(board.get('board_part', ''))}",
+        f"set is_versal {_tcl_brace(str(board.get('is_versal', False)).lower())}",
         f"set ps_ip {_tcl_brace(board['ps_ip'])}",
         f"set ps_cell {_tcl_brace(ps_cell)}",
-        f"set ps_preset_rule {_tcl_brace(board['ps_preset_rule'])}",
+        f"set ps_preset_rule {_tcl_brace(board.get('ps_preset_rule', ''))}",
         f"set ps_preset_config {_tcl_brace(board.get('ps_preset_config', 'apply_board_preset 1'))}",
         f"set board_repo {_tcl_brace(os.path.expanduser(board.get('board_repo', '')))}",
         f"set pl_clock_mhz {_tcl_brace(board['pl_clock_mhz'])}",
-        f"set pl_clock_property {_tcl_brace(board['pl_clock_property'])}",
+        f"set pl_clock_property {_tcl_brace(board.get('pl_clock_property', ''))}",
         f"set vta_cell {_tcl_brace(vta_cell)}",
         f"set vta_vlnv {_tcl_brace(vta_vlnv)}",
         f"set ip_repo {_tcl_brace(ip_repo.as_posix())}",
@@ -143,7 +144,7 @@ def render_board_params(
     ]
 
     # PS config deltas as a flat {K V K V ...} list.
-    ps_cfg_flat = " ".join(f"{k} {v}" for k, v in board.get("ps_config", {}).items())
+    ps_cfg_flat = " ".join(f"{k} {_tcl_brace(v)}" for k, v in board.get("ps_config", {}).items())
     lines.append(f"set ps_config {{{ps_cfg_flat}}}")
 
     # Port names.
@@ -190,7 +191,11 @@ def run(cmd: list[str], cwd: Path, dry_run: bool, stage: str) -> None:
     print(f"\n[{stage}] (cwd={cwd})\n    {printable}")
     if dry_run:
         return
-    result = subprocess.run([str(c) for c in cmd], cwd=str(cwd))
+    env = os.environ.copy()
+    libudev = Path("/lib/x86_64-linux-gnu/libudev.so.1")
+    if libudev.exists() and "vivado" in str(cmd[0]).lower():
+        env["LD_PRELOAD"] = str(libudev)
+    result = subprocess.run([str(c) for c in cmd], cwd=str(cwd), env=env)
     if result.returncode != 0:
         log_hint = cwd / "vivado.log"
         extra = f"\n       see {log_hint}" if log_hint.exists() else ""
@@ -245,7 +250,7 @@ def main() -> None:
                         metavar="DIR", help="Output directory for the XSA, bitstream, reports.")
     parser.add_argument("--emit-dir", default=str(DEFAULT_EMIT_DIR),
                         metavar="DIR", help="Where the Mill emit writes RTL + package_ip.tcl.")
-    parser.add_argument("--jobs", type=int, default=os.cpu_count() or 4,
+    parser.add_argument("--jobs", type=int, default=min(4, os.cpu_count() or 4),
                         help="Parallel jobs for synthesis/implementation.")
     parser.add_argument("--skip-emit", action="store_true",
                         help="Reuse an existing emit (skip stage 1 Mill).")
@@ -364,12 +369,14 @@ def main() -> None:
 
     (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
 
-    bit = out_dir / f"vta_{board['name']}.bit"
+    is_versal = board.get("is_versal", False)
+    ext = "pdi" if is_versal else "bit"
+    bit = out_dir / f"vta_{board['name']}.{ext}"
     software_dir = REPO_ROOT / "src" / "fpga" / "software"
     timing_str = {True: "MET", False: "NOT MET", None: "unknown"}[timing_met]
     print("\n=== Done ===")
     print(f"  XSA      : {xsa}")
-    print(f"  Bitstream: {bit}")
+    print(f"  Image    : {bit}")
     print(f"  Reports  : {out_dir / 'timing_summary.rpt'}, {out_dir / 'utilization.rpt'}")
     print(f"  Manifest : {out_dir / 'manifest.json'}")
     print(f"  Timing   : {timing_str}")
