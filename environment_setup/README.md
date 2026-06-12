@@ -40,6 +40,7 @@ To launch the development environment, execute the following command from the pr
 ```bash
 docker run -it --rm \
   --user $(id -u):$(id -g) \
+  -e TERM=$TERM \
   -v $(pwd):/workspace/standalone-vta \
   -w /workspace/standalone-vta \
   standalone-vta
@@ -53,13 +54,15 @@ If you are moving beyond simulation to **FPGA implementation**, you need to map 
 
 **Example with FPGA support:**
 ```bash
-docker run -it --rm \
+docker run --rm -it \
   --user $(id -u):$(id -g) \
-  -v $(pwd):/workspace/standalone-vta \
+  -e TERM=$TERM \
+  -v ~/.Xilinx:/home/user/.Xilinx:ro \
+  -e XILINXD_LICENSE_FILE="/home/user/.Xilinx/" \
   -v /opt/Xilinx:/opt/Xilinx:ro \
-  -e XILINXD_LICENSE_FILE=2100@license-server \
-  -w /workspace/standalone-vta \
-  standalone-vta
+  -v $(pwd):/workspace/standalone-vta \
+  standalone-vta:latest \
+  bash -c "source /opt/Xilinx/2025.2/Vitis/settings64.sh && exec bash -i"
 ```
 
 ## Software Stack
