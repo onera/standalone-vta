@@ -681,7 +681,7 @@ class GenVMECmd(tensorType: String = "none")(implicit
     tp.tensorLength * tp.tensorWidth * tp.tensorElemBits / 8 // bytes in tensor
   val maskOffset = VecInit(Seq.fill(M_DRAM_OFFSET_BITS)(true.B)).asUInt
   val xfer_init_addr =
-    io.baddr | (maskOffset & (dec.dram_offset << log2Ceil(elemBytes)))
+    io.baddr + (maskOffset & (dec.dram_offset << log2Ceil(elemBytes)))
   val maxTrBytes = maxTransfer << (log2Ceil(mp.dataBits) - 3)
   // Align first transfer to maxTrBytes boundary. It occures on every dec.xsize transfer
   // all other transfers in the row will end at maxTrBytes boundary

@@ -83,7 +83,7 @@ case class TensorStoreNarrowVME(
   val pulse_bytes_bits = log2Ceil(mp.dataBits >> 3)
 
   val xferInitAddr =
-    io.baddr | (maskOffset & (dec.dram_offset << log2Ceil(elemBytes)))
+    io.baddr + (maskOffset & (dec.dram_offset << log2Ceil(elemBytes)))
   val xferSplitAddr = waddrCur + xferBytes
   val xferStrideAddr = waddrNxt + xstride_bytes
 
@@ -210,18 +210,18 @@ case class TensorStoreNarrowVME(
     ycnt := ycnt + 1.U
   }
 
-  when(state === sWriteCmd || tag === (numMemBlock - 1).U) {
+  when(state === sWriteCmd) {
     tag := 0.U
   }.elsewhen(io.vmeWr.data.fire) {
-    tag := tag + 1.U
+    tag := Mux(tag === (numMemBlock - 1).U, 0.U, tag + 1.U)
   }
 
   when(
-    state === sWriteCmd || (state =/= sReadMem && set === (tensorLength - 1).U && tag === (numMemBlock - 1).U)
+    state === sWriteCmd
   ) {
     set := 0.U
   }.elsewhen(io.vmeWr.data.fire && tag === (numMemBlock - 1).U) {
-    set := set + 1.U
+    set := Mux(set === (tensorLength - 1).U, 0.U, set + 1.U)
   }
 
   val raddrCur = Reg(UInt(tp.memAddrBits.W))
