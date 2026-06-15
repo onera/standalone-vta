@@ -1,4 +1,5 @@
 #include "../include/vta_nn_debug.h"
+#include "../include/vta_mem.h"
 #include "../include/vta_pl_reset.h"
 #include "vta_hw_config.h"
 
@@ -10,6 +11,36 @@ extern "C" {
 }
 
 namespace vta {
+
+#ifdef NN_CHECK_LAYERS
+// Sentinel stamped into every OUT region before the network runs, so any
+// element the VTA does not write reads back unchanged and is reported as
+// "unwritten".
+constexpr std::uint32_t kOutSentinel = 0xDEADBEEFu;
+
+// Count and report how many 32-bit words of the layer's OUT region still hold
+// the sentinel after the layer ran.  run_layer() already invalidated
+// layer.out_phys, so reads see fresh DRAM.  Only the first `ref_bytes` of the
+// region carry the actual result; the tail is block/padding the VTA never
+// stores, so scanning the whole region would flag that padding as a false
+// "unwritten".  Scan exactly the expected (golden) extent instead - the same
+// span check_layer_output() compares.  0/words means the VTA wrote it all.
+static void report_unwritten_out(const LayerDesc &layer, std::uint32_t ref_bytes,
+                                 std::uint32_t pattern, const char *name) {
+  const std::uint32_t scan_bytes =
+      (ref_bytes > 0u && ref_bytes <= layer.out_bytes) ? ref_bytes
+                                                       : layer.out_bytes;
+  const auto *w = reinterpret_cast<const volatile std::uint32_t *>(
+      static_cast<std::uintptr_t>(layer.out_phys));
+  const unsigned words = scan_bytes / 4u;
+  unsigned unwritten = 0u;
+  for (unsigned k = 0u; k < words; ++k)
+    if (w[k] == pattern)
+      ++unwritten;
+  xil_printf("[chk] %s: %u/%u OUT words still 0x%08x (unwritten)\r\n", name,
+             unwritten, words, static_cast<unsigned>(pattern));
+}
+#endif
 
 int check_layer_output(const LayerDesc &layer, std::uint32_t ref_phys,
                        std::uint32_t ref_bytes, const char *name) {
@@ -89,6 +120,16 @@ bool run_nn_debug(std::uintptr_t vcr_base, const LayerDesc *layers,
                                 static_cast<INTPTR>(d.out_ref_bytes));
   }
 
+  // Pre-stamp every layer's OUT region with the sentinel before anything runs.
+  // After each layer executes, bytes the VTA actually stored overwrite the
+  // sentinel; anything left at 0xDEADBEEF was never written by the hardware.
+  for (unsigned i = 0u; i < num_layers; ++i) {
+    const LayerDesc &layer = layers[i];
+    if (layer.out_bytes > 0u && layer.out_phys != 0u)
+      fill_ddr_region(static_cast<std::uintptr_t>(layer.out_phys),
+                      layer.out_bytes, kOutSentinel, "out-sentinel");
+  }
+
   bool all_ok = true;
   for (unsigned i = 0u; i < num_dbg; ++i) {
     const DebugLayerDesc &d = dbg[i];
@@ -135,7 +176,9 @@ bool run_nn_debug(std::uintptr_t vcr_base, const LayerDesc *layers,
       continue; // continue to the next layer for a full picture
     }
 
-    // 3. Compare the raw OUT region against the golden output.
+    // 3. Report how much of the OUT region the VTA actually wrote (anything
+    //    still at the sentinel was never stored), then compare against golden.
+    report_unwritten_out(layer, d.out_ref_bytes, kOutSentinel, d.name);
     if (check_layer_output(layer, d.out_ref_phys, d.out_ref_bytes, d.name) != 0)
       all_ok = false;
   }

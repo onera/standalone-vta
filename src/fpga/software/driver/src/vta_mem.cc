@@ -20,6 +20,27 @@ void init_ddr_region(std::uintptr_t dst_addr, const void *src,
              static_cast<unsigned>(dst_addr), static_cast<unsigned>(bytes));
 }
 
+void fill_ddr_region(std::uintptr_t dst_addr, std::size_t bytes,
+                     std::uint32_t pattern, const char *name) {
+  auto *w = reinterpret_cast<std::uint32_t *>(dst_addr);
+  const std::size_t words = bytes / 4u;
+  for (std::size_t i = 0; i < words; ++i)
+    w[i] = pattern;
+
+  const std::size_t tail = bytes & 3u; // int8-config / odd sizes
+  if (tail) {
+    auto *b = reinterpret_cast<std::uint8_t *>(dst_addr + words * 4u);
+    for (std::size_t i = 0; i < tail; ++i)
+      b[i] = static_cast<std::uint8_t>(pattern >> (8u * i));
+  }
+
+  Xil_DCacheFlushRange(static_cast<UINTPTR>(dst_addr), bytes);
+
+  xil_printf("%s fill: dst=0x%08x bytes=%u pat=0x%08x\r\n", name,
+             static_cast<unsigned>(dst_addr), static_cast<unsigned>(bytes),
+             static_cast<unsigned>(pattern));
+}
+
 void copy_insns_to_vta(volatile std::uint32_t *dst, const VTAInsn *src,
                        std::size_t count) {
   const auto *src_words = reinterpret_cast<const std::uint32_t *>(src);
