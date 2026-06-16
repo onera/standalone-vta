@@ -22,11 +22,34 @@
 extern "C" {
 #include "xil_printf.h"
 }
+#ifdef NN_SD_LOADER
+#include "nn_sd_manifest.h"
+#include "vta_sd.h"
+#ifndef NN_SD_DIR // without a subfolder -> card root
+#define NN_SD_DIR ""
+#endif
+#endif
 
 int main() {
   vta::board_init();
   xil_printf("=== VTA NN runner: %u step(s) ===\r\n",
              static_cast<unsigned>(NN_NUM_STEPS));
+
+#ifdef NN_SD_LOADER
+  // Load static model data (and the raw input) from the SD card into DDR,
+  // replacing the XSDB/.incbin pre-load. See driver/src/vta_sd.cc.
+  if (vta::sd_load_files("0:/" NN_SD_DIR, nn_sd_static_files,
+                         NN_SD_NUM_STATIC) != 0) {
+    xil_printf("ERROR: SD static-model load failed\r\n");
+    return -1;
+  }
+#if NN_SD_HAS_INPUT
+  if (vta::sd_load_files("0:/" NN_SD_DIR, &nn_sd_input_file, 1) != 0) {
+    xil_printf("ERROR: SD input load failed\r\n");
+    return -1;
+  }
+#endif
+#endif
 
   std::uint32_t float_bytes = 0;
   bool ok = false;

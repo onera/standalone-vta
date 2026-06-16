@@ -27,8 +27,12 @@ Runners (--runner)
                       --emit-layer-check --emit-cpu-check; sets NN_CHECK_CPU_OPS_ISO.
   test_gemm         - standalone GEMM hardware correctness test
                       (requires gen/init_dram.h from `make gen-test_gemm`)
+  sd_loader_test    - standalone SD-card -> DRAM read test.  Depends only on the
+                      Xilinx BSP + xilffs (FatFs); no VTA driver, no generated
+                      headers, no data-loader.  Enables the xilffs BSP library on
+                      the platform.  See docs/fpga/sdcard_loader.md.
 
-Data loaders (--data-loader, not applicable to test_gemm)
+Data loaders (--data-loader, not applicable to test_gemm / sd_loader_test)
 ----------------------------------------------------------
   tcl  - static model data loaded via XSDB load_nn_static.tcl before the ELF starts
   elf  - static model data embedded in the ELF via .incbin; FSBL loads it
@@ -94,6 +98,7 @@ RUNNER_SOURCE: dict[str, Path] = {
     "run_nn_debug": EXAMPLES_DIR / "run_nn_debug.cc",
     "run_nn_cpu_debug": EXAMPLES_DIR / "run_nn_cpu_debug.cc",
     "test_gemm": TEST_GEMM_DIR / "test_gemm.cc",
+    "sd_loader_test": EXAMPLES_DIR / "sd_loader_test.cc",
 }
 
 # Extra files to copy alongside the runner source (e.g. local headers)
@@ -103,6 +108,7 @@ RUNNER_EXTRAS: dict[str, list[Path]] = {
     "run_nn_debug": [],
     "run_nn_cpu_debug": [],
     "test_gemm": [CONFIG_DIR / "init_dram.h"],
+    "sd_loader_test": [],
 }
 
 # Extra generated headers (from CONFIG_DIR) required by specific runners,
@@ -138,6 +144,12 @@ DATA_LOADER_GENERATED: dict[str, list[str]] = {
         "nn_bin_data.S",
         "nn_vta_sections.ld",
     ],
+    "sd": [
+        "vta_hw_config.h",  # type aliases (vta_inp_t etc.) used by vta_cpu_ops.cc
+        "nn_ddr_map.h",
+        "nn_exec_plan.h",
+        "nn_sd_manifest.h",  # file -> DDR map read by driver/src/vta_sd.cc
+    ],
 }
 
 # Runners that require a data-loader selection.  run_nn_debug and
@@ -149,6 +161,16 @@ RUNNERS_WITH_DATA_LOADER = {
     "run_nn_debug",
     "run_nn_cpu_debug",
 }
+
+# Standalone runners depend only on the Xilinx BSP; they do NOT pull in the VTA
+# driver sources, generated headers, or a data-loader.  Their single .cc is
+# compiled by Vitis' aux_source_directory, so UserConfig.cmake is left untouched.
+STANDALONE_RUNNERS = {"sd_loader_test"}
+
+# Runners that require the xilffs (FatFs) BSP library enabled on the platform
+# domain.  Must be enabled before platform.build() so the BSP is generated with
+# the library available to the application.
+XILFFS_RUNNERS = {"sd_loader_test"}
 
 # ---------------------------------------------------------------------------
 # Source file collection
@@ -202,12 +224,48 @@ def xpfm_path(workspace: Path, platform_name: str) -> Path:
     )
 
 
+def _enable_xilffs(platform, cpu: str) -> None:
+    """Add the xilffs (FatFs) library to the BSP so apps can read the SD card.
+
+    Must be called before platform.build() so the BSP is generated with the
+    library available.  Harmless for apps that do not use it.  The default
+    xilffs interface targets the SD/eMMC controller, so no interface override
+    is needed for a standard SD-card read.
+
+    Long filenames are enabled (XILFFS_use_lfn=1): the sd data-loader opens the
+    compiler basenames (e.g. "instructions_L0.bin") which exceed FAT 8.3.  The
+    phase-1 sd_loader_test uses an 8.3 name so it does not depend on this.
+    """
+    try:
+        domain = platform.get_domain(name=_domain_name(cpu))
+        domain.set_lib(lib_name="xilffs")
+        try:
+            domain.set_config(
+                option="lib", lib_name="xilffs", param="XILFFS_use_lfn", value="1"
+            )
+            print("[vitis] xilffs: long filenames enabled (XILFFS_use_lfn=1)")
+        except Exception as exc:  # noqa: BLE001 - LFN param name may differ
+            print(
+                f"[vitis] WARNING: could not set XILFFS_use_lfn: {exc}\n"
+                "         Long SD filenames (>8.3) may fail to open; check the"
+                " exact param via domain.list_params('lib', lib_name='xilffs')."
+            )
+        print(f"[vitis] Enabled xilffs (FatFs) on domain {_domain_name(cpu)}")
+    except Exception as exc:  # noqa: BLE001 - surface the failure, keep going
+        print(
+            f"[vitis] WARNING: could not enable xilffs: {exc}\n"
+            "         SD apps will fail to compile (ff.h missing).\n"
+            "         Enable it manually in the Vitis BSP settings."
+        )
+
+
 def create_workspace_and_platform(
     client,
     workspace: Path,
     xsa: Path,
     platform_name: str,
     cpu: str,
+    enable_xilffs: bool = False,
 ) -> Path:
     print(f"[vitis] Setting workspace: {workspace}")
     client.set_workspace(path=str(workspace))
@@ -215,6 +273,11 @@ def create_workspace_and_platform(
     xpfm = xpfm_path(workspace, platform_name)
     if xpfm.exists():
         print(f"[vitis] Platform already exists at {xpfm}, skipping creation.")
+        if enable_xilffs:
+            print(
+                "[vitis] NOTE: platform already built; xilffs not (re)enabled.\n"
+                "         For sd_loader_test, build into a fresh --workspace dir."
+            )
         return xpfm
 
     print(f"[vitis] Creating platform '{platform_name}' from {xsa}")
@@ -224,6 +287,9 @@ def create_workspace_and_platform(
         os="standalone",
         cpu=cpu,
     )
+
+    if enable_xilffs:
+        _enable_xilffs(platform, cpu)
 
     print("[vitis] Building platform...")
     platform.build()
@@ -360,8 +426,20 @@ def copy_sources(
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src_path, dest)
         print(f"       {src_path.relative_to(SOFTWARE_DIR)} -> {dest_rel}")
+    if runner in STANDALONE_RUNNERS:
+        # Standalone app: only its own .cc, compiled against the BSP (xilffs).
+        # No VTA driver sources/includes, so UserConfig.cmake is left as-is.
+        print(
+            f"[copy] {runner} is standalone: no VTA driver sources added; "
+            "app compiles against the BSP (xilffs) only."
+        )
+        return
     defines = list(RUNNER_DEFINES.get(runner, []))
     defines += list(extra_defines or [])
+    if data_loader == "sd":
+        # Activates the guarded SD-load path in run_nn / run_nn_uart and the
+        # body of driver/src/vta_sd.cc (compiled to empty otherwise).
+        defines.append("NN_SD_LOADER")
     _patch_user_config(app_src, baud, defines)
     if data_loader == "elf":
         _patch_asm_incbin(app_src)
@@ -381,11 +459,40 @@ def _next_steps(runner: str, data_loader: str | None) -> None:
         print("  1. Build the application in Vitis.")
         print("  2. In XSDB: dow application.elf, then con.")
         return
+    if runner == "sd_loader_test":
+        print("  1. Format a microSD as FAT32 and copy test.bin to its root.")
+        print(
+            "     Host checksum: python host/sd_checksum.py test.bin"
+            "   (compare vs UART)."
+        )
+        print("  2. Build the application in Vitis.")
+        print("  3. In XSDB, init the PS so the SD MIO/clocks are configured:")
+        print("       fpga <design.bit>; targets -set -filter {name=~APU*}; rst")
+        print("       loadhw <design.xsa>        (runs ps7_init/psu_init -> SD MIO)")
+        print("       dow <fsbl.elf>; con; stop  (belt-and-suspenders PS init)")
+        print("  4. dow sd_loader_test.elf; con")
+        print("  5. Read UART: expect a byte count, checksum, and 'READBACK OK'.")
+        return
     if runner == "run_nn_debug":
+        if dl == "sd":
+            print(
+                "  1. Generate sources with --emit-sd-manifest --emit-layer-check"
+                " --ref-dir <simulators_output> (--sd-dir <model> optional)."
+            )
+            print("  2. Copy gen/sd_card/* to a FAT32 SD card; insert it.")
+            print(
+                "  3. Build in Vitis (NN_SD_LOADER + NN_CHECK_LAYERS set; BSP has"
+                " xilffs). Static model + golden refs are read from the card."
+            )
+            print("  4. In XSDB: program the bitstream, run ps7_init/psu_init (SD")
+            print("     MIO + clocks), then: dow application.elf; con")
+            print("  5. Read UART: each layer prints PASS or 'k/N mismatches'.")
+            print("     The first mismatching layer is the VTA-introduced corruption.")
+            return
         if dl != "elf":
             print(
-                "  WARNING: run_nn_debug embeds golden data via .incbin and needs"
-                " the 'elf' data-loader; 'tcl' will not load the references."
+                "  WARNING: run_nn_debug needs golden data in DDR; use the 'elf'"
+                " (.incbin) or 'sd' data-loader. 'tcl' will not load the references."
             )
         print(
             "  1. Build the ELF in Vitis (static model data + golden in/out"
@@ -396,10 +503,29 @@ def _next_steps(runner: str, data_loader: str | None) -> None:
         print("     The first mismatching layer is the VTA-introduced corruption.")
         return
     if runner == "run_nn_cpu_debug":
+        if dl == "sd":
+            print(
+                "  1. Generate sources with --emit-sd-manifest --emit-layer-check"
+                " --emit-cpu-check --ref-dir <simulators_output>"
+                " (--sd-dir <model> optional)."
+            )
+            print("  2. Copy gen/sd_card/* to a FAT32 SD card; insert it.")
+            print(
+                "  3. Build in Vitis (NN_SD_LOADER + NN_CHECK_CPU_OPS_ISO set; BSP"
+                " has xilffs). Static model, raw input + goldens read from the card."
+            )
+            print("  4. In XSDB: program the bitstream, run ps7_init/psu_init (SD")
+            print("     MIO + clocks), then: dow application.elf; con")
+            print(
+                "  5. Read UART: each FORMAT_INPUT / IM2ROW / INT32_CHAIN step"
+                " prints PASS or 'k/N mismatches'."
+            )
+            print("     The first mismatching step is the CPU-op-introduced corruption.")
+            return
         if dl != "elf":
             print(
-                "  WARNING: run_nn_cpu_debug embeds golden data via .incbin and"
-                " needs the 'elf' data-loader; 'tcl' will not load references."
+                "  WARNING: run_nn_cpu_debug needs golden data in DDR; use the 'elf'"
+                " (.incbin) or 'sd' data-loader. 'tcl' will not load references."
             )
         print(
             "  1. Generate sources with --emit-layer-check --emit-cpu-check"
@@ -412,6 +538,21 @@ def _next_steps(runner: str, data_loader: str | None) -> None:
             " prints PASS or 'k/N mismatches'."
         )
         print("     The first mismatching step is the CPU-op-introduced corruption.")
+        return
+    if dl == "sd":
+        print("  1. Generate the manifest + staged files:")
+        print("       make gen-sd CONFIG=<cfg> DDR_BASE=<base>")
+        print("  2. Copy gen/sd_card/* to the root of a FAT32 SD card; insert it.")
+        print("  3. Build the application in Vitis (NN_SD_LOADER set, BSP has xilffs).")
+        print("  4. In XSDB: program the bitstream, then run ps7_init/psu_init so the")
+        print("     SD MIO + clocks are configured, then: dow application.elf")
+        if runner == "run_nn":
+            print("  5. con  - board reads model+input from SD, runs once, prints result.")
+        else:
+            print("  5. con  - board reads model from SD, then waits for UART input.")
+            print(
+                "  6. python host/uart_nn.py --port /dev/ttyUSB1 --input input_nn.bin ..."
+            )
         return
     if dl == "tcl":
         print("  1. Build the application in Vitis.")
@@ -478,7 +619,8 @@ def main() -> None:
         metavar="RUNNER",
         help=(
             "One or more runner applications to create as separate app components. "
-            "Choices: run_nn, run_nn_uart, test_gemm, run_nn_debug, run_nn_cpu_debug. "
+            "Choices: run_nn, run_nn_uart, test_gemm, run_nn_debug, "
+            "run_nn_cpu_debug, sd_loader_test. "
             "Example: --runner run_nn run_nn_uart"
         ),
     )
@@ -489,9 +631,11 @@ def main() -> None:
         default=None,
         metavar="LOADER",
         help=(
-            "One or more data loading strategies for run_nn / run_nn_uart: "
+            "One or more data loading strategies for the data-loader runners: "
             "'tcl' = XSDB scripts pre-load static model data; "
-            "'elf' = static data embedded in the ELF via .incbin. "
+            "'elf' = static data (and debug goldens) embedded in the ELF via "
+            ".incbin; 'sd' = the board reads the .bin set (and, for the debug "
+            "runners, the golden refs) from a FAT32 SD card at boot. "
             "Multiple values create one app component per strategy. "
             "Not required for test_gemm."
         ),
@@ -543,7 +687,7 @@ def main() -> None:
     needs_loader = [r for r in runners if r in RUNNERS_WITH_DATA_LOADER]
     if needs_loader and data_loaders is None:
         sys.exit(
-            f"ERROR: --data-loader {{tcl,elf}} is required for runner(s): {needs_loader}"
+            f"ERROR: --data-loader {{tcl,elf,sd}} is required for runner(s): {needs_loader}"
         )
 
     # Build (runner, data_loader) combos - one app per pair
@@ -596,6 +740,12 @@ def main() -> None:
                 print(f"    [{exists:7s}]  {rel} -> {dest_rel}")
             for d in RUNNER_DEFINES.get(runner, []) + _extra_defines_for(runner):
                 print(f"  Define: {d}")
+            if dl == "sd":
+                print("  Define: NN_SD_LOADER")
+            if runner in STANDALONE_RUNNERS:
+                print("  Standalone: no VTA driver sources; UserConfig.cmake left as-is.")
+            if runner in XILFFS_RUNNERS or dl == "sd":
+                print("  BSP library: xilffs (FatFs) + LFN enabled on the platform domain.")
             if dl == "elf":
                 print(
                     "  Linker script: lscript.ld <- INCLUDE nn_vta_sections.ld (appended)"
@@ -628,7 +778,15 @@ def main() -> None:
     try:
         if xsa is not None:
             xpfm = create_workspace_and_platform(
-                client, workspace, xsa, args.platform_name, args.cpu
+                client,
+                workspace,
+                xsa,
+                args.platform_name,
+                args.cpu,
+                enable_xilffs=(
+                    any(r in XILFFS_RUNNERS for r in runners)
+                    or (data_loaders is not None and "sd" in data_loaders)
+                ),
             )
         else:
             print(f"[vitis] Setting workspace: {workspace}")

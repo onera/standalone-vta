@@ -30,6 +30,13 @@ extern "C" {
 #include "xil_cache.h"
 #include "xil_printf.h"
 }
+#ifdef NN_SD_LOADER
+#include "nn_sd_manifest.h"
+#include "vta_sd.h"
+#ifndef NN_SD_DIR // older manifest without a subfolder -> card root
+#define NN_SD_DIR ""
+#endif
+#endif
 
 // ---------------------------------------------------------------------------
 // UART byte I/O
@@ -60,6 +67,16 @@ int main() {
   vta::board_init();
   xil_printf("=== VTA NN runner: %u step(s) ===\r\n",
              static_cast<unsigned>(NN_NUM_STEPS));
+
+#ifdef NN_SD_LOADER
+  // Load static model data from the SD card; the raw input still arrives over
+  // UART each iteration (so NN_SD_HAS_INPUT is intentionally ignored here).
+  if (vta::sd_load_files("0:/" NN_SD_DIR, nn_sd_static_files,
+                         NN_SD_NUM_STATIC) != 0) {
+    xil_printf("ERROR: SD static-model load failed\r\n");
+    return -1;
+  }
+#endif
 
   std::uint32_t raw_addr = 0, input_n_bytes = 0;
   if (!vta::find_input(nn_exec_steps, NN_NUM_STEPS, &raw_addr,

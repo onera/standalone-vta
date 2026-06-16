@@ -11,6 +11,7 @@ from .parse import collect_layers, load_dependency_csv
 from .layout import _build_cpu_out_addrs
 from .emit_headers import gen_exec_plan_header, gen_header
 from .emit_load import gen_asm_incbin, gen_input_tcl, gen_linker_fragment, gen_tcl
+from .emit_sd import gen_sd_manifest
 from .debug_emit import assign_layer_check_regions, gen_cpu_debug_map, gen_debug_map
 from .checks import (
     check_binary_fits,
@@ -44,11 +45,7 @@ def main() -> None:
         metavar="DIR",
         help="Directory where all generated files are written (default: gen).",
     )
-    parser.add_argument(
-        "--max-addr",
-        metavar="ADDR",
-        help="Maximum DDR address (hex). If given, verify all allocations fit below this address.",
-    )
+
     parser.add_argument(
         "--config-json",
         metavar="PATH",
@@ -64,7 +61,15 @@ def main() -> None:
         metavar="N",
         help="VTA block size override (overrides --config-json LOG_BLOCK). Default: 16.",
     )
-    parser.add_argument(
+    audit_group = parser.add_argument_group("Audit")
+    audit_group.add_argument(
+        "--max-addr",
+        metavar="ADDR",
+        help="Maximum DDR address (hex). If given, verify all allocations fit below this address.",
+    )
+    debug_group = parser.add_argument_group("Debug")
+
+    debug_group.add_argument(
         "--emit-layer-check",
         action="store_true",
         help=(
@@ -73,7 +78,7 @@ def main() -> None:
             " Off by default; normal images are unaffected."
         ),
     )
-    parser.add_argument(
+    debug_group.add_argument(
         "--ref-dir",
         metavar="DIR",
         help=(
@@ -89,6 +94,32 @@ def main() -> None:
             " per-CPU-op check. Reuses the same golden DRAM regions"
             " as --emit-layer-check; implies --emit-layer-check."
         ),
+    )
+    sd_group = parser.add_argument_group("SD loader")
+    sd_group.add_argument(
+        "--emit-sd-manifest",
+        action="store_true",
+        help=(
+            "Emit nn_sd_manifest.h (file -> DDR address map) and stage the .bin"
+            " set into <outdir>/sd_card/ for the runtime SD-card loader"
+            " (DATA_LOADER=sd). Off by default."
+        ),
+    )
+    sd_group.add_argument(
+        "--sd-dir",
+        default="",
+        metavar="NAME",
+        help=(
+            "Subfolder on the SD card the board reads the .bin set from (e.g."
+            " 'qyolo_pattern'), so several models can share one card. Baked into"
+            " the manifest as NN_SD_DIR and used as the staging subfolder."
+            " Default: card root."
+        ),
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Increase verbosity of the generation script",
     )
     args = parser.parse_args()
     if args.emit_cpu_check:
@@ -206,6 +237,16 @@ def main() -> None:
         include_input=True,
     )
     gen_input_tcl(layers, ddr_base, comp_dir, out("load_input.tcl"))
+    if args.emit_sd_manifest:
+        gen_sd_manifest(
+            layers,
+            ddr_base,
+            comp_dir,
+            out("nn_sd_manifest.h"),
+            out("sd_card"),
+            sd_dir=args.sd_dir,
+            emit_refs=emit_check,
+        )
     gen_asm_incbin(layers, out("nn_bin_data.S"), emit_check=emit_check)
     gen_linker_fragment(
         layers, ddr_base, out("nn_vta_sections.ld"), emit_check=emit_check
@@ -223,7 +264,8 @@ def main() -> None:
             comp_dir,
         )
 
-    print_summary(layers, ddr_base)
+    if args.verbose:
+        print_summary(layers, ddr_base)
 
     if args.max_addr:
         max_addr = int(args.max_addr, 16)

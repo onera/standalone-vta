@@ -13,12 +13,17 @@
  *
  * Build with NN_CHECK_LAYERS defined; otherwise run_nn_debug() is a no-op.
  *
+ * Data loading: with the elf loader the static model and golden refs are
+ * embedded via .incbin; with the SD loader (NN_SD_LOADER) they are read from the
+ * FAT32 card into the same DDR addresses by vta::sd_load_files() below.
+ *
  * To regenerate headers:
  *   python3 host/gen_nn_baremetal.py <compiler_output_dir>      \
  *       --ddr-base    0x10000000                                \
  *       --outdir      gen                                       \
  *       --config-json ../../../config/vta_config.json           \
- *       --emit-layer-check --ref-dir <repo>/simulators_output
+ *       --emit-layer-check --ref-dir <repo>/simulators_output   \
+ *       [--emit-sd-manifest --sd-dir <model>]   # for the SD loader
  */
 
 #include "nn_ddr_map.h"
@@ -30,11 +35,41 @@
 extern "C" {
 #include "xil_printf.h"
 }
+#ifdef NN_SD_LOADER
+#include "nn_sd_manifest.h"
+#include "vta_sd.h"
+#ifndef NN_SD_DIR // older manifest without a subfolder -> card root
+#define NN_SD_DIR ""
+#endif
+#endif
 
 int main() {
   vta::board_init();
   xil_printf("=== VTA NN isolation runner: %u layer(s) ===\r\n",
              static_cast<unsigned>(NN_NUM_DEBUG));
+
+#ifdef NN_SD_LOADER
+  // Load static model data and the per-layer golden references from the SD card
+  // into DDR (replaces the .incbin embedding). The golden refs land at the same
+  // addresses nn_debug[] points to, so the isolation checker is unchanged.
+  if (vta::sd_load_files("0:/" NN_SD_DIR, nn_sd_static_files,
+                         NN_SD_NUM_STATIC) != 0) {
+    xil_printf("ERROR: SD static-model load failed\r\n");
+    return -1;
+  }
+#if NN_SD_HAS_INPUT
+  if (vta::sd_load_files("0:/" NN_SD_DIR, &nn_sd_input_file, 1) != 0) {
+    xil_printf("ERROR: SD input load failed\r\n");
+    return -1;
+  }
+#endif
+#if NN_SD_HAS_REFS
+  if (vta::sd_load_files("0:/" NN_SD_DIR, nn_sd_ref_files, NN_SD_NUM_REF) != 0) {
+    xil_printf("ERROR: SD golden-ref load failed\r\n");
+    return -1;
+  }
+#endif
+#endif
 
   bool ok = vta::run_nn_debug(VTA_VCR_BASE, nn_layers, NN_NUM_LAYERS, nn_debug,
                               NN_NUM_DEBUG);
