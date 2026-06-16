@@ -46,7 +46,7 @@ The `standalone-vta` ecosystem is designed with a clear separation of concerns, 
         - `functional_simulator/`: Fast C++ functional simulator.
         - `cycle_accurate_simulator/`: Detailed Chisel-based hardware simulator.
 - `config/`: Contains `vta_config.json` defining the VTA hardware parameters. See [Config Documentation](config/README.md).
-- `environment_setup/`: Dockerfile and Conda environments. See [Setup Documentation](environment_setup/README.md).
+- `environment_setup/`: Legacy setup files (Docker/Conda). The project now uses Pixi for package and environment management.
 - `examples/`: Makefiles and sample networks to compile and simulate.
 - `tutorials/`: Jupyter notebooks detailing the compiler components.
 - `compiler_output/` & `simulators_output/`: Default directories for generated artifacts and simulation results.
@@ -58,7 +58,7 @@ Explore the detailed documentation for each component of the `standalone-vta` ec
 - **Root Documentation**
     - [Project Overview & Quickstart](README.md)
     - [Configuration (`vta_config.json`)](config/README.md)
-    - [Environment Setup (Docker/Conda)](environment_setup/README.md)
+    - [Environment Setup (Legacy Docker/Conda)](environment_setup/README.md)
 
 - **Compiler (`src/compiler/`)**
     - [Standalone VTA Compiler](src/compiler/README.md)
@@ -80,19 +80,51 @@ Explore the detailed documentation for each component of the `standalone-vta` ec
 
 ## Getting Started
 
-### 1. Environment Setup
+### 1. Prerequisites
+
+Before setting up the environment, ensure you have the following installed on your host machine:
+
+- **Pixi** installed on your host machine ([Installation Guide](https://pixi.prefix.dev/latest/installation/).
+- **Vivado/Vitis 2025.2** installed on your host machine (only required for FPGA synthesis/implementation). Refer to the [Vitis Toolchain Setup Guide](https://toulouse-embedded-accel.github.io/HEAT/quickstarts/vitis-toolchain-setup/) for toolchain installation details.
+
+#### Working Behind a Corporate Proxy
+
+If you are working behind a corporate proxy, make sure to export the proxy settings and JVM options:
+
+```bash
+export http_proxy="http://<PROXY_HOST>:<PORT>"
+export https_proxy="http://<PROXY_HOST>:<PORT>"
+export JAVA_TOOL_OPTIONS="-Dhttp.proxyHost=<PROXY_HOST> -Dhttp.proxyPort=<PORT> -Dhttps.proxyHost=<PROXY_HOST> -Dhttps.proxyPort=<PORT>"
+```
+
+### 2. Environment Setup
+
+Clone the repository and activate the Pixi environment:
 
 ```bash
 # Clone the repository
 git clone https://github.com/onera/standalone-vta.git
 cd standalone-vta
+
+# Start the environment shell
+pixi shell
 ```
 
-It is highly recommended to use the [provided Docker environment](environment_setup/README.md) to ensure all dependencies (Python, C++, Java/Scala) are correctly installed.
+#### Hardware Implementation
 
-### 2. Run an Example
+If you are using the hardware implementation, you need to source the Vitis 2025.2 settings script and optionally configure your Xilinx license (especially if targeting a Versal board):
 
-Once inside the environment, you can use the `examples/Makefile` to run full end-to-end flows (Compiler -> Functional Simulator).
+```bash
+# Source Vitis 2025.2 settings
+source /opt/Xilinx/Vitis/2025.2/settings64.sh
+
+# Configure Xilinx License (if required)
+export XILINXD_LICENSE_FILE=<port>@<server> # or path/to/license.lic
+```
+
+### 3. Run an Example
+
+Once inside the environment (after running `pixi shell`), you can use the `examples/Makefile` to run full end-to-end flows (Compiler -> Functional Simulator).
 
 ```bash
 cd examples
@@ -101,6 +133,9 @@ make help
 
 # Run a simple 16x16 matrix multiplication example
 make matrix_16x16
+
+# Compile and simulate a simple neural network
+make compile_and_run ONNX_FILE=onnx/lenet5.onnx
 ```
 
 This will:

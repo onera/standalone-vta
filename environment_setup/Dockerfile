@@ -22,10 +22,15 @@ ENV VERILATOR_VERSION=5.046
 # some Vitis deps require a timezone to be specified, which hangs in Docker
 # use workaround from https://grigorkh.medium.com/fix-tzdata-hangs-docker-image-build-cdb52cc3360d
 ENV TZ="Europe/Paris"
+ENV LANG=en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     locales \
+    gawk \
+    make \
+    libtinfo6 \
     openjdk-21-jdk \
     help2man \
     flex \
@@ -39,6 +44,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 RUN locale-gen "en_US.UTF-8"
+
+RUN ln -s /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/x86_64-linux-gnu/libtinfo.so.5
+
+RUN update-alternatives --set awk /usr/bin/gawk
 
 RUN cd /opt \
     && git clone --depth 1 --branch v${VERILATOR_VERSION} https://github.com/verilator/verilator \

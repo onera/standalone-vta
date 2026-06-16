@@ -1,6 +1,9 @@
 # STANDALONE-VTA Development Environment (Docker)
 
-This repository provides a `Dockerfile` to set up a **reproducible research environment** for working with the **STANDALONE-VTA (Versatile Tensor Accelerator)**. 
+> [!WARNING]
+> **Legacy Notice:** The Docker-based environment setup is now legacy/deprecated. The project has transitioned to **Pixi** for environment and package management. Please refer to the root [README.md](../README.md) for the current setup instructions.
+
+This repository provides a legacy `Dockerfile` to set up a research environment for working with the **STANDALONE-VTA (Versatile Tensor Accelerator)**. 
 
 ## Prerequisites
 
@@ -61,6 +64,7 @@ docker run --rm -it \
   -e XILINXD_LICENSE_FILE="/home/user/.Xilinx/" \
   -v /opt/Xilinx:/opt/Xilinx:ro \
   -v $(pwd):/workspace/standalone-vta \
+  --net=host \
   standalone-vta:latest \
   bash -c "source /opt/Xilinx/2025.2/Vitis/settings64.sh && exec bash -i"
 ```
