@@ -19,7 +19,7 @@ object `package` extends SbtModule with PublishModule with ScalafixModule {
 
   def artifactName = "vta-standalone"
 
-  def javacOptions = Seq("-release", "8")
+  def javacOptions = Seq("--release", "8")
 
   def scalaVersion = "2.13.18"
 
