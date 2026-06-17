@@ -93,6 +93,12 @@ def main() -> int:
         "--shape", default=None, help="C,H,W override (else read from dependency.csv)"
     )
     p.add_argument("--block-size", type=int, default=None)
+    p.add_argument(
+        "--detiled",
+        action="store_true",
+        help="input is already NCHW de-tiled (e.g. saved by 'uart_nn.py --detile'); "
+        "skip the block detile step and diff directly against the reference",
+    )
     args = p.parse_args()
 
     cfg = gen.load_config_params(args.config_json, args.block_size)
@@ -114,11 +120,14 @@ def main() -> int:
     ref = np.fromfile(ref_path, dtype=np.int8)
 
     print(f"shape C,H,W = {C},{H},{W}  block={B}")
+    layout = "NCHW (pre-detiled)" if args.detiled else "block-tiled"
     print(
-        f"baremetal raw: {raw.size} B   reference (NCHW): {ref.size} B   ({ref_path})\n"
+        f"baremetal raw: {raw.size} B [{layout}]   "
+        f"reference (NCHW): {ref.size} B   ({ref_path})\n"
     )
 
-    ok = report_diff("detiled vs NCHW ref", detile(raw, C, H, W, B), ref)
+    got = raw if args.detiled else detile(raw, C, H, W, B)
+    ok = report_diff("NCHW vs NCHW ref" if args.detiled else "detiled vs NCHW ref", got, ref)
     print(
         "\nRESULT:",
         (
