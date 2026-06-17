@@ -10,7 +10,6 @@ import scala.io.Source
 import vta.util.BinaryReader.readBinaryFile
 import java.io.FileInputStream
 import java.io.BufferedInputStream
-import vta.util.MemoryInitializer.exportHexToMemFiles
 import vta.util.MemoryInitializer.exportHexToMemFile
 
 object DramInitParser {
@@ -181,7 +180,7 @@ object DramInitParser {
       val size = bis.available()
       try {
         val hexIt = Iterator
-          .continually(bis.readNBytes(8))
+          .continually(readUpToNBytes(bis, 8))
           .takeWhile(_.nonEmpty)
           .map(bin2hexIt(_, bytesPerWord = 8, littleEndian = true))
 
@@ -206,22 +205,24 @@ object DramInitParser {
     ordered.iterator.map(b => f"${b & 0xff}%02x").mkString
   }
 
+  /** Read up to `n` bytes from `in`, returning exactly that many unless EOF is
+    * reached first. An empty array signals EOF. Java 1.8 compatible replacement
+    * for `InputStream.readNBytes(int)` (added in Java 9).
+    */
+  def readUpToNBytes(in: java.io.InputStream, n: Int): Array[Byte] = {
+    val buf = new Array[Byte](n)
+    var off = 0
+    var r = 0
+    while (off < n && { r = in.read(buf, off, n - off); r } != -1) off += r
+    if (off == n) buf
+    else java.util.Arrays.copyOf(buf, off)
+  }
+
   /** Convert a byte array into one hex string per `bytesPerWord`-byte group.
     *
     * Each output string has exactly `2 * bytesPerWord` characters and is
     * written MSB-first so it reads as a single unsigned integer for
     * `$readmemh`.
-    *
-    * For `littleEndian` (the VTA case), file byte `i` of a group must occupy
-    * bits `[i*8 +: 8]` of the word, so a final short group keeps its real bytes
-    * in the LOW positions and zero-fills the HIGH (MSB) bytes. The padding must
-    * therefore be applied AFTER reversing the group, never before: prepending
-    * zeros then reversing would push the real bytes into the high half of the
-    * word and zero the low half. That bug silently corrupted the last 64-bit
-    * word of any file whose length is not a multiple of `bytesPerWord` -
-    * notably UOP regions with an odd uop count (4 B/uop), whose final uop
-    * became a zero uop and wrecked the last GEMM/ALU iteration (last output
-    * row).
     */
   def bin2hex(
       bytes: Array[Byte],
