@@ -20,6 +20,8 @@ curl = "*"              # Required by Mill to download its jars
 flex = "*"
 bison = "*"
 ccache = "*"
+zlib = "*"
+
 
 # --- Mathematical & Communication Libraries ---
 matplotlib = "*"
