@@ -32,6 +32,7 @@ def gen_sd_manifest(
     sd_card_dir: str,
     sd_dir: str = "",
     emit_refs: bool = False,
+    extra_blobs: Optional[List[Tuple[str, str, int, int]]] = None,
 ) -> None:
     """Emit nn_sd_manifest.h and stage the referenced .bin files into sd_card_dir.
 
@@ -62,6 +63,17 @@ def gen_sd_manifest(
         name = os.path.basename(bin_path)
         addr = ddr_base + m.offset
         static.append((name, addr, _file_size(bin_path, m.size)))
+        staged.append(bin_path)
+
+    # CPU-op parameter blobs (convtranspose float weights/bias): listed as static
+    # files so the SD loader places them at their allocated DDR addresses, exactly
+    # like the .incbin/Tcl paths. Basenames (weight{suffix}.bin /
+    # accumulator{suffix}.bin, suffix = the CPU op's name) are unique vs the VTA
+    # buffers' names.
+    for _label, path, addr, size in extra_blobs or []:
+        bin_path = os.path.abspath(path)
+        name = os.path.basename(bin_path)
+        static.append((name, addr, _file_size(bin_path, size)))
         staged.append(bin_path)
 
     # Raw network input (optional): same scratch address as the Tcl loaders.

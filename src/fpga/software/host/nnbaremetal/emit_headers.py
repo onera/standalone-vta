@@ -56,6 +56,7 @@ def gen_exec_plan_header(
     suffix_to_idx: Optional[Dict[str, int]] = None,
     cpu_out: Optional[Dict[str, int]] = None,
     log_out_width: int = 3,
+    ct_params: Optional[Dict[str, Dict[str, int]]] = None,
 ) -> None:
     if suffix_to_idx is None:
         suffix_to_idx = {layer.suffix: i for i, layer in enumerate(layers)}
@@ -391,6 +392,49 @@ def gen_exec_plan_header(
             L.append(f"        {hex32(out)}, {n}u, {ld.scale_a}f, {ld.offset_a}")
             L.append(f"    }} }} }}{_comma(emitted)}")
             emitted += 1
+
+        elif processor == "convtranspose" and ld:
+            p = (ct_params or {}).get(layer_name)
+            if not p:
+                print(
+                    f"WARNING: convtranspose '{layer_name}' has no param allocation"
+                    " - emitting VTA stub"
+                )
+                L.append(
+                    f"    /* step {step_idx}: convtranspose {layer_name} - no params */"
+                )
+                L.append(
+                    f'    {{ NN_STEP_VTA, "{layer_name}", {{ .vta = {{ -1 }} }} }}{_comma(emitted)}'
+                )
+                emitted += 1
+            else:
+                # Output count in block-tiled layout (both dims padded to a block
+                # multiple, like fsim's data_formatting); the next quant step reads
+                # this float_buf.  Input/output are the runtime float_buf, so no
+                # DDR in/out address is emitted - only the param blob addresses.
+                def _ru(x: int) -> int:
+                    return ((x + block_size - 1) // block_size) * block_size
+
+                n_out = _ru(ld.out_h * ld.out_w) * _ru(ld.out_ch)
+                L.append(f"    /* step {step_idx}: convtranspose */")
+                L.append(
+                    f'    {{ NN_STEP_CONVTRANSPOSE, "{layer_name}",'
+                    f" {{ .convtranspose = {{"
+                )
+                L.append(
+                    f"        {hex32(p['wgt_addr'])}, {hex32(p['bias_addr'])},"
+                    f" {p['has_bias']}u,"
+                )
+                L.append(f"        {ld.tensor_ch}u, {ld.tensor_h}u, {ld.tensor_w}u,")
+                L.append(f"        {ld.out_ch}u, {ld.out_h}u, {ld.out_w}u,")
+                # Single stride (fsim conv_transpose is scalar-stride; sh==sw).
+                L.append(f"        {ld.kh}u, {ld.kw}u, {ld.sh}u,")
+                L.append(
+                    f"        {{ {ld.pad[0]}, {ld.pad[1]}, {ld.pad[2]}, {ld.pad[3]} }},"
+                )
+                L.append(f"        {block_size}u, {n_out}u")
+                L.append(f"    }} }} }}{_comma(emitted)}")
+                emitted += 1
 
         else:
             print(

@@ -354,4 +354,86 @@ void run_int32_chain(const NnInt32ChainStep &d) {
   }
 }
 
+/* Floating-point ConvTranspose (deconvolution), bit-for-bit equal to fsim's
+   cpu_functions.h conv_transpose<float>().  in/out are the runtime float_buf:
+   `in` is the producer's block-tiled (Hin*Win)xCin matrix, `out` the
+   block-tiled (Hout*Wout)xCout matrix (d.n_out_elems floats, block-padded).
+   Weights/bias are read from DDR float addresses.  We scatter directly into the
+   block-tiled output instead of building a dense tensor: each logical cell
+   (orow,c_out) maps to exactly one block offset and the accumulation order
+   matches the reference, so the float result is identical; block-pad slots stay
+   0 from the zero-init (which reproduces data_formatting's zero padding). */
+void run_convtranspose(const NnConvTransposeStep &d, const float *in,
+                       float *out) {
+  const auto *wgt =
+      reinterpret_cast<const float *>(static_cast<std::uintptr_t>(d.wgt_addr));
+  const float *bias = d.has_bias ? reinterpret_cast<const float *>(
+                                       static_cast<std::uintptr_t>(d.bias_addr))
+                                 : nullptr;
+
+  const std::uint32_t B = d.block;
+  const std::uint32_t Cin = d.tensor_ch, Hin = d.tensor_h, Win = d.tensor_w;
+  const std::uint32_t Cout = d.out_ch, Hout = d.out_h, Wout = d.out_w;
+  const std::uint32_t kh = d.kh, kw = d.kw, stride = d.stride;
+  const std::int32_t pt = d.pad[0]; /* top  */
+  const std::int32_t pl = d.pad[1]; /* left */
+
+  const std::uint32_t in_cblk = (Cin + B - 1u) / B;   /* input col-blocks  */
+  const std::uint32_t out_cblk = (Cout + B - 1u) / B; /* output col-blocks */
+  const std::uint32_t out_rows = Hout * Wout;
+
+  for (std::uint32_t i = 0u; i < d.n_out_elems; ++i)
+    out[i] = 0.0f;
+
+  /* 1. Scatter-accumulate (reference loop order c_in,h_in,w_in,c_out,ky,kx). */
+  for (std::uint32_t c_in = 0u; c_in < Cin; ++c_in) {
+    for (std::uint32_t h_in = 0u; h_in < Hin; ++h_in) {
+      for (std::uint32_t w_in = 0u; w_in < Win; ++w_in) {
+        const std::uint32_t srow = h_in * Win + w_in;
+        const std::uint32_t s_off = ((srow / B) * in_cblk + c_in / B) * B * B +
+                                    (srow % B) * B + (c_in % B);
+        const float input_val = in[s_off];
+        if (input_val == 0.0f)
+          continue; /* numerically a no-op; kept for reference parity */
+        for (std::uint32_t c_out = 0u; c_out < Cout; ++c_out) {
+          for (std::uint32_t ky = 0u; ky < kh; ++ky) {
+            for (std::uint32_t kx = 0u; kx < kw; ++kx) {
+              const std::int32_t h_out =
+                  static_cast<std::int32_t>(h_in * stride + ky) - pt;
+              const std::int32_t w_out =
+                  static_cast<std::int32_t>(w_in * stride + kx) - pl;
+              if (h_out >= 0 && h_out < static_cast<std::int32_t>(Hout) &&
+                  w_out >= 0 && w_out < static_cast<std::int32_t>(Wout)) {
+                /* ONNX weight layout [Cin][Cout][KH][KW], no kernel flip. */
+                const std::uint32_t w_idx =
+                    c_in * (Cout * kh * kw) + c_out * (kh * kw) + ky * kw + kx;
+                const std::uint32_t orow =
+                    static_cast<std::uint32_t>(h_out) * Wout +
+                    static_cast<std::uint32_t>(w_out);
+                const std::uint32_t o_off =
+                    ((orow / B) * out_cblk + c_out / B) * B * B +
+                    (orow % B) * B + (c_out % B);
+                out[o_off] += input_val * wgt[w_idx];
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /* 2. Bias broadcast over all real (orow, c_out) cells. */
+  if (bias) {
+    for (std::uint32_t c_out = 0u; c_out < Cout; ++c_out) {
+      const float bv = bias[c_out];
+      for (std::uint32_t orow = 0u; orow < out_rows; ++orow) {
+        const std::uint32_t o_off =
+            ((orow / B) * out_cblk + c_out / B) * B * B + (orow % B) * B +
+            (c_out % B);
+        out[o_off] += bv;
+      }
+    }
+  }
+}
+
 } // namespace vta

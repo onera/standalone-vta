@@ -8,7 +8,7 @@ from .config import (
 )
 from .model import _align_page
 from .parse import collect_layers, load_dependency_csv
-from .layout import _build_cpu_out_addrs
+from .layout import _build_cpu_out_addrs, _build_cpu_param_addrs
 from .emit_headers import gen_exec_plan_header, gen_header
 from .emit_load import gen_asm_incbin, gen_input_tcl, gen_linker_fragment, gen_tcl
 from .emit_sd import gen_sd_manifest
@@ -166,8 +166,18 @@ def main() -> None:
     cpu_out, alloc_top, cpu_scratch = _build_cpu_out_addrs(
         dep_info, layers, ddr_base, suffix_to_idx, comp_dir
     )
+    # CPU-op parameter blobs (convtranspose float weights/bias) allocated above
+    # all VTA + CPU-scratch regions, loaded via the static-load path (incbin/Tcl).
+    ct_params, ct_blobs, alloc_top = _build_cpu_param_addrs(
+        dep_info, comp_dir, alloc_top
+    )
+    # Combine CPU activation scratch + CPU-op parameter blobs for the layout
+    # guard checks (overlap / fit), each as (label, addr, bytes).
+    all_scratch = list(cpu_scratch) + [
+        (label, addr, size) for label, _path, addr, size in ct_blobs
+    ]
 
-    if not check_buffer_overlaps(layers, ddr_base, cpu_scratch):
+    if not check_buffer_overlaps(layers, ddr_base, all_scratch):
         sys.exit(1)
 
     if not check_binary_fits(layers, comp_dir):
@@ -199,7 +209,7 @@ def main() -> None:
             f"[gen] isolation-check golden regions: 0x{_align_page(alloc_top):08X}"
             f"-0x{check_top:08X}"
         )
-        if not check_buffer_overlaps(layers, ddr_base, cpu_scratch):
+        if not check_buffer_overlaps(layers, ddr_base, all_scratch):
             sys.exit(1)
 
     os.makedirs(outdir, exist_ok=True)
@@ -219,6 +229,7 @@ def main() -> None:
         suffix_to_idx=suffix_to_idx,
         cpu_out=cpu_out,
         log_out_width=cfg.log_out_width,
+        ct_params=ct_params,
     )
     gen_tcl(
         layers,
@@ -227,6 +238,7 @@ def main() -> None:
         out("load_nn_static.tcl"),
         dep_info=dep_info,
         include_input=False,
+        extra_blobs=ct_blobs,
     )
     gen_tcl(
         layers,
@@ -235,6 +247,7 @@ def main() -> None:
         out("load_nn.tcl"),
         dep_info=dep_info,
         include_input=True,
+        extra_blobs=ct_blobs,
     )
     gen_input_tcl(layers, ddr_base, comp_dir, out("load_input.tcl"))
     if args.emit_sd_manifest:
@@ -246,10 +259,17 @@ def main() -> None:
             out("sd_card"),
             sd_dir=args.sd_dir,
             emit_refs=emit_check,
+            extra_blobs=ct_blobs,
         )
-    gen_asm_incbin(layers, out("nn_bin_data.S"), emit_check=emit_check)
+    gen_asm_incbin(
+        layers, out("nn_bin_data.S"), emit_check=emit_check, extra_blobs=ct_blobs
+    )
     gen_linker_fragment(
-        layers, ddr_base, out("nn_vta_sections.ld"), emit_check=emit_check
+        layers,
+        ddr_base,
+        out("nn_vta_sections.ld"),
+        emit_check=emit_check,
+        extra_blobs=ct_blobs,
     )
     if emit_check:
         gen_debug_map(layers, out("nn_debug_map.h"))
@@ -269,7 +289,7 @@ def main() -> None:
 
     if args.max_addr:
         max_addr = int(args.max_addr, 16)
-        if not check_memory_fit(layers, ddr_base, max_addr, comp_dir, cpu_scratch):
+        if not check_memory_fit(layers, ddr_base, max_addr, comp_dir, all_scratch):
             sys.exit(1)
     else:
         print(

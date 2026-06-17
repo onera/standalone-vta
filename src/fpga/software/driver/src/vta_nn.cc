@@ -209,6 +209,36 @@ float *run_nn(std::uintptr_t vcr_base, const NnExecStep *steps,
           static_cast<UINTPTR>(s.int32_chain.dst_addr),
           static_cast<INTPTR>(s.int32_chain.n_elems * sizeof(vta_acc_t)));
       break;
+
+    case NN_STEP_CONVTRANSPOSE: {
+      // Float deconvolution: consumes the live float_buf (produced by a prior
+      // dequant) and produces a new, larger float_buf consumed by the next
+      // quant - same plumbing as dequant/quant, but the element count changes.
+      const NnConvTransposeStep &ct = s.convtranspose;
+      // Weights/bias were placed in DRAM by the loader (.incbin / JTAG dow),
+      // bypassing the PS D-cache; reconcile before the CPU reads them.
+      Xil_DCacheFlushRange(static_cast<UINTPTR>(ct.wgt_addr),
+                           static_cast<INTPTR>(ct.tensor_ch * ct.out_ch *
+                                               ct.kh * ct.kw * sizeof(float)));
+      if (ct.has_bias)
+        Xil_DCacheFlushRange(static_cast<UINTPTR>(ct.bias_addr),
+                             static_cast<INTPTR>(ct.out_ch * sizeof(float)));
+      float *ct_out =
+          static_cast<float *>(std::malloc(ct.n_out_elems * sizeof(float)));
+      if (!ct_out) {
+        xil_printf("=== malloc failed at step %u ===\r\n", i);
+        std::free(float_buf);
+        *ok = false;
+        return nullptr;
+      }
+      run_convtranspose(ct, float_buf, ct_out);
+      std::free(float_buf);
+      float_buf = ct_out;
+      *float_bytes_out = ct.n_out_elems * sizeof(float);
+      // ct_out is CPU-only float scratch (consumed by the next quant step); no
+      // DDR flush needed, like the dequant output.
+      break;
+    }
     }
   }
 

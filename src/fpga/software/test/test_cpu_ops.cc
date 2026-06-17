@@ -25,6 +25,7 @@
 #include "vta_cpu_ops.h"   // driver structs + vta::run_* decls
 #include "vta_hw_config.h" // stub: vta_*_t element types + VTA_BLOCK_SIZE
 
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <random>
@@ -50,6 +51,14 @@ std::vector<std::int8_t> rand_i8(std::size_t n, std::mt19937 &rng) {
   return v;
 }
 
+std::vector<float> rand_f(std::size_t n, std::mt19937 &rng) {
+  std::uniform_real_distribution<float> d(-2.0f, 2.0f);
+  std::vector<float> v(n);
+  for (auto &x : v)
+    x = d(rng);
+  return v;
+}
+
 // Compare driver output (int32 at DST) against the reference vector.
 void check(const std::string &name, const std::vector<std::int32_t> &ref) {
   const auto *got = reinterpret_cast<const std::int32_t *>(kDst);
@@ -63,6 +72,30 @@ void check(const std::string &name, const std::vector<std::int32_t> &ref) {
   }
   std::printf("  %-44s ref=%-6zu mm=%-5d %s\n", name.c_str(), ref.size(), mm,
               mm ? "FAIL" : "PASS");
+  if (mm)
+    ++g_failures;
+}
+
+// Compare driver float output (at DST) against the reference vector.  The op
+// mirrors the reference arithmetic in the same order, so the match is expected
+// to be exact; a tiny tolerance guards against benign FP-contraction
+// differences.
+void check_f(const std::string &name, const std::vector<float> &ref) {
+  const auto *got = reinterpret_cast<const float *>(kDst);
+  int mm = 0;
+  float maxd = 0.0f;
+  for (std::size_t i = 0; i < ref.size(); ++i) {
+    float dd = std::fabs(got[i] - ref[i]);
+    if (dd > maxd)
+      maxd = dd;
+    if (dd > 1e-3f) {
+      if (mm < 3)
+        std::printf("    [%zu] got=%g exp=%g\n", i, got[i], ref[i]);
+      ++mm;
+    }
+  }
+  std::printf("  %-44s ref=%-6zu mm=%-5d maxd=%.3g %s\n", name.c_str(),
+              ref.size(), mm, maxd, mm ? "FAIL" : "PASS");
   if (mm)
     ++g_failures;
 }
@@ -210,6 +243,76 @@ void test_chain(const ChainCfg &c, std::mt19937 &rng) {
   check(nm, ref);
 }
 
+// ---- convtranspose: float deconvolution vs fsim conv_transpose<float>() -----
+struct ConvTCfg {
+  int Cin, Hin, Win, Cout, k, stride, pt, pl, pb, pr, bias;
+};
+
+// ONNX ConvTranspose output dim (output_padding = 0, dilation = 1).
+int outdim_ct(int in, int s, int k, int pa, int pb_) {
+  return (in - 1) * s - (pa + pb_) + k;
+}
+
+void test_convtranspose(const ConvTCfg &c, std::mt19937 &rng) {
+  const int B = VTA_BLOCK_SIZE;
+  const int Hout = outdim_ct(c.Hin, c.stride, c.k, c.pt, c.pb);
+  const int Wout = outdim_ct(c.Win, c.stride, c.k, c.pl, c.pr);
+
+  // Block-tiled float input (pad slots are ignored by both sides). Passed as a
+  // pointer, so it lives on the heap, not at a 32-bit DRAM address.
+  const std::size_t in_n =
+      static_cast<std::size_t>(ru(c.Hin * c.Win, B)) * ru(c.Cin, B);
+  auto inv = rand_f(in_n, rng);
+  auto wv = rand_f(static_cast<std::size_t>(c.Cin) * c.Cout * c.k * c.k, rng);
+  std::vector<float> bv = c.bias ? rand_f(c.Cout, rng) : std::vector<float>{};
+
+  // oracle (fsim reference)
+  auto ref = conv_transpose<float>(inv, wv, bv, 1, c.Cin, c.Hin, c.Win, c.Cout,
+                                   Hout, Wout, c.k, c.k, c.stride,
+                                   {c.pt, c.pl, c.pb, c.pr}, B);
+
+  // weights + bias go into the kSrc region (the op reads them via DRAM
+  // address).
+  auto *wdst = reinterpret_cast<float *>(kSrc);
+  for (std::size_t i = 0; i < wv.size(); ++i)
+    wdst[i] = wv[i];
+  const std::uintptr_t bias_addr =
+      kSrc + ((wv.size() * sizeof(float) + 63u) & ~std::uintptr_t(63u));
+  if (c.bias) {
+    auto *bdst = reinterpret_cast<float *>(bias_addr);
+    for (int i = 0; i < c.Cout; ++i)
+      bdst[i] = bv[i];
+  }
+
+  NnConvTransposeStep st{};
+  st.wgt_addr = static_cast<std::uint32_t>(kSrc);
+  st.bias_addr = static_cast<std::uint32_t>(bias_addr);
+  st.has_bias = c.bias ? 1u : 0u;
+  st.tensor_ch = c.Cin;
+  st.tensor_h = c.Hin;
+  st.tensor_w = c.Win;
+  st.out_ch = c.Cout;
+  st.out_h = Hout;
+  st.out_w = Wout;
+  st.kh = c.k;
+  st.kw = c.k;
+  st.stride = c.stride;
+  st.pad[0] = c.pt;
+  st.pad[1] = c.pl;
+  st.pad[2] = c.pb;
+  st.pad[3] = c.pr;
+  st.block = B;
+  st.n_out_elems = static_cast<std::uint32_t>(ref.size());
+
+  vta::run_convtranspose(st, inv.data(), reinterpret_cast<float *>(kDst));
+
+  char nm[96];
+  std::snprintf(nm, sizeof(nm),
+                "convT Cin=%d %dx%d->Cout=%d k%d s%d pad{%d,%d} b%d", c.Cin,
+                c.Hin, c.Win, c.Cout, c.k, c.stride, c.pt, c.pl, c.bias);
+  check_f(nm, ref);
+}
+
 } // namespace
 
 int main() {
@@ -254,6 +357,20 @@ int main() {
   std::printf("== run_int32_chain vs fsim subtract_offset / pad_matrix ==\n");
   for (const auto &c : chain)
     test_chain(c, rng);
+
+  // square stride only (fsim conv_transpose is scalar-stride); mix of
+  // block-aligned / sub-block channels, with and without bias and top/left pad.
+  const ConvTCfg convt[] = {
+      {3, 4, 4, 5, 2, 2, 0, 0, 0, 0, 1},   // sub-block Cin/Cout, k2 s2
+      {16, 3, 3, 16, 2, 2, 0, 0, 0, 0, 1}, // exact block
+      {6, 5, 5, 8, 3, 2, 1, 1, 1, 1, 1},   // k3 s2 with top/left pad
+      {8, 4, 4, 4, 2, 2, 0, 0, 0, 0, 0},   // no bias
+      {20, 2, 2, 10, 4, 2, 1, 1, 1, 1, 1}, // multi-block Cin, k4 s2, pad
+      {1, 4, 4, 3, 2, 2, 0, 0, 0, 0, 1},   // single input channel
+  };
+  std::printf("== run_convtranspose vs fsim conv_transpose<float> ==\n");
+  for (const auto &c : convt)
+    test_convtranspose(c, rng);
 
   std::printf("\n%s (%d failing config%s)\n",
               g_failures ? "FAILED" : "ALL PASS", g_failures,

@@ -103,6 +103,33 @@ struct NnInt32ChainStep {
   std::uint32_t tensor_w; /* W - input width */
 };
 
+/* Floating-point ConvTranspose (transposed convolution / deconvolution).
+   A CPU-only op: the PL never reads its weights/bias, so they live in plain DDR
+   loaded via the same static-load path as VTA buffers (elf/incbin + Tcl dow).
+   It runs in float between a NN_STEP_DEQUANT and a NN_STEP_QUANT, reading and
+   writing the runtime float_buf (passed as pointers, not DDR addresses), so the
+   numeric path mirrors fsim's cpu_functions.h conv_transpose<float>() exactly.
+   The input float_buf is the producer's block-tiled (Hin*Win)xCin matrix; the
+   output float_buf is the block-tiled (Hout*Wout)xCout matrix. Single stride
+   (sh==sw) as in fsim; only pad[top]/pad[left] affect the scatter. */
+struct NnConvTransposeStep {
+  std::uint32_t wgt_addr;  /* DDR float32 weights, ONNX [Cin][Cout][KH][KW] */
+  std::uint32_t bias_addr; /* DDR float32 bias [Cout]; valid iff has_bias    */
+  std::uint32_t has_bias;
+  std::uint32_t tensor_ch; /* Cin  */
+  std::uint32_t tensor_h;  /* Hin  */
+  std::uint32_t tensor_w;  /* Win  */
+  std::uint32_t out_ch;    /* Cout */
+  std::uint32_t out_h;     /* Hout */
+  std::uint32_t out_w;     /* Wout */
+  std::uint32_t kh, kw;
+  std::uint32_t
+      stride;          /* single stride; fsim conv_transpose is scalar-stride */
+  std::int32_t pad[4]; /* {top, left, bottom, right}; only top/left used     */
+  std::uint32_t block; /* VTA block size                                     */
+  std::uint32_t n_out_elems; /* block-padded float count of the output buffer */
+};
+
 enum NnStepType {
   NN_STEP_VTA = 0,
   NN_STEP_QADD = 1,
@@ -113,6 +140,7 @@ enum NnStepType {
   NN_STEP_IM2ROW = 6,
   NN_STEP_RESCALE = 7,
   NN_STEP_INT32_CHAIN = 8,
+  NN_STEP_CONVTRANSPOSE = 9,
 };
 
 struct NnVtaStep {
@@ -132,6 +160,7 @@ struct NnExecStep {
     NnIm2RowStep im2row;
     NnRescaleStep rescale;
     NnInt32ChainStep int32_chain;
+    NnConvTransposeStep convtranspose;
   };
 };
 namespace vta {
@@ -144,6 +173,10 @@ void run_format_input(const NnFormatInputStep &d);
 void run_im2row(const NnIm2RowStep &d);
 void run_rescale(const NnRescaleStep &d);
 void run_int32_chain(const NnInt32ChainStep &d);
+/* in/out are the runtime float_buf (block-tiled float); wgt/bias come from the
+   DDR addresses in d.  out must hold d.n_out_elems floats. */
+void run_convtranspose(const NnConvTransposeStep &d, const float *in,
+                       float *out);
 
 } // namespace vta
 

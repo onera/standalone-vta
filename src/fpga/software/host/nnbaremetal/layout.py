@@ -3,7 +3,15 @@
 import os
 from typing import Dict, List, Optional, Tuple
 
-from .model import BUFFER_TYPES, DependencyInfo, LayerInfo, _PAGE, _align_page, hex32
+from .model import (
+    BUFFER_TYPES,
+    DependencyInfo,
+    LayerInfo,
+    _PAGE,
+    _align_page,
+    hex32,
+    safe_c_name,
+)
 
 
 def scratch_addr(layers: List[LayerInfo], ddr_base: int) -> int:
@@ -107,7 +115,9 @@ def _build_cpu_out_addrs(
     cpu_scratch: List[Tuple[str, int, int]] = []
 
     for k, (_, processor, layer_name) in enumerate(dep_info.execution_order):
-        if processor in ("vta", "dequant"):
+        # dequant/convtranspose produce a CPU-allocated float* (the run_nn
+        # float_buf), not a DDR buffer, so they need no DDR output address.
+        if processor in ("vta", "dequant", "convtranspose"):
             continue
         ld = dep_info.layers.get(layer_name)
         if not ld:
@@ -118,8 +128,12 @@ def _build_cpu_out_addrs(
         )
         if vta_addr != 0:
             cpu_out[layer_name] = vta_addr
-        elif processor in ("qadd", "concat"):
-            # No VTA consumer: allocate a scratch DDR region
+        elif processor in ("qadd", "concat", "quant"):
+            # No VTA consumer: allocate a scratch DDR region.  quant included so a
+            # requantizing quant (e.g. after a convtranspose) or a terminal quant
+            # writes its compact int8 output to a real, readable address rather
+            # than 0.  Its output is consumed either by a downstream VTA layer
+            # (via im2row from this scratch) or read back as the network output.
             n_bytes = ld.out_ch * ld.out_h * ld.out_w
             cpu_out[layer_name] = alloc_ptr
             cpu_scratch.append((layer_name, alloc_ptr, n_bytes))
@@ -134,6 +148,66 @@ def _build_cpu_out_addrs(
     # the raw-input scratch, and any CPU-op scratch - the safe base for the
     # isolation-check golden regions.
     return cpu_out, alloc_ptr, cpu_scratch
+
+
+def _build_cpu_param_addrs(
+    dep_info: DependencyInfo,
+    comp_dir: str,
+    alloc_base: int,
+) -> Tuple[Dict[str, Dict[str, int]], List[Tuple[str, str, int, int]], int]:
+    """Allocate DDR for CPU-op *parameter* blobs (currently the float weights and
+    bias of each convtranspose op).
+
+    Unlike the inter-layer activation scratch handled by _build_cpu_out_addrs,
+    these are read-only model parameters: they are loaded into DRAM by the same
+    static-load path as the VTA INSN/UOP/WGT/ACC buffers (ELF .incbin + Tcl dow)
+    and read by the CPU op at run time.  The PL never touches them.
+
+    Returns (ct_params, blobs, alloc_top):
+      ct_params: layer_name -> {"wgt_addr", "bias_addr", "has_bias"}
+      blobs:     list of (section_label, abs_bin_path, addr, size) for the
+                 loaders (emit_load) and the overlap/fit checks
+      alloc_top: first free page-aligned address above these blobs
+    """
+    alloc = _align_page(alloc_base)
+    ct_params: Dict[str, Dict[str, int]] = {}
+    blobs: List[Tuple[str, str, int, int]] = []
+    ct_idx = 0
+    for _, processor, name in dep_info.execution_order:
+        if processor != "convtranspose":
+            continue
+        # node_cpu writes flat float32 "weight{suffix}.bin" / "accumulator{suffix}.bin"
+        # (no _block sibling - consumed directly as flat float by run_convtranspose).
+        wpath = os.path.join(comp_dir, f"weight{name}.bin")
+        bpath = os.path.join(comp_dir, f"accumulator{name}.bin")
+        wsize = os.path.getsize(wpath) if os.path.isfile(wpath) else 0
+        bsize = os.path.getsize(bpath) if os.path.isfile(bpath) else 0
+        if wsize == 0:
+            print(f"WARNING: convtranspose '{name}' weight bin missing: {wpath}")
+        safe = safe_c_name(name, ct_idx)
+        ct_idx += 1
+
+        wgt_addr = alloc
+        blobs.append((f".ct_{safe}_wgt", os.path.abspath(wpath), wgt_addr, wsize))
+        alloc += max(_align_page(wsize), _PAGE)
+
+        has_bias = 1 if bsize > 0 else 0
+        bias_addr = 0
+        if has_bias:
+            bias_addr = alloc
+            blobs.append((f".ct_{safe}_bias", os.path.abspath(bpath), bias_addr, bsize))
+            alloc += max(_align_page(bsize), _PAGE)
+
+        ct_params[name] = {
+            "wgt_addr": wgt_addr,
+            "bias_addr": bias_addr,
+            "has_bias": has_bias,
+        }
+        print(
+            f"[gen] convtranspose param alloc: {name} wgt {hex32(wgt_addr)}"
+            f" ({wsize} B)" + (f", bias {hex32(bias_addr)} ({bsize} B)" if has_bias else "")
+        )
+    return ct_params, blobs, alloc
 
 
 def _cpu_out_addr(
