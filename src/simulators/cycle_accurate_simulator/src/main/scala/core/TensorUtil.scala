@@ -491,7 +491,7 @@ class TensorDataCtrl(
   val xstride_bytes = dec.xstride << log2Ceil(elemBytes)
 
   val xfer_init_addr =
-    io.baddr | (maskOffset & (dec.dram_offset << log2Ceil(elemBytes)))
+    io.baddr + (maskOffset & (dec.dram_offset << log2Ceil(elemBytes)))
   val xfer_split_addr = caddr + xfer_bytes
   val xfer_stride_addr = baddr + xstride_bytes
 

@@ -585,7 +585,7 @@ class GenVMECmdWide(tensorType: String = "none")(implicit
   val maskOffset = VecInit(Seq.fill(M_DRAM_OFFSET_BITS)(true.B)).asUInt
   val dramInitialAddr =
     (io.dram_offset << log2Ceil(elemBytes)).asTypeOf(UInt(mp.addrBits.W))
-  val xferElemInitAddr = io.baddr | dramInitialAddr // SHOULD have + here?
+  val xferElemInitAddr = io.baddr + dramInitialAddr // SHOULD have + here?
   // aling address to CL size
   // lower bits - elem offset in a cachline
   val dramClAddrAlignNotMask =
