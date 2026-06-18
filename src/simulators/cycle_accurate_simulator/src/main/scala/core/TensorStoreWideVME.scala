@@ -170,7 +170,7 @@ case class TensorStoreWideVME(
   // --------------------
   // --- Read memory ---
   // --------------------
-  // first pulse doesnt reead whole data size, it is bounded by DRAM data alignment
+  // first pulse doesnt read whole data size, it is bounded by DRAM data alignment
   // ! - data pulse boundary
   // . - tenzor boundary
   // tz - not used

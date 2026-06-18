@@ -17,7 +17,7 @@ CFLAGS           = -std=c++17 -lstdc++fs -Wall -g -MMD -MP
 DEBUGFLAG       ?= -DDEBUG_SIM=false
 
 # Verilated objects sit on the per-cycle hot path - optimise for throughput.
-VERILATED_CFLAGS = -std=c++17 -O3 -march=native -fomit-frame-pointer -MMD -MP 
+VERILATED_CFLAGS = -std=c++17 -O3 -fomit-frame-pointer -MMD -MP
 
 # VTA hardware configuration, defaults to ../../../config/vta_config.json
 # Override at build time: make CONFIG=path/to/config.json [target]
