@@ -27,10 +27,6 @@ CONFIG_DIR       := $(PROJECT_DIR)/config
 CONFIG_FILE ?= vta_config.json
 CONFIG       = $(CONFIG_DIR)/$(CONFIG_FILE)
 
-# Stamp files tracking which config last triggered SV emission (local to examples/)
-EXPORTED_SV_STAMP    := .exported_sv.stamp
-EXPORTED_SV_CFG_ARGS := .exported_sv.args
-
 # Helper: read a LOG_*_WIDTH key from the config JSON and map to a C dtype name.
 # Usage: $(call dtype,LOG_INP_WIDTH)  →  int8 | int16 | int32
 dtype = $(shell python3 -c \
@@ -122,19 +118,10 @@ fsim_compile_single_layer: ## Build fsim_single_layer
 # VSIM BUILD (RTL)
 # ==============================================================================
 
-# Reruns mill only when the active config JSON changes
-# Always runs; only updates the args file when CONFIG_FILE actually changes.
-$(EXPORTED_SV_CFG_ARGS): FORCE
-	@printf '%s' '$(CONFIG_FILE)' > $@.tmp
-	@cmp -s $@.tmp $@ && rm $@.tmp || mv $@.tmp $@
 
-FORCE:
-
-$(EXPORTED_SV_STAMP): $(CONFIG) $(EXPORTED_SV_CFG_ARGS)
+exported_sv:
 	cd $(TSIM_DIR) && ./mill -Dvta.config.file=$(CONFIG_FILE) emitVtaSimConfig
-	@touch $@
 
-exported_sv: $(EXPORTED_SV_STAMP) ## Generate VTAShell SystemVerilog from Chisel (reruns on config change)
 
 vsim_compile: exported_sv ## Generate Verilated C++ model and build fsim_nn_rtl
 	$(MAKE) -C $(FSIM_DIR) CONFIG=$(CONFIG) build/vsim

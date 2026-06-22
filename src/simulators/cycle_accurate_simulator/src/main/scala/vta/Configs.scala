@@ -78,6 +78,7 @@ trait EmitterApp extends App {
           | -outMemDepth=${outMemDepth}
           | -instQueueEntries=${instQueueEntries}
           """.stripMargin
+      case _ => ""
     }
   }
   def showConfig(implicit p: Parameters) = {

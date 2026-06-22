@@ -77,22 +77,33 @@ object `package` extends SbtModule with PublishModule with ScalafixModule {
     sys.props.getOrElse("vta.config.file","vta_config.json")
   }
 
-  /** Emit VTA for DPI simulation using `vta.StandaloneSimConfig` main class.
-   *
-   * Usage: ./mill emitVtaSimConfig Output: build/emitted/vta-sim-shell (relative
-   * to build root)
-   */
-  def emitVtaSimConfig() = Task.Command {
-    val outDir = BuildCtx.workspaceRoot / "build" / "emitted" / "vta-sim-shell"
-    os.makeDir.all(outDir)
+  def vtaSimConfig = Task {
     runner().run(
-      args = Seq(outDir.toString),
+      args = Seq(Task.dest.toString),
       mainClass = "vta.StandaloneSimConfig",
       workingDir = BuildCtx.workspaceRoot
     )
+    PathRef(Task.dest)
   }
 
+  /** Emit VTA for DPI simulation using `vta.StandaloneSimConfig` main class.
+   *
+   * Usage: ./mill emitVtaSimConfig 
+   * Output: build/emitted/vta-sim-shell (relative to build root)
+   */
+  def emitVtaSimConfig(args: Args) = Task.Command {
+    val outDir = BuildCtx.workspaceRoot / "build" / "emitted" / "vta-sim-shell"
+    val taskPath = vtaSimConfig()
+    os.remove.all(target = outDir,ignoreErrors = true)
+    println(s"[INFO] copying sim config from ${taskPath.path} to ${outDir}")
+    os.copy(taskPath.path,outDir,replaceExisting = true,createFolders = true)
+  }
 
+  /**
+      * Emit the default FPGA Xilinx config 
+      *
+      * @param args optional path string for the target dir
+      */
   def emitVtaFpgaConfig(args: Args) = Task.Command {
     val outDir = if (args.value.isEmpty) BuildCtx.workspaceRoot / "build" / "emitted" / "vta-xilinx-shell" else os.Path(args.value.head)
     os.makeDir.all(outDir)
@@ -141,7 +152,7 @@ object `package` extends SbtModule with PublishModule with ScalafixModule {
 
     // override def testArgsDefault: Simple[Seq[String]] =
     //   Seq("-n", "vta.tags.UnitTests")
-    def testSandboxWorkingDir = false
+    def testSandboxWorkingDir = true
     def testParallelism = false
     def vtaConfigFile = Task.Input{
       sys.props.get("vta.config.file")
@@ -159,11 +170,9 @@ object `package` extends SbtModule with PublishModule with ScalafixModule {
     )
       }
     }
-    override def forkArgs: Simple[Seq[String]] = getConfigArgs()
-    def unittest() : Task.Command[(msg: String, results: Seq[TestResult])] = {
-      Task.Command {
+    override def forkArgs: Simple[Seq[String]] = super.forkArgs() ++ getConfigArgs() 
+    def unittest : Simple[(msg: String, results: Seq[TestResult])] = {
         testForked("-n","vta.tags.UnitTests")()
-      }
     }
 
     def testWaves(args: String*) = Task.Command{
