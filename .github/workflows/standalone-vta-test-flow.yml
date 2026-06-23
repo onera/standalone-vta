@@ -76,8 +76,6 @@ jobs:
             version: "0.10.11"
         - name: Sync dependencies
           run: cd src/compiler && uv sync
-        - name: Compile cycle accurate simulator
-          run: cd examples && SIM_THREADS=2 make -s vsim_compile
         - name: Compile ONNX
           run: |
             source src/compiler/.venv/bin/activate
