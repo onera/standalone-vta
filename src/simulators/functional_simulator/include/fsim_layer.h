@@ -47,6 +47,11 @@ struct LayerContext {
   vta_phy_addr_t phy_add_insn;
 };
 
+// Runtime override of the simulator-output dir, populated from --output in
+// main(). Empty means "use the compile-time VTA_SIMULATOR_OUTPUT default".
+extern std::string g_sim_output_override;
+extern std::string g_comp_dir_override;
+
 // Path helpers.
 std::string compiler_output_path(const std::filesystem::path &cwd,
                                  const std::string &file);

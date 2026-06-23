@@ -10,6 +10,7 @@
     IR via run_single_layer().
 ****************************/
 #include "../include/driver.h"
+#include "../include/fsim_layer.h" // sim_output_path, g_sim_output_override
 #include "../include/fsim_options.h"
 #include "../include/vta_device_backend.h"
 
@@ -21,36 +22,42 @@
 #include <string>
 
 static void print_usage(const char *prog) {
-  std::fprintf(stderr,
-               "Usage: %s [OPTIONS]\n"
-               "\n"
-               "Mode:\n"
-               "  --layer N             Run only VTA IR layer N (default: "
-               "full NN graph)\n"
-               "  --verbose             Print the layer result to stdout "
-               "(single-layer only)\n"
-               "  --output PATH         Dump raw layer output bytes to PATH "
-               "(single-layer only)\n"
-               "\n"
-               "Runtime:\n"
-               "  --dram-base 0xADDR    Shift every DRAM buffer by this base\n"
-               "  --no-hw-reset         Reset the VTA only on the first layer\n"
-               "  --dump-layers         Dump per-layer raw input/output to "
-               "simulators_output/\n"
+  std::fprintf(
+      stderr,
+      "Usage: %s [OPTIONS]\n"
+      "\n"
+      "Mode:\n"
+      "  --layer N             Run only VTA IR layer N (default: "
+      "full NN graph)\n"
+      "\n"
+      "Runtime:\n"
+      "  --verbose             Print the layer result to stdout "
+      "(single-layer only)\n"
+      "  --output DIR          Directory for every file the simulator "
+      "writes (final_output, dumps, traces, log).\n"
+      "                        Defaults to the compile-time output "
+      "dir when omitted.\n"
+      "  --comp-dir DIR        Directory the compiler outputs are read from.\n"
+      "                        Defaults to the compile-time compiler-output "
+      "dir when omitted.\n"
+      "  --dump-layers         Dump per-layer raw input/output to the "
+      "output dir\n"
 #ifdef VERILATOR_BUILD_ENABLED
-               "\n"
-               "Verilator-backend flags:\n"
-               "  --trace               Per-layer waveform to "
-               "simulators_output/trace_<layer>.{fst,vcd}\n"
-               "  --sv-log PATH         Redirect SystemVerilog $display to "
-               "PATH\n"
-               "  --timeout-cycles N    Abort after N RTL cycles (default: "
-               "500000)\n"
-               "  --no-timeout          Disable the cycle timeout\n"
+      "\n"
+      "Verilator-backend flags:\n"
+      "  --dram-base 0xADDR    Shift every DRAM buffer by this base\n"
+      "  --no-hw-reset         Reset the VTA only on the first layer\n"
+      "  --trace               Per-layer waveform to "
+      "<output-dir>/trace_<layer>.{fst,vcd}\n"
+      "  --sv-log PATH         Redirect SystemVerilog $display to "
+      "PATH\n"
+      "  --timeout-cycles N    Abort after N RTL cycles (default: "
+      "500000)\n"
+      "  --no-timeout          Disable the cycle timeout\n"
 #endif
-               "\n"
-               "  -h, --help            Show this message\n",
-               prog);
+      "\n"
+      "  -h, --help            Show this message\n",
+      prog);
 }
 
 static bool parse_required_value(const char *flag, int argc, char **argv,
@@ -79,16 +86,20 @@ int main(int argc, char **argv) {
     } else if (std::strcmp(arg, "--output") == 0) {
       if (!parse_required_value(arg, argc, argv, i, val))
         return 1;
-      opts.output_path = val;
+      opts.output_dir = val;
+    } else if (std::strcmp(arg, "--comp-dir") == 0) {
+      if (!parse_required_value(arg, argc, argv, i, val))
+        return 1;
+      opts.comp_dir = val;
+    } else if (std::strcmp(arg, "--dump-layers") == 0) {
+      opts.dump_layers = true;
+#ifdef VERILATOR_BUILD_ENABLED
     } else if (std::strcmp(arg, "--dram-base") == 0) {
       if (!parse_required_value(arg, argc, argv, i, val))
         return 1;
       opts.dram_base = std::strtoull(val, nullptr, 0);
     } else if (std::strcmp(arg, "--no-hw-reset") == 0) {
       opts.no_hw_reset = true;
-    } else if (std::strcmp(arg, "--dump-layers") == 0) {
-      opts.dump_layers = true;
-#ifdef VERILATOR_BUILD_ENABLED
     } else if (std::strcmp(arg, "--trace") == 0) {
       opts.trace_enabled = true;
     } else if (std::strcmp(arg, "--sv-log") == 0) {
@@ -112,38 +123,34 @@ int main(int argc, char **argv) {
     }
   }
 
+  g_sim_output_override = opts.output_dir;
+  g_comp_dir_override = opts.comp_dir;
+
   // Backend selection is baked in at compile time.
 #ifdef VERILATOR_BUILD_ENABLED
   g_use_verilator = true;
-  // When the archive was built with VTA_VERIF_DEBUG=1 the SV verification
-  // debug printfs are wired in and would otherwise flood stderr. Default the
-  // sv-log to a file in simulators_output/ so the console stays usable; the
-  // user can still override the destination with --sv-log PATH.
 #ifdef VTA_VERIF_DEBUG
   if (opts.sv_log_file.empty()) {
     opts.sv_log_file =
-        (std::filesystem::current_path() / ".." / ".." / ".." /
-         "simulators_output" / "verilator.log")
-            .lexically_normal()
-            .string();
+        sim_output_path(std::filesystem::current_path(), "verilator.log");
   }
 #endif
   g_verilator_config.trace_enabled = opts.trace_enabled;
   g_verilator_config.sv_log_file = opts.sv_log_file;
   g_verilator_config.timeout_cycles = opts.timeout_cycles;
   g_verilator_config.reset_between_layers = !opts.no_hw_reset;
-#else
-  g_use_verilator = false;
-#endif
 
-  // DRAM base must be set before the first VTAMemAlloc. The functional
-  // backend adds it to every DRAM access; the Verilated backend programs
-  // the VCR data pointers to this base.
+  // DRAM base must be set before the first VTAMemAlloc. The Verilated backend
+  // programs the VCR data pointers to this base (RTL drives the HW address
+  // adders); vsim-only knob.
   if (opts.dram_base != 0) {
     VTASetDramBase(opts.dram_base);
     std::printf("[fsim] dram-base = 0x%llx\n",
                 static_cast<unsigned long long>(opts.dram_base));
   }
+#else
+  g_use_verilator = false;
+#endif
 
 #ifdef VERILATOR_BUILD_ENABLED
   std::printf("[Cycle Accurate Simulation] Backend: Verilated RTL\n");
@@ -156,17 +163,13 @@ int main(int argc, char **argv) {
 #endif
 
   if (opts.dump_layers)
-    std::printf("[fsim] dump-layers: writing per-layer bins to "
-                "simulators_output/\n");
+    std::printf("[fsim] dump-layers: writing per-layer bins to %s\n",
+                sim_output_path(std::filesystem::current_path(), "").c_str());
 
-  const int rc = opts.layer_idx >= 0
-                     ? run_single_layer(opts.layer_idx, opts)
-                     : run_nn(opts);
+  const int rc = opts.layer_idx >= 0 ? run_single_layer(opts.layer_idx, opts)
+                                     : run_nn(opts);
 
 #ifdef VERILATOR_BUILD_ENABLED
-  // End-of-run summary. Mirrors the "Tensor successfully written to ..." line
-  // so the user sees both pieces of "where did the output go?" together,
-  // instead of having to scroll back to the build/launch banner.
   if (!g_verilator_config.sv_log_file.empty())
     std::printf("SystemVerilog log written to %s\n",
                 g_verilator_config.sv_log_file.c_str());

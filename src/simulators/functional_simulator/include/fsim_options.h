@@ -13,9 +13,13 @@ struct FsimOptions {
   // VTA IR layer (single-layer mode).
   int layer_idx = -1;
 
-  // Single-layer extras (ignored in NN mode).
+  // --verbose prints the layer result (single-layer mode only).
   bool verbose = false;
-  std::string output_path;
+
+  // Simulator output dir
+  std::string output_dir;
+  // Compiler output dir (input of simulator)
+  std::string comp_dir;
 
   // Common runtime knobs.
   bool dump_layers = false;

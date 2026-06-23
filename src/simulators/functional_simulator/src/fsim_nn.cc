@@ -1,8 +1,8 @@
 /***************************
     PRE-PROCESSOR DIRECTIVES
 ****************************/
-#include "../include/fsim_options.h"
 #include "../include/fsim_layer.h" // dtypes, LayerContext, shared load/free/profiler helpers
+#include "../include/fsim_options.h"
 #include <cstdint>
 
 /********************
@@ -15,15 +15,16 @@ int run_nn(const FsimOptions &opts) {
   // Define the current location
   std::filesystem::path currentPath = std::filesystem::current_path();
 
-  // Path helpers (shared impl in fsim_layer.cc). compiler_output and the
-  // checker's expected output dir are the same (compiler_output); per-layer
-  // dumps go to simulators_output (same dir as verilator traces).
   auto construct_path = [&](const std::string &filename) {
     return compiler_output_path(currentPath, filename);
   };
-  auto construct_output_path = construct_path;
   auto construct_sim_output_path = [&](const std::string &filename) {
     return sim_output_path(currentPath, filename);
+  };
+  auto construct_output_path = [&](const std::string &filename) {
+    return g_sim_output_override.empty()
+               ? compiler_output_path(currentPath, filename)
+               : sim_output_path(currentPath, filename);
   };
 
   // 0. DEFINE GLOBAL FILE PATHES
@@ -46,6 +47,14 @@ int run_nn(const FsimOptions &opts) {
     fileFinalOutputPath = construct_output_path("final_output_rtl.bin");
   }
 #endif
+
+  // Make sure the output dir exists (a custom --output DIR may be fresh). The
+  // per-layer dumps and traces below target the same dir.
+  {
+    std::error_code ec;
+    std::filesystem::create_directories(
+        std::filesystem::path(fileFinalOutputPath).parent_path(), ec);
+  }
 
   // 1. GET NUMBER OF LAYERS AND THE DEBUG FLAG
   // ------------------------------------------

@@ -16,9 +16,15 @@ CFLAGS           = -std=c++17 -lstdc++fs -Wall -g -MMD -MP
 # CFLAGS         = -std=c++17 -lstdc++fs -fsanitize=address -g -MMD -MP
 DEBUGFLAG       ?= -DDEBUG_SIM=false
 
+VTA_COMPILER_OUTPUT ?= ../../../compiler_output
+VTA_SIMULATOR_OUTPUT ?=../../../simulators_output
+
 # Verilated objects sit on the per-cycle hot path - optimise for throughput.
 VERILATED_CFLAGS = -std=c++17 -O3 -fomit-frame-pointer -MMD -MP
-
+PATH_DEFINES          = -DVTA_COMPILER_OUTPUT='"$(abspath $(VTA_COMPILER_OUTPUT))"' \
+                        -DVTA_SIMULATOR_OUTPUT='"$(abspath $(VTA_SIMULATOR_OUTPUT))"'
+CFLAGS           += $(PATH_DEFINES)
+VERILATED_CFLAGS += $(PATH_DEFINES)
 # VTA hardware configuration, defaults to ../../../config/vta_config.json
 # Override at build time: make CONFIG=path/to/config.json [target]
 CONFIG          ?=

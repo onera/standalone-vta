@@ -153,7 +153,7 @@ object `package` extends SbtModule with PublishModule with ScalafixModule {
     // override def testArgsDefault: Simple[Seq[String]] =
     //   Seq("-n", "vta.tags.UnitTests")
     def testSandboxWorkingDir = true
-    def testParallelism = false
+    def testParallelism = true
     def vtaConfigFile = Task.Input{
       sys.props.get("vta.config.file")
     }

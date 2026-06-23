@@ -54,16 +54,20 @@ Usage: ./build/{fsim,vsim} [OPTIONS]
 
 Mode:
   --layer N             Run only VTA IR layer N (default: full NN graph)
-  --verbose             Print the layer result to stdout (single-layer only)
-  --output PATH         Dump raw layer output bytes to PATH (single-layer only)
 
 Runtime:
-  --dram-base 0xADDR    Shift every DRAM buffer by this base
-  --no-hw-reset         Reset the VTA only on the first layer
-  --dump-layers         Dump per-layer raw input/output to simulators_output/
+  --verbose             Print the layer result to stdout (single-layer only)
+  --output DIR          Directory for every file the simulator writes
+                        (final_output, dumps, traces, log). Defaults to the
+                        compile-time output dir when omitted.
+  --comp-dir DIR        Directory the compiler outputs are read from. Defaults
+                        to the compile-time compiler-output dir when omitted.
+  --dump-layers         Dump per-layer raw input/output to the output dir
 
 vsim only:
-  --trace               Per-layer waveform to simulators_output/trace_<layer>.{fst,vcd}
+  --dram-base 0xADDR    Shift every DRAM buffer by this base
+  --no-hw-reset         Reset the VTA only on the first layer
+  --trace               Per-layer waveform to <output-dir>/trace_<layer>.{fst,vcd}
   --sv-log PATH         Capture every SystemVerilog $display/$fwrite line in PATH
                         and silence them on the console; C++ stdout is untouched
   --timeout-cycles N    Abort after N RTL cycles (default: 500000)
@@ -95,16 +99,16 @@ the archive - make doesn't track them as a dependency:
 rm -f build/verilated/VVTAShell/VTest__ALL.a
 ```
 
-| Variable           | Default                              | Effect                                                                              |
-|--------------------|--------------------------------------|-------------------------------------------------------------------------------------|
-| `VTA_VERIF_DEBUG`  | `0`                                  | When `1`, enables firtool debug printfs (e.g. `[Compute] start gemm`).              |
-| `TRACE_FORMAT`     | `fst`                                | Set to `vcd` for VCD output.                                                        |
-| `RANDOMIZE`        | `0`                                  | Shorthand for `RANDOMIZE_REG=1 RANDOMIZE_MEM=1`.                                    |
-| `RANDOMIZE_REG`    | `$(RANDOMIZE)`                       | Randomize register init values.                                                     |
-| `RANDOMIZE_MEM`    | `$(RANDOMIZE)`                       | Randomize memory init values.                                                       |
-| `NONDET_RANDOM`    | `0`                                  | When `1`, use `$urandom` instead of the deterministic `$random` for init values.    |
-| `VERILATOR_XFLAGS` | `--x-assign fast --x-initial fast`   | Use `--x-assign unique --x-initial unique` to seed X-state from Verilator's RNG.    |
-| `SIM_THREADS`      | `8`                                  | Verilator simulation threads.                                                       |
+| Variable           | Default                            | Effect                                                                           |
+| ------------------ | ---------------------------------- | -------------------------------------------------------------------------------- |
+| `VTA_VERIF_DEBUG`  | `0`                                | When `1`, enables firtool debug printfs (e.g. `[Compute] start gemm`).           |
+| `TRACE_FORMAT`     | `fst`                              | Set to `vcd` for VCD output.                                                     |
+| `RANDOMIZE`        | `0`                                | Shorthand for `RANDOMIZE_REG=1 RANDOMIZE_MEM=1`.                                 |
+| `RANDOMIZE_REG`    | `$(RANDOMIZE)`                     | Randomize register init values.                                                  |
+| `RANDOMIZE_MEM`    | `$(RANDOMIZE)`                     | Randomize memory init values.                                                    |
+| `NONDET_RANDOM`    | `0`                                | When `1`, use `$urandom` instead of the deterministic `$random` for init values. |
+| `VERILATOR_XFLAGS` | `--x-assign fast --x-initial fast` | Use `--x-assign unique --x-initial unique` to seed X-state from Verilator's RNG. |
+| `SIM_THREADS`      | `8`                                | Verilator simulation threads.                                                    |
 
 The SystemVerilog assertion layer (emitted by firtool alongside the design) is
 always compiled in. Any assertion failure prints `%Error … Assertion failed`
@@ -162,9 +166,6 @@ surfaces it.
 ```bash
 ./build/vsim --no-timeout --dram-base 0x10000000
 ```
-
-(Functional and RTL backends both honour this; only the RTL path actually
-drives the HW address adders.)
 
 ### Per-layer raw input/output dumps
 

@@ -247,7 +247,6 @@ clean_csv: | $(COMPILER_OUTPUT_DIR) ## Delete CSV output files only
 
 clean_hw: ## Clean Chisel/Mill build outputs
 	cd $(TSIM_DIR) && ./mill cleanOutputs
-	-rm -f $(EXPORTED_SV_STAMP) $(EXPORTED_SV_CFG_ARGS)
 
 # ==============================================================================
 # OUTPUT DIRECTORIES

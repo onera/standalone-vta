@@ -9,18 +9,31 @@
 /********************
     PATH HELPERS
 *********************/
+// Default directory bases.
+#ifndef VTA_COMPILER_OUTPUT
+#define VTA_COMPILER_OUTPUT "compiler_output"
+#endif
+#ifndef VTA_SIMULATOR_OUTPUT
+#define VTA_SIMULATOR_OUTPUT "simulators_output"
+#endif
+
+// Runtime override of the simulator-output dir (set from --output in main()).
+std::string g_sim_output_override;
+std::string g_comp_dir_override;
+
 std::string compiler_output_path(const std::filesystem::path &cwd,
                                  const std::string &file) {
-  return (cwd / ".." / ".." / ".." / "compiler_output" / file)
-      .lexically_normal()
-      .string();
+  const std::string base =
+      g_comp_dir_override.empty() ? VTA_COMPILER_OUTPUT : g_comp_dir_override;
+  return (cwd / base / file).lexically_normal().string();
 }
 
 std::string sim_output_path(const std::filesystem::path &cwd,
                             const std::string &file) {
-  return (cwd / ".." / ".." / ".." / "simulators_output" / file)
-      .lexically_normal()
-      .string();
+  const std::string base = g_sim_output_override.empty()
+                               ? VTA_SIMULATOR_OUTPUT
+                               : g_sim_output_override;
+  return (cwd / base / file).lexically_normal().string();
 }
 
 /********************
@@ -29,7 +42,9 @@ std::string sim_output_path(const std::filesystem::path &cwd,
 void load_and_allocate_layer(LayerContext &ctx,
                              const std::filesystem::path &cwd, int &block_size,
                              bool load_input, bool guard_empty) {
-  auto path = [&](const std::string &f) { return compiler_output_path(cwd, f); };
+  auto path = [&](const std::string &f) {
+    return compiler_output_path(cwd, f);
+  };
 
   // B. LOAD LAYER-RELATED FILE PATHS
   // ---
@@ -62,8 +77,8 @@ void load_and_allocate_layer(LayerContext &ctx,
   // Input A. Single-layer mode reads the input file (input_nn.bin if present,
   // else the compiler's per-op input{suffix}.bin); the NN path leaves raw_inpA
   // empty and fills inpA later via chaining. Either way the same shaping runs,
-  // so inpA's size (hence the mem_inpA allocation / DRAM layout) is identical in
-  // both modes. Tolerant of an empty input.
+  // so inpA's size (hence the mem_inpA allocation / DRAM layout) is identical
+  // in both modes. Tolerant of an empty input.
   std::vector<inp_dtype> raw_inpA;
   if (load_input) {
     // Existence-check first to avoid read_binary_file's perror on the missing
@@ -114,8 +129,7 @@ void load_and_allocate_layer(LayerContext &ctx,
   // E. ALLOCATE VTA MEMORY (virtual DRAM)
   // ---
   // guard_empty mirrors the compiler's skip-empty rule (a 0-size VTAMemAlloc
-  // creates a 0-page entry that does not advance the page table). The NN path
-  // historically allocates unconditionally, so it passes guard_empty=false.
+  // creates a 0-page entry that does not advance the page table).
   auto alloc = [&](size_t bytes) -> void * {
     if (guard_empty)
       return bytes ? VTAMemAlloc(bytes, 1) : nullptr;
@@ -143,7 +157,8 @@ void load_and_allocate_layer(LayerContext &ctx,
   copy(ctx.mem_accX, ctx.accX.data(), ctx.accX.size() * sizeof(acc_dtype));
   copy(ctx.mem_accY, ctx.accY.data(), ctx.accY.size() * sizeof(acc_dtype));
   copy(ctx.mem_outC, ctx.outC.data(), ctx.outC.size() * sizeof(out_dtype));
-  copy(ctx.mem_uop, ctx.uop_buffer.data(), ctx.uop_buffer.size() * sizeof(uop_t));
+  copy(ctx.mem_uop, ctx.uop_buffer.data(),
+       ctx.uop_buffer.size() * sizeof(uop_t));
   copy(ctx.mem_insn, ctx.insn_buffer.data(),
        ctx.insn_buffer.size() * sizeof(instruction_t));
 }
@@ -179,7 +194,8 @@ ProfilerHandles setup_profiler() {
 
   h.clear = tvm::runtime::Registry::Get("vta.simulator.profiler_clear");
   h.status = tvm::runtime::Registry::Get("vta.simulator.profiler_status");
-  h.debug_mode = tvm::runtime::Registry::Get("vta.simulator.profiler_debug_mode");
+  h.debug_mode =
+      tvm::runtime::Registry::Get("vta.simulator.profiler_debug_mode");
 
   if (!h.clear || !h.status || !h.debug_mode) {
     std::cerr << "ERROR: Profiler functions not found." << std::endl;

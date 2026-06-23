@@ -1,8 +1,8 @@
 /***************************
     PRE-PROCESSOR DIRECTIVES
 ****************************/
-#include "../include/fsim_options.h"
 #include "../include/fsim_layer.h" // dtypes, LayerContext, shared load/free/profiler helpers
+#include "../include/fsim_options.h"
 #include <cstdio>
 
 /********************
@@ -10,7 +10,6 @@
 *********************/
 int run_single_layer(int layer_index, const FsimOptions &opts) {
   const bool verbose = opts.verbose;
-  const std::string &output_path = opts.output_path;
   // Define the current location
   std::filesystem::path currentPath = std::filesystem::current_path();
 
@@ -136,8 +135,13 @@ int run_single_layer(int layer_index, const FsimOptions &opts) {
       printf("\n} \n");
     }
 
-    // Dump the raw output bytes to the path given via --output (none = skip).
-    if (!output_path.empty()) {
+    // Dump the raw output bytes.
+    if (!g_sim_output_override.empty()) {
+      const std::string output_path = sim_output_path(
+          currentPath, "layer" + std::to_string(ctx.id) + "_output.bin");
+      std::error_code ec;
+      std::filesystem::create_directories(
+          std::filesystem::path(output_path).parent_path(), ec);
       std::ofstream out_file(output_path, std::ios::binary);
       if (!out_file.is_open()) {
         std::cerr << "ERROR: Could not open output file " << output_path
