@@ -12,6 +12,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   functional-simulator-test:
     runs-on: ubuntu-latest
@@ -25,6 +29,8 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           version: "0.10.11"
+          enable-cache: true
+          cache-dependency-glob: "src/compiler/uv.lock"
       - name: Sync dependencies
         run: cd src/compiler && uv sync
       - name: Tests VTA compiler and functional simulator
@@ -38,13 +44,22 @@ jobs:
       - uses: actions/checkout@v6
       - name: Cache Scala
         uses: coursier/cache-action@v8
+      - name: Cache Mill
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/mill
+            src/simulators/cycle_accurate_simulator/out
+          key: mill-${{ runner.os }}-${{ hashFiles('src/simulators/cycle_accurate_simulator/**/*.scala', 'src/simulators/cycle_accurate_simulator/build.mill', 'src/simulators/cycle_accurate_simulator/src/test/resources/**/*.json') }}
+          restore-keys: |
+            mill-${{ runner.os }}-
       - name: Setup Scala
         uses: coursier/setup-action@v3
         with:
           jvm: adopt:11
       - name: Install Verilator
         run: |
-          sudo apt-get install verilator
+          sudo apt-get update && sudo apt-get install -y verilator
           verilator --version
       - name: Run mill tests
         run: |
@@ -58,13 +73,22 @@ jobs:
         - uses: actions/checkout@v6
         - name: Cache Scala
           uses: coursier/cache-action@v8
+        - name: Cache Mill
+          uses: actions/cache@v4
+          with:
+            path: |
+              ~/.cache/mill
+              src/simulators/cycle_accurate_simulator/out
+            key: mill-${{ runner.os }}-${{ hashFiles('src/simulators/cycle_accurate_simulator/**/*.scala', 'src/simulators/cycle_accurate_simulator/build.mill', 'src/simulators/cycle_accurate_simulator/src/test/resources/**/*.json') }}
+            restore-keys: |
+              mill-${{ runner.os }}-
         - name: Setup Scala
           uses: coursier/setup-action@v3
           with:
             jvm: adopt:11
         - name: Install Verilator
           run: |
-            sudo apt-get install verilator
+            sudo apt-get update && sudo apt-get install -y verilator
             verilator --version
         - name: Setup python
           uses: actions/setup-python@v6
@@ -74,6 +98,8 @@ jobs:
           uses: astral-sh/setup-uv@v7
           with:
             version: "0.10.11"
+            enable-cache: true
+            cache-dependency-glob: "src/compiler/uv.lock"
         - name: Sync dependencies
           run: cd src/compiler && uv sync
         - name: Compile ONNX
