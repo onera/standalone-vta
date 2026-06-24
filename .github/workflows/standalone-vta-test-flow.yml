@@ -53,10 +53,6 @@ jobs:
           key: mill-${{ runner.os }}-${{ hashFiles('src/simulators/cycle_accurate_simulator/**/*.scala', 'src/simulators/cycle_accurate_simulator/build.mill', 'src/simulators/cycle_accurate_simulator/src/test/resources/**/*.json') }}
           restore-keys: |
             mill-${{ runner.os }}-
-      - name: Setup Scala
-        uses: coursier/setup-action@v3
-        with:
-          jvm: adopt:11
       - name: Install Verilator
         run: |
           sudo apt-get update && sudo apt-get install -y verilator
@@ -82,10 +78,6 @@ jobs:
             key: mill-${{ runner.os }}-${{ hashFiles('src/simulators/cycle_accurate_simulator/**/*.scala', 'src/simulators/cycle_accurate_simulator/build.mill', 'src/simulators/cycle_accurate_simulator/src/test/resources/**/*.json') }}
             restore-keys: |
               mill-${{ runner.os }}-
-        - name: Setup Scala
-          uses: coursier/setup-action@v3
-          with:
-            jvm: adopt:11
         - name: Install Verilator
           run: |
             sudo apt-get update && sudo apt-get install -y verilator
