@@ -163,7 +163,7 @@ fsim_inference: ## Build (if needed) and run fsim_nn, capture output
 fsim_single_layer: ## Build (if needed) and run fsim_single_layer, capture output
 	@echo "Running functional simulation (single layer)..."
 	@date
-	$(MAKE) -s -C $(FSIM_DIR) CONFIG=$(CONFIG) fsim_single_layer > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
+	$(MAKE) -s -C $(FSIM_DIR) CONFIG=$(CONFIG) RUNTIME_FLAGS=--verbose fsim_single_layer > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
 	@date
 	@echo "FSIM DONE!"
 
@@ -173,7 +173,7 @@ vsim_single_layer: exported_sv ## Build (if needed) and run fsim_single_layer_rt
 vsim_inference: exported_sv ## Build (if needed) and run fsim_nn_rtl, capture output
 	@echo "Running RTL simulation (NN)..."
 	@date
-	$(MAKE) -s -C $(FSIM_DIR) CONFIG=$(CONFIG) vsim > $(SIMULATOR_OUTPUT_DIR)/tsim_report.txt
+	$(MAKE) -s -C $(FSIM_DIR) CONFIG=$(CONFIG) RUNTIME_FLAGS=--no-timeout vsim > $(SIMULATOR_OUTPUT_DIR)/tsim_report.txt
 	@date
 	@echo "FINAL_OUTPUT_RTL.BIN generated!"
 

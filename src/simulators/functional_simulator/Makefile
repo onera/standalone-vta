@@ -15,6 +15,7 @@ CC              := g++
 CFLAGS           = -std=c++17 -lstdc++fs -Wall -g -MMD -MP
 # CFLAGS         = -std=c++17 -lstdc++fs -fsanitize=address -g -MMD -MP
 DEBUGFLAG       ?= -DDEBUG_SIM=false
+RUNTIME_FLAGS   ?= 
 
 VTA_COMPILER_OUTPUT ?= ../../../compiler_output
 VTA_SIMULATOR_OUTPUT ?=../../../simulators_output
@@ -197,16 +198,16 @@ all:
 
 # Top-level runs
 fsim: build/fsim
-	./build/fsim
+	./build/fsim $(RUNTIME_FLAGS)
 
 vsim: build/vsim
-	./build/vsim --no-timeout
+	./build/vsim $(RUNTIME_FLAGS)
 
 fsim_single_layer: build/fsim
-	./build/fsim --layer 0
+	./build/fsim --layer 0 $(RUNTIME_FLAGS)
 
 vsim_single_layer: build/vsim
-	./build/vsim --layer 0
+	./build/vsim --layer 0 $(RUNTIME_FLAGS)
 
 # Canned vsim configurations. The cached Verilated archive and the C++ objects
 # that read VTA_VERIF_DEBUG aren't tracked as make dependencies, so wipe them
