@@ -300,14 +300,14 @@ class TensorAluJsonTest(
       // Read ACC
       if (c.io.acc.rd(0).idx.valid.peekBoolean()) {
         val expected_acc_rd_idx = acc_indices.dequeue()
-        // c.io.acc
-        //   .rd(0)
-        //   .idx
-        //   .bits
-        //   .expect(
-        //     expected_acc_rd_idx,
-        //     "[read acc] accumulator read index is incorrect"
-        //   )
+        c.io.acc
+          .rd(0)
+          .idx
+          .bits
+          .expect(
+            expected_acc_rd_idx,
+            "[read acc] accumulator read index is incorrect"
+          )
 
         if (debug) {
           // Print data (SRC and, DST or IMM)
@@ -331,20 +331,20 @@ class TensorAluJsonTest(
       // Write ACC
       if (c.io.acc.wr(0).valid.peekBoolean()) {
         val expected_acc_wr_idx = accout_indices.dequeue()
-        // c.io.acc
-        //   .wr(0)
-        //   .bits
-        //   .idx
-        //   .expect(expected_acc_wr_idx, "[write acc] acc index is incorrect")
+        c.io.acc
+          .wr(0)
+          .bits
+          .idx
+          .expect(expected_acc_wr_idx, "[write acc] acc index is incorrect")
       }
       // Write OUT
       if (c.io.out.wr(0).valid.peekBoolean()) {
         val expected_out_wr_idx = out_indices.dequeue()
-        // c.io.out
-        //   .wr(0)
-        //   .bits
-        //   .idx
-        //   .expect(expected_out_wr_idx, "[write out] out index is incorrect")
+        c.io.out
+          .wr(0)
+          .bits
+          .idx
+          .expect(expected_out_wr_idx, "[write out] out index is incorrect")
 
         if (debug) {
           // Print output

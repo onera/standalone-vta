@@ -14,6 +14,7 @@ import unittest.{GenericTest}
 import vta.util.AnyFlatSpecSim
 import chisel3.simulator.PeekPokeAPI
 import vta.tags
+import org.scalatest.matchers.should.Matchers
 
 /** Similar to unittest.TensorGemmJsonTest with adaptation
   */
@@ -22,7 +23,8 @@ class TensorGemmTest(
     c: TensorGemmPipelinedSplit,
     fn: String = "/x.json",
     debug: Boolean = false
-) extends PeekPokeAPI {
+) extends PeekPokeAPI
+    with Matchers {
 
   // Print the test name
   if (debug) {
@@ -268,11 +270,11 @@ class TensorGemmTest(
           .expect(acc_indices.dequeue(), "inconsistent acc index")
       }
       if (c.io.inp.rd(0).idx.valid.peekBoolean()) {
-        // c.io.inp
-        //   .rd(0)
-        //   .idx
-        //   .bits
-        //   .expect(inp_indices.dequeue(), "inconsistent inp index")
+        c.io.inp
+          .rd(0)
+          .idx
+          .bits
+          .expect(inp_indices.dequeue(), "inconsistent inp index")
         if (debug) {
           // Print INPUT vector
           print(
@@ -346,12 +348,18 @@ class TensorGemmTest(
     // Check if all the UOP are used
     def test_if_done(): Unit = {
       print("\nSpecification:  \n")
-      print(s"\t uop_indices should be empty ${uop_indices.size} \n")
-      print(s"\t acc_indices should be empty ${acc_indices.size} \n")
-      print(s"\t inp_indices should be empty ${inp_indices.size} \n")
-      print(s"\t wgt_indices should be empty ${wgt_indices.size} \n")
-      print(s"\t accout_indices should be empty ${accout_indices.size} \n")
-      print(s"\t out_indices should be empty ${out_indices.size} \n")
+      uop_indices shouldBe empty
+      acc_indices shouldBe empty
+      inp_indices shouldBe empty
+      wgt_indices shouldBe empty
+      accout_indices shouldBe empty
+      out_indices shouldBe empty
+      // print(s"\t uop_indices should be empty ${uop_indices.size} \n")
+      // print(s"\t acc_indices should be empty ${acc_indices.size} \n")
+      // print(s"\t inp_indices should be empty ${inp_indices.size} \n")
+      // print(s"\t wgt_indices should be empty ${wgt_indices.size} \n")
+      // print(s"\t accout_indices should be empty ${accout_indices.size} \n")
+      // print(s"\t out_indices should be empty ${out_indices.size} \n")
     }
 
     // Assertion

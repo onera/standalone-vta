@@ -28,9 +28,13 @@ object DramInitParser {
   }
 
   def parseJsonMemoryInitFile(
-      file: String
+      file: String,
+      fromResources: Boolean = false
   ): Map[String, Object] = {
-    val bufferedSource = Source.fromFile(file)
+    val bufferedSource =
+      if (!fromResources) Source.fromFile(file)
+      else
+        Source.fromResource(file)
     val mapper = new ObjectMapper()
     mapper.registerModule(DefaultScalaModule)
     val dramInitJson =
