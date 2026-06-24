@@ -45,7 +45,7 @@ jobs:
       - name: Cache Scala
         uses: coursier/cache-action@v8
       - name: Cache Mill
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cache/mill
@@ -70,7 +70,7 @@ jobs:
         - name: Cache Scala
           uses: coursier/cache-action@v8
         - name: Cache Mill
-          uses: actions/cache@v4
+          uses: actions/cache@v6
           with:
             path: |
               ~/.cache/mill
