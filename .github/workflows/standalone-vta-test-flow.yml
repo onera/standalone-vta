@@ -94,25 +94,18 @@ jobs:
             cache-dependency-glob: "src/compiler/uv.lock"
         - name: Sync dependencies
           run: cd src/compiler && uv sync
-        - name: Compile ONNX
+        - name: Compile ONNX and compute reference
           run: |
             source src/compiler/.venv/bin/activate
             cd examples
-            make -s nn_compiler
-        - name: Compile VTA
+            ONNX_FILE=onnx/lenet5.onnx make -s cleaner nn_compiler vta_compiler reference
+        - name: Simulate the inference
           run: |
-            source src/compiler/.venv/bin/activate
-            cd examples
-            make -s vta_compiler
-        - name: Compute reference 
-          run: |
-            source src/compiler/.venv/bin/activate
-            cd examples
-            make -s reference
-        - name: Simulate the inference 
-          run: |
-            cd examples
-            make -s vsim_inference
+            cd src/simulators/cycle_accurate_simulator && ./mill emitVtaSimConfig
+            cd ../functional_simulator
+            make clean
+            SIM_THREADS=2 make vsim
+            
         - name: Check output against reference
           run: |
             source src/compiler/.venv/bin/activate
