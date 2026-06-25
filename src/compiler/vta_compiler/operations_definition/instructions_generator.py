@@ -68,9 +68,9 @@ def reset_sequence(strategy, semaphore, dram_addresses, uop_counter=0, block_siz
 
 # ---------------------------------------------
 
-# STEP_INSTRUCTIONS
+# CORE
 # -----------------
-def step_instructions(step, semaphore, dram_addresses, uop_counter=0, block_size=16, uop_buffer_size=8192):
+def core_instructions(step, semaphore, flag_dict, dram_addresses, uop_counter=0, block_size=16, C_blocks_col=1, uop_buffer_size=8192):
     # Init the buffers
     insn_buffer = []
     uop_buffer = []
@@ -99,15 +99,18 @@ def step_instructions(step, semaphore, dram_addresses, uop_counter=0, block_size
     # Check if we load INP or WGT
     if (len(load_A) > 0 or len(load_B) > 0):
         new_insn, semaphore = step_load(load_A, load_B, inp_addr, wgt_addr, block_size, semaphore)
-        insn_buffer = insn_buffer + new_insn
+        insn_buffer.extend(new_insn)
 
 
     # 1 - LOAD ACC
     # ---
     # Check we load ACC
     if (len(load_X) > 0):
-        new_insn, semaphore = step_load_acc(load_X, sram_state, acc_addr, acc_bis_addr, block_size, semaphore)
-        insn_buffer = insn_buffer + new_insn
+        new_insn, new_uop, semaphore = step_load_acc(load_X, flag_dict, sram_state, acc_addr, acc_bis_addr, block_size, C_blocks_col, uop_addr, uop_counter, semaphore)
+        insn_buffer.extend(new_insn)
+        uop_buffer.extend(new_uop)
+        # Increment the uop counter
+        uop_counter = uop_counter + len(new_uop)
 
 
     # 2 - LOAD UOP + GEMM + ALU
@@ -115,20 +118,22 @@ def step_instructions(step, semaphore, dram_addresses, uop_counter=0, block_size
     doStore = False if (nb_out == 0) else True
     
     new_insn, new_uop, semaphore = step_compute(ops, load_A, load_B, load_X, sram_state, uop_addr, uop_buffer_size, uop_counter, doStore, block_size, semaphore)
-    insn_buffer = insn_buffer + new_insn
-    uop_buffer = uop_buffer + new_uop
+    insn_buffer.extend(new_insn)
+    uop_buffer.extend(new_uop)
+    # Increment the uop counter
+    uop_counter = uop_counter + len(new_uop)
 
 
     # 3 - STORE
     # ---
     if (doStore == True):
         new_insn, semaphore = step_store(store_C, sram_state, dram_state, out_addr, block_size, semaphore)
-        insn_buffer = insn_buffer + new_insn
+        insn_buffer.extend(new_insn)
 
 
     # Return
     # ---
-    return insn_buffer, uop_buffer, semaphore, uop_counter + len(uop_buffer)
+    return insn_buffer, uop_buffer, semaphore, uop_counter
 
 
 # ---------------------------------------------

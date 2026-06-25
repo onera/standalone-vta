@@ -14,6 +14,8 @@ SIMULATOR_OUTPUT_DIR := $(PROJECT_DIR)/simulators_output
 
 SRC_DIR          := $(PROJECT_DIR)/src
 COMPILER_DIR     := $(SRC_DIR)/compiler
+LOG_OUTPUT_DIR   := $(PROJECT_DIR)/log_output
+
 VTA_COMPILER_DIR := $(COMPILER_DIR)/vta_compiler
 NN_COMPILER_DIR  := $(COMPILER_DIR)/nn_compiler
 FSIM_DIR         := $(SRC_DIR)/simulators/functional_simulator
@@ -51,9 +53,15 @@ DEBUG           ?= False
 DEBUG_PARSE     ?= True
 COMPILE_SUMMARY ?= True
 DRAM_JSON       ?= False
+EXPANDBIAS_AT_COMPILATION ?= True
 REF_MODE        ?= numpy   # ort | numpy | compare
 
 ONNX_FILE ?= onnx/qyolo_pattern.onnx
+# onnx/qlinearconv_debug.onnx
+# onnx/qyolo_qconvtranspose.onnx
+# onnx/qyolo_qconv_maxpool_qconcat.onnx
+# onnx/qyolo_pattern.onnx
+# onnx/qyolo.onnx # -> around 30% of the value with +/-3
 
 # ==============================================================================
 # PHONY TARGETS
@@ -83,22 +91,27 @@ view_profiler: ## Open profiler output in snakeviz
 # COMPILATION
 # ==============================================================================
 
-nn_compiler: ## Stage 1 - qONNX → CPU parameters + VTA IRs
+nn_compiler: ## Stage 1 - qONNX -> CPU parameters + VTA IRs
 	$(MAKE) clean
 	@echo "Parsing ONNX..."
 	@date
 	python $(NN_COMPILER_DIR)/vta_backend.py \
-	  $(DEBUG_PARSE) True $(CONFIG) $(ONNX_FILE) \
-	  > $(COMPILER_OUTPUT_DIR)/prompt_vta_backend.txt
+	$(DEBUG_PARSE) \
+	$(EXPANDBIAS_AT_COMPILATION) \
+	$(CONFIG) \
+	$(ONNX_FILE) > $(LOG_OUTPUT_DIR)/prompt_vta_backend.txt
 	@date
 
 vta_compiler: ## Stage 2 - VTA IRs → VTA binary
 	@echo "Compiling VTA IRs..."
 	@date
-	$(PYTHON_CMD) $(VTA_COMPILER_DIR)/main_vta_compiler.py \
-	  $(DEBUG) $(COMPILE_SUMMARY) $(DRAM_JSON) $(CONFIG) \
-	  $(JSON_FILES) \
-	  > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
+	$(PYTHON_CMD) \
+	$(VTA_COMPILER_DIR)/main_vta_compiler.py \
+	$(DEBUG) \
+	$(COMPILE_SUMMARY) \
+	$(DRAM_JSON) \
+	$(CONFIG) \
+	$(JSON_FILES) > $(LOG_OUTPUT_DIR)/prompt_vta_compiler.txt
 	@date
 
 # ==============================================================================
@@ -136,17 +149,19 @@ vsim_compile_single_layer: exported_sv ## Generate Verilated C++ model and build
 reference: ## Compute ONNX reference output
 	@echo "Computing reference..."
 	python $(COMPILER_DIR)/reference_computation/reference_onnx.py \
-	  $(DEBUG) $(REF_MODE) $(ONNX_FILE) \
-	  > $(COMPILER_OUTPUT_DIR)/prompt_reference.txt
+	$(DEBUG) \
+	$(REF_MODE) \
+	$(ONNX_FILE) > $(LOG_OUTPUT_DIR)/prompt_reference.txt
 
 check: ## Check FSIM output against reference
 	python $(COMPILER_DIR)/reference_computation/check_bin.py \
-	  $(DEBUG) > $(COMPILER_OUTPUT_DIR)/prompt_checker.txt
+	$(DEBUG) > $(LOG_OUTPUT_DIR)/prompt_checker.txt
+	@echo ""
 	@echo "SUCCESS!"
 
 check_vsim: ## Check RTL simulation output against reference
 	python $(COMPILER_DIR)/reference_computation/check_bin.py \
-	  $(DEBUG) True > $(COMPILER_OUTPUT_DIR)/prompt_checker.txt
+	  $(DEBUG) True > $(LOG_OUTPUT_DIR)/prompt_checker_rtl.txt
 	@echo "SUCCESS!"
 
 # ==============================================================================
@@ -156,24 +171,24 @@ check_vsim: ## Check RTL simulation output against reference
 fsim_inference: ## Build (if needed) and run fsim_nn, capture output
 	@echo "Running functional simulation (NN)..."
 	@date
-	$(MAKE) -s -C $(FSIM_DIR) CONFIG=$(CONFIG) fsim > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
+	$(MAKE) -s -C $(FSIM_DIR) CONFIG=$(CONFIG) fsim > $(LOG_OUTPUT_DIR)/fsim_report.txt
 	@date
 	@echo "FINAL_OUTPUT.BIN generated!"
 
 fsim_single_layer: ## Build (if needed) and run fsim_single_layer, capture output
 	@echo "Running functional simulation (single layer)..."
 	@date
-	$(MAKE) -s -C $(FSIM_DIR) CONFIG=$(CONFIG) RUNTIME_FLAGS=--verbose fsim_single_layer > $(SIMULATOR_OUTPUT_DIR)/fsim_report.txt
+	$(MAKE) -s -C $(FSIM_DIR) CONFIG=$(CONFIG) RUNTIME_FLAGS=--verbose fsim_single_layer > $(LOG_OUTPUT_DIR)/fsim_report.txt
 	@date
 	@echo "FSIM DONE!"
 
 vsim_single_layer: exported_sv ## Build (if needed) and run fsim_single_layer_rtl, capture output
-	$(MAKE) -s -C $(FSIM_DIR) CONFIG=$(CONFIG) vsim_single_layer > $(SIMULATOR_OUTPUT_DIR)/tsim_report.txt
+	$(MAKE) -s -C $(FSIM_DIR) CONFIG=$(CONFIG) vsim_single_layer > $(LOG_OUTPUT_DIR)/tsim_report.txt
 
 vsim_inference: exported_sv ## Build (if needed) and run fsim_nn_rtl, capture output
 	@echo "Running RTL simulation (NN)..."
 	@date
-	$(MAKE) -s -C $(FSIM_DIR) CONFIG=$(CONFIG) RUNTIME_FLAGS=--no-timeout vsim > $(SIMULATOR_OUTPUT_DIR)/tsim_report.txt
+	$(MAKE) -s -C $(FSIM_DIR) CONFIG=$(CONFIG) RUNTIME_FLAGS=--no-timeout vsim > $(LOG_OUTPUT_DIR)/tsim_report.txt
 	@date
 	@echo "FINAL_OUTPUT_RTL.BIN generated!"
 
@@ -182,7 +197,7 @@ tsim: ## Run cycle-accurate TSIM via Mill/ScalaTest
 	@date
 	cd $(TSIM_DIR) && ./mill -Dvta.config.file=$(CONFIG_FILE) \
 	  runMain org.scalatest.run cli.ComputeApp \
-	  > $(SIMULATOR_OUTPUT_DIR)/tsim_report.txt
+	  > $(LOG_OUTPUT_DIR)/tsim_report.txt
 	@date
 	@echo "TSIM DONE!"
 
@@ -211,8 +226,15 @@ test_gemm: ## Test a 16×16 GEMM with random data
 	@echo "Generating random input/weight data..."
 	@python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 input  $(INP_DTYPE)
 	@python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 weight $(WGT_DTYPE)
+	@echo ""
+	@echo "Compile VTA IR"
 	$(MAKE) vta_compiler
+	@echo ""
+	@echo "Execute FSIM"
 	$(MAKE) fsim_single_layer
+	@echo ""
+	@echo "Execute TSIM"
+	$(MAKE) tsim
 
 test_alu: ## Test a 16×16 ALU op with random data
 	$(MAKE) clean
@@ -220,19 +242,46 @@ test_alu: ## Test a 16×16 ALU op with random data
 	@cp ./vta_ir/alu_16x16.json $(COMPILER_OUTPUT_DIR)
 	@echo "Generating random accumulator data..."
 	@python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 accumulator $(ACC_DTYPE)
+	@echo ""
+	@echo "Compile VTA IR"
 	$(MAKE) vta_compiler
+	@echo ""
+	@echo "Execute FSIM"
 	$(MAKE) fsim_single_layer
+	@echo ""
+	@echo "Execute TSIM"
+	$(MAKE) tsim
+
+test_bias_expansion:
+	$(MAKE) clean
+	@echo "Copy VTA IR in compiler/output"
+	@cp ./vta_ir/matmul_bias_expansion.json $(COMPILER_OUTPUT_DIR)
+	@echo "Generate random data"
+	$(PYTHON_CMD) $(COMPILER_DIR)/utils/random_raw_binary_generator.py 32 32 input $(INP_DTYPE)
+	$(PYTHON_CMD) $(COMPILER_DIR)/utils/random_raw_binary_generator.py 32 32 weight $(WGT_DTYPE)
+	$(PYTHON_CMD) $(COMPILER_DIR)/utils/random_raw_binary_generator.py 1 32 accumulator $(ACC_DTYPE)
+	@echo ""
+	@echo "Compile VTA IR"
+	$(MAKE) vta_compiler
+	@echo ""
+	@echo "Execute FSIM"
+	$(MAKE) fsim_single_layer
+	@echo ""
+	@echo "Execute TSIM"
+	$(MAKE) tsim
+
 
 custom_insn: ## Generate custom instruction test
 	@python $(COMPILER_DIR)/utils/tests_instructions.py \
-	  > $(COMPILER_OUTPUT_DIR)/prompt_vta_compiler.txt
+	  > $(LOG_OUTPUT_DIR)/prompt_vta_compiler.txt
 
 # ==============================================================================
 # CLEAN
 # ==============================================================================
 
-clean: | $(COMPILER_OUTPUT_DIR) $(SIMULATOR_OUTPUT_DIR) ## Delete generated compiler and simulator output files
+clean: | $(COMPILER_OUTPUT_DIR) $(SIMULATOR_OUTPUT_DIR) $(LOG_OUTPUT_DIR) ## Delete generated compiler and simulator output files
 	-rm $(COMPILER_OUTPUT_DIR)/*.*
+	-rm $(LOG_OUTPUT_DIR)/*.*
 	-rm $(SIMULATOR_OUTPUT_DIR)/*.*
 
 cleaner: clean fsim_clean clean_hw ## Delete generated files and the FSIM build directory
@@ -252,7 +301,7 @@ clean_hw: ## Clean Chisel/Mill build outputs
 # OUTPUT DIRECTORIES
 # ==============================================================================
 
-$(COMPILER_OUTPUT_DIR) $(SIMULATOR_OUTPUT_DIR):
+$(COMPILER_OUTPUT_DIR) $(SIMULATOR_OUTPUT_DIR) $(LOG_OUTPUT_DIR):
 	mkdir -p $@
 
 # ==============================================================================
@@ -263,6 +312,9 @@ debug: ## Print all resolved paths and active configuration
 	@echo "PROJECT_DIR:          $(PROJECT_DIR)"
 	@echo "COMPILER_OUTPUT_DIR:  $(COMPILER_OUTPUT_DIR)"
 	@echo "SIMULATOR_OUTPUT_DIR: $(SIMULATOR_OUTPUT_DIR)"
+	@echo "LOG_OUTPUT_DIR:       $(LOG_OUTPUT_DIR)"
+	@echo "SRC_DIR:              $(SRC_DIR)"
+	@echo "COMPILER_DIR:         $(COMPILER_DIR)"
 	@echo "CONFIG:               $(CONFIG)"
 	@echo "INP_DTYPE:            $(INP_DTYPE)"
 	@echo "WGT_DTYPE:            $(WGT_DTYPE)"

@@ -12,22 +12,17 @@ import numpy as np
 # -------------
 def data_definition(
     matrices_dict,
+    flag_dict,
     block_size=16,
-    doLoadInp=False,
     input_name="",
     inp_dtype=np.int8,
     out_dtype=np.int8,
-    doLoadWgt=False,
     weight_name="",
     wgt_dtype=np.int8,
-    doMulConstant=False,
     mulConstant=0,
-    doLoadAcc=False,
     acc_name="",
     acc_dtype=np.int32,
-    doLoadAccBis=False,
     acc_bis_name="",  # dtype = acc_dtype
-    doStoreFullMatrix=False,
     output_name="",
     flat_store_list=[],  # dtype = inp_dtype
     debug=True,
@@ -36,11 +31,11 @@ def data_definition(
     Pad and split the matrix to create block matrix composed of square block_size*block_size blocks.
 
     Inputs:
-        - matrices_dict (dict): From BTA IR JSON file
+        - matrices_dict (dict): From VTA IR JSON file
+        - flag_dict (dict): Dictionary of flag (bool) to propagate metadata
         - block_size (int): hardware constraint
-        - doLoadInp, doLoadWgt, doMulConstant, doLoadAcc, doLoadAccBis, doStoreFullMatrix (bool)
         - input_name, weight_name, acc_name, acc_bis_name, output_name (str)
-        - inp_dtype, wgt_dtype, acc_dtype (np.dtype)
+        - inp_dtype, wgt_dtype, acc_dtype, out_dtype (np.dtype)
         - mulConstant (int): the scalar value for GEMM
         - flat_store_list (list of int): list of matrix vectors to store
         - debug (bool): to print some information / partial results
@@ -53,6 +48,7 @@ def data_definition(
         - C_blocks (list of matrices), C_blocks_col (int): output with the DRAM size
         - A_matrix, X_matrix, Y_matrix (matrix): raw matrices
         - metadata (list of dict): dimension of matrices [{'type': str, 'rows': int, 'columns': int}]
+        - flag_dict (dict): updated dictionary of flag (bool) to propagate metadata
     ]
     """
     # INIT
@@ -75,7 +71,7 @@ def data_definition(
     # GET MATRICES
     # ------------
     # A - Check if the matrix is specified
-    if doLoadInp:
+    if flag_dict["doLoadInp"] == True:
         A_row = matrices_dict[input_name][0]
         A_col = matrices_dict[input_name][1]
         # If binary file is given
@@ -85,14 +81,14 @@ def data_definition(
     A_matrix = matrix_creation(m_row=A_row, n_col=A_col, file=A_file, dtype=inp_dtype)
 
     # B - Check if the matrix is specified
-    if doLoadWgt:
+    if flag_dict["doLoadWgt"] == True:
         B_row = matrices_dict[weight_name][0]
         B_col = matrices_dict[weight_name][1]
         # If binary file is given
         if matrices_dict[weight_name][2].endswith(".bin"):
             B_file = matrices_dict[weight_name][2]
     # Create the matrix
-    if doMulConstant:
+    if flag_dict["doMulConstant"] == True:
         B_matrix = matrix_diagonal(
             diag_value=mulConstant, block_size=block_size, dtype=wgt_dtype
         )
@@ -102,22 +98,24 @@ def data_definition(
         )
 
     # X - Check if the matrix is specified
-    if doLoadAcc:
+    if flag_dict["doLoadAcc"] == True:
         X_row = matrices_dict[acc_name][0]
         X_col = matrices_dict[acc_name][1]
         # If binary file is given
         if matrices_dict[acc_name][2].endswith(".bin"):
             X_file = matrices_dict[acc_name][2]
     else:  # Give default size
-        if doLoadInp == True and doLoadWgt == False:  # A * scalar
+        if (
+            flag_dict["doLoadInp"] == True and flag_dict["doLoadWgt"] == False
+        ):  # A * scalar
             X_row, X_col = (A_row, A_col)
-        elif doLoadInp == True and doLoadWgt == True:  # A * B
+        elif flag_dict["doLoadInp"] == True and flag_dict["doLoadWgt"] == True:  # A * B
             X_row, X_col = (A_row, B_col)
     # Create the matrix
     X_matrix = matrix_creation(m_row=X_row, n_col=X_col, file=X_file, dtype=acc_dtype)
 
     # Y - Check if the matrix is specified
-    if doLoadAccBis:
+    if flag_dict["doLoadAccBis"] == True:
         Y_row = matrices_dict[acc_bis_name][0]
         Y_col = matrices_dict[acc_bis_name][1]
         # If binary file is given
@@ -128,12 +126,15 @@ def data_definition(
 
     # C - Check if the matrix is fully stored
     C_col = matrices_dict[output_name][1]
-    if doStoreFullMatrix:
+    if flag_dict["doStoreFullMatrix"] == True:
         C_row = matrices_dict[output_name][0]
     else:  # Not full matrix
         C_row = len(flat_store_list)
     # Create the matrix
     C_matrix = matrix_creation(m_row=C_row, n_col=C_col, file=None, dtype=out_dtype)
+
+    # # DEBUG
+    # print(f"\n\nDEBUG: \n A= \n{A_matrix} \n\n B= \n{B_matrix} \n\n X= \n{X_matrix} \n\n C= \n{C_matrix} \n\n Expected C= \n{np.add(np.matmul(A_matrix, B_matrix), X_matrix)} \n\n")
 
     # -------
     # PADDING
@@ -147,9 +148,14 @@ def data_definition(
     B_padded = matrix_padding(
         matrix=B_matrix, block_size=block_size, isWeight=True, isSquare=isSquare
     )
-    X_padded = matrix_padding(
-        matrix=X_matrix, block_size=block_size, isWeight=False, isSquare=isSquare
-    )
+    if flag_dict["doExpandBias"] == True:  # Not square!
+        X_padded = matrix_padding(
+            matrix=X_matrix, block_size=block_size, isWeight=False, isSquare=False
+        )
+    else:
+        X_padded = matrix_padding(
+            matrix=X_matrix, block_size=block_size, isWeight=False, isSquare=isSquare
+        )
     Y_padded = matrix_padding(
         matrix=Y_matrix, block_size=block_size, isWeight=False, isSquare=isSquare
     )
@@ -158,7 +164,7 @@ def data_definition(
         matrix=C_matrix,
         block_size=block_size,
         isWeight=False,
-        isSquare=doStoreFullMatrix,
+        isSquare=flag_dict["doStoreFullMatrix"],
     )
 
     # --------
@@ -170,9 +176,14 @@ def data_definition(
     B_blocks, B_blocks_col, B_blocks_row = matrix_splitting(
         matrix=B_padded, block_size=block_size, isWeight=True, isSquare=isSquare
     )
-    X_blocks, X_blocks_col, X_blocks_row = matrix_splitting(
-        matrix=X_padded, block_size=block_size, isWeight=False, isSquare=isSquare
-    )
+    if flag_dict["doExpandBias"] == True:  # Not square!
+        X_blocks, X_blocks_col, X_blocks_row = matrix_splitting(
+            matrix=X_padded, block_size=block_size, isWeight=False, isSquare=False
+        )
+    else:
+        X_blocks, X_blocks_col, X_blocks_row = matrix_splitting(
+            matrix=X_padded, block_size=block_size, isWeight=False, isSquare=isSquare
+        )
     Y_blocks, _, _ = matrix_splitting(
         matrix=Y_padded, block_size=block_size, isWeight=False, isSquare=isSquare
     )
@@ -180,22 +191,38 @@ def data_definition(
         matrix=C_padded,
         block_size=block_size,
         isWeight=False,
-        isSquare=doStoreFullMatrix,
+        isSquare=flag_dict["doStoreFullMatrix"],
     )
 
     # Check if X_blocks_col == C_blocks_col
     if X_blocks_col != C_blocks_col:
-        raise Exception(f"ERROR: X_blocks_col must be equal to C_blocks_col! \n")
+        if flag_dict["doExpandBias"] == True and C_blocks_col % X_blocks_col == 0:
+            pass
+        else:
+            raise Exception(f"ERROR: X_blocks_col must be equal to C_blocks_col! \n")
 
     # META INFORMATION
     # ----------------
-    outIsSquare = True if (doStoreFullMatrix == True) else False
+    outIsSquare = True if (flag_dict["doStoreFullMatrix"] == True) else False
     metadata = [
-        {"type": "BS", "rows": outIsSquare, "columns": block_size},
-        {"type": "A", "rows": A_row, "columns": A_col},
-        {"type": "X", "rows": X_row, "columns": X_col},
-        {"type": "Y", "rows": Y_row, "columns": Y_col},
-        {"type": "C", "rows": C_row, "columns": C_col},
+        {
+            "type": "Matrix (or Block Size)",
+            "rows": "Nb rows",
+            "columns": "Nb columns",
+            "square": "Is it square?",
+        },
+        {"type": "BS", "rows": block_size, "columns": block_size, "square": True},
+        {"type": "A", "rows": A_row, "columns": A_col, "square": True},
+        {
+            "type": "X",
+            "rows": X_row,
+            "columns": X_col,
+            # Must match the isSquare actually used to pad/split X above:
+            # non-square when expanding the bias, otherwise the layer default.
+            "square": (False if flag_dict["doExpandBias"] else isSquare),
+        },
+        {"type": "Y", "rows": Y_row, "columns": Y_col, "square": True},
+        {"type": "C", "rows": C_row, "columns": C_col, "square": outIsSquare},
     ]
 
     # DEBUG
@@ -230,6 +257,7 @@ def data_definition(
         X_matrix,
         Y_matrix,
         metadata,
+        flag_dict,
     )
 
 

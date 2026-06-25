@@ -30,7 +30,7 @@ import nn_compiler.nodes.node_cpu as Ncpu
 # MAIN FUNCTION
 # -------------
 def vta_backend(vta_config_dict, onnx_model_path, 
-                doGenerateBin=False,
+                doExpandBiasAtCompilation=False,
                 debug=True):
 
     # GET CONFIGURATION
@@ -139,7 +139,7 @@ def vta_backend(vta_config_dict, onnx_model_path,
         if (op_type == "QLinearConv"): 
             # Get data from the node
             vta_ir, node_info = \
-                Nconv.node_conv(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, debug=False)
+                Nconv.node_conv(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, doExpandBiasAtCompilation=doExpandBiasAtCompilation, debug=False)
 
         # ---
 
@@ -157,14 +157,14 @@ def vta_backend(vta_config_dict, onnx_model_path,
             vta_ir, node_info = \
                 Npool.node_pool(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, debug=False)
 
-            # Generate the associated binaries
-            if (doGenerateBin):
-                Xh = node_info['matrix_shape'][0]
-                Xw = node_info['matrix_shape'][1]
+            # Generate the associated binaries (Default input file)
+            Xh = node_info['matrix_shape'][0]
+            Xw = node_info['matrix_shape'][1]
 
-                str_type = 'int8' if (acc_dtype == np.int8) else 'int32'
+            str_type = 'int8' if (acc_dtype == np.int8) else 'int32'
 
-                RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accumulator", dtype=str_type, debug=False)
+            RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accumulator", dtype=str_type, debug=False)
+
 
         # ---
 
@@ -174,14 +174,13 @@ def vta_backend(vta_config_dict, onnx_model_path,
             vta_ir, node_info = \
                 Nactivation.node_relu(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, debug=False)
 
-            # Generate the associated binaries
-            if (doGenerateBin):
-                Xh = node_info['matrix_shape'][0]
-                Xw = node_info['matrix_shape'][1]
+            # Generate the associated binaries (Default input file)
+            Xh = node_info['matrix_shape'][0]
+            Xw = node_info['matrix_shape'][1]
 
-                str_type = 'int8' if (acc_dtype == np.int8) else 'int32'
+            str_type = 'int8' if (acc_dtype == np.int8) else 'int32'
 
-                RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accumulator", dtype=str_type, debug=False)
+            RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accumulator", dtype=str_type, debug=False)
         
 
         # ---
@@ -195,16 +194,16 @@ def vta_backend(vta_config_dict, onnx_model_path,
             _, node_info = \
                 Nadd.node_add(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, debug=False)
 
-            # Generate the associated binaries
-            if (doGenerateBin):
-                Xh = node_info['matrix_shape'][0]
-                Xw = node_info['matrix_shape'][1]
+            # Generate the associated binaries(Default input file)
+            Xh = node_info['matrix_shape'][0]
+            Xw = node_info['matrix_shape'][1]
 
-                str_type = 'int8' if (acc_dtype == np.int8) else 'int32'
-                
-                RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accumulator", dtype=str_type, debug=False)
-                if (node_info['initAccBis'] == False):
-                    RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accbis", dtype=str_type, debug=False)
+            str_type = 'int8' if (acc_dtype == np.int8) else 'int32'
+            
+            RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accumulator", dtype=str_type, debug=False)
+            if (node_info['initAccBis'] == False):
+                RRBG.random_raw_binary_generator(m_rows=Xh, n_columns=Xw, filename=filename+"accbis", dtype=str_type, debug=False)
+
 
         # Quantise
         elif (op_type == 'QuantizeLinear' or op_type == "DequantizeLinear"): 
@@ -274,19 +273,47 @@ def vta_backend(vta_config_dict, onnx_model_path,
     
     # WRITE DEPENDENCY INFORMATION
     # ----------------------------
-    dependency_file_path = filepath_definition(output_dir, 'dependency.csv')
+    # TODO - split in multiple CSV files
+    dependency_file_path = filepath_definition(output_dir, 'dependency.csv') 
     with open(dependency_file_path, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
+
+        # General information
+        writer.writerow(["Line identifier", "Number of layers"]) # Header
         writer.writerow(["nb_steps", len(execution_order)])
+
+        # Input image information
+        writer.writerow(["Line identifier", "Nb rows", "Nb columns"]) # Header
+        image_shape = execution_order[0]['input_shape']
+        image_info = ["image"]
+        image_info.append( image_shape[2]*image_shape[3] ) # Row
+        image_info.append( image_shape[1] ) # Column
+        writer.writerow(image_info)
+
+        # Output information
+        writer.writerow(["Line identifier", "Final layer name", "Output tensor channels", "Output tensor height", "Output tensor width"]) # Header
+        writer.writerow([
+            "output",                               # 0
+            execution_order[-1]['node_name'],       # 1
+            execution_order[-1]['output_shape'][1], # 2
+            execution_order[-1]['output_shape'][2], # 3
+            execution_order[-1]['output_shape'][3]  # 4
+        ])
+
+        
+        # Execution order information
+        writer.writerow(["Execution order", "Processor", "Layer name"]) # Header
         for i, dep in enumerate(execution_order):
-            # One line with execution order
             writer.writerow([
                 i,                      # 0
                 dep['processor'],       # 1
                 dep['node_name']        # 2
             ])
 
-            # One line with reshape and dependency information
+
+        # Dependency information
+        writer.writerow(["Layer name", "Processor", "Reshape", "offsetA", "scaleA", "offsetB", "scaleB", "offsetU", "scaleU", "offsetV", "scaleV", "Input channels", "Input height", "Input width", "Kernel height", "Kernel width", "Stride height", "Stride width", "Padding top", "Padding left", "Padding bottom", "Padding right", "Output channel", "Output height", "Output width", "offsetC", "scaleC", "Rescaling factor", "Parent layers"]) # Header
+        for i, dep in enumerate(execution_order):
             dep_list = [    
                 dep['node_name'],           # 0
                 dep['processor'],           # 1
@@ -324,20 +351,6 @@ def vta_backend(vta_config_dict, onnx_model_path,
                 dep_list.append( inp_node )
             # Write the second line
             writer.writerow(dep_list)
-        # write image
-        image_shape = execution_order[0]['input_shape']
-        image_info = ["image"]
-        image_info.append( image_shape[2]*image_shape[3] ) # Row
-        image_info.append( image_shape[1] ) # Column
-        writer.writerow(image_info)
-        # write output
-        writer.writerow([
-            "output",                               # 0
-            execution_order[-1]['node_name'],       # 1
-            execution_order[-1]['output_shape'][1], # 2
-            execution_order[-1]['output_shape'][2], # 3
-            execution_order[-1]['output_shape'][3]  # 4
-        ])
 
 
     # ---------------------------------------------
@@ -395,7 +408,7 @@ if __name__ == "__main__":
     To execute: 
         > python vta_backend.py 
             <debug>
-            <doGenerateBin>
+            <doExpandBiasAtCompilation>
             <config_file> 
             <onnx_model_path> 
     """
@@ -406,7 +419,7 @@ if __name__ == "__main__":
     # Read the arguments
     # Debug settings
     debug = True if (sys.argv[1] == 'true' or sys.argv[1] == 'True') else False
-    doGenerateBin = True if (sys.argv[2] == 'true' or sys.argv[2] == 'True') else False
+    doExpandBiasAtCompilation = True if (sys.argv[2] == 'true' or sys.argv[2] == 'True') else False
     # Config file
     vta_config_file = sys.argv[3]
     vta_config_dict = parse_json_to_dict(vta_config_file)
@@ -414,6 +427,6 @@ if __name__ == "__main__":
     onnx_model_path = sys.argv[4]
 
     # Execute the backend
-    result = vta_backend(vta_config_dict, onnx_model_path, doGenerateBin=doGenerateBin, debug=debug)
+    result = vta_backend(vta_config_dict, onnx_model_path, doExpandBiasAtCompilation=doExpandBiasAtCompilation, debug=debug)
 
     # END!

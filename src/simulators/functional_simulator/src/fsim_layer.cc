@@ -59,18 +59,25 @@ void load_and_allocate_layer(LayerContext &ctx,
 
   // C. READ METADATA INFO
   // ---
-  block_size = strToInt(get_csv_value(metadata_map, "BS", 2));
-  std::string out_square_str = get_csv_value(metadata_map, "BS", 1);
-  bool out_square = (out_square_str == "True");
+  // Block size
+  block_size = strToInt(get_csv_value(metadata_map, "BS", 1));
 
+  // Dimensions and per-buffer square flag (column 3)
   int A_row = strToInt(get_csv_value(metadata_map, "A", 1));
   int A_col = strToInt(get_csv_value(metadata_map, "A", 2));
+  bool A_square = (get_csv_value(metadata_map, "A", 3) == "True");
+
   int X_row = strToInt(get_csv_value(metadata_map, "X", 1));
   int X_col = strToInt(get_csv_value(metadata_map, "X", 2));
+  bool X_square = (get_csv_value(metadata_map, "X", 3) == "True");
+
   int Y_row = strToInt(get_csv_value(metadata_map, "Y", 1));
   int Y_col = strToInt(get_csv_value(metadata_map, "Y", 2));
+  bool Y_square = (get_csv_value(metadata_map, "Y", 3) == "True");
+
   int C_row = strToInt(get_csv_value(metadata_map, "C", 1));
   int C_col = strToInt(get_csv_value(metadata_map, "C", 2));
+  bool C_square = (get_csv_value(metadata_map, "C", 3) == "True");
 
   // D. READ AND SHAPE THE DATA
   // ---
@@ -96,7 +103,7 @@ void load_and_allocate_layer(LayerContext &ctx,
   if (A_row <= 0 || A_col <= 0)
     ctx.inpA = raw_inpA;
   else
-    ctx.inpA = data_formatting(raw_inpA, A_row, A_col, block_size, true);
+    ctx.inpA = data_formatting(raw_inpA, A_row, A_col, block_size, A_square);
 
   // Weight B
   ctx.wgtB = read_binary_file<wgt_dtype>(fileWgtPath);
@@ -106,21 +113,21 @@ void load_and_allocate_layer(LayerContext &ctx,
   if (X_row <= 0 || X_col <= 0)
     ctx.accX = raw_accX;
   else
-    ctx.accX = data_formatting(raw_accX, X_row, X_col, block_size, true);
+    ctx.accX = data_formatting(raw_accX, X_row, X_col, block_size, X_square);
 
   // Acc Y
   std::vector<acc_dtype> raw_accY = read_binary_file<acc_dtype>(fileAddAccPath);
   if (Y_row <= 0 || Y_col <= 0)
     ctx.accY = raw_accY;
   else
-    ctx.accY = data_formatting(raw_accY, Y_row, Y_col, block_size, true);
+    ctx.accY = data_formatting(raw_accY, Y_row, Y_col, block_size, Y_square);
 
   // Output C (buffer space)
   std::vector<out_dtype> raw_outC;
   if (C_row <= 0 || C_col <= 0)
     ctx.outC = raw_outC;
   else
-    ctx.outC = data_formatting(raw_outC, C_row, C_col, block_size, out_square);
+    ctx.outC = data_formatting(raw_outC, C_row, C_col, block_size, C_square);
 
   // Instructions & UOPs
   ctx.uop_buffer = read_binary_file<uop_t>(fileUopPath);

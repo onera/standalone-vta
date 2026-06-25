@@ -20,7 +20,7 @@ import nn_compiler.shape_data.shape_data as SD
 # -------------
 def node_conv(node, param={}, node_mapping={}, node_info={}, filename='', 
               inp_dtype=np.int8, wgt_dtype=np.int8, acc_dtype=np.int32,
-              debug=False):
+              doExpandBiasAtCompilation=False, debug=False):
     # Reset the vta_ir
     vta_ir = {}
 
@@ -228,21 +228,32 @@ def node_conv(node, param={}, node_mapping={}, node_info={}, filename='',
     # BIAS
     acc_matrix = []
     if (isBias == True):
-        acc_matrix = SD.expand_bias(acc_tensor, Ah)
+        if (doExpandBiasAtCompilation == False):
+            acc_matrix = SD.expand_bias(acc_tensor, 1)
+        else:
+            acc_matrix = SD.expand_bias(acc_tensor, Ah)
     else:
-        acc_matrix = np.zeros((Ah, Bw), dtype=acc_dtype)
+        if (doExpandBiasAtCompilation == False):
+            acc_matrix = np.zeros((1, Bw), dtype=acc_dtype)
+        else:
+            acc_matrix = np.zeros((Ah, Bw), dtype=acc_dtype)
 
 
     # ---
     # WRITE VTA IR
     # ------------
+    if (doExpandBiasAtCompilation == False):
+        X_ir = [1, Bw, "../compiler_output/"+filename+"accumulator_1x"+str(Bw)+".bin"]
+    else:
+        X_ir = [Ah, Bw, "../compiler_output/"+filename+"accumulator_"+str(Ah)+"x"+str(Bw)+".bin"]
+
     # Define the VTA IR
     vta_ir = {
         "NAME": filename,
         "MATRICES": {
             "A": [Ah, Aw_Bh, "input"],
             "B": [Aw_Bh, Bw, "../compiler_output/"+filename+"weight_"+str(Aw_Bh)+"x"+str(Bw)+".bin"],
-            "X": [Ah, Bw, "../compiler_output/"+filename+"accumulator_"+str(Ah)+"x"+str(Bw)+".bin"],
+            "X": X_ir,
             "C": [Ah, Bw, "output"]
         },
         "LOAD": {
@@ -265,7 +276,10 @@ def node_conv(node, param={}, node_mapping={}, node_info={}, filename='',
     # WGT
     file_wgt_path = filepath_definition(output_dir, filename+"weight_"+str(Aw_Bh)+"x"+str(Bw)+".bin")
     # ACC
-    file_acc_path = filepath_definition(output_dir, filename+"accumulator_"+str(Ah)+"x"+str(Bw)+".bin")
+    if (doExpandBiasAtCompilation == False):
+        file_acc_path = filepath_definition(output_dir, filename+"accumulator_1x"+str(Bw)+".bin")
+    else:
+        file_acc_path = filepath_definition(output_dir, filename+"accumulator_"+str(Ah)+"x"+str(Bw)+".bin")
 
     # WRITE
     with open(file_wgt_path, 'wb') as f:

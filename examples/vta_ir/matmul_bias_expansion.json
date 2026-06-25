@@ -1,0 +1,19 @@
+{
+    "NAME": "",
+    "MATRICES" : {
+      "A": [32, 32, "../compiler_output/input_32x32.bin"],
+      "B": [32, 32, "debug"],
+      "X": [1, 32, "../compiler_output/accumulator_1x32.bin"],
+      "C": [32, 32, "output"]
+    },
+    "LOAD": {
+      "INP": ["A"],
+      "WGT": ["B"],
+      "ACC": ["X"]
+    },
+    "GEMM": ["C", "A", "B"],
+    "STORE": {
+      "C": ["C"]
+    }
+  }
+  

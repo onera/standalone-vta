@@ -14,7 +14,7 @@ from matrix_partitioning.utils_strategies import *
 
 # Matrix partitioning
 # -------------------
-def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, X_blocks_col=1,
+def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, nb_C=1, C_blocks_col=1,
                         inp_buffer_size=4*256, wgt_buffer_size=32*16, acc_buffer_size=4*256, out_buffer_size=4*256,
                         alu_operations=[], idx_to_store=[],
                         flag_dict={},
@@ -61,6 +61,7 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
     
     # Get the flags
     doGemm = flag_dict["doGemm"]
+    doExpandBias = flag_dict["doExpandBias"]
     doAddMatrix = flag_dict["doAddMatrix"]
     doMulConstant = flag_dict["doMulConstant"]
     doAlu = flag_dict["doAlu"]
@@ -78,26 +79,27 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
     # CASE 1 & 2: MATRIX MULTIPLICATION
     if (doGemm == True or doMulConstant == True):
         # Check data consistency
-        if ( (nb_A%A_blocks_col != 0) or (nb_B%B_blocks_col != 0) or (nb_X%X_blocks_col != 0) ):
+        if ( (nb_A%A_blocks_col != 0) or (nb_B%B_blocks_col != 0) or (nb_X%C_blocks_col != 0) or (nb_C%C_blocks_col != 0) ):
             raise Exception(f"ERROR: Data are not consistent: results should be 0 \
                             \n\t nb_A%A_blocks_col = {nb_A%A_blocks_col} \
                             \n\t nb_B%B_blocks_col = {nb_B%B_blocks_col} \
-                            \n\t nb_X%X_blocks_col = {nb_X%X_blocks_col} \n\n")
+                            \n\t nb_X%C_blocks_col = {nb_X%C_blocks_col} \
+                            \n\t nb_C%C_blocks_col = {nb_C%C_blocks_col} \n\n")
 
         if (doMulConstant == False):   
-            if ( (nb_A//A_blocks_col != nb_X//X_blocks_col) or (B_blocks_col != X_blocks_col) ):
+            if ( (nb_A//A_blocks_col != nb_C//C_blocks_col) or (B_blocks_col != C_blocks_col) ):
                 raise Exception(f"ERROR: Data are not consistent: results should be equal: \
-                                \n\t nb_A//A_blocks_col ({nb_A//A_blocks_col}) = nb_X//X_blocks_col ({nb_X//X_blocks_col}), \
-                                \n\t B_blocks_col ({B_blocks_col}) = X_blocks_col ({X_blocks_col})!\n\n")
+                                \n\t nb_A//A_blocks_col ({nb_A//A_blocks_col}) = nb_C//C_blocks_col ({nb_C//C_blocks_col}), \
+                                \n\t B_blocks_col ({B_blocks_col}) = C_blocks_col ({C_blocks_col})!\n\n")
         
         # CASE 1: NO OVERFITTING
-        if ((nb_A < inp_block_buffer_size) and (nb_B < wgt_block_buffer_size) and (nb_X < out_block_buffer_size)):
+        if ((nb_A < inp_block_buffer_size) and (nb_B < wgt_block_buffer_size) and (nb_C < out_block_buffer_size)):
             isOverfitting = False
             
             # Load all the blocks ([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations])
             load_A = [i for i in range(0, nb_A)]
             load_B = [i for i in range(0, nb_B)]
-            load_X = [i for i in range(0, nb_X)]
+            load_X = [i for i in range(0, nb_C)]
             memory_status = load_X
             if (len(idx_to_store) > 0):
                 dram_state = idx_to_store
@@ -112,7 +114,7 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
                 ops = get_mul_constant_operations(load_A)
             else: 
                 # Perform classic multiplication
-                ops = get_gemm_operations(load_A, load_B, A_blocks_col, B_blocks_col, X_blocks_col)
+                ops = get_gemm_operations(load_A, load_B, A_blocks_col, B_blocks_col, C_blocks_col)
 
             # Add ALU operations
             ops = ops + alu_operations
@@ -121,7 +123,7 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
             strategy = [ (load_A, load_B, load_X, memory_status, dram_state, store_C, ops) ]
 
         # CASE 2: OVERFITTING
-        else: # ((nb_A > inp_block_buffer_size) or (nb_B > wgt_block_buffer_size) or (nb_X > out_block_buffer_size))
+        else: # ((nb_A > inp_block_buffer_size) or (nb_B > wgt_block_buffer_size) or (nb_C > out_block_buffer_size))
             isOverfitting = True
 
             # Check if the operations in alu_operations are only vector-scalar
@@ -141,7 +143,8 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
                 params = {
                     'nb_A': nb_A, 'A_blocks_col': A_blocks_col,
                     'nb_B': nb_B, 'B_blocks_col': B_blocks_col,
-                    'nb_X': nb_X, 'X_blocks_col': X_blocks_col,
+                    'nb_X': nb_X,
+                    'nb_C': nb_C, 'C_blocks_col': C_blocks_col,
                     'inp_block_buffer_size': inp_block_buffer_size,
                     'wgt_block_buffer_size': wgt_block_buffer_size,
                     'acc_block_buffer_size': acc_block_buffer_size,
@@ -230,7 +233,7 @@ def matrix_partitioning(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, 
         if (doGemm == True or doMulConstant == True):
             print(f" INP: {nb_A} blocks (including A_blocks_col = {A_blocks_col}), \
             \n WGT: {nb_B} blocks (including B_blocks_col = {B_blocks_col}),")
-        print(f" ACC=OUT: {nb_X} blocks (including X_blocks_col = {X_blocks_col}) - {nb_X * block_size} vectors \n")
+        print(f" ACC=OUT: {nb_X} blocks (including C_blocks_col = {C_blocks_col}) - {nb_X * block_size} vectors \n")
 
 
         print(f"\nDoes matrix overfit SRAM? {isOverfitting}")
@@ -254,8 +257,8 @@ if __name__ == "__main__":
     nb_A = A_blocks_col*7 
     B_blocks_col = 4 
     nb_B = B_blocks_col*A_blocks_col
-    X_blocks_col = B_blocks_col 
-    nb_X = X_blocks_col*(nb_A//A_blocks_col) 
+    C_blocks_col = B_blocks_col 
+    nb_X = C_blocks_col*(nb_A//A_blocks_col) 
     inp_block_buffer_size=4
     wgt_block_buffer_size=inp_block_buffer_size
     out_block_buffer_size=wgt_block_buffer_size
@@ -263,9 +266,9 @@ if __name__ == "__main__":
     acc_block_buffer_size=out_block_buffer_size
 
     alu_operations = [
-        ["ADD_IMM", [0, 1], [(i, 0) for i in range(0, X_blocks_col)]],
+        ["ADD_IMM", [0, 1], [(i, 0) for i in range(0, C_blocks_col)]],
         ["MIN", [[0,1], [3,1], 3], [((0, 0), (0, 3)), ((1, 0), (1, 3)), ((2, 0), (2, 3)), ((3, 0), (3, 3)), ((0, 1), (0, 4)), ((1, 1), (1, 4)), ((2, 1), (2, 4)), ((3, 1), (3, 4)), ((0, 2), (0, 5)), ((1, 2), (1, 5)), ((2, 2), (2, 5)), ((3, 2), (3, 5))]]
     ]
 
 
-    matrix_partitioning(nb_A, A_blocks_col, nb_B, B_blocks_col, nb_X, X_blocks_col, inp_block_buffer_size, wgt_block_buffer_size, acc_block_buffer_size, out_block_buffer_size, alu_operations, [], strategy_selector, debug=True)
+    matrix_partitioning(nb_A, A_blocks_col, nb_B, B_blocks_col, nb_X, C_blocks_col, inp_block_buffer_size, wgt_block_buffer_size, acc_block_buffer_size, out_block_buffer_size, alu_operations, [], strategy_selector, debug=True)
