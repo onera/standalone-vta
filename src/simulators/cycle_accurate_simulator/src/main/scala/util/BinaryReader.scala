@@ -262,6 +262,13 @@ object BinaryReader {
           data
             .split("\n")
             .filterNot(line => line.startsWith("//") || line.trim.isEmpty)
+            // Skip the header row: a data row's address column (col 1) is hex.
+            .filter { line =>
+              val a = line.split(",")
+              a.length >= 2 && a(1).trim
+                .stripPrefix("0x")
+                .matches("[0-9a-fA-F]+")
+            }
             .map { line =>
               val array = line.split(",")
               (

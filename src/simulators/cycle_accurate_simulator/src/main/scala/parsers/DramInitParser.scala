@@ -74,28 +74,33 @@ object DramInitParser {
       outCols: Int
   )
 
-  /** Parse a `metadata<suffix>.csv` file. Each line is `type,rows,columns`
-    * (written by main_vta_compiler.py). Only the `BS` (block size + full-matrix
-    * flag) and `C` (output matrix dimensions) rows are needed to size the OUT
-    * region.
+  /** Parse a `metadata<suffix>.csv` for the BS (block size) and C (output dims
+    * + full-matrix flag) rows. Accepts the new 4-column format (header row,
+    * `type,rows,cols,square`) and the old 3-column `BS = type,square,block`.
     */
   def parseMetadata(path: String): LayerMetadata = {
     val src = Source.fromFile(path)
+    // Key on column 0; the header and extra `square` column fall out as unused keys.
     val rows =
       try {
         src
           .getLines()
-          .map(_.split(","))
-          .collect { case Array(t, r, c) => t.trim -> (r.trim, c.trim) }
+          .map(_.split(",").map(_.trim))
+          .collect { case arr if arr.length >= 3 => arr(0) -> arr }
           .toMap
       } finally src.close()
-    val (bsSquare, bsBlock) = rows("BS")
-    val (cRows, cCols) = rows("C")
+    val bs = rows("BS")
+    val c = rows("C")
+    val (isSquare, blockSize) =
+      if (bs.length >= 4)
+        (c(3).toBoolean, bs(1).toInt) // new: square per-row, block in col1
+      else
+        (bs(1).toBoolean, bs(2).toInt) // old: square in BS col1, block in col2
     LayerMetadata(
-      isSquare = bsSquare.toBoolean,
-      blockSize = bsBlock.toInt,
-      outRows = cRows.toInt,
-      outCols = cCols.toInt
+      isSquare = isSquare,
+      blockSize = blockSize,
+      outRows = c(1).toInt,
+      outCols = c(2).toInt
     )
   }
 

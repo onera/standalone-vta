@@ -256,14 +256,16 @@ class ComputeSimulator(
             s"\n\nDEBUG: READ SCRATCHPAD ${scratchpad.size} IDX: ${idx}\n\n"
           )
         }
-        // Go through the scratchpad and send the data
+        // Unpopulated index reads as zeros (ALU op's no-op GEMM reads empty INP/WGT).
         val cols = tm.rd(0).data.bits(0).size
+        val row = scratchpad.getOrElse(idx, Array.empty[BigInt])
         for {
           i <- 0 until tm.rd(0).data.bits.size
           j <- 0 until cols
         } {
-          // print(s"\n\nDEBUG: READ SCRATCHPAD ${scratchpad(idx).length} IDX: ${idx} vect: ${i * cols + j}\n\n")
-          tm.rd(0).data.bits(i)(j).poke(scratchpad(idx)(i * cols + j))
+          val k = i * cols + j
+          val value = if (k < row.length) row(k) else BigInt(0)
+          tm.rd(0).data.bits(i)(j).poke(value)
         }
       } else { // If index is not valid => data is not valid
         tm.rd(0).data.valid.poke(0)

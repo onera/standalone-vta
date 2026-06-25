@@ -33,15 +33,27 @@ object CompilerOutputLayout {
     val path = s"$compilerOutDir/memory_addresses$layer.csv"
     val src = Source.fromFile(path)
     try {
-      src.getLines().toList.map { line =>
-        val parts = line.split(",").map(_.trim)
-        require(parts.length >= 3, s"unexpected csv line in $path: $line")
-        Region(
-          name = parts(0),
-          base = java.lang.Long.parseLong(parts(1).stripPrefix("0x"), 16),
-          sizeBytes = java.lang.Long.parseLong(parts(2).stripPrefix("0x"), 16)
+      src
+        .getLines()
+        .toList
+        .map(_.split(",").map(_.trim))
+        // Skip the header row and blanks: a data row's address column is hex.
+        .filter(parts =>
+          parts.length >= 2 && parts(1)
+            .stripPrefix("0x")
+            .matches("[0-9a-fA-F]+")
         )
-      }
+        .map { parts =>
+          require(
+            parts.length >= 3,
+            s"unexpected csv line in $path: ${parts.mkString(",")}"
+          )
+          Region(
+            name = parts(0),
+            base = java.lang.Long.parseLong(parts(1).stripPrefix("0x"), 16),
+            sizeBytes = java.lang.Long.parseLong(parts(2).stripPrefix("0x"), 16)
+          )
+        }
     } finally src.close()
   }
 
