@@ -262,12 +262,16 @@ object BinaryReader {
           data
             .split("\n")
             .filterNot(line => line.startsWith("//") || line.trim.isEmpty)
-            // Skip the header row: a data row's address column (col 1) is hex.
+            // For base-address CSVs only, skip a non-data header row: a data
+            // row's address column (col 1) is hex. Param CSVs (isBaseAddr =
+            // false) carry non-hex values (e.g. true, (5;5)) and must be kept.
             .filter { line =>
-              val a = line.split(",")
-              a.length >= 2 && a(1).trim
-                .stripPrefix("0x")
-                .matches("[0-9a-fA-F]+")
+              !isBaseAddr || {
+                val a = line.split(",")
+                a.length >= 2 && a(1).trim
+                  .stripPrefix("0x")
+                  .matches("[0-9a-fA-F]+")
+              }
             }
             .map { line =>
               val array = line.split(",")
