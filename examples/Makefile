@@ -21,6 +21,8 @@ NN_COMPILER_DIR  := $(COMPILER_DIR)/nn_compiler
 FSIM_DIR         := $(SRC_DIR)/simulators/functional_simulator
 TSIM_DIR         := $(SRC_DIR)/simulators/cycle_accurate_simulator
 CONFIG_DIR       := $(PROJECT_DIR)/config
+FPGA_HW_DIR	     := $(SRC_DIR)/fpga/synthesis
+FPGA_SW_DIR	     := $(SRC_DIR)/fpga/software
 
 # ==============================================================================
 # CONFIGURATION
@@ -278,11 +280,12 @@ custom_insn: ## Generate custom instruction test
 # ==============================================================================
 # CLEAN
 # ==============================================================================
-
 clean: | $(COMPILER_OUTPUT_DIR) $(SIMULATOR_OUTPUT_DIR) $(LOG_OUTPUT_DIR) ## Delete generated compiler and simulator output files
 	-rm $(COMPILER_OUTPUT_DIR)/*.*
 	-rm $(LOG_OUTPUT_DIR)/*.*
 	-rm $(SIMULATOR_OUTPUT_DIR)/*.*
+	-rm -r $(FPGA_HW_DIR)/build
+	-rm -r $(FPGA_SW_DIR)/build
 
 cleaner: clean fsim_clean clean_hw ## Delete generated files and the FSIM build directory
 
