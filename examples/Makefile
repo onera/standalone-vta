@@ -284,10 +284,8 @@ clean: | $(COMPILER_OUTPUT_DIR) $(SIMULATOR_OUTPUT_DIR) $(LOG_OUTPUT_DIR) ## Del
 	-rm $(COMPILER_OUTPUT_DIR)/*.*
 	-rm $(LOG_OUTPUT_DIR)/*.*
 	-rm $(SIMULATOR_OUTPUT_DIR)/*.*
-	-rm -r $(FPGA_HW_DIR)/build
-	-rm -r $(FPGA_SW_DIR)/build
 
-cleaner: clean fsim_clean clean_hw ## Delete generated files and the FSIM build directory
+cleaner: clean fsim_clean clean_hw clean_fpga ## Delete generated files and the FSIM build directory
 
 force_clean: cleaner ## backward compatible clean
 
@@ -299,6 +297,10 @@ clean_csv: | $(COMPILER_OUTPUT_DIR) ## Delete CSV output files only
 
 clean_hw: ## Clean Chisel/Mill build outputs
 	cd $(TSIM_DIR) && ./mill cleanOutputs
+
+clean_fpga: ## Clean Vitis and Vivado workspaces
+	-rm -r $(FPGA_HW_DIR)/build
+	-rm -r $(FPGA_SW_DIR)/build
 
 # ==============================================================================
 # OUTPUT DIRECTORIES
