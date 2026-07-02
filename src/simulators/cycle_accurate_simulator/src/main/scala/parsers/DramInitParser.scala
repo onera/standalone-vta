@@ -4,7 +4,7 @@ import chisel3._
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import vta.models.DataType._
-import vta.util.BinaryReader.readBinaryFile
+import BinaryReader.readBinaryFile
 import vta.util.MemoryConfig
 import vta.util.MemoryInitializer.exportHexToMemFile
 

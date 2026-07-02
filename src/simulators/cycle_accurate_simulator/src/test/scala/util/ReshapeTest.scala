@@ -3,7 +3,7 @@ package vta.util
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should
 import vta.util.Reshape._
-import vta.util.BinaryReader._
+import vta.parsers.BinaryReader._
 
 import scala.util.{Failure, Success}
 import vta.models.DataType.{OUT, INP}

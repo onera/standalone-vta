@@ -2,7 +2,7 @@ package vta.util
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should
-import vta.util.BinaryReader.{computeAddresses, printMap}
+import vta.parsers.BinaryReader.{computeAddresses, printMap}
 import vta.models.DataType._
 import vta.util.Filter.filter
 

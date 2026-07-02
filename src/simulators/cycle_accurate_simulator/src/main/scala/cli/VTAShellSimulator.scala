@@ -4,7 +4,11 @@ import chisel3.simulator.HasSimulator
 import chisel3.testing.HasTestingDirectory
 import vta.models.DataType._
 import vta.parsers.DramInitParser
-import vta.parsers.DramInitParser.{getMemoryConfigurations, parseJsonMemoryInitFile, parseMemorySections}
+import vta.parsers.DramInitParser.{
+  getMemoryConfigurations,
+  parseJsonMemoryInitFile,
+  parseMemorySections
+}
 import vta.test.VTAShellTest
 import vta.util.MemoryConfig
 import vta.util.MemoryInitializer.{exportHexFiles, exportHexToMemFiles}
@@ -95,7 +99,7 @@ object VTAShellSimBinary extends App with VTAShellTest {
     val configFile = System.getProperty("vta.config.file", "vta_config.json")
     val fromResources =
       System.getProperty("vta.config.fromResources", "false").toBoolean
-    vta.util.BinaryReader
+    vta.parsers.BinaryReader
       .computeJSONFile(configFile, fromResources)("LOG_OUT_WIDTH") / 8
   }
   val metadataFile = new File(path + s"/metadata${suffix}.csv")

@@ -1,11 +1,33 @@
-package vta.util
+package vta.exporters
 
 import os.Path
-import vta.util.config.Parameters
 
-object XilinxIpFlow {
+object IpPackageScriptExporter {
 
-  def exportIpPackageTclScript(
+  /** Export a TCL script to be used for packaging the VTA shell in vivado IPI
+    * flow
+    *
+    * @param target
+    *   the path where the file will be written
+    * @param vendor
+    *   name of the vendor (default onera)
+    * @param name
+    *   name of the IP
+    * @param version
+    *   VTA version
+    * @param topModule
+    *   the top module name
+    * @param part
+    *   the targeted FPGA part
+    * @param lib
+    *   IP library (default: user)
+    * @param description
+    *   a quick description of the IP
+    * @param displayName
+    *   name of the IP as displayed in Vivado block design
+    * @param config
+    */
+  def export(
       target: Path,
       vendor: String,
       name: String,
@@ -16,7 +38,7 @@ object XilinxIpFlow {
       description: String =
         "Versatile Tensor Accelerator - Xilinx shell (AXI4-Lite ctrl + AXI4 DRAM)",
       displayName: String = "VTA"
-  )(implicit config: Parameters) = {
+  ) = {
     val header = s"""
 |##############################################################################
 |# package_ip.tcl

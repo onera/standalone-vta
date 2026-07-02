@@ -2,10 +2,15 @@ package vta.test
 
 import chisel3._
 import chisel3.simulator.stimulus.RunUntilFinished
-import chisel3.simulator.{ChiselOptionsModifications, ChiselSim, FirtoolOptionsModifications, HasSimulator}
+import chisel3.simulator.{
+  ChiselOptionsModifications,
+  ChiselSim,
+  FirtoolOptionsModifications,
+  HasSimulator
+}
 import chisel3.testing.HasTestingDirectory
 import chisel3.util.experimental.BoringUtils
-import vta.DefaultPynqConfig
+import vta.configs.DefaultPynqConfig
 import vta.core.Fetch64Bit
 import vta.interface.axi.AXILiteClient
 import vta.shell.{ShellKey, VTAShell}

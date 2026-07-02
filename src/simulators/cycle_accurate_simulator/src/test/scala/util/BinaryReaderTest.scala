@@ -2,7 +2,7 @@ package vta.util
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should
-import vta.util.BinaryReader._
+import vta.parsers.BinaryReader._
 
 import java.math.BigInteger
 import scala.math.pow

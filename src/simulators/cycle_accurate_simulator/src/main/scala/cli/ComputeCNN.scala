@@ -3,7 +3,7 @@ package cli
 // import chiseltest.iotesters.PeekPokeTester
 import vta.core.Compute
 import vta.models.DataType.INP
-import vta.util.BinaryReader.computeCSVFile
+import vta.parsers.BinaryReader.computeCSVFile
 import vta.util.Reshape.{reshape, vector_to_map}
 import vta.util.config.Parameters
 import vta.util.{Filter, GenericSim}

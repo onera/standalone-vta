@@ -6,7 +6,7 @@ import vta.core.ISA._
 import vta.core.{Compute, TensorMaster}
 import vta.models.DataType._
 import vta.shell.VMEReadMaster
-import vta.util.BinaryReader.{computeAddresses, computeCSVFile}
+import vta.parsers.BinaryReader.{computeAddresses, computeCSVFile}
 import vta.util.GenericSim
 import vta.util.config.Parameters
 

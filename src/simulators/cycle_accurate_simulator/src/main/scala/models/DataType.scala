@@ -1,6 +1,6 @@
 package vta.models
 
-import vta.util.BinaryReader.computeJSONFile
+import vta.parsers.BinaryReader.computeJSONFile
 
 /** Definition of an Enumeration listing the data types. The attributes of each
   * type are its ID, the size of its vectors (in Bytes) and its bit-length

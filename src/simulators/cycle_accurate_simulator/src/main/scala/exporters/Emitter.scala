@@ -17,28 +17,34 @@
  * under the License.
  */
 
-package vta
+package vta.exporters
 
 import circt.stage.ChiselStage
 import vta.core._
 import vta.shell._
 import vta.test._
-import vta.util.XilinxIpFlow.exportIpPackageTclScript
+import IpPackageScriptExporter.export
 import vta.util.config._
+import vta.configs._
 
-/** VTA.
+/** Base abstract emitter class for generating the SystemVerilog for a given
+  * config
   *
-  * This file contains all the configurations supported by VTA. These
-  * configurations are built in a mix/match form based on core and shell
-  * configurations.
+  * @param p
+  *   The config used by the emitter, defined in [[vta.configs]] package
   */
-class DefaultPynqConfig extends Config(new CoreConfig ++ new PynqConfig)
-class DefaultF1Config extends Config(new CoreConfig ++ new F1Config)
-class DefaultDe10Config extends Config(new CoreConfig ++ new De10Config)
-
-trait EmitterApp extends App {
+sealed abstract class EmitterApp(p: Parameters) extends App {
+  implicit val params: Parameters = p
   val defaultDir = os.RelPath("build/emitted/default")
   def outputDir = if (args.nonEmpty) os.Path(args(0)) else os.pwd / defaultDir
+
+  /** Return a text representation of the current config, used for emission
+    *
+    * @param p
+    *   the config
+    * @return
+    *   an info string to be printed for debug
+    */
   def getConfig(implicit p: Parameters) = {
     p(CoreKey) match {
       case CoreParams(
@@ -80,14 +86,13 @@ trait EmitterApp extends App {
       case _ => ""
     }
   }
-  def showConfig(implicit p: Parameters) = {
-    println(getConfig)
-  }
+  println(getConfig)
 }
 
-object DefaultXilinxConfig extends EmitterApp {
+/** Emit the XilinxShell, as well as a package.tcl script for Vivado IPI flow
+  */
+object DefaultXilinxConfig extends EmitterApp(new DefaultPynqConfig) {
   override val defaultDir = os.RelPath("build") / "emitted" / "vta-xilinx-shell"
-  implicit val p: Parameters = new DefaultPynqConfig
   ChiselStage.emitSystemVerilogFile(
     new XilinxShell,
     args = Array(
@@ -100,23 +105,24 @@ object DefaultXilinxConfig extends EmitterApp {
     )
   )
 
-  showConfig
-  exportIpPackageTclScript(
+  export(
     target = outputDir,
     vendor = "onera",
     name = "VTA",
     version = "0.2.0",
     topModule = "VTAXilinxShell",
-    displayName = "VTA_" + p(CoreKey).target,
+    displayName = "VTA_" + params(CoreKey).target,
     description =
       "Versatile Tensor Accelerator - Xilinx shell (AXI4-Lite ctrl + AXI4 DRAM)" + getConfig
   )
 
 }
-object DebugXilinxConfig extends EmitterApp {
+
+/** Emit the XilinxDebugShell with probes for on-board ILA debug flow
+  */
+object DebugXilinxConfig extends EmitterApp(new DefaultPynqConfig) {
   override val defaultDir =
     os.RelPath("build") / "emitted" / "vta-debug-xilinx-shell"
-  implicit val p: Parameters = new DefaultPynqConfig
   ChiselStage.emitSystemVerilogFile(
     new XilinxDebugShell,
     args = Array(
@@ -129,122 +135,95 @@ object DebugXilinxConfig extends EmitterApp {
     )
   )
 
-  showConfig
-  exportIpPackageTclScript(
+  export(
     target = outputDir,
     vendor = "onera",
     name = "VTA_debug",
     version = "0.2.0",
     topModule = "VTAXilinxShell",
-    displayName = "VTA_debug_" + p(CoreKey).target,
+    displayName = "VTA_debug_" + params(CoreKey).target,
     description =
       "Versatile Tensor Accelerator - Xilinx shell (AXI4-Lite ctrl + AXI4 DRAM)" + getConfig
   )
 
 }
-object StandaloneSimConfig extends EmitterApp {
-  override val defaultDir = os.RelPath("build/emitted/vta-sim-shell")
 
-  implicit val p: Parameters = new DefaultPynqConfig
+/** Emit the VTA Test for DPI simulation
+  */
+object TestDefaultPynqConfigEmitter extends EmitterApp(new DefaultPynqConfig) {
+  override val defaultDir = os.RelPath("build/emitted/vta-sim-shell")
 
   ChiselStage.emitSystemVerilogFile(
     new Test,
     args = Array("--target-dir", outputDir.toString())
   )
 
-  showConfig
   println(s"[EmitVTAShell] Simulation files written to $outputDir/")
 }
 
 /** Emit the self-driving multi-layer post-synthesis testbench (VTAPostSynthTb)
   * to SystemVerilog plus the per-layer .mem files.
-  *
-  * Config is taken from program args (forwarded by the Mill task) with
-  * sys.props and defaults as fallback: args(0) = output dir (handled by
-  * EmitterApp.outputDir) --compilerOutDir=... = compiler_output dir (default
-  * "../../../compiler_output") --layers=a,b,c = comma-separated layer suffixes
-  * --reloStride=N = per-layer relocation stride (default 0x200000)
-  * --perLayerTimeout=N = host-driver watchdog cycles (default 2000000)
   */
-object EmitPostSynthTb extends EmitterApp {
+object DefaultPynqConfigTbEmitter extends EmitterApp(new DefaultPynqConfig) {
   override val defaultDir = os.RelPath("build") / "emitted" / "vta-postsynth-tb"
-  implicit val p: Parameters = new DefaultPynqConfig
 
-  private def argVal(key: String, dflt: String): String =
+  private def argVal(key: String, default: String): String =
     args
       .find(_.startsWith(s"--$key="))
       .map(_.stripPrefix(s"--$key="))
       .orElse(sys.props.get(s"vta.$key"))
-      .getOrElse(dflt)
+      .getOrElse(default)
 
-  // Default matches the multilayer spec / repo layout: compiler_output lives at
-  // the repo root, three levels above the Mill build root (this dir).
   val compilerOutDir = argVal("compilerOutDir", "../../../compiler_output")
   val layers =
     argVal(
       "layers",
       "QLinearConv1"
     ).split(",").map(_.trim).filter(_.nonEmpty).toSeq
-  val reloStride = BigInt(argVal("reloStride", "2097152")) // 0x200000
+  val baseAddressOffset = BigInt(argVal("reloStride", "2097152")) // 0x200000
   val perLayerTimeout = argVal("perLayerTimeout", "2000000").toInt
-  // INP buffers come from the fsim/vsim --dump-layers output (the compiler's
-  // input$layer.bin is a zero placeholder). See CompilerOutputLayout.fileFor.
+  // INP buffers come from the fsim/vsim --dump-layers output
   val simOutDir = argVal("simOutDir", "../../../simulators_output")
 
   val memOutDir = outputDir / "mem"
-  val (cfgs, params) =
+  val (memoryConfigs, launchParams) =
     vta.test.CompilerOutputLayout.build(
       compilerOutDir,
       layers,
-      reloStride,
+      baseAddressOffset,
       memOutDir,
       simOutDir
     )
 
-  // Lowering options; the Vivado array-index const-prop mitigation can be
-  // toggled off for A/B synthesis experiments via -Dvta.loweringOptions=...
   val loweringOptions = argVal(
     "loweringOptions",
     "disallowLocalVariables,disallowPackedArrays,mitigateVivadoArrayIndexConstPropBug"
   )
   ChiselStage.emitSystemVerilogFile(
-    new vta.test.VTAPostSynthTb(cfgs, params, perLayerTimeout),
+    new vta.test.VTAPostSynthTb(memoryConfigs, launchParams, perLayerTimeout),
     args = Array("--target-dir", outputDir.toString(), "--split-verilog"),
     firtoolOpts = Array(s"--lowering-options=$loweringOptions")
   )
 
-  showConfig
   println(
     s"[EmitPostSynthTb] SV written to $outputDir; .mem files in $memOutDir; " +
       s"layers=${layers.mkString(",")}"
   )
 }
 
-object DefaultF1Config extends App {
-  implicit val p: Parameters = new DefaultF1Config
+object DefaultF1ConfigEmitter extends EmitterApp(new DefaultF1Config) {
   ChiselStage.emitSystemVerilog(new XilinxShell, args)
 }
 
-object DefaultDe10Config extends App {
-  implicit val p: Parameters = new DefaultDe10Config
+object DefaultDe10ConfigEmitter extends EmitterApp(new DefaultDe10Config) {
   ChiselStage.emitSystemVerilog(new IntelShell, args)
 }
 
-object TestDefaultPynqConfig extends App {
-  implicit val p: Parameters = new DefaultPynqConfig
-  // ChiselStage.emitSystemVerilog(new Test, args)
-  ChiselStage.emitSystemVerilogFile(
-    new Test,
-    args = Array("--target-dir", s"build/emitted/test-vta-pynq")
-  )
-}
-
-object TestDefaultF1Config extends App {
-  implicit val p: Parameters = new DefaultF1Config
+object TestDefaultF1Config extends EmitterApp(new DefaultF1Config) {
   ChiselStage.emitSystemVerilog(new Test, args)
 }
 
-object TestDefaultDe10Config extends App {
+object TestDefaultDe10Config extends EmitterApp(new DefaultF1Config) {
   implicit val p: Parameters = new DefaultDe10Config
   ChiselStage.emitSystemVerilog(new Test, args)
 }

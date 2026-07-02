@@ -1,4 +1,4 @@
-package vta.util
+package vta.parsers
 
 import java.io.{File, FileInputStream, InputStream}
 import scala.math.pow
