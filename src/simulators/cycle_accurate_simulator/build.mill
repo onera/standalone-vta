@@ -80,16 +80,17 @@ object `package` extends SbtModule with PublishModule with ScalafixModule {
   def vtaSimConfig = Task {
     runner().run(
       args = Seq(Task.dest.toString),
-      mainClass = "vta.StandaloneSimConfig",
+      mainClass = "vta.exporters.TestDefaultPynqConfigEmitter",
       workingDir = BuildCtx.workspaceRoot
     )
     PathRef(Task.dest)
   }
 
-  /** Emit VTA for DPI simulation using `vta.StandaloneSimConfig` main class.
+  /**
+   * Emit VTA for DPI simulation using `vta.StandaloneSimConfig` main class.
    *
-   * Usage: ./mill emitVtaSimConfig 
-   * Output: build/emitted/vta-sim-shell (relative to build root)
+   * Usage: ./mill emitVtaSimConfig
+   * @param args optional path string for the target dir  
    */
   def emitVtaSimConfig(args: Args) = Task.Command {
     val outDir = BuildCtx.workspaceRoot / "build" / "emitted" / "vta-sim-shell"
@@ -100,17 +101,17 @@ object `package` extends SbtModule with PublishModule with ScalafixModule {
   }
 
   /**
-      * Emit the default FPGA Xilinx config 
-      *
-      * @param args optional path string for the target dir
-      */
+  * Emit the default FPGA Xilinx config 
+  *
+  * @param args optional path string for the target dir
+  */
   def emitVtaFpgaConfig(args: Args) = Task.Command {
     val outDir = if (args.value.isEmpty) BuildCtx.workspaceRoot / "build" / "emitted" / "vta-xilinx-shell" else os.Path(args.value.head)
     os.makeDir.all(outDir)
 
     runner().run(
       args = Seq(outDir.toString),
-      mainClass = "vta.DefaultXilinxConfig",
+      mainClass = "vta.exporters.DefaultXilinxConfigEmitter",
       workingDir = BuildCtx.workspaceRoot
     )
     println(s"[INFO] VTA FPGA config emitted in ${outDir}")
@@ -134,7 +135,7 @@ object `package` extends SbtModule with PublishModule with ScalafixModule {
 
     runner().run(
       args = Seq(outDir.toString) ++ forwarded,
-      mainClass = "vta.EmitPostSynthTb",
+      mainClass = "vta.exporters.DefaultPynqConfigTbEmitter",
       workingDir = BuildCtx.workspaceRoot
     )
     println(s"[INFO] VTA post-synth TB emitted in ${outDir}")
