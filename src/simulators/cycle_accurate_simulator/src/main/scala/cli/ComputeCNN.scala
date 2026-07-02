@@ -2,12 +2,13 @@ package cli
 
 // import chiseltest.iotesters.PeekPokeTester
 import vta.core.Compute
-import vta.util.BinaryReader.{DataType, computeCSVFile}
+import vta.util.BinaryReader.{computeCSVFile}
 import vta.util.Reshape.{reshape, vector_to_map}
 import vta.util.config.Parameters
 import vta.util.{Filter, GenericSim}
 
 import java.io.File
+import vta.models.DataType.INP
 
 class ComputeCNN(
     c: Compute,
@@ -53,7 +54,7 @@ class ComputeCNN(
       if (i == 1)
         ComputeSimulator.build_scratchpad_binary(
           root + "input.bin",
-          DataType.INP,
+          INP,
           ComputeSimulator
             .getBaseAddr(root + s"base_addr_L$i.csv", fromResources)("INP"),
           isDRAM = false,

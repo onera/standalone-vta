@@ -2,8 +2,9 @@ package vta.util
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import vta.util.BinaryReader.DataType._
+import vta.models.DataType._
 import vta.parsers.DramInitParser._
+
 class MemoryInitializerTest extends AnyFlatSpec with Matchers {
   "MemoryInitializer" should "read binary as hex strings" ignore {
     val paths = Map(

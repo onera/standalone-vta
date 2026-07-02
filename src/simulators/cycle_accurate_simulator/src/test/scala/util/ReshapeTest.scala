@@ -6,20 +6,21 @@ import vta.util.Reshape._
 import vta.util.BinaryReader._
 
 import scala.util.{Failure, Success}
+import vta.models.DataType.{OUT, INP}
 
 class ReshapeTest extends AnyFlatSpec with should.Matchers {
 
   "Reshape" should "match cycle-accurate sim input Layer2 of LeNet-5 with reshaped output Layer1" in {
     val outL1_ref = computeAddresses(
       "examples_compute/lenet5/outL1_test.bin",
-      DataType.OUT,
+      OUT,
       "00000000",
       isDRAM = false,
       fromResources = true
     )
     val inpL2_ref = computeAddresses(
       "examples_compute/lenet5/inpL2.bin",
-      DataType.INP,
+      INP,
       "00000000",
       isDRAM = false,
       fromResources = true
@@ -75,14 +76,14 @@ class ReshapeTest extends AnyFlatSpec with should.Matchers {
   it should "match input layer3 of lenet-5 with reshaped output layer2" in {
     val outL2_ref = computeAddresses(
       "examples_compute/lenet5/outL2_test.bin",
-      DataType.OUT,
+      OUT,
       "00000000",
       isDRAM = false,
       fromResources = true
     )
     val inpL3_ref = computeAddresses(
       "examples_compute/lenet5/inpL3.bin",
-      DataType.INP,
+      INP,
       "00000000",
       isDRAM = false,
       fromResources = true

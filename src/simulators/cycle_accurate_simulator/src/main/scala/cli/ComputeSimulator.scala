@@ -4,8 +4,8 @@ import chisel3._
 import vta.core.ISA._
 import vta.core.{Compute, TensorMaster}
 import vta.shell.VMEReadMaster
-import vta.util.BinaryReader.DataType.DataTypeValue
-import vta.util.BinaryReader.{DataType, computeAddresses, computeCSVFile}
+import vta.util.BinaryReader.{computeAddresses, computeCSVFile}
+import vta.models.DataType._
 import vta.util.GenericSim
 import vta.util.config.Parameters
 
@@ -75,7 +75,7 @@ class ComputeSimulator(
       uop,
       ComputeSimulator.build_scratchpad_binary(
         input,
-        DataType.INP,
+        INP,
         ComputeSimulator.getBaseAddr(base_addresses, fromResources)("INP"),
         isDRAM = false,
         fromResources
@@ -148,7 +148,7 @@ class ComputeSimulator(
   // Create instruction scratchpad
   val inst = ComputeSimulator.build_scratchpad_binary(
     insn,
-    DataType.INSN,
+    INSN,
     "00000000",
     isDRAM = false,
     fromResources
@@ -542,38 +542,38 @@ class ComputeSimulator(
   val dram_scratchpad =
     ComputeSimulator.build_scratchpad_binary(
       acc,
-      DataType.ACC,
+      ACC,
       base_addr("ACC"),
       isDRAM = true,
       fromResources
     ) ++
       ComputeSimulator.build_scratchpad_binary(
         uop,
-        DataType.UOP,
+        UOP,
         base_addr("UOP"),
         isDRAM = true,
         fromResources
       )
   // base address is zero because we are storing the values directly in the INP buffer
   val inp_scratchpad = input
-  // val inp_scratchpad = build_scratchpad_binary(input, DataType.INP, base_addr("INP"), isDRAM = false)
+  // val inp_scratchpad = build_scratchpad_binary(input, INP, base_addr("INP"), isDRAM = false)
   val wgt_scratchpad = ComputeSimulator.build_scratchpad_binary(
     weight,
-    DataType.WGT,
+    WGT,
     base_addr("WGT"),
     isDRAM = false,
     fromResources
   )
   val out_scratchpad = ComputeSimulator.build_scratchpad_binary(
     out,
-    DataType.OUT,
+    OUT,
     base_addr("OUT"),
     isDRAM = false,
     fromResources
   )
   val out_expect_scratchpad = ComputeSimulator.build_scratchpad_binary(
     expected_out,
-    DataType.OUT,
+    OUT,
     base_addr("OUT"),
     isDRAM = false,
     fromResources

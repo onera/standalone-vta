@@ -3,7 +3,7 @@ package vta.parsers
 import chisel3._
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
-import vta.util.BinaryReader.DataType._
+import vta.models.DataType._
 import vta.util.MemoryConfig
 
 import scala.io.Source

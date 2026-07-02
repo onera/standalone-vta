@@ -14,9 +14,6 @@ import vta.util.config.Parameters
   * ctrl bit1 (finish) over AXI-Lite, then advances. Raises `done` after the
   * last layer; raises `error` (latching `layerIdx`) if a layer never finishes
   * within `perLayerTimeout` cycles.
-  *
-  * No module reset happens between layers - matching the board behaviour the
-  * multilayer spec reproduces.
   */
 class VtaHostDriver(layers: Seq[LaunchParams], perLayerTimeout: Int = 2000000)(
     implicit p: Parameters

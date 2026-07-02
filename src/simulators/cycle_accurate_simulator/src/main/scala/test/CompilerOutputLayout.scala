@@ -3,8 +3,7 @@ package vta.test
 import scala.io.Source
 
 import vta.parsers.DramInitParser
-import vta.util.BinaryReader.DataType
-import vta.util.BinaryReader.DataType._
+import vta.models.DataType._
 import vta.util.MemoryConfig
 import vta.util.MemoryInitializer.exportHexToMemFiles
 
@@ -84,7 +83,7 @@ object CompilerOutputLayout {
         throw new IllegalArgumentException(s"unknown region $other in $layer")
     }
 
-  private def dataTypeFor(name: String): DataType.DataTypeValue = name match {
+  private def dataTypeFor(name: String): DataTypeValue = name match {
     case "INSN" => INSN
     case "UOP"  => UOP
     case "ACC"  => ACC

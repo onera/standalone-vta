@@ -2,7 +2,8 @@ package vta.util
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should
-import vta.util.BinaryReader.{DataType, computeAddresses, printMap}
+import vta.util.BinaryReader.{computeAddresses, printMap}
+import vta.models.DataType._
 import vta.util.Filter.filter
 
 import scala.util.{Failure, Success}
@@ -11,14 +12,14 @@ class FilterTest extends AnyFlatSpec with should.Matchers {
   "Filter" should "correctly filter LeNet L1 output" in {
     val outL1_ref = computeAddresses(
       "examples_compute/lenet5/outL1_test.bin",
-      DataType.OUT,
+      OUT,
       "00000000",
       isDRAM = false,
       fromResources = true
     )
     val outL1_sram = computeAddresses(
       "examples_compute/lenet5/outL1.bin",
-      DataType.OUT,
+      OUT,
       "00000000",
       isDRAM = false,
       fromResources = true
@@ -49,14 +50,14 @@ class FilterTest extends AnyFlatSpec with should.Matchers {
   it should "correctly filter LeNet L2 output" in {
     val outL2_ref = computeAddresses(
       "examples_compute/lenet5/outL2_test.bin",
-      DataType.OUT,
+      OUT,
       "00000000",
       isDRAM = false,
       fromResources = true
     )
     val outL2_sram = computeAddresses(
       "examples_compute/lenet5/outL2.bin",
-      DataType.OUT,
+      OUT,
       "00000000",
       isDRAM = false,
       fromResources = true

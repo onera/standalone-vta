@@ -1,6 +1,6 @@
 package vta.util
 
-import vta.util.BinaryReader.DataType.INP
+import vta.models.DataType.INP
 
 import scala.reflect.ClassTag
 

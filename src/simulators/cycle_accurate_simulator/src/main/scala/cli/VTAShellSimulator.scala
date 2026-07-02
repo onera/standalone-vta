@@ -12,7 +12,7 @@ import vta.util.MemoryInitializer.exportHexFiles
 import vta.util.MemoryInitializer.exportHexToMemFiles
 import vta.util.SimulationUtils.verilatorWithWaveDump
 import vta.util.SimulationUtils.EnableMemInitVerilog
-import vta.util.BinaryReader.DataType._
+import vta.models.DataType._
 
 import java.nio.file.Path
 import java.nio.file.Paths
