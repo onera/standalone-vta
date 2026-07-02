@@ -19,11 +19,10 @@
 
 package vta.core
 
-import vta.util.BinaryReader.computeJSONFile
+import vta.util.BinaryReader.{computeJSONFile, parseConfigJson}
 import vta.util.config._
 
 import scala.math.pow
-import vta.util.BinaryReader.parseConfigJson
 
 /** CoreConfig.
   *

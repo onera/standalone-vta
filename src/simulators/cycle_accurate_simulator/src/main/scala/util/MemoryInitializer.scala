@@ -1,10 +1,7 @@
 package vta.util
 
 import chisel3._
-import java.io.File
-import java.io.FileOutputStream
 import os.Source.WritableSource
-import java.io.BufferedOutputStream
 
 /** Utility case class for defining mock memories for simulation
   *

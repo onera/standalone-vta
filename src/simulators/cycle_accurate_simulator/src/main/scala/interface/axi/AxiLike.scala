@@ -2,8 +2,6 @@ package vta.interface.axi
 
 import chisel3._
 import chisel3.util._
-import vta.interface.axi.BurstType.fixed
-import vta.interface.axi.BurstType.wrapped
 
 trait AxiLike[T <: Data] {
 

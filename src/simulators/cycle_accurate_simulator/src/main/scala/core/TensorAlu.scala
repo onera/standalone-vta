@@ -20,10 +20,10 @@
 package vta.core
 
 import chisel3._
-import chisel3.util._
-import vta.util.config._
-import vta.util.UserDefined.DebugLayer
 import chisel3.layer.block
+import chisel3.util._
+import vta.util.UserDefined.DebugLayer
+import vta.util.config._
 
 /** ALU datapath */
 class Alu(implicit p: Parameters) extends Module {

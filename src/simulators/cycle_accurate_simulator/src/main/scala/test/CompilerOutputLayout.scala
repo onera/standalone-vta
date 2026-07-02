@@ -1,11 +1,10 @@
 package vta.test
 
-import scala.io.Source
-
-import vta.parsers.DramInitParser
 import vta.models.DataType._
+import vta.parsers.DramInitParser
 import vta.util.MemoryConfig
-import vta.util.MemoryInitializer.exportHexToMemFiles
+
+import scala.io.Source
 
 /** Elaboration-time builder that turns a `compiler_output` directory into the
   * DRAM `MemoryConfig` list and the per-layer launch table consumed by both the

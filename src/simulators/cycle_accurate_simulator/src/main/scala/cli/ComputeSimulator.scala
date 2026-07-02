@@ -1,16 +1,16 @@
 package cli
 
 import chisel3._
+import chisel3.simulator.PeekPokeAPI
 import vta.core.ISA._
 import vta.core.{Compute, TensorMaster}
+import vta.models.DataType._
 import vta.shell.VMEReadMaster
 import vta.util.BinaryReader.{computeAddresses, computeCSVFile}
-import vta.models.DataType._
 import vta.util.GenericSim
 import vta.util.config.Parameters
 
 import scala.util.{Failure, Success}
-import chisel3.simulator.PeekPokeAPI
 
 object ComputeSimulator {
   /* COMMON PART - MANAGE VIRTUAL MEMORIES */

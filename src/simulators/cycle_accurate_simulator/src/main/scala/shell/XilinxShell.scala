@@ -20,12 +20,12 @@
 package vta.shell
 
 import chisel3._
-import vta.interface.axi._
-import vta.util.config._
 import chisel3.experimental.dataview.DataViewable
 import chisel3.util.experimental.BoringUtils
-import chisel3.util.{log2Ceil, Cat}
+import chisel3.util.{Cat, log2Ceil}
 import vta.core.CoreKey
+import vta.interface.axi._
+import vta.util.config._
 
 /** XilinxShell.
   *

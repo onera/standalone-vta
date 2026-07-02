@@ -20,11 +20,11 @@
 package vta.core
 
 import chisel3._
+import chisel3.layer.block
 import chisel3.util._
 import vta.shell._
-import vta.util.config._
 import vta.util.UserDefined.DebugLayer
-import chisel3.layer.block
+import vta.util.config._
 
 class LoadUopSimple(debug: Boolean = false)(implicit val p: Parameters)
     extends Module {

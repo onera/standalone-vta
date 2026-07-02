@@ -1,21 +1,17 @@
 package vta.util
 
 import chisel3._
-import chisel3.simulator.scalatest.ChiselSim
-import org.scalatest.flatspec.AnyFlatSpec
-import vta.DefaultPynqConfig
-import vta.util.config._
-import vta.util.SimulationUtils.debugLayerDisabled
-import chisel3.simulator.ChiselOptionsModifications
-import chisel3.simulator.FirtoolOptionsModifications
-import chisel3.simulator.HasSimulator
-import chisel3.simulator.scalatest.HasCliOptions
 import chisel3.simulator.scalatest.HasCliOptions.CliOption
+import chisel3.simulator.scalatest.{ChiselSim, HasCliOptions}
+import chisel3.simulator.{ChiselOptionsModifications, FirtoolOptionsModifications, HasSimulator, Settings}
 import chisel3.testing.HasTestingDirectory
-import svsim.BackendSettingsModifications
-import svsim.CommonSettingsModifications
-import chisel3.simulator.Settings
+import org.scalatest.flatspec.AnyFlatSpec
 import svsim.CommonCompilationSettings.VerilogPreprocessorDefine
+import svsim.{BackendSettingsModifications, CommonSettingsModifications}
+import vta.DefaultPynqConfig
+import vta.util.SimulationUtils.debugLayerDisabled
+import vta.util.config._
+
 import scala.runtime.BoxedUnit
 
 trait EmitFst {

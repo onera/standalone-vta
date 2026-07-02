@@ -23,9 +23,8 @@ import circt.stage.ChiselStage
 import vta.core._
 import vta.shell._
 import vta.test._
-import vta.util.config._
 import vta.util.XilinxIpFlow.exportIpPackageTclScript
-import os.RelPath
+import vta.util.config._
 
 /** VTA.
   *

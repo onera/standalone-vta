@@ -20,9 +20,9 @@
 package vta.interface.axi
 
 import chisel3._
+import chisel3.experimental.dataview.DataView
 import chisel3.util._
 import vta.util.genericbundle._
-import chisel3.experimental.dataview.DataView
 
 case class AXIParams(
     coherent: Boolean = false,

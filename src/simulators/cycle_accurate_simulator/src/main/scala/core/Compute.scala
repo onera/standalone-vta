@@ -20,14 +20,14 @@
 package vta.core
 
 import chisel3._
+import chisel3.layer._
 import chisel3.util._
 import vta.shell._
+import vta.util.UserDefined.DebugLayer
 import vta.util._
 import vta.util.config._
-import chisel3.layer._
 
 import scala.math.pow
-import vta.util.UserDefined.DebugLayer
 
 /** Compute.
   *

@@ -21,8 +21,8 @@ package vta.shell
 
 import chisel3._
 import chisel3.util._
-import vta.interface.axi._
 import vta.interface.axi.AxiLike._
+import vta.interface.axi._
 import vta.util.config._
 import vta.util.genericbundle._
 

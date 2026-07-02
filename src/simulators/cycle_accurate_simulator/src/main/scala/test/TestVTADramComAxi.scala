@@ -1,23 +1,16 @@
 package vta.test
 
 import chisel3._
-import chisel3.simulator.ChiselSim
-import chisel3.simulator.ChiselOptionsModifications
-import chisel3.simulator.FirtoolOptionsModifications
-import chisel3.simulator.HasSimulator
 import chisel3.simulator.stimulus.RunUntilFinished
+import chisel3.simulator.{ChiselOptionsModifications, ChiselSim, FirtoolOptionsModifications, HasSimulator}
 import chisel3.testing.HasTestingDirectory
 import chisel3.util.experimental.BoringUtils
 import vta.DefaultPynqConfig
-import vta.interface.axi.AXILiteClient
-import vta.shell.ShellKey
-import vta.shell.VTAShell
 import vta.core.Fetch64Bit
+import vta.interface.axi.AXILiteClient
+import vta.shell.{ShellKey, VTAShell}
 import vta.util.MemoryConfig
 import vta.util.config.Parameters
-import vta.util.SimulationUtils.verilatorWithWaveDump
-import chisel3.simulator.Settings
-import chisel3.simulator.LayerControl
 
 class VTAShellTestFull(
     content: Seq[MemoryConfig],

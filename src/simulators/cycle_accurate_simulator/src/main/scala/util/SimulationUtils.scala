@@ -1,12 +1,7 @@
 package vta.util
-import chisel3.simulator.HasSimulator
-import svsim.CommonCompilationSettings
-import svsim.CommonSettingsModifications
-import chisel3.layer.LayerConfig
-import chisel3.simulator.LayerControl
-import vta.util.UserDefined.DebugLayer
-import chisel3.simulator.Settings
 import chisel3.layers.Verification
+import chisel3.simulator.{HasSimulator, LayerControl, Settings}
+import svsim.{CommonCompilationSettings, CommonSettingsModifications}
 
 object SimulationUtils {
 

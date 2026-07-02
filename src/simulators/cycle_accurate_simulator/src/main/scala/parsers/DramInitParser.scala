@@ -4,13 +4,12 @@ import chisel3._
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import vta.models.DataType._
-import vta.util.MemoryConfig
-
-import scala.io.Source
 import vta.util.BinaryReader.readBinaryFile
-import java.io.FileInputStream
-import java.io.BufferedInputStream
+import vta.util.MemoryConfig
 import vta.util.MemoryInitializer.exportHexToMemFile
+
+import java.io.{BufferedInputStream, FileInputStream}
+import scala.io.Source
 
 object DramInitParser {
 

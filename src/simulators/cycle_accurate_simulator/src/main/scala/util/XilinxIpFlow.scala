@@ -1,9 +1,7 @@
 package vta.util
 
-import vta.util.config.Parameters
 import os.Path
-import scala.io.Source
-import java.io.File
+import vta.util.config.Parameters
 
 object XilinxIpFlow {
 

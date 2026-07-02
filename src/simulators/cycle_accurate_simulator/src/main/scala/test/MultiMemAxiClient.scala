@@ -2,16 +2,13 @@ package vta.test
 
 import chisel3._
 import chisel3.simulator.scalatest.ChiselSim
-import chisel3.util.MuxCase
-import chisel3.util.log2Ceil
 import chisel3.util.experimental.loadMemoryFromFileInline
+import chisel3.util.{MuxCase, log2Ceil}
 import org.scalatest.flatspec.AnyFlatSpec
-import vta.interface.axi.AXIClient
-import vta.interface.axi.AXIParams
 import vta.interface.axi.AxiLike._
-import vta.util.MemoryConfig
-import vta.util.EnableMemInit
+import vta.interface.axi.{AXIClient, AXIParams}
 import vta.util.SimulationUtils.verilatorWithWaveDump
+import vta.util.{EnableMemInit, MemoryConfig}
 
 /** A simulation utility module to connect several memories (sync write async
   * read)

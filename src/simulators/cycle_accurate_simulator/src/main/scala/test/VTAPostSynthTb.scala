@@ -2,8 +2,8 @@ package vta.test
 
 import chisel3._
 import chisel3.experimental.dataview.DataViewable
-import vta.shell.{ShellKey, XilinxDebugShell}
 import vta.interface.axi._
+import vta.shell.{ShellKey, XilinxDebugShell}
 import vta.test.CompilerOutputLayout.LaunchParams
 import vta.util.MemoryConfig
 import vta.util.config.Parameters

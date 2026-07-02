@@ -20,13 +20,13 @@
 package vta.core
 
 import chisel3._
-import chisel3.util._
-import vta.util.config._
 import chisel3.layer.block
+import chisel3.layers.Verification
+import chisel3.util._
+import vta.util.UserDefined.DebugLayer
+import vta.util.config._
 
 import scala.math.pow
-import chisel3.layers.Verification
-import vta.util.UserDefined.DebugLayer
 
 /** Pipelined multiply and accumulate */
 class MAC(
