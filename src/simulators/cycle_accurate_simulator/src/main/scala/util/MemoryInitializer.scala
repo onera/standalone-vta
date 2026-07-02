@@ -42,7 +42,6 @@ object MemoryInitializer {
             val v = uint.litValue.toString(16)
 
             val str = Array.fill(bytes - v.size)("0").mkString + v
-            // val s = f"$v%0x"
             str
           })
 
@@ -54,10 +53,10 @@ object MemoryInitializer {
       val reshapedHex = if (groupSize > 1) {
         hexStrings
           .grouped(groupSize)
-          .map {
+          .collect {
             case ls: List[String] if ls.size == groupSize =>
               ls.reduceLeft { _ + _ }
-            case ls: List[String] if ls.size == 1 =>
+            case ls: List[String] if ls.size < groupSize =>
               ls.head + Array.fill(targetBytes - ls.head.size)("0").mkString
           }
           .toList

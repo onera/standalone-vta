@@ -20,12 +20,13 @@
 package vta.exporters
 
 import circt.stage.ChiselStage
+import vta.configs._
 import vta.core._
 import vta.shell._
 import vta.test._
-import IpPackageScriptExporter.export
 import vta.util.config._
-import vta.configs._
+
+import IpPackageScriptExporter.export
 
 /** Base abstract emitter class for generating the SystemVerilog for a given
   * config
@@ -91,7 +92,7 @@ sealed abstract class EmitterApp(p: Parameters) extends App {
 
 /** Emit the XilinxShell, as well as a package.tcl script for Vivado IPI flow
   */
-object DefaultXilinxConfig extends EmitterApp(new DefaultPynqConfig) {
+object DefaultXilinxConfigEmitter extends EmitterApp(new DefaultPynqConfig) {
   override val defaultDir = os.RelPath("build") / "emitted" / "vta-xilinx-shell"
   ChiselStage.emitSystemVerilogFile(
     new XilinxShell,
@@ -120,7 +121,7 @@ object DefaultXilinxConfig extends EmitterApp(new DefaultPynqConfig) {
 
 /** Emit the XilinxDebugShell with probes for on-board ILA debug flow
   */
-object DebugXilinxConfig extends EmitterApp(new DefaultPynqConfig) {
+object DebugXilinxConfigEmitter extends EmitterApp(new DefaultPynqConfig) {
   override val defaultDir =
     os.RelPath("build") / "emitted" / "vta-debug-xilinx-shell"
   ChiselStage.emitSystemVerilogFile(

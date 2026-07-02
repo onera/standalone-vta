@@ -5,8 +5,8 @@ import chisel3.simulator.PeekPokeAPI
 import vta.core.ISA._
 import vta.core.{Compute, TensorMaster}
 import vta.models.DataType._
-import vta.shell.VMEReadMaster
 import vta.parsers.BinaryReader.{computeAddresses, computeCSVFile}
+import vta.shell.VMEReadMaster
 import vta.util.GenericSim
 import vta.util.config.Parameters
 

@@ -9,7 +9,7 @@ import vta.util.config.Config
   */
 class SimConfig {
   // Hard-define the VTA parameters
-  val config = new Config((site, here, up) => {
+  val config = new Config((_,_,_) => {
     // Default configuration //TODO: confirm configuration
     case CoreKey =>
       CoreParams(

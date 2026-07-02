@@ -30,7 +30,7 @@ object Reshape {
 
       for (j <- 0 until blockCol) {
         val start = (i * blockCol + j) * blockSize * blockSize
-        val end = start + blockSize * blockSize
+        // val end = start + blockSize * blockSize
 
         val block: Array[Array[BigInt]] = (0 until blockSize).map { r =>
           (0 until blockSize).map { c =>
