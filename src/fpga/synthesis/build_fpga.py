@@ -147,7 +147,18 @@ def render_board_params(
     ps_cfg_flat = " ".join(f"{k} {_tcl_brace(v)}" for k, v in board.get("ps_config", {}).items())
     lines.append(f"set ps_config {{{ps_cfg_flat}}}")
 
-    # Port names.
+    # NoC config deltas as a flat {K V K V ...} list.
+    noc_cfg = board.get("noc_config", {
+        "MC2_FLIPPED_PINOUT": "true",
+        "MC_CHANNEL_INTERLEAVING": "true",
+        "MC_CHAN_REGION1": "DDR_LOW1",
+        "MC_LP4_OVERWRITE_IO_PROP": "true",
+        "MC_LP4_PIN_EFFICIENT": "true",
+        "MC_SYSTEM_CLOCK": "Differential",
+    })
+    noc_cfg_flat = " ".join(f"{k} {_tcl_brace(v)}" for k, v in noc_cfg.items())
+    lines.append(f"set noc_config {{{noc_cfg_flat}}}")
+
     ports = board["ports"]
     port_map = {
         "port_vta_dram_master": ports["vta_dram_master"],
@@ -158,6 +169,9 @@ def render_board_params(
         "port_ps_ctrl_master": ports["ps_ctrl_master"],
         "port_ps_clk": ports["ps_clk"],
         "port_ps_resetn": ports["ps_resetn"],
+        "versal_ch0": ports.get("versal_ch0", "ch0_lpddr4_trip1"),
+        "versal_ch1": ports.get("versal_ch1", "ch1_lpddr4_trip1"),
+        "versal_clk": ports.get("versal_clk", "lpddr4_clk1"),
     }
     for k, v in port_map.items():
         lines.append(f"set {k} {_tcl_brace(v)}")
