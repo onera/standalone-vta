@@ -1,17 +1,14 @@
 package formal
 
+import _root_.circt.stage.ChiselStage
 import chisel3._
-import chisel3.util._
 import chiseltest._
 import chiseltest.formal._
-import chiseltest.experimental.observe
 import chiseltest.simulator.WriteVcdAnnotation
 import org.scalatest.flatspec.AnyFlatSpec
-import _root_.circt.stage.ChiselStage
-import vta.util.config._
-import vta.tags.tagObjects.FormalTests
-
 import vta.core.MatrixVectorMultiplicationBypass
+import vta.tags.tagObjects.FormalTests
+import vta.util.config._
 
 /** Formal verification
   */

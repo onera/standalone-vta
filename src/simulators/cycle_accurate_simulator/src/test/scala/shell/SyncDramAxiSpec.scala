@@ -3,10 +3,9 @@ import chisel3._
 import chisel3.util.experimental.loadMemoryFromFileInline
 import vta.interface.axi.AXIClient
 import vta.interface.axi.AxiLike._
-import vta.util.config.Parameters
 import vta.tags.tagObjects.UnitTests
-import vta.util.AnyFlatSpecSim
-import vta.util.EnableMemInit
+import vta.util.config.Parameters
+import vta.util.{AnyFlatSpecSim, EnableMemInit}
 
 class SyncAxiDram(memoryFile: String = "", size: Int)(implicit
     p: Parameters

@@ -1,58 +1,18 @@
-package vta.parsers
+package vta.test
 
 import vta.models.{DataType, MemoryConfig}
+import vta.parsers.CompilerOutputParser.parseAddressesCsv
 import vta.parsers.DramInitParser
 
-import scala.io.Source
 
-/** Elaboration-time builder that turns a `compiler_output` directory into the
-  * DRAM `MemoryConfig` list and the per-layer launch table consumed by both the
-  * Scala multilayer spec and the synthesizable VtaHostDriver ROM.
-  *
-  * The relocation/layout strategy places each layer's regions at csvBase +
-  * RELO_L (RELO_L = layerIndex * reloStride) so the VTA's
-  * `baddr | (offset<<shift)` address math reduces to baddr + offset with no
-  * cross-layer overlap.
-  */
-object CompilerOutputLayout {
+object TestBenchLayout {
+
+
 
   /** Per-layer launch parameters: VCR insn base, instruction count, relocation.
     */
   case class LaunchParams(insnBaddr: BigInt, insnCount: Int, relo: BigInt)
 
-  /** One row of memory_addresses<layer>.csv: NAME,0xBASE,0xSIZE_BYTES. */
-  private case class MemoryRegion(name: String, base: Long, sizeBytes: Long)
-
-  private def parseAddressesCsv(
-      compilerOutDir: String,
-      layer: String
-  ): Seq[MemoryRegion] = {
-    val path = s"$compilerOutDir/memory_addresses$layer.csv"
-    val src = Source.fromFile(path)
-    try {
-      src
-        .getLines()
-        .toList
-        .map(_.split(",").map(_.trim))
-        // Skip the header row and blanks: a data row's address column is hex.
-        .filter(parts =>
-          parts.length >= 2 && parts(1)
-            .stripPrefix("0x")
-            .matches("[0-9a-fA-F]+")
-        )
-        .map { parts =>
-          require(
-            parts.length >= 3,
-            s"unexpected csv line in $path: ${parts.mkString(",")}"
-          )
-          MemoryRegion(
-            name = parts(0),
-            base = java.lang.Long.parseLong(parts(1).stripPrefix("0x"), 16),
-            sizeBytes = java.lang.Long.parseLong(parts(2).stripPrefix("0x"), 16)
-          )
-        }
-    } finally src.close()
-  }
 
   private def fileFor(
       compilerOutDir: String,
@@ -173,4 +133,5 @@ object CompilerOutputLayout {
 
     (cfgs.toList, perLayer.toList)
   }
+
 }

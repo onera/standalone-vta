@@ -1,18 +1,14 @@
 package simulatorTest.alu
 
 import chisel3._
+import chisel3.simulator.PeekPokeAPI
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
-import scala.io._
-import scala.language.postfixOps
 import vta.core._
-import vta.util.config._
-import unittest.GenericTest
-import chisel3.simulator.PeekPokeAPI
-import vta.util.AnyFlatSpecSim
-import chisel3.experimental.inlinetest.TestHarness
-import chisel3.experimental.inlinetest.TestHarnessGenerator
 import vta.tags
+import vta.util.AnyFlatSpecSim
+
+import scala.io._
 
 class TensorAluJsonTest(
     c: TensorAlu,

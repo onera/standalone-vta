@@ -20,8 +20,7 @@
 package unittest
 
 import chisel3._
-
-import vta.tags.tagObjects.{UnitTests, LongTests}
+import vta.tags.tagObjects.{LongTests, UnitTests}
 import vta.util.config.Parameters
 
 class GenericTest[T <: Module, C <: Parameters](

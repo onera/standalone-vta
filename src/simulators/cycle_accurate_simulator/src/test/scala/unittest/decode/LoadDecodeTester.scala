@@ -1,11 +1,9 @@
 package unittest.decode
 
-import chisel3._
+import chisel3.simulator.PeekPokeAPI
 import unittest.GenericTest
 import vta.core._
 import vta.util.config.Parameters
-
-import chisel3.simulator.PeekPokeAPI
 
 class LoadDecodeTest(c: LoadDecode, debug: Boolean = false)
     extends PeekPokeAPI {

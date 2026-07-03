@@ -22,10 +22,10 @@ package vta.shell
 import chisel3._
 import chisel3.util.log2Ceil
 import org.scalatest.matchers.should.Matchers
-import scala.collection.mutable.ArrayBuffer
-
-import vta.util.AnyFlatSpecSim
 import vta.tags.UnitTests
+import vta.util.AnyFlatSpecSim
+
+import scala.collection.mutable.ArrayBuffer
 
 /** VMESpec - read-path corner cases for the VTA Memory Engine.
   *

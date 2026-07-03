@@ -22,11 +22,9 @@ package unittest
 import chisel3._
 import chisel3.util.log2Ceil
 import org.scalatest.matchers.should.Matchers
-
 import vta.core.{CoreKey, Semaphore}
 import vta.tags.UnitTests
 import vta.util.AnyFlatSpecSim
-import vta.util.config._
 
 /** SemaphoreTest - dependency-counter corner cases (suspect #3).
   *

@@ -2,11 +2,11 @@ package vta.util
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should
-import vta.util.Reshape._
+import vta.models.DataType.{INP, OUT}
 import vta.parsers.BinaryReader._
+import vta.util.Reshape._
 
 import scala.util.{Failure, Success}
-import vta.models.DataType.{OUT, INP}
 
 class ReshapeTest extends AnyFlatSpec with should.Matchers {
 

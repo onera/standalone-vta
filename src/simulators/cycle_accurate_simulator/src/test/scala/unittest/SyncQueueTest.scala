@@ -20,11 +20,10 @@
 package unittest
 
 import chisel3._
-import chisel3.util._
-import vta.util.AnyFlatSpecSim
-import vta.util._
-import vta.tags
 import chisel3.simulator.PeekPokeAPI
+import chisel3.util._
+import vta.tags
+import vta.util.{AnyFlatSpecSim, _}
 
 class Checker(c: SyncQueueTestWrapper[UInt]) extends PeekPokeAPI {
 

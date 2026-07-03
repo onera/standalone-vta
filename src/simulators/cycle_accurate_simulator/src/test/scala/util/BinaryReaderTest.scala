@@ -2,13 +2,13 @@ package vta.util
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should
+import vta.models.DataType._
 import vta.parsers.BinaryReader._
+import vta.tags.UnitTests
 
 import java.math.BigInteger
 import scala.math.pow
 import scala.util.{Failure, Success}
-import vta.tags.UnitTests
-import vta.models.DataType._
 
 @UnitTests
 class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
@@ -57,7 +57,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   // Testing reverseLE for int16 vectors
   it should "reverse correctly an INP vector (int16)" in {
     val INP: DataTypeValue =
-      new DataTypeValue(1, 16, Map.empty.withDefaultValue(16),"INP")
+      new DataTypeValue(1, 16, Map.empty.withDefaultValue(16))
     val inp = Array(
       "00",
       "01",
@@ -102,7 +102,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   // Testing computeAddresses for int16 vectors
   it should "decode correctly an INP vector (int16)" ignore {
     val INP: DataTypeValue =
-      new DataTypeValue(1, 16, Map.empty.withDefaultValue(16),"INP")
+      new DataTypeValue(1, 16, Map.empty.withDefaultValue(16))
     val inp_int16 = computeAddresses(
       "examples_compute/int16/input.bin",
       INP,
@@ -127,7 +127,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
   // Testing computeAddresses for int32 vectors
   it should "decode correctly an INP vector (int32)" ignore {
     val INP: DataTypeValue =
-      new DataTypeValue(1, 16, Map.empty.withDefaultValue(32),"INP")
+      new DataTypeValue(1, 16, Map.empty.withDefaultValue(32))
     val inp_int32 = computeAddresses(
       "examples_compute/int32/input.bin",
       INP,
@@ -1374,7 +1374,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
 
   it should "decode a WGT vector in Int-16" ignore {
     val WGT: DataTypeValue =
-      new DataTypeValue(1, 256, Map.empty.withDefaultValue(16),"WGT")
+      new DataTypeValue(1, 256, Map.empty.withDefaultValue(16))
     val wgt_int16 = computeAddresses(
       "examples_compute/int16/weight.bin",
       WGT,
@@ -1412,7 +1412,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
 
   it should "decode a WGT vector in Int-32" ignore {
     val WGT: DataTypeValue =
-      new DataTypeValue(1, 256, Map.empty.withDefaultValue(32),"WGT")
+      new DataTypeValue(1, 256, Map.empty.withDefaultValue(32))
     val wgt_int32 = computeAddresses(
       "examples_compute/int32/weight.bin",
       WGT,

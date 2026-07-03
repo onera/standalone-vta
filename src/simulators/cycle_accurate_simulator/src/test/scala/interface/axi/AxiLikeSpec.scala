@@ -2,12 +2,12 @@ package vta.interface
 
 import chisel3._
 import org.scalatest.matchers.should.Matchers
-import vta.test.AxiFullSimUtils
 import vta.interface.axi.AXIClient
 import vta.interface.axi.AxiLike._
 import vta.shell.ShellKey
-import vta.util.AnyFlatSpecSim
 import vta.tags.UnitTests
+import vta.test.AxiFullSimUtils
+import vta.util.AnyFlatSpecSim
 
 @UnitTests
 class AxiLikeSpec extends AnyFlatSpecSim with AxiFullSimUtils with Matchers {

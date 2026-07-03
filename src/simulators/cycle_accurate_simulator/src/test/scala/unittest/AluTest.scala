@@ -20,11 +20,12 @@
 package unittest
 
 import chisel3.util._
-import scala.util.Random
 import unittest.util._
-import vta.util.AnyFlatSpecSim
 import vta.core._
 import vta.tags.UnitTests
+import vta.util.AnyFlatSpecSim
+
+import scala.util.Random
 
 object Alu_ref {
   /* alu_ref

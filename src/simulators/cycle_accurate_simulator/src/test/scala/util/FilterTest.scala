@@ -2,8 +2,8 @@ package vta.util
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should
-import vta.parsers.BinaryReader.{computeAddresses, printMap}
 import vta.models.DataType._
+import vta.parsers.BinaryReader.computeAddresses
 import vta.util.Filter.filter
 
 import scala.util.{Failure, Success}

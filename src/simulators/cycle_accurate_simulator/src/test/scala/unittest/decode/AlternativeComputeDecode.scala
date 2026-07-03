@@ -2,7 +2,6 @@ package unittest.decode
 
 import chisel3._
 import vta.core._
-import chisel3.util._
 
 class AlternativeComputeMemDecode extends Module {
   val io = IO(new Bundle {

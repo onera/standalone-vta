@@ -19,8 +19,8 @@
 
 package unittest.util
 
-import scala.util.Random
 import scala.math.pow
+import scala.util.Random
 
 class RandomArray(val len: Int, val bits: Int, val r: Random) {
   if (bits < 1)

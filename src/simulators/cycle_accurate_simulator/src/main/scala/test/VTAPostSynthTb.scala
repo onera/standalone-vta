@@ -2,10 +2,10 @@ package vta.test
 
 import chisel3._
 import chisel3.experimental.dataview.DataViewable
-import vta.interface.axi._
-import vta.models.MemoryConfig
-import vta.parsers.CompilerOutputLayout.LaunchParams
 import vta.shell.{ShellKey, XilinxDebugShell}
+import vta.interface.axi._
+import TestBenchLayout.LaunchParams
+import vta.models.MemoryConfig
 import vta.util.config.Parameters
 
 /** Self-driving multi-layer testbench for post-synthesis simulation of the
@@ -57,8 +57,7 @@ class VTAPostSynthTb(
   mem <> dram.io
   driver.io.host <> vta.s_axi_control.viewAs[AXILiteClient]
 
-  // Advance layers from the clean bored VCR ctrl[1] (finish) instead of the AXI-Lite read-back,
-  // which is X in post-synth funcsim (host read address is don't-care while the design runs).
+  // Advance layers from the bored VCR ctrl[1] (finish) 
   driver.io.finishHint := vta.debug.vcrCtrl(1)
 
   io.done := driver.io.done
@@ -66,7 +65,8 @@ class VTAPostSynthTb(
   io.busy := driver.io.busy
   io.layerIdx := driver.io.layerIdx
 
-  // Surface the board probe set (XilinxDebugShell.debug) so sim_top can log it.
+  // Surface the shell's observation probes (vcrCtrl / computeState / computeDone)
+  // so sim_top can print them for liveness triage on a watchdog timeout.
   val dbg = IO(Output(chiselTypeOf(vta.debug)))
   dbg := vta.debug
 

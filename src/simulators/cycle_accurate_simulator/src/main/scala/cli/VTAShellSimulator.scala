@@ -4,6 +4,7 @@ import chisel3.simulator.HasSimulator
 import chisel3.testing.HasTestingDirectory
 import vta.models.DataType._
 import vta.models.MemoryConfig
+import vta.parsers.CompilerOutputParser.parseMetadata
 import vta.parsers.DramInitParser
 import vta.parsers.DramInitParser.{
   getMemoryConfigurations,
@@ -105,7 +106,7 @@ object VTAShellSimBinary extends App with VTAShellTest {
   val outWords64 = if (metadataFile.isFile()) {
 
     DramInitParser.outRegionWords64(
-      DramInitParser.parseMetadata(path + s"/metadata${suffix}.csv"),
+      parseMetadata(path + s"/metadata${suffix}.csv"),
       outElemBytes
     )
   } else 1000

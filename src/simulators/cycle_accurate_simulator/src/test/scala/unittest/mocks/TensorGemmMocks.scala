@@ -2,13 +2,7 @@ package unittest.mocks
 
 import chisel3._
 import chisel3.simulator.PeekPokeAPI
-import vta.core.TensorGemm
-import vta.core.TensorGemmIndexGenerator
-import vta.core.TensorGemmPipelinedSplit
-import vta.core.TensorGemmSimple
-import vta.core.TensorMaster
-import vta.core.UopMaster
-import vta.core.TensorGemmIfc
+import vta.core._
 
 object TensorGemmMocks extends PeekPokeAPI {
 

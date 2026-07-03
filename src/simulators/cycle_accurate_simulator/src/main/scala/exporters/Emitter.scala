@@ -26,7 +26,7 @@ import vta.shell._
 import vta.test._
 import vta.util.config._
 
-import IpPackageScriptExporter.export
+import XilinxIpPackager.writeTclScript
 
 /** Base abstract emitter class for generating the SystemVerilog for a given
   * config
@@ -106,7 +106,7 @@ object DefaultXilinxConfigEmitter extends EmitterApp(new DefaultPynqConfig) {
     )
   )
 
-  export(
+  writeTclScript(
     target = outputDir,
     vendor = "onera",
     name = "VTA",
@@ -136,7 +136,7 @@ object DebugXilinxConfigEmitter extends EmitterApp(new DefaultPynqConfig) {
     )
   )
 
-  export(
+  writeTclScript(
     target = outputDir,
     vendor = "onera",
     name = "VTA_debug",
@@ -188,7 +188,7 @@ object DefaultPynqConfigTbEmitter extends EmitterApp(new DefaultPynqConfig) {
 
   val memOutDir = outputDir / "mem"
   val (memoryConfigs, launchParams) =
-    vta.parsers.CompilerOutputLayout.build(
+   TestBenchLayout.build(
       compilerOutDir,
       layers,
       baseAddressOffset,

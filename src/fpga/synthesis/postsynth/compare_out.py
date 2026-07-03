@@ -12,11 +12,18 @@ L = A // reloStride; its offset into that layer's OUT buffer is
 where OUT_base is the "OUT" row of compiler_output/memory_addresses<layer>.csv.
 
 Usage:
-  compare_out.py --writes <run>/writes.log --layers MaxPool2,QLinearConv10,QLinearConv7 \
+  compare_out.py --writes <run>/writes.log --layers QLinearConv1,MaxPool2,QLinearConv3 \
                  --compiler-out <repo>/examples/compiler_output \
                  --golden-dir   <repo>/.../simulators_output \
                  [--relo-stride 0x200000]
+
+Note: this compares the whole OUT buffer, including block-padding lanes. When a layer's
+output-channel count is not a multiple of the block size (e.g. a 6-channel conv in a block
+of 16), the hardware leaves the padding lanes non-zero while the fsim golden zeroes them, so
+those lanes report as mismatches even though the valid channels are byte-exact. The padding
+is ignored by the next layer, so such a partial mismatch on a conv layer is benign.
 """
+
 import argparse
 import os
 import sys
@@ -42,8 +49,8 @@ def parse_writes(writes_path, relo_stride):
                 continue
             a, d, s, _last = line.split()
             addr = int(a, 16)
-            data = int(d, 16)          # 64-bit, little-endian byte i = bits [8i,8i+8)
-            strb = int(s, 16)          # 8-bit lane mask
+            data = int(d, 16)  # 64-bit, little-endian byte i = bits [8i,8i+8)
+            strb = int(s, 16)  # 8-bit lane mask
             lidx = addr // relo_stride
             bucket = per_layer.setdefault(lidx, {})
             for i in range(8):
@@ -91,7 +98,9 @@ def main():
         ok = matched == len(golden)
         all_ok &= ok
         verdict = "OK" if ok else "MISMATCH"
-        print(f"[{layer}] {matched}/{len(golden)} bytes  base=0x{base:x} relo=0x{relo:x}  {verdict}")
+        print(
+            f"[{layer}] {matched}/{len(golden)} bytes  base=0x{base:x} relo=0x{relo:x}  {verdict}"
+        )
         for off, exp, got in mism:
             gs = "----" if got is None else f"0x{got:02x}"
             print(f"    off {off:6d}: golden=0x{exp:02x} got={gs}")

@@ -1,12 +1,11 @@
 package unittest.mocks
 import chisel3._
-import com.fasterxml.jackson.databind.ObjectMapper
-import scala.io.Source
-import vta.core.TensorGemmPipelinedSplit
-import vta.core.TensorMaster
-import vta.core.UopMaster
 import chisel3.simulator.PeekPokeAPI
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
+import vta.core.{TensorGemmPipelinedSplit, TensorMaster, UopMaster}
+
+import scala.io.Source
 
 class TensorGemmJsonTester(
     c: TensorGemmPipelinedSplit,

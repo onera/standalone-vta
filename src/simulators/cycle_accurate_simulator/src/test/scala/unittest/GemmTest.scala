@@ -20,7 +20,6 @@
 package unittest
 
 import vta.core._
-import vta.util.config._
 import vta.tags.UnitTests
 import vta.util.AnyFlatSpecSim
 

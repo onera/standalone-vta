@@ -22,7 +22,6 @@ package unittest.isa
 import chisel3._
 import chisel3.util.BitPat
 import org.scalatest.matchers.should.Matchers
-
 import vta.core._
 import vta.tags.UnitTests
 import vta.util.AnyFlatSpecSim

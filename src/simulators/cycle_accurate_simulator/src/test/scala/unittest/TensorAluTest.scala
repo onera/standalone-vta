@@ -20,9 +20,9 @@
 package unittest
 
 import chisel3._
+import chisel3.simulator.PeekPokeAPI
 import vta.core._
 import vta.tags
-import chisel3.simulator.PeekPokeAPI
 import vta.util.AnyFlatSpecSim
 
 @tags.UnitTests

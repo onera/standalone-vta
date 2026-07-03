@@ -1,12 +1,9 @@
 package unittest.decode
 
-import chisel3._
-import chisel3.simulator.ChiselSim
+import chisel3.simulator.{ChiselSim, PeekPokeAPI}
 import unittest.GenericTest
 import vta.core._
 import vta.util.config.Parameters
-
-import chisel3.simulator.PeekPokeAPI
 
 class ComputeDecodeTest(c: ComputeDecode, debug: Boolean = false)
     extends PeekPokeAPI {

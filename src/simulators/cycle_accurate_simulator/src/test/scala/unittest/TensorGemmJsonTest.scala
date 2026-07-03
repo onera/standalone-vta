@@ -20,9 +20,8 @@
 package unittest
 
 import chisel3._
-import vta.core._
-
 import unittest.mocks.TensorGemmJsonTester
+import vta.core._
 import vta.tags.UnitTests
 import vta.util.AnyFlatSpecSim
 

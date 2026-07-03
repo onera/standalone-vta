@@ -13,7 +13,6 @@ object DataType extends Enumeration {
       val id: Int,
       val nbValues: Int,
       val precision: Map[Int, Int],
-      val name: String
   ) extends Value
 
   val configFileName =
@@ -22,43 +21,45 @@ object DataType extends Enumeration {
     System.getProperty("vta.config.fromResources", "false").toBoolean
 
   val params = computeJSONFile(configFileName, fromResources = useResources)
-  // val params = computeJSONFile("vta_config.json", fromResources = false)
-  def fromName(name: String): DataTypeValue = name match {
-    case "INSN" => INSN
-    case "UOP"  => UOP
-    case "ACC"  => ACC
-    case "INP"  => INP
-    case "WGT"  => WGT
-    case "OUT"  => OUT
-    case other  =>
-      throw new IllegalArgumentException(s"unknown region $other")
-  }
 
   val INP: DataTypeValue = new DataTypeValue(
     0,
     params("LOG_BLOCK"),
-    samePrecision(params("LOG_INP_WIDTH")),
-    "INP"
+    samePrecision(params("LOG_INP_WIDTH"))
   )
   val WGT: DataTypeValue = new DataTypeValue(
     1,
     params("LOG_BLOCK") * params("LOG_BLOCK"),
-    samePrecision(params("LOG_WGT_WIDTH")),
-    "WGT"
+    samePrecision(params("LOG_WGT_WIDTH"))
   )
   val OUT: DataTypeValue = new DataTypeValue(
     2,
     params("LOG_BLOCK"),
-    samePrecision(params("LOG_INP_WIDTH")),
-    "OUT"
+    samePrecision(params("LOG_INP_WIDTH"))
   )
   val UOP: DataTypeValue =
-    new DataTypeValue(3, 3, Map(0 -> 11, 1 -> 11, 2 -> 10),"UOP")
+    new DataTypeValue(3, 3, Map(0 -> 11, 1 -> 11, 2 -> 10))
   val ACC: DataTypeValue = new DataTypeValue(
     4,
     params("LOG_BLOCK"),
-    samePrecision(params("LOG_ACC_WIDTH")),
-    "ACC"
+    samePrecision(params("LOG_ACC_WIDTH"))
   )
-  val INSN: DataTypeValue = new DataTypeValue(5, 1, samePrecision(128),"INSN")
+  val INSN: DataTypeValue = new DataTypeValue(5, 1, samePrecision(128))
+
+  private val _nameOf: Map[DataTypeValue, String] = Map(
+    INP -> "INP",
+    WGT -> "WGT",
+    ACC -> "ACC",
+    OUT -> "OUT",
+    UOP -> "UOP",
+    INSN -> "INSN"
+  )
+
+  private val _fromName: Map[String, DataTypeValue] =
+    _nameOf.map { case (k, v) => v -> k }
+
+  implicit class datatypeHasName(dataType: DataTypeValue) {
+    def name = _nameOf(dataType)
+  }
+  def fromName(name: String) = _fromName(name)
 }

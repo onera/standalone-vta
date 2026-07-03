@@ -4,9 +4,10 @@ import chisel3._
 import chisel3.util._
 import vta.interface.axi.AXILiteMaster
 import vta.interface.axi.AxiLike._
-import vta.parsers.CompilerOutputLayout.LaunchParams
 import vta.shell.{ShellKey, VCRParams}
 import vta.util.config.Parameters
+
+import TestBenchLayout.LaunchParams
 
 /** Synthesizable hardware per-layer VTA driver. Walks a baked-in layer ROM: for each layer it
   * programs the VCR pointer/value registers, writes ctrl=1 to launch, polls

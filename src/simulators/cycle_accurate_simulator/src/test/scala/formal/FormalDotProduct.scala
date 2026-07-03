@@ -1,15 +1,14 @@
 package formal
 
+import _root_.circt.stage.ChiselStage
 import chisel3._
 import chiseltest._
-import chiseltest.formal._
 import chiseltest.experimental.observe
+import chiseltest.formal._
 import chiseltest.simulator.WriteVcdAnnotation
 import org.scalatest.flatspec.AnyFlatSpec
-import _root_.circt.stage.ChiselStage
-
-import vta.tags.tagObjects.{FormalTests, UnitTests}
 import vta.core.DotProduct
+import vta.tags.tagObjects.{FormalTests, UnitTests}
 
 /** Testing MacVTA
   */

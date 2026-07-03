@@ -1,8 +1,6 @@
 package vta.shell
 import chisel3._
 import org.scalatest.matchers.should.Matchers
-
-import vta.util.SimulationUtils._
 import vta.util.AnyFlatSpecSim
 
 class VCRSpec extends AnyFlatSpecSim with Matchers with vta.test.VcrTestUtils {

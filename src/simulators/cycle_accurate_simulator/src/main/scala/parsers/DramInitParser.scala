@@ -3,6 +3,7 @@ package vta.parsers
 import chisel3._
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
+import vta.models.CompilerOutputModel.LayerMetadata
 import vta.models.DataType._
 import vta.models.MemoryConfig
 import vta.util.MemoryInitializer.exportHexToMemFile
@@ -51,46 +52,7 @@ object DramInitParser {
     (p._1 -> (address, values))
   }
 
-  /** Geometry of a layer's store/output matrix, read from a compiler
-    * `metadata<suffix>.csv`. `isSquare`/`blockSize` come from the `BS` row,
-    * `outRows`/`outCols` from the (unpadded) `C` row.
-    */
-  case class LayerMetadata(
-      isSquare: Boolean,
-      blockSize: Int,
-      outRows: Int,
-      outCols: Int
-  )
 
-  /** Parse a `metadata<suffix>.csv` for the BS (block size) and C (output dims
-    * + full-matrix flag) rows. Accepts the new 4-column format (header row,
-    * `type,rows,cols,square`) and the old 3-column `BS = type,square,block`.
-    */
-  def parseMetadata(path: String): LayerMetadata = {
-    val src = Source.fromFile(path)
-    // Key on column 0; the header and extra `square` column fall out as unused keys.
-    val rows =
-      try {
-        src
-          .getLines()
-          .map(_.split(",").map(_.trim))
-          .collect { case arr if arr.length >= 3 => arr(0) -> arr }
-          .toMap
-      } finally src.close()
-    val bs = rows("BS")
-    val c = rows("C")
-    val (isSquare, blockSize) =
-      if (bs.length >= 4)
-        (c(3).toBoolean, bs(1).toInt) // new: square per-row, block in col1
-      else
-        (bs(1).toBoolean, bs(2).toInt) // old: square in BS col1, block in col2
-    LayerMetadata(
-      isSquare = isSquare,
-      blockSize = blockSize,
-      outRows = c(1).toInt,
-      outCols = c(2).toInt
-    )
-  }
 
   /** Number of 64-bit DRAM words the store output (OUT region) occupies.
     *
@@ -178,14 +140,14 @@ object DramInitParser {
         val hexIt = Iterator
           .continually(readUpToNBytes(bis, 8))
           .takeWhile(_.nonEmpty)
-          .map(bin2hexIt(_, bytesPerWord = 8, littleEndian = true))
+          .map(bytesToHex(_, bytesPerWord = 8, littleEndian = true))
 
         exportHexToMemFile(dt.name, hexIt, dirOut)
       } finally bis.close()
       size
     }
   }
-  def bin2hexIt(
+  def bytesToHex(
       bytes: Array[Byte],
       bytesPerWord: Int = 8,
       littleEndian: Boolean = false

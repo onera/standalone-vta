@@ -1,20 +1,14 @@
 package simulatorTest.gemm
 
-import chisel3._
-import chisel3.util._
-import unittest.util._
-import vta.core._
-import vta.util.config._
-
-import scala.io._
+import chisel3.simulator.PeekPokeAPI
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
-
-import unittest.{GenericTest}
-import vta.util.AnyFlatSpecSim
-import chisel3.simulator.PeekPokeAPI
-import vta.tags
 import org.scalatest.matchers.should.Matchers
+import vta.core._
+import vta.tags
+import vta.util.AnyFlatSpecSim
+
+import scala.io._
 
 /** Similar to unittest.TensorGemmJsonTest with adaptation
   */

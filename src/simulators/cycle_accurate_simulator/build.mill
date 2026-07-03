@@ -29,7 +29,6 @@ object `package` extends SbtModule with PublishModule with ScalafixModule {
     "-Xcheckinit",
     "-language:reflectiveCalls",
     "-Ymacro-annotations",
-    "-Wunused",
     "-release:8"
   )
 
@@ -148,7 +147,7 @@ object `package` extends SbtModule with PublishModule with ScalafixModule {
     println(s"[Clean] removed ${outputDir} directory")
 
   }
-  object test extends SbtTests with ScalaTest {
+  object test extends SbtTests with ScalaTest with ScalafixModule {
     override def scalaTestVersion: Simple[String] = "3.2.19"
 
     // override def testArgsDefault: Simple[Seq[String]] =

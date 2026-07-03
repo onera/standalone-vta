@@ -19,12 +19,12 @@
 
 package unittest
 
-import chisel3._
-import scala.math.pow
 import unittest.util._
 import vta.core._
 import vta.tags
 import vta.util.AnyFlatSpecSim
+
+import scala.math.pow
 
 @tags.UnitTests
 class MatrixVectorMultiplicationTest extends AnyFlatSpecSim {

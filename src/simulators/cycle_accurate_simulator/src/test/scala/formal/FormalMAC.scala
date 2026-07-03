@@ -1,15 +1,14 @@
 package formal
 
+import _root_.circt.stage.ChiselStage
 import chisel3._
-import chisel3.util._
 import chiseltest._
-import chiseltest.formal._
 import chiseltest.experimental.observe
+import chiseltest.formal._
 import chiseltest.simulator.WriteVcdAnnotation
 import org.scalatest.flatspec.AnyFlatSpec
-import _root_.circt.stage.ChiselStage
 import vta.core.MAC
-import vta.tags.tagObjects.{UnitTests, FormalTests}
+import vta.tags.tagObjects.{FormalTests, UnitTests}
 
 //import org.scalatest.Tag
 //object UnitTests extends Tag("UnitTests")

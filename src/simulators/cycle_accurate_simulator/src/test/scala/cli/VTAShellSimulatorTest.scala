@@ -1,10 +1,9 @@
 package cli
 
+import cli.{VTAShellSimBinary, VTAShellSimulator}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import cli.VTAShellSimulator
 import vta.tags.LongTests
-import cli.VTAShellSimBinary
 
 @LongTests
 class VTAShellSimulatorTest extends AnyFlatSpec with Matchers {

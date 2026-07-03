@@ -19,7 +19,6 @@
 
 package unittest
 
-import vta.core._
 import unittest.mocks.{
   TensorGemmIdxTester,
   TensorGemmIndexGeneratorTester,
@@ -27,6 +26,7 @@ import unittest.mocks.{
   TensorGemmResetTester,
   TensorGemmTester
 }
+import vta.core._
 import vta.tags
 import vta.util.AnyFlatSpecSim
 

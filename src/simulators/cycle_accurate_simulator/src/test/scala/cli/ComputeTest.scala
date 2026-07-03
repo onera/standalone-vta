@@ -1,18 +1,10 @@
 package cli
 
-import chisel3._
-import chisel3.simulator.scalatest.ChiselSim
-import unittest.GenericTest
-import vta.core.ISA._
-import vta.core._
-import vta.shell.VMEReadMaster
-import vta.util.config.Parameters
-import vta.util.AnyFlatSpecSim
 import vta.configs.DefaultPynqConfig
-import org.scalatest.tags.Slow
-import chisel3.test.UnitTest
-import chisel3.simulator.scalatest.HasCliOptions
+import vta.core._
 import vta.tags
+import vta.util.AnyFlatSpecSim
+import vta.util.config.Parameters
 
 trait ComputeTest extends AnyFlatSpecSim {
 
