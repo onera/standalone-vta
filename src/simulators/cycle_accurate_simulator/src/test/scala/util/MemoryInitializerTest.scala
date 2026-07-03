@@ -14,7 +14,7 @@ class MemoryInitializerTest extends AnyFlatSpec with Matchers {
     )
     val hexSeq = getHexFromBinaryFiles(paths)
     MemoryInitializer.exportHexToMemFiles(
-      hexSeq.map(p => (p._1.getName(), p._2._1)).toMap,
+      hexSeq.map(p => (p._1.name, p._2._1)).toMap,
       os.pwd / "build" / "memTest"
     )
 

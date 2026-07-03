@@ -1,8 +1,7 @@
-package vta.test
+package vta.parsers
 
-import vta.models.DataType._
+import vta.models.{DataType, MemoryConfig}
 import vta.parsers.DramInitParser
-import vta.util.MemoryConfig
 
 import scala.io.Source
 
@@ -22,12 +21,12 @@ object CompilerOutputLayout {
   case class LaunchParams(insnBaddr: BigInt, insnCount: Int, relo: BigInt)
 
   /** One row of memory_addresses<layer>.csv: NAME,0xBASE,0xSIZE_BYTES. */
-  private case class Region(name: String, base: Long, sizeBytes: Long)
+  private case class MemoryRegion(name: String, base: Long, sizeBytes: Long)
 
   private def parseAddressesCsv(
       compilerOutDir: String,
       layer: String
-  ): Seq[Region] = {
+  ): Seq[MemoryRegion] = {
     val path = s"$compilerOutDir/memory_addresses$layer.csv"
     val src = Source.fromFile(path)
     try {
@@ -46,7 +45,7 @@ object CompilerOutputLayout {
             parts.length >= 3,
             s"unexpected csv line in $path: ${parts.mkString(",")}"
           )
-          Region(
+          MemoryRegion(
             name = parts(0),
             base = java.lang.Long.parseLong(parts(1).stripPrefix("0x"), 16),
             sizeBytes = java.lang.Long.parseLong(parts(2).stripPrefix("0x"), 16)
@@ -82,16 +81,6 @@ object CompilerOutputLayout {
         throw new IllegalArgumentException(s"unknown region $other in $layer")
     }
 
-  private def dataTypeFor(name: String): DataTypeValue = name match {
-    case "INSN" => INSN
-    case "UOP"  => UOP
-    case "ACC"  => ACC
-    case "INP"  => INP
-    case "WGT"  => WGT
-    case "OUT"  => OUT
-    case other  =>
-      throw new IllegalArgumentException(s"unknown region $other")
-  }
 
   /** Build the full DRAM MemoryConfig list spanning all layers and the
     * per-layer launch parameters (in `layers` order).
@@ -121,7 +110,7 @@ object CompilerOutputLayout {
       val accFromDump = !regions.exists(_.name == "INP")
 
       for (r <- regions) {
-        val dt = dataTypeFor(r.name)
+        val dt = DataType.fromName(r.name)
         val pathOpt =
           fileFor(compilerOutDir, inpDir, layer, r.name, accFromDump)
 
@@ -137,18 +126,11 @@ object CompilerOutputLayout {
             val wordCount = if (cacheValid) {
               os.read.lines(memFile).size
             } else {
-              // val hex = DramInitParser.getHexFromBinaryFiles(
-              //   Map(dt -> binPath),
-              //   fromResources = false
-              // )
-              // exportHexToMemFiles(Map(memName -> hex(dt)._1), memOutDir)
               DramInitParser.fileBin2hex(
                 binPath,
                 memOutDir,
                 dt,
-                fromResource = false
               )
-              // hex(dt)._1.length
             }
             val numData =
               if (r.name == "INSN") wordCount / 2 else binSize.toInt

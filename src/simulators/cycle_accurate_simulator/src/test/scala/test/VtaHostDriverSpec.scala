@@ -3,7 +3,7 @@ package vta.test
 import chisel3._
 import org.scalatest.flatspec.AnyFlatSpec
 import vta.shell.{ShellKey, VCR}
-import vta.test.CompilerOutputLayout.LaunchParams
+import vta.parsers.CompilerOutputLayout.LaunchParams
 import vta.util.AnyFlatSpecSim
 import vta.util.config.Parameters
 

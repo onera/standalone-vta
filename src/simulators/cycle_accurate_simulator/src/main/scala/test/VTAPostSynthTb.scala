@@ -3,9 +3,9 @@ package vta.test
 import chisel3._
 import chisel3.experimental.dataview.DataViewable
 import vta.interface.axi._
+import vta.models.MemoryConfig
+import vta.parsers.CompilerOutputLayout.LaunchParams
 import vta.shell.{ShellKey, XilinxDebugShell}
-import vta.test.CompilerOutputLayout.LaunchParams
-import vta.util.MemoryConfig
 import vta.util.config.Parameters
 
 /** Self-driving multi-layer testbench for post-synthesis simulation of the

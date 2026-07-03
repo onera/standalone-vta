@@ -3,6 +3,7 @@ package cli
 import chisel3.simulator.HasSimulator
 import chisel3.testing.HasTestingDirectory
 import vta.models.DataType._
+import vta.models.MemoryConfig
 import vta.parsers.DramInitParser
 import vta.parsers.DramInitParser.{
   getMemoryConfigurations,
@@ -10,7 +11,6 @@ import vta.parsers.DramInitParser.{
   parseMemorySections
 }
 import vta.test.VTAShellTest
-import vta.util.MemoryConfig
 import vta.util.MemoryInitializer.{exportHexFiles, exportHexToMemFiles}
 import vta.util.SimulationUtils.{EnableMemInitVerilog, verilatorWithWaveDump}
 
@@ -76,18 +76,17 @@ object VTAShellSimBinary extends App with VTAShellTest {
     (ACC, path + s"/accumulator${suffix}.bin"),
     (INSN, path + s"/instructions${suffix}.bin")
   )
-  import DramInitParser._
   val hex =
     DramInitParser.getHexFromBinaryFiles(
       files,
       false
     )
   val memFiles = exportHexToMemFiles(
-    hex.map(p => (p._1.getName(), p._2._1)),
+    hex.map(p => (p._1.name, p._2._1)),
     output
   )
 
-  implicit val simulatorWithFst = verilatorWithWaveDump
+  implicit val simulatorWithFst: HasSimulator = verilatorWithWaveDump
   implicit val enableMemoryInit: svsim.CommonSettingsModifications =
     EnableMemInitVerilog
 
@@ -113,10 +112,10 @@ object VTAShellSimBinary extends App with VTAShellTest {
   val memoryConfigs = files
     .map(e =>
       MemoryConfig(
-        name = e._1.getName(),
-        path = memFiles(e._1.getName()).toString(),
+        name = e._1.name,
+        path = memFiles(e._1.name).toString(),
         baseAddress =
-          BigInt(addresses(e._1.getName()).split("x").last, 16).toInt,
+          BigInt(addresses(e._1.name).split("x").last, 16).toInt,
         numberOfData = hex(e._1)._2,
         words64 = hex(e._1)._1.size
       )

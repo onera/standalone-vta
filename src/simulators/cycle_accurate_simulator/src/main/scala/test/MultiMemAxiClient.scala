@@ -7,8 +7,9 @@ import chisel3.util.{MuxCase, log2Ceil}
 import org.scalatest.flatspec.AnyFlatSpec
 import vta.interface.axi.AxiLike._
 import vta.interface.axi.{AXIClient, AXIParams}
+import vta.models.MemoryConfig
+import vta.util.EnableMemInit
 import vta.util.SimulationUtils.verilatorWithWaveDump
-import vta.util.{EnableMemInit, MemoryConfig}
 
 /** A simulation utility module to connect several memories (sync write async
   * read)
@@ -34,8 +35,7 @@ class MultiMemAxiClient(
   val readHandle = io.readHandler(readEnable)
   val writeHandle = io.writeHandler(writeEnable)
 
-  // AXI AxADDR is a *byte* address (AMBA AXI spec A3.1.6: Start_Addr is in
-  // bytes, increments by Size bytes/beat). The memories below are 64-bit-word
+  // AXI AxADDR is a *byte* address. The memories below are 64-bit-word
   // wide and word-indexed, so a byte address must be divided by the data-bus
   // byte width to obtain a word index. baseAddress/words64 are likewise the
   // byte base and the 64-bit-word count of each region.

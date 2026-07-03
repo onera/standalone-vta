@@ -4,7 +4,7 @@ import chisel3._
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import vta.models.DataType._
-import vta.util.MemoryConfig
+import vta.models.MemoryConfig
 import vta.util.MemoryInitializer.exportHexToMemFile
 
 import java.io.{BufferedInputStream, FileInputStream}
@@ -14,18 +14,6 @@ import BinaryReader.readBinaryFile
 
 object DramInitParser {
 
-  implicit class DataTypeHasName(datatype: DataTypeValue) {
-
-    def getName(): String =
-      datatype match {
-        case INSN => "INSN"
-        case UOP  => "UOP"
-        case OUT  => "OUT"
-        case INP  => "INP"
-        case ACC  => "ACC"
-        case WGT  => "WGT"
-      }
-  }
 
   def parseJsonMemoryInitFile(
       file: String,
@@ -180,7 +168,6 @@ object DramInitParser {
       fileIn: String,
       dirOut: os.Path,
       dt: DataTypeValue,
-      fromResource: Boolean = true
   ) = {
     if (fileIn.trim.isEmpty) {
       0
@@ -193,7 +180,7 @@ object DramInitParser {
           .takeWhile(_.nonEmpty)
           .map(bin2hexIt(_, bytesPerWord = 8, littleEndian = true))
 
-        exportHexToMemFile(dt.getName(), hexIt, dirOut)
+        exportHexToMemFile(dt.name, hexIt, dirOut)
       } finally bis.close()
       size
     }

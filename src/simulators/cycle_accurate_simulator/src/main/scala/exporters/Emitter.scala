@@ -188,7 +188,7 @@ object DefaultPynqConfigTbEmitter extends EmitterApp(new DefaultPynqConfig) {
 
   val memOutDir = outputDir / "mem"
   val (memoryConfigs, launchParams) =
-    vta.test.CompilerOutputLayout.build(
+    vta.parsers.CompilerOutputLayout.build(
       compilerOutDir,
       layers,
       baseAddressOffset,

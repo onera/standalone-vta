@@ -4,12 +4,11 @@ import chisel3._
 import chisel3.util._
 import vta.interface.axi.AXILiteMaster
 import vta.interface.axi.AxiLike._
+import vta.parsers.CompilerOutputLayout.LaunchParams
 import vta.shell.{ShellKey, VCRParams}
-import vta.test.CompilerOutputLayout.LaunchParams
 import vta.util.config.Parameters
 
-/** Synthesizable hardware re-implementation of VTAShellMultiLayerSpec's
-  * per-layer Scala driver. Walks a baked-in layer ROM: for each layer it
+/** Synthesizable hardware per-layer VTA driver. Walks a baked-in layer ROM: for each layer it
   * programs the VCR pointer/value registers, writes ctrl=1 to launch, polls
   * ctrl bit1 (finish) over AXI-Lite, then advances. Raises `done` after the
   * last layer; raises `error` (latching `layerIdx`) if a layer never finishes

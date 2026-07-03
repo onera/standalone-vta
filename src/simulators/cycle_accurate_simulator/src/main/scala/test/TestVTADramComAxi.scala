@@ -13,8 +13,8 @@ import chisel3.util.experimental.BoringUtils
 import vta.configs.DefaultPynqConfig
 import vta.core.Fetch64Bit
 import vta.interface.axi.AXILiteClient
+import vta.models.MemoryConfig
 import vta.shell.{ShellKey, VTAShell}
-import vta.util.MemoryConfig
 import vta.util.config.Parameters
 
 class VTAShellTestFull(
