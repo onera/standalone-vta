@@ -16,7 +16,7 @@ ENV JAVA_TOOL_OPTIONS=${PROXY_JVM_OPTS}
 ENV JAVA_OPTS=${PROXY_JVM_OPTS}
 ENV MILL_JVM_OPTS=${PROXY_JVM_OPTS}
 
-ENV MILL_VERSION=1.1.4-jvm
+ENV MILL_VERSION=1.1.7-jvm
 ENV VERILATOR_VERSION=5.046
 
 # some Vitis deps require a timezone to be specified, which hangs in Docker
@@ -27,21 +27,21 @@ ENV LC_ALL=en_US.UTF-8
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    locales \
-    gawk \
-    make \
-    libtinfo6 \
-    openjdk-21-jdk \
-    help2man \
-    flex \
-    bison \
-    ccache \
-    libgoogle-perftools-dev \
-    libjemalloc-dev \
-    perl-doc \
-    libfl2 \
-    libfl-dev \
-    && rm -rf /var/lib/apt/lists/*
+  locales \
+  gawk \
+  make \
+  libtinfo6 \
+  openjdk-21-jdk \
+  help2man \
+  flex \
+  bison \
+  ccache \
+  libgoogle-perftools-dev \
+  libjemalloc-dev \
+  perl-doc \
+  libfl2 \
+  libfl-dev \
+  && rm -rf /var/lib/apt/lists/*
 
 RUN locale-gen "en_US.UTF-8"
 
@@ -50,13 +50,13 @@ RUN ln -s /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/x86_64-linux-gnu/libt
 RUN update-alternatives --set awk /usr/bin/gawk
 
 RUN cd /opt \
-    && git clone --depth 1 --branch v${VERILATOR_VERSION} https://github.com/verilator/verilator \
-    && unset VERILATOR_ROOT \
-    && cd verilator \
-    && autoconf \
-    && ./configure \
-    && make -j4 \
-    && make install
+  && git clone --depth 1 --branch v${VERILATOR_VERSION} https://github.com/verilator/verilator \
+  && unset VERILATOR_ROOT \
+  && cd verilator \
+  && autoconf \
+  && ./configure \
+  && make -j4 \
+  && make install
 
 COPY environment_setup/requirements.txt /tmp/requirements.txt
 RUN pip install -r /tmp/requirements.txt
