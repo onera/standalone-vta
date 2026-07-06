@@ -15,8 +15,8 @@ object Dependency {
     catch { case _: NumberFormatException => default }
 
   /** Parse `dependency.csv` content. */
-  def parse(source: Source): DependencyInfo = {
-    val rows = source.getLines()
+  def parse(file: String): DependencyInfo = {
+    val rows = Source.fromFile(file).getLines()
       .map(_.split(",", -1).map(_.trim))
       .filter(row => row.nonEmpty && row(0).nonEmpty)
       .toVector

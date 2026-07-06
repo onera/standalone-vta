@@ -15,7 +15,7 @@ import com.goyeau.mill.scalafix.ScalafixModule
 import mill.javalib.testrunner.TestResult
 import mill.javalib.Assembly.Rule
 
-object `package` extends SbtModule with PublishModule with ScalafixModule {
+object `package` extends SbtModule with PublishModule with ScalafixModule { m =>
 
   def artifactName = "vta-standalone"
 

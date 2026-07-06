@@ -187,7 +187,7 @@ object DefaultPynqConfigTbEmitter extends EmitterApp(new DefaultPynqConfig) {
   val simOutDir = argVal("simOutDir", "../../../simulators_output")
 
   val memOutDir = outputDir / "mem"
-  val (memoryConfigs, launchParams) =
+  val (memoryConfigs,launchParams) =
    TestBenchLayout.build(
       compilerOutDir,
       layers,

@@ -152,10 +152,9 @@ trait VTAShellTest extends ChiselSim with AxiFullSimUtils with VcrTestUtils {
       chiselOptsModifications: ChiselOptionsModifications,
       firtoolOptsModifications: FirtoolOptionsModifications,
       commonSettingsModifications: svsim.CommonSettingsModifications,
-      backendSettingsModifications: svsim.BackendSettingsModifications
+      backendSettingsModifications: svsim.BackendSettingsModifications,
+      parameters: Parameters = new DefaultPynqConfig
   ) = {
-    implicit val parameters: Parameters = new DefaultPynqConfig
-
     // Settings modifications (mem-init, FST tracing, ...) are forwarded from
     // the call site rather than fixed here, so each caller controls them.
     simulate(
@@ -171,7 +170,7 @@ trait VTAShellTest extends ChiselSim with AxiFullSimUtils with VcrTestUtils {
       }
 
       writeInstructionBaseAddress(
-        content.find(_.name.matches("INSN")).get.baseAddress
+        content.find(_.name.startsWith("INSN")).get.baseAddress
       )
       writeUopBaseAddress(0)
       writeInputBaseAddress(0)
@@ -181,7 +180,7 @@ trait VTAShellTest extends ChiselSim with AxiFullSimUtils with VcrTestUtils {
       // Configure instruction size
 
       writeInstructionCount(
-        content.find(_.name.matches("INSN")).get.numberOfData
+        content.find(_.name.startsWith("INSN")).get.numberOfData
       )
 
       // launch the processing of VTA

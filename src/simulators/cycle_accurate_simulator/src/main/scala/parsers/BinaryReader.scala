@@ -3,6 +3,16 @@ package vta.parsers
 import java.io.{File, FileInputStream, InputStream}
 import scala.math.pow
 import scala.util.{Failure, Success, Try}
+import scala.io.Source
+import vta.util.FileManager.getFileOrResourceAsStream
+import vta.util.FileManager.getSource
+import vta.util.FileManager.readFile
+import geny.Readable.InputStreamReadable
+import vta.util.ByteCodec.bin2hex
+import java.io.BufferedInputStream
+import vta.util.ByteCodec.bytesToHexWord
+import vta.util.ByteCodec.readUpToNBytes
+import vta.util.FileManager.getCompilerOutputFile
 
 object BinaryReader {
 
@@ -21,14 +31,10 @@ object BinaryReader {
       filePath: String,
       fromResources: Boolean
   ): Try[Array[Byte]] = {
-    Try {
-      val inputStream: InputStream = {
-        if (fromResources) {
-          getClass.getClassLoader.getResourceAsStream(filePath)
-        } else {
-          new FileInputStream(filePath)
-        }
-      }
+    for {
+       inputStream <- getFileOrResourceAsStream(filePath,fromResources)
+    } yield {
+
       val fileSize = inputStream.available()
       val fileContent = new Array[Byte](fileSize)
 
@@ -94,95 +100,12 @@ object BinaryReader {
     }
   }
 
-  /** Reads the content of a CSV or JSON file and returns it
-    * @param filePath
-    *   the path to the file
-    * @param fromResources
-    *   boolean that is true if the files are in a Resources folder, false
-    *   otherwise
-    * @return
-    *   a String with the content of the file
-    */
-  def readFile(filePath: String, fromResources: Boolean): Try[String] = {
-    Try {
-      val inputStream: InputStream = {
-        if (fromResources) {
-          getClass.getClassLoader.getResourceAsStream(filePath)
-        } else {
-          new FileInputStream(filePath)
-        }
-      }
-      val fileContent =
-        scala.io.Source.fromInputStream(inputStream, "UTF-8").mkString
-      inputStream.close()
-      fileContent
-    }
-  }
 
-  /** Reads a JSON file and puts the data in a Map
-    * @param filePath
-    *   the path to the JSON file
-    * @param fromResources
-    *   boolean that is true if the files are in a Resources folder, false
-    *   otherwise
-    * @return
-    *   a Map with the parsed content from the file
-    */
-  def computeJSONFile(
-      filePath: String,
-      fromResources: Boolean
-  ): Map[String, Int] = {
-    (for {
-      decodedJson <- parseConfigJson(filePath, fromResources)
-    } yield {
+  def readBinaryStream(binStream: BufferedInputStream,dt: DataTypeValue): LazyList[String] = 
+    LazyList.continually(readUpToNBytes(binStream,8))
+      .takeWhile(_.nonEmpty)
+      .map(bytesToHexWord(_,8,true))
 
-      val filteredJson = decodedJson -- Seq("TARGET", "HW_VER")
-      val json = filteredJson.map { case (key, value) =>
-        key -> pow(2, value.toInt).toInt
-      }
-      json
-    }).get
-  }
-
-  def parseConfigJson(
-      filePath: String,
-      fromResources: Boolean
-  ): Try[Map[String, String]] = {
-    val newFilePath =
-      if (!fromResources) {
-        val projectRoot = new File("../../../")
-        val compilerOutputDir = new File(projectRoot, "config")
-        val basePath = compilerOutputDir.getCanonicalPath
-        s"$basePath/" + filePath
-      } else {
-        filePath
-      }
-    for {
-      content <- readFile(newFilePath, fromResources)
-    } yield {
-
-      val decodedJson: Map[String, String] = {
-        content
-          .split("\n")
-          .filterNot(line =>
-            line.startsWith("//") || line.trim.isEmpty || line.contains(
-              "{"
-            ) || line.contains("}")
-          )
-          .map { line =>
-            val array = line.trim
-              .replaceAll(" ", "")
-              .replaceAll("\"", "")
-              .replaceAll(",", "")
-              .replaceAll("\n", "")
-              .replaceAll("\r", "")
-              .split(":")
-            (array(0), array(1))
-          }
-      }.toMap
-      decodedJson
-    }
-  }
 
   /** Reads the base memory addresses of the data and UOP inside a .csv file and
     * returns a Map that associates the data type and its base address
@@ -293,15 +216,7 @@ object BinaryReader {
       isDRAM: Boolean,
       fromResources: Boolean
   ): Try[Map[BigInt, Array[BigInt]]] = {
-    val newFilePath =
-      if (!fromResources) { // if binary files are located in /compiler_output and not a resource folder
-        val projectRoot = new File("../../../")
-        val compilerOutputDir = new File(projectRoot, "compiler_output")
-        val basePath = compilerOutputDir.getCanonicalPath
-        s"$basePath/" + filePath
-      } else { // if files are located in a resource folder
-        filePath
-      }
+    val newFilePath = getCompilerOutputFile(filePath)
     val groupedBinaryData =
       readBinaryFile(newFilePath, fromResources) match {
         case Success(fileContent) =>

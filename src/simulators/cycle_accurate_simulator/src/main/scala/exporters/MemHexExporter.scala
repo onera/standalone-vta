@@ -1,9 +1,16 @@
-package vta.util
+package vta.exporters
 
-import chisel3._
-import os.Source.WritableSource
+import chisel3.UInt
+import java.io.BufferedInputStream
+import java.io.FileInputStream
+import vta.models.DataType.DataTypeValue
+import vta.util.ByteCodec.bytesToHexWord
+import vta.util.ByteCodec.readUpToNBytes
 
-object MemoryInitializer {
+
+
+object MemHexExporter {
+
   def exportHexFiles(
       content: Map[String, (Int, List[UInt])],
       file: os.Path,
@@ -69,9 +76,9 @@ object MemoryInitializer {
       name -> filePath
     }
   }
-  def exportHexToMemFile(
+  def exportHexToMemFile[T <: Iterable[String]](
       name: String,
-      content: Iterator[String],
+      content: T,
       file: os.Path
   ): (String, os.Path) = {
 
@@ -80,4 +87,5 @@ object MemoryInitializer {
 
     name -> filePath
   }
+
 }

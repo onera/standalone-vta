@@ -1,6 +1,6 @@
 package vta.models
 
-import vta.parsers.BinaryReader.computeJSONFile
+import vta.parsers.ConfigParser.getConfigParametersFromFile
 
 /** Definition of an Enumeration listing the data types. The attributes of each
   * type are its ID, the size of its vectors (in Bytes) and its bit-length
@@ -20,7 +20,7 @@ object DataType extends Enumeration {
   val useResources =
     System.getProperty("vta.config.fromResources", "false").toBoolean
 
-  val params = computeJSONFile(configFileName, fromResources = useResources)
+  val params = getConfigParametersFromFile(configFileName, fromResources = useResources)
 
   val INP: DataTypeValue = new DataTypeValue(
     0,
@@ -54,6 +54,11 @@ object DataType extends Enumeration {
     UOP -> "UOP",
     INSN -> "INSN"
   )
+
+  /** Canonical ordered list of buffer-type names. Order matches
+    * CompilerOutput.bufferTypes (INP,WGT,ACC,OUT,UOP,INSN).
+    */
+  val names: Seq[String] = Seq("INP", "WGT", "ACC", "OUT", "UOP", "INSN")
 
   private val _fromName: Map[String, DataTypeValue] =
     _nameOf.map { case (k, v) => v -> k }

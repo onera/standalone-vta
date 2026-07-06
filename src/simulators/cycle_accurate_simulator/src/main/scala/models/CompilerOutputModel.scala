@@ -13,6 +13,9 @@ object CompilerOutputModel {
       outCols: Int
   )
 
+  private val page = 0x1000L
+  def alignPage(n: Long): Long = ((n + page - 1) / page) * page
+
   /** One row of `memory_addresses<layer>.csv`.
     *
     * @param name
@@ -25,11 +28,11 @@ object CompilerOutputModel {
     *   real allocated size in bytes; 0 until filled by [[parseLayers]] from the
     *   global physical layout
     */
-  case class Region(
+  case class MemoryRegion(
       name: String,
       offset: Long,
-      logicalAddr: Long,
-      byteSize: Long
+      logicalAddr: Option[Long],
+      byteSize: Option[Long] = None
   )
 
   /** One layer-details row of dependency.csv. */

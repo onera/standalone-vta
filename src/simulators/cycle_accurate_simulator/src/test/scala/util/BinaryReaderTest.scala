@@ -9,6 +9,7 @@ import vta.tags.UnitTests
 import java.math.BigInteger
 import scala.math.pow
 import scala.util.{Failure, Success}
+import vta.parsers.ConfigParser.getConfigParametersFromFile
 
 @UnitTests
 class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
@@ -1902,7 +1903,7 @@ class BinaryReaderTest extends AnyFlatSpec with should.Matchers {
 
   /* Decoding JSON file for VTA config */
   it should "decode the JSON config file in resources" in {
-    val params = computeJSONFile("vta_config_test.json", fromResources = true)
+    val params = getConfigParametersFromFile("vta_config_test.json", fromResources = true)
     params("LOG_INP_WIDTH") should equal(pow(2, 3))
     params("LOG_BLOCK") should equal(pow(2, 4))
   }

@@ -4,22 +4,21 @@ import cli.{VTAShellSimBinary, VTAShellSimulator}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import vta.tags.LongTests
+import vta.util.FileManager.getResourceAsFile
 
 @LongTests
 class VTAShellSimulatorTest extends AnyFlatSpec with Matchers {
 
   behavior of "VTAShellSimulator"
 
-  // FIXME: use resources instead
-  val basePath = for {
-    millRoot <- sys.env.get("MILL_WORKSPACE_ROOT")
-  } yield {
-    millRoot + "/"
-  }
+  val dramStateJson = getResourceAsFile("examples_shell/dram_state.json").get.getCanonicalPath()
+  val lenet5ConvDir = getClass.getClassLoader.getResource("examples_compute/lenet5_conv1").getPath()
+
   it should "run for the resource test" in {
     VTAShellSimulator.main(
       Array(
-        s"${basePath.getOrElse("")}src/test/resources/examples_shell/dram_state.json"
+        dramStateJson
+        // s"${basePath.getOrElse("")}src/test/resources/examples_shell/dram_state.json"
       )
     )
   }
@@ -27,7 +26,8 @@ class VTAShellSimulatorTest extends AnyFlatSpec with Matchers {
   it should "run for binary files" in {
     VTAShellSimBinary.main(
       Array(
-        s"${basePath.getOrElse("")}src/test/resources/examples_compute/lenet5_conv1",
+        lenet5ConvDir,
+        // s"${basePath.getOrElse("")}src/test/resources/examples_compute/lenet5_conv1",
         ""
       )
     )
