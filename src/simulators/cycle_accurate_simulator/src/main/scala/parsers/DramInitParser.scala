@@ -6,15 +6,11 @@ import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import vta.models.CompilerOutputModel.LayerMetadata
 import vta.models.DataType._
 import vta.models.MemoryConfig
-import vta.exporters.MemHexExporter.exportHexToMemFile
+import vta.util.ByteCodec.bin2hex
 
-import java.io.{BufferedInputStream, FileInputStream}
 import scala.io.Source
 
 import BinaryReader.readBinaryFile
-import vta.util.ByteCodec.readUpToNBytes
-import vta.util.ByteCodec.bytesToHexWord
-import vta.util.ByteCodec.bin2hex
 
 object DramInitParser {
 

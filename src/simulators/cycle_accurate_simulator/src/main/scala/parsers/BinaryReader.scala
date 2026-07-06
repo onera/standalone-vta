@@ -1,18 +1,10 @@
 package vta.parsers
 
-import java.io.{File, FileInputStream, InputStream}
-import scala.math.pow
+import vta.util.ByteCodec.{bytesToHexWord, readUpToNBytes}
+import vta.util.FileManager.{getCompilerOutputFile, getFileOrResourceAsStream, readFile}
+
+import java.io.{BufferedInputStream, File}
 import scala.util.{Failure, Success, Try}
-import scala.io.Source
-import vta.util.FileManager.getFileOrResourceAsStream
-import vta.util.FileManager.getSource
-import vta.util.FileManager.readFile
-import geny.Readable.InputStreamReadable
-import vta.util.ByteCodec.bin2hex
-import java.io.BufferedInputStream
-import vta.util.ByteCodec.bytesToHexWord
-import vta.util.ByteCodec.readUpToNBytes
-import vta.util.FileManager.getCompilerOutputFile
 
 object BinaryReader {
 

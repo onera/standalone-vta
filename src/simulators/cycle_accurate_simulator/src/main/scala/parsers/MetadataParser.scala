@@ -1,9 +1,6 @@
 package vta.parsers
 
-import vta.models.CompilerOutputModel.{LayerMetadata,MemoryRegion}
-
-
-import scala.io.Source
+import vta.models.CompilerOutputModel.MemoryRegion
 
 /** Elaboration-time builder that turns a `compiler_output` directory into the
   * DRAM `MemoryConfig` list and the per-layer launch table consumed by both the

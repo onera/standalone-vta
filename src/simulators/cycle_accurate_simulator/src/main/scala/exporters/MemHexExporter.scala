@@ -1,11 +1,6 @@
 package vta.exporters
 
 import chisel3.UInt
-import java.io.BufferedInputStream
-import java.io.FileInputStream
-import vta.models.DataType.DataTypeValue
-import vta.util.ByteCodec.bytesToHexWord
-import vta.util.ByteCodec.readUpToNBytes
 
 
 

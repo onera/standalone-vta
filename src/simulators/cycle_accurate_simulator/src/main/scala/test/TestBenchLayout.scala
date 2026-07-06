@@ -1,14 +1,11 @@
 package vta.test
 
-import vta.exporters.MemHexExporter
-import vta.models.DataType
-import vta.models.MemoryConfig
-import vta.parsers.MetadataParser.loadLayerRegions
-import vta.parsers.MetadataParser.insnCountFromFile
-import java.io.BufferedInputStream
-import java.io.FileInputStream
+import vta.models.{DataType, MemoryConfig}
+import vta.parsers.MetadataParser.{insnCountFromFile, loadLayerRegions}
 import vta.util.ByteCodec
 import vta.util.ByteCodec.readUpToNBytes
+
+import java.io.{BufferedInputStream, FileInputStream}
 
 /** Elaboration-time builder that turns a `compiler_output` directory into the
   * DRAM `MemoryConfig` list and the per-layer launch table consumed by both the

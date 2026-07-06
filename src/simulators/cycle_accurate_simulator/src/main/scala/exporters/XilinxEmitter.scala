@@ -20,11 +20,11 @@
 package vta
 
 import circt.stage.ChiselStage
+import vta.configs.DefaultPynqConfig
 import vta.core._
+import vta.exporters.XilinxIpPackager.writeTclScript
 import vta.shell._
 import vta.util.config.Parameters
-import vta.exporters.XilinxIpPackager.writeTclScript
-import vta.configs.DefaultPynqConfig
 
 object XilinxEmit {
   val vendor = "onera"

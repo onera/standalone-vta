@@ -19,12 +19,10 @@
 
 package vta.core
 
+import vta.parsers.ConfigParser.{getConfigParametersFromMap, parseConfigJson}
 import vta.util.config._
 
 import scala.math.pow
-import vta.parsers.ConfigParser.getConfigParametersFromFile
-import vta.parsers.ConfigParser.parseConfigJson
-import vta.parsers.ConfigParser.getConfigParametersFromMap
 
 /** CoreConfig.
  *

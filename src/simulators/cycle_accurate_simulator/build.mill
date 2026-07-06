@@ -29,6 +29,8 @@ object `package` extends SbtModule with PublishModule with ScalafixModule { m =>
     "-Xcheckinit",
     "-language:reflectiveCalls",
     "-Ymacro-annotations",
+    "-Wunused:imports",
+    "-Wdead-code",
     "-release:8"
   )
 

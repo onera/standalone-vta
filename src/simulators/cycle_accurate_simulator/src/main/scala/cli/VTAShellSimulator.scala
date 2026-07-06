@@ -2,25 +2,17 @@ package cli
 
 import chisel3.simulator.HasSimulator
 import chisel3.testing.HasTestingDirectory
-import vta.models.DataType._
+import vta.exporters.MemHexExporter.exportHexFiles
 import vta.models.MemoryConfig
-import vta.parsers.DramInitParser
 import vta.parsers.DramInitParser.{
   getMemoryConfigurations,
   parseJsonMemoryInitFile,
   parseMemorySections
 }
-import vta.test.VTAShellTest
-import vta.exporters.MemHexExporter.{exportHexFiles, exportHexToMemFiles}
+import vta.test.{TestBenchLayout, VTAShellTest}
 import vta.util.SimulationUtils.{EnableMemInitVerilog, verilatorWithWaveDump}
 
-import java.io.File
 import java.nio.file.{Path, Paths}
-import scala.io.Source
-import vta.parsers.ConfigParser.getConfigParametersFromFile
-import vta.parsers.MetadataParser
-import vta.models.CompilerOutputModel.MemoryRegion
-import vta.test.TestBenchLayout
 
 // FIXME: simple app, needs refinement
 object VTAShellSimulator extends App with VTAShellTest {

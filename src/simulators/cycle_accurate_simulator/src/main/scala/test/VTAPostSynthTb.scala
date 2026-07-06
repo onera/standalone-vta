@@ -2,11 +2,12 @@ package vta.test
 
 import chisel3._
 import chisel3.experimental.dataview.DataViewable
-import vta.shell.{ShellKey, XilinxDebugShell}
 import vta.interface.axi._
-import TestBenchLayout.LaunchParams
 import vta.models.MemoryConfig
+import vta.shell.{ShellKey, XilinxDebugShell}
 import vta.util.config.Parameters
+
+import TestBenchLayout.LaunchParams
 
 /** Self-driving multi-layer testbench for post-synthesis simulation of the
   * BOARD's actual top module: VTAXilinxShell (instantiated via XilinxDebugShell

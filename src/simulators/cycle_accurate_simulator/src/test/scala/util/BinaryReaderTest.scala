@@ -4,12 +4,12 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should
 import vta.models.DataType._
 import vta.parsers.BinaryReader._
+import vta.parsers.ConfigParser.getConfigParametersFromFile
 import vta.tags.UnitTests
 
 import java.math.BigInteger
 import scala.math.pow
 import scala.util.{Failure, Success}
-import vta.parsers.ConfigParser.getConfigParametersFromFile
 
 @UnitTests
 class BinaryReaderTest extends AnyFlatSpec with should.Matchers {

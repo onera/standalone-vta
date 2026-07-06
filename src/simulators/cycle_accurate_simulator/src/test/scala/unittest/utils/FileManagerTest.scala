@@ -1,10 +1,8 @@
 package vta.util
 
-import org.scalatest.matchers.should.Matchers
 import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 import vta.util.FileManager.getConfigFile
-import vta.util.FileManager.getResourcePath
-import vta.util.FileManager.getResourceAsFile
 
 
 

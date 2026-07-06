@@ -1,9 +1,8 @@
 package vta.parsers
 
+import vta.util.FileManager.{getConfigFile, readFile}
+
 import scala.util.Try
-import java.io.File
-import vta.util.FileManager.getConfigFile
-import vta.util.FileManager.readFile
 
 object ConfigParser {
 

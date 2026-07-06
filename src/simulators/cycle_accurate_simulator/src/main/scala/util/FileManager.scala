@@ -1,10 +1,7 @@
 package vta.util
 
+import java.io.{File, FileInputStream}
 import scala.io.Source
-import java.io.File
-import java.io.FileWriter
-import java.io.InputStream
-import java.io.FileInputStream
 import scala.util.Try
 
 
