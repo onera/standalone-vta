@@ -4,13 +4,10 @@ import chisel3._
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import vta.models.CompilerOutputModel.LayerMetadata
-import vta.models.DataType._
 import vta.models.MemoryConfig
-import vta.util.ByteCodec.bin2hex
 
 import scala.io.Source
 
-import BinaryReader.readBinaryFile
 
 object DramInitParser {
 
@@ -95,34 +92,6 @@ object DramInitParser {
         }
       )
     }.toSeq
-  }
-
-  /** Read each binary file and convert it to one hex string per 64-bit memory
-    * word, ready to be consumed by `$readmemh`.
-    *
-    * Source files are interpreted as little-endian byte streams, so the byte
-    * order is swapped within each 64-bit word: byte `i` of the file lands in
-    * bits `[i*8+7 : i*8]` of the memory word.
-    *
-    * @return
-    *   for each data type: (hex-strings array, raw byte count)
-    */
-  def getHexFromBinaryFiles(
-      files: Map[DataTypeValue, String],
-      fromResources: Boolean = true
-  ): Map[DataTypeValue, (Array[String], Int)] = {
-    files.map { case (dt, path) =>
-      if (path.trim.isEmpty) {
-        // No init file (e.g. OUT is a pure write target): start empty/zeroed.
-        dt -> (Array.empty[String], 0)
-      } else {
-        val bytes = readBinaryFile(path, fromResources).get
-        dt -> (
-          bin2hex(bytes, bytesPerWord = 8, littleEndian = true),
-          bytes.size
-        )
-      }
-    }.toMap
   }
 
 }
