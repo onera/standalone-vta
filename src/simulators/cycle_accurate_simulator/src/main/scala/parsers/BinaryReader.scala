@@ -208,7 +208,7 @@ object BinaryReader {
       isDRAM: Boolean,
       fromResources: Boolean
   ): Try[Map[BigInt, Array[BigInt]]] = {
-    val newFilePath = getCompilerOutputFile(filePath)
+    val newFilePath = getCompilerOutputFile(filePath,fromResources)
     val groupedBinaryData =
       readBinaryFile(newFilePath, fromResources) match {
         case Success(fileContent) =>

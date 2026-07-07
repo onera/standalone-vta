@@ -73,7 +73,6 @@ object ConfigParser {
       fromResources: Boolean
   ): Try[Map[String, String]] = {
     val newFilePath = getConfigFile(filePath,fromResources)
-    println(newFilePath)
     parseConfigJsonAt(newFilePath)
   }
 }
