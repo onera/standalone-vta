@@ -9,8 +9,8 @@ import fpga.host.checkers._
 import fpga.host.parsers.LayerParser
 import fpga.host.exporters.all._
 import os.Path
-import _root_.fpga.utils.HexUtils.parseAddr
-import vta.parsers.MetadataParser.alignPage
+import fpga.utils.HexUtils.parseAddr
+import vta.models.CompilerOutputModel.alignPage
 
 /** CLI entry point for the baremetal codegen. Mirrors nnbaremetal/cli.py.
   *

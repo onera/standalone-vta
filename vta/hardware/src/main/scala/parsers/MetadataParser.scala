@@ -1,6 +1,6 @@
 package vta.parsers
 
-import vta.models.CompilerOutputModel.MemoryRegion
+import vta.models.CompilerOutputModel.{MemoryRegion, alignPage}
 
 /** Elaboration-time builder that turns a `compiler_output` directory into the
   * DRAM `MemoryConfig` list and the per-layer launch table consumed by both the
@@ -13,8 +13,6 @@ import vta.models.CompilerOutputModel.MemoryRegion
   */
 object MetadataParser {
 
-  private val page = 0x1000L
-  def alignPage(n: Long): Long = ((n + page - 1) / page) * page
 
   /** Parse CSV lines into regions, leaving `byteSize` at 0. Accepts both
     * 2-column (name, address) and 3-column (name, physical, logical) formats.

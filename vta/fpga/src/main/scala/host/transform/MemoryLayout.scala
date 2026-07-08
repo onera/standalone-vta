@@ -2,7 +2,7 @@ package fpga.host.transform
 
 import vta.models.CompilerOutputModel.DependencyInfo
 import fpga.host.models._
-import vta.parsers.MetadataParser.alignPage
+import vta.models.CompilerOutputModel.alignPage
 
 /** DDR address allocation and resolution for VTA/CPU buffers. Translated from
   * nnbaremetal/layout.py.

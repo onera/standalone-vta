@@ -4,7 +4,7 @@ import vta.models.DataType
 import fpga.host.models._
 import fpga.host.transform.MemoryLayout
 import vta.models.CompilerOutputModel.DependencyInfo
-import vta.parsers.MetadataParser.alignPage
+import vta.models.CompilerOutputModel.alignPage
 
 /** DDR layout guard checks (overlap, fit) and the DRAM summary. Translated from
   * nnbaremetal/checks.py.
