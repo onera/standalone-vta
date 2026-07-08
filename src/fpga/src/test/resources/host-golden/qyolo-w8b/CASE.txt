@@ -1,0 +1,4 @@
+case=qyolo-w8b
+config=vta_w8b.json
+ddr_base=0x10000000
+model=qyolo_pattern.onnx (RepConv/ReLU conv + maxpool + concat)

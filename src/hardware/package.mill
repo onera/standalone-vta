@@ -1,8 +1,4 @@
-//| mill-version: 1.1.7
-//| mill-jvm-version: 17
-//| mill-jvm-opts: ["-Dchisel.project.root=${PWD}"]
-//| mvnDeps: ["com.goyeau::mill-scalafix_mill1:0.6.0"]
-package build
+package build.vta.hardware
 
 import mill._
 import mill.javalib._
@@ -15,13 +11,13 @@ import com.goyeau.mill.scalafix.ScalafixModule
 import mill.javalib.testrunner.TestResult
 import mill.javalib.Assembly.Rule
 
-object `package` extends SbtModule with PublishModule with ScalafixModule { m =>
+object `package` extends build.MyModule with PublishModule { m =>
 
   def artifactName = "vta-standalone"
 
   def javacOptions = Seq("--release", "8")
 
-  def scalaVersion = "2.13.18"
+  // def scalaVersion = "2.13.18"
   def forkEnv = Task{Task.env}
 
   def scalacOptions = Seq(
@@ -30,7 +26,7 @@ object `package` extends SbtModule with PublishModule with ScalafixModule { m =>
     "-Xcheckinit",
     "-language:reflectiveCalls",
     "-Ymacro-annotations",
-    "-Wunused:imports",
+    "-Wunused",
     "-release:8"
   )
 
@@ -73,25 +69,52 @@ object `package` extends SbtModule with PublishModule with ScalafixModule { m =>
 
   def publishVersion = "6.0-SNAPSHOT"
 
-  def forkArgs = Seq(s"-Dvta.config.file=${vtaConfigFile()}")
-  def vtaConfigFile = Task.Input{
-    sys.props.getOrElse("vta.config.file","vta_config.json")
+
+  /** Content-hashed view of the active config JSON. The forked emit JVM only
+    * receives the config *filename* (via forkArgs -Dvta.config.file), so cached
+    * tasks must depend on this to be invalidated when the file is edited.
+    * None when the name does not resolve under config/ (e.g. resource-based
+    * test configs).
+    */
+  def vtaConfigSignature = Task.Input {
+    // Same property BaseVtaModule.vtaConfigFile reads (Task.Input cannot
+    // depend on another task).
+    val name = sys.props.getOrElse("vta.config.file", "vta_config.json")
+    val path = os.Path(name, BuildCtx.workspaceRoot / "config")
+    if (os.exists(path)) Some(PathRef(path)) else None
+  }
+
+  /** Shared body for vtaSimConfig/vtaFpgaConfig (flat, global-prop-driven)
+    * and configs[X]'s versions (cross-value-driven): emit a Chisel config's
+    * SV/tcl output with an explicit -Dvta.config.file, scoped to just this
+    * call. RunModule.Runner.run's forkArgs parameter *replaces* (not appends
+    * to) the module's own default forkArgs, so this works whether the
+    * caller wants the global config or a specific cross value.
+    */
+  def emitConfig(
+      runner: mill.javalib.RunModule.Runner,
+      dest: os.Path,
+      configFileName: String,
+      mainClass: String
+  )(using ctx: mill.api.TaskCtx): PathRef = {
+    runner.run(
+      args = Seq(dest.toString),
+      mainClass = mainClass,
+      forkArgs = Seq(s"-Dvta.config.file=$configFileName"),
+      workingDir = BuildCtx.workspaceRoot
+    )
+    PathRef(dest)
   }
 
   def vtaSimConfig = Task {
-    runner().run(
-      args = Seq(Task.dest.toString),
-      mainClass = "vta.exporters.TestDefaultPynqConfigEmitter",
-      workingDir = BuildCtx.workspaceRoot
-    )
-    PathRef(Task.dest)
+    vtaConfigSignature()
+    emitConfig(runner(), Task.dest, vtaConfigFile(), "vta.exporters.TestDefaultPynqConfigEmitter")
   }
 
-  /**
-   * Emit VTA for DPI simulation using `vta.StandaloneSimConfig` main class.
+  /** Emit VTA for DPI simulation using `vta.StandaloneSimConfig` main class.
    *
    * Usage: ./mill emitVtaSimConfig
-   * @param args optional path string for the target dir  
+   * Output: build/emitted/vta-sim-shell (relative to build root)
    */
   def emitVtaSimConfig(args: Args) = Task.Command {
     val outDir = BuildCtx.workspaceRoot / "build" / "emitted" / "vta-sim-shell"
@@ -101,20 +124,45 @@ object `package` extends SbtModule with PublishModule with ScalafixModule { m =>
     os.copy(taskPath.path,outDir,replaceExisting = true,createFolders = true)
   }
 
+  /** Cached, per-config RTL + package_ip.tcl emission (DefaultXilinxConfig).
+    * Depends only on the config content, never on a compiled model - callers
+    * (fpgaBuild, genBaremetal) use this as a fast "hardware config is emitted
+    * and consistent" gate without paying for Vivado.
+    */
+  def vtaFpgaConfig = Task {
+    vtaConfigSignature()
+    emitConfig(runner(), Task.dest, vtaConfigFile(), "vta.exporters.DefaultXilinxConfigEmitter")
+  }
+
+  /** Config-keyed Cross submodule for the two artifacts above: each config
+    * is an independently addressable, independently cached module instance
+    * (vta.hardware.configs[vta_w8b].vtaFpgaConfig), sharing emitConfig's
+    * logic with the flat, global-prop-driven tasks. The outer module keeps
+    * compiling once regardless of config - only these two tasks vary.
+    */
+  object configs extends Cross[ConfigModule](build.configNames)
+  trait ConfigModule extends build.ConfigCrossModule {
+    def vtaSimConfig = Task {
+      configSignature()
+      m.emitConfig(m.runner(), Task.dest, s"$configKey.json", "vta.StandaloneSimConfig")
+    }
+    def vtaFpgaConfig = Task {
+      configSignature()
+      m.emitConfig(m.runner(), Task.dest, s"$configKey.json", "vta.DefaultXilinxConfig")
+    }
+  }
+
   /**
-  * Emit the default FPGA Xilinx config 
-  *
-  * @param args optional path string for the target dir
-  */
+      * Emit the default FPGA Xilinx config
+      *
+      * @param args optional path string for the target dir
+      */
   def emitVtaFpgaConfig(args: Args) = Task.Command {
     val outDir = if (args.value.isEmpty) BuildCtx.workspaceRoot / "build" / "emitted" / "vta-xilinx-shell" else os.Path(args.value.head)
-    os.makeDir.all(outDir)
-
-    runner().run(
-      args = Seq(outDir.toString),
-      mainClass = "vta.exporters.DefaultXilinxConfigEmitter",
-      workingDir = BuildCtx.workspaceRoot
-    )
+    val taskPath = vtaFpgaConfig()
+    os.remove.all(target = outDir, ignoreErrors = true)
+    println(s"[INFO] copying fpga config from ${taskPath.path} to ${outDir}")
+    os.copy(taskPath.path, outDir, replaceExisting = true, createFolders = true)
     println(s"[INFO] VTA FPGA config emitted in ${outDir}")
   }
 
@@ -142,6 +190,7 @@ object `package` extends SbtModule with PublishModule with ScalafixModule { m =>
     println(s"[INFO] VTA post-synth TB emitted in ${outDir}")
   }
 
+
   def cleanOutputs() = Task.Command {
     val outputDir = BuildCtx.workspaceRoot / "build"
     println(s"[Clean] removing all outputs")
@@ -149,12 +198,10 @@ object `package` extends SbtModule with PublishModule with ScalafixModule { m =>
     println(s"[Clean] removed ${outputDir} directory")
 
   }
-  object test extends SbtTests with ScalaTest with ScalafixModule {
-    def forkEnv = m.forkEnv
+  object test extends SbtTests with ScalaTest {
     override def scalaTestVersion: Simple[String] = "3.2.19"
 
-    // override def testArgsDefault: Simple[Seq[String]] =
-    //   Seq("-n", "vta.tags.UnitTests")
+    def forkEnv = m.forkEnv
     def testSandboxWorkingDir = true
     def testParallelism = true
     def vtaConfigFile = Task.Input{

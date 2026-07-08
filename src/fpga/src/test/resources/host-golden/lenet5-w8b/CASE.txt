@@ -1,0 +1,4 @@
+case=lenet5-w8b
+config=vta_w8b.json
+ddr_base=0x10000000
+model=lenet5.onnx (QLinearConv x5 + MaxPool x2, 28x28 input)

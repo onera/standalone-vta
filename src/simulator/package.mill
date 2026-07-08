@@ -1,0 +1,125 @@
+package build.vta.simulator
+
+import mill.*
+import mill.api.BuildCtx
+
+object `package` extends build.BaseVtaModule { m =>
+
+  /** C++/Verilator sources whose content triggers a rebuild. Narrow, so the
+    * .d/.o artefacts under build/ never feed back in.
+    */
+  def simSources = Task.Sources(
+    moduleDir / "src",
+    moduleDir / "include",
+    moduleDir / "config",
+    moduleDir / "external_lib",
+    moduleDir / "Makefile"
+  )
+
+  /** Shared body for fsimBinary/vsimBinary (flat, global-prop-driven) and
+    * configs[X]'s versions (cross-value-driven): build via make into a
+    * per-config dir. Parameterized by configPath/configKey instead of reading
+    * BaseVtaModule's global vtaConfigPath()/configKey() directly, so the same
+    * logic serves both entry points without duplication.
+    */
+  def buildSim(
+      configPath: os.Path,
+      configKey: String,
+      dest: os.Path,
+      env: Map[String, String],
+      binaryName: String,
+      extraMakeArgs: Seq[String]
+  ): PathRef = {
+    os.proc(
+      "make",
+      s"CONFIG=$configPath",
+      s"BUILD_DIR=$dest/$configKey",
+      extraMakeArgs,
+      s"compile-$binaryName"
+    ).call(
+      cwd = moduleDir,
+      env = env,
+      stdout = os.Inherit,
+      stderr = os.Inherit
+    )
+    BuildCtx.withFilesystemCheckerDisabled {
+      PathRef(dest / configKey / binaryName)
+    }
+  }
+
+  /** Build (via make) the functional simulator into a per-config dir and return
+    * the binary. Depends only on the C++ sources and the config content, never
+    * the model. Because the artefact persists at build/<key>/, switching config
+    * back and forth finds a fresh binary and make no-ops (no recompile).
+    */
+  def fsimBinary = Task {
+    simSources()
+    configSignature()
+    buildSim(vtaConfigPath(), configKey(), Task.dest, Task.env, "fsim", Seq())
+  }
+
+  /** Build the Verilated RTL simulator into a per-config dir. Additionally
+    * depends on the emitted VTAShell SV from the hardware package.
+    */
+  def vsimBinary = Task {
+    simSources()
+    configSignature()
+    val shellDir = build.vta.hardware.vtaSimConfig().path
+    buildSim(
+      vtaConfigPath(),
+      configKey(),
+      Task.dest,
+      Task.env,
+      "vsim",
+      Seq(s"VTASHELL_DIR=$shellDir")
+    )
+  }
+
+  /** Config-keyed Cross submodule for the two artifacts above: each config is
+    * an independently addressable, independently cached module instance
+    * (vta.simulator.configs[vta_w8b].fsimBinary), sharing buildSim's logic with
+    * the flat, global-prop-driven tasks.
+    */
+  object configs extends Cross[ConfigModule](build.configNames)
+  trait ConfigModule extends build.ConfigCrossModule {
+    def fsimBinary = Task {
+      m.simSources()
+      configSignature()
+      m.buildSim(configPath, configKey, Task.dest, Task.env, "fsim", Seq())
+    }
+
+    def vsimBinary = Task {
+      m.simSources()
+      configSignature()
+      val shellDir = build.vta.hardware.configs(configKey).vtaSimConfig().path
+      m.buildSim(
+        configPath,
+        configKey,
+        Task.dest,
+        Task.env,
+        "vsim",
+        Seq(s"VTASHELL_DIR=$shellDir")
+      )
+    }
+  }
+
+  /** Launch a built simulator binary directly (this is the "run in Mill, not
+    * make" path). Callers pass --comp-dir and any runtime flags.
+    */
+  def launchFsim(binary: os.Path, flags: Seq[String], cwd: os.Path): Unit =
+    os.proc(binary, flags).call(cwd = cwd, stdout = os.Inherit)
+
+  def launchVsim(binary: os.Path, flags: Seq[String], cwd: os.Path): Unit =
+    os.proc(binary, flags).call(cwd = cwd, stdout = os.Inherit)
+
+  // Standalone build+run. Runtime args (e.g. --comp-dir DIR --layer 3) are
+  // passed straight to the binary.
+  def fsim(args: Args) = Task.Command {
+    launchFsim(fsimBinary().path, args.value, BuildCtx.workspaceRoot)
+  }
+
+  def vsim(args: Args) = Task.Command {
+    launchVsim(vsimBinary().path, args.value, BuildCtx.workspaceRoot)
+  }
+
+}

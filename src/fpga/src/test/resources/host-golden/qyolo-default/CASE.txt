@@ -1,0 +1,4 @@
+case=qyolo-default
+config=vta_config.json
+ddr_base=0x0
+model=qyolo_pattern.onnx (RepConv/ReLU conv + maxpool + concat)

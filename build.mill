@@ -1,0 +1,50 @@
+//| mill-version: 1.1.7
+//| mill-jvm-version: 17
+//| mill-jvm-opts: ["-Dchisel.project.root=${PWD}"]
+//| mvnDeps: ["com.goyeau::mill-scalafix_mill1:0.6.0"]
+package build
+
+import mill._
+import mill.javalib._
+import mill.javalib.publish._
+import mill.scalalib.SbtModule
+import mill.javalib.TestModule.ScalaTest
+import mill.api.Task.Simple
+import mill.api.BuildCtx
+import com.goyeau.mill.scalafix.ScalafixModule
+import mill.javalib.testrunner.TestResult
+import mill.javalib.Assembly.Rule
+import mill.api.TaskCtx
+import os.Path
+
+object `package` extends Module {
+
+  /** One cross module per (example model, config) pair. Tasks defined once on
+    * [[ExampleModule]] are available for every combination:
+    *
+    * ./mill "examples[lenet5,vta_config].run" ./mill
+    * "examples[lenet5,vta_w8b].run"
+    */
+  object examples
+      extends Cross[ExampleModule](
+        exampleModels.flatMap(m => configNames.map(c => (m, c)))
+      )
+      with BaseVtaModule {
+
+    def allOutputs = Task.traverse(
+      exampleModels.flatMap(m => configNames.map(c => (m, c)))
+    ) { case (m, c) => examples(m, c).outputs }
+
+    /** Run every (model, config) pair. Each is hermetic (own config-keyed run
+      * dir) and cached, so they execute in parallel and only changed inputs
+      * re-run. Pass --keep-going to Mill to see all failures at once.
+      */
+    def runAll = Task.Uncached {
+      val pairs = exampleModels.flatMap(m => configNames.map(c => (m, c)))
+      pairs.zip(allOutputs()).foreach { case ((m, c), out) =>
+        println(s"$m/$c -> ${out.path}")
+      }
+    }
+  }
+
+}
