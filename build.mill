@@ -16,9 +16,13 @@ import mill.javalib.testrunner.TestResult
 import mill.javalib.Assembly.Rule
 import mill.api.TaskCtx
 import os.Path
+import mill.javalib.spotless.SpotlessModule
 
-object `package` extends Module {
+object `package` extends Module with SpotlessModule {
 
+  def spotlessExcludes = Task {
+    super.spotlessExcludes() ++ Seq("glob:.*", "glob:**/.*", "glob:build", "glob:build/**")
+  }
   /** One cross module per (example model, config) pair. Tasks defined once on
     * [[ExampleModule]] are available for every combination:
     *
