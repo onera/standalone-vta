@@ -19,8 +19,8 @@ object Checks {
     * calling sys.exit - the caller decides what to do on failure.
     */
   def checkConfigCompat(
-      cfg: HwConfig.ConfigParams,
-      dep: DependencyInfo
+    cfg: HwConfig.ConfigParams,
+    dep: DependencyInfo
   ): Boolean = {
     if (cfg.logInpWidth == 3 || cfg.logOutWidth == 3) {
       println(
@@ -85,9 +85,9 @@ object Checks {
     * scratch, and (if populated) isolation-check golden regions.
     */
   private def liveRegions(
-      layers: Seq[Model.LayerInfo],
-      ddrBase: Long,
-      cpuScratch: Seq[(String, Long, Long)] = Nil
+    layers: Seq[Model.LayerInfo],
+    ddrBase: Long,
+    cpuScratch: Seq[(String, Long, Long)] = Nil
   ): Seq[(Long, Long, String)] = {
     val scratchRegions = cpuScratch.collect {
       case (label, addr, size) if size > 0 =>
@@ -117,9 +117,9 @@ object Checks {
 
   /** No two live DDR regions may overlap. */
   def checkBufferOverlaps(
-      layers: Seq[Model.LayerInfo],
-      ddrBase: Long,
-      cpuScratch: Seq[(String, Long, Long)] = Nil
+    layers: Seq[Model.LayerInfo],
+    ddrBase: Long,
+    cpuScratch: Seq[(String, Long, Long)] = Nil
   ): Boolean = {
     val regions = liveRegions(layers, ddrBase, cpuScratch)
     val conflicts = for {
@@ -141,27 +141,26 @@ object Checks {
 
   /** Each static binary (INSN/UOP/WGT/ACC) must fit its allocated slot. */
   def checkBinaryFits(
-      layers: Seq[Model.LayerInfo],
-      compDir: String
+    layers: Seq[Model.LayerInfo],
+    compDir: String
   ): Boolean = {
     val (bad, checked) = Model
       .iterStaticBuffers(layers)
-      .foldLeft(
-        (Vector.empty[String], 0)
-      ) { case ((bad, checked), (i, layer, bt, m)) =>
-        val p = os.Path(layer.binFiles(bt), os.pwd)
-        if (os.exists(p)) {
-          val size = os.size(p)
-          if (size > m.byteSize)
-            (
-              bad :+ s"  L$i ${layer.suffix} $bt: file $size B > slot ${m.byteSize} B",
-              checked + 1
-            )
-          else
-            (bad, checked + 1)
-        } else {
-          (bad, checked)
-        }
+      .foldLeft((Vector.empty[String], 0)) {
+        case ((bad, checked), (i, layer, bt, m)) =>
+          val p = os.Path(layer.binFiles(bt), os.pwd)
+          if (os.exists(p)) {
+            val size = os.size(p)
+            if (size > m.byteSize)
+              (
+                bad :+ s"  L$i ${layer.suffix} $bt: file $size B > slot ${m.byteSize} B",
+                checked + 1
+              )
+            else
+              (bad, checked + 1)
+          } else {
+            (bad, checked)
+          }
       }
     if (bad.nonEmpty) {
       println(s"[binfit] FAIL - ${bad.size} overflow(s):")
@@ -180,13 +179,13 @@ object Checks {
     * consumer's INP/ACC.
     */
   def checkCpuOutputFits(
-      dep: DependencyInfo,
-      layers: Seq[Model.LayerInfo],
-      ddrBase: Long,
-      suffixToIdx: Map[String, Int],
-      cpuOut: Map[String, Long],
-      blockSize: Int,
-      inpElemBytes: Int = 1
+    dep: DependencyInfo,
+    layers: Seq[Model.LayerInfo],
+    ddrBase: Long,
+    suffixToIdx: Map[String, Int],
+    cpuOut: Map[String, Long],
+    blockSize: Int,
+    inpElemBytes: Int = 1
   ): Boolean = {
     val bad = dep.executionOrder.zipWithIndex.flatMap {
       case ((_, processor, name), k) =>
@@ -254,11 +253,11 @@ object Checks {
     * maxAddr.
     */
   def checkMemoryFit(
-      layers: Seq[Model.LayerInfo],
-      ddrBase: Long,
-      maxAddr: Long,
-      compDir: String,
-      cpuScratch: Seq[(String, Long, Long)] = Nil
+    layers: Seq[Model.LayerInfo],
+    ddrBase: Long,
+    maxAddr: Long,
+    compDir: String,
+    cpuScratch: Seq[(String, Long, Long)] = Nil
   ): Boolean = {
     val baseRegions = liveRegions(layers, ddrBase, cpuScratch)
     val rawPhys = MemoryLayout.scratchAddr(layers, ddrBase)
@@ -293,16 +292,16 @@ object Checks {
     * pass. A Seq is strict so all guards run before the verdict is folded.
     */
   def runGuards(
-      dep: DependencyInfo,
-      layers: Seq[Model.LayerInfo],
-      ddrBase: Long,
-      suffixToIdx: Map[String, Int],
-      cpuOut: Map[String, Long],
-      blockSize: Int,
-      inpElemBytes: Int,
-      cpuScratch: Seq[(String, Long, Long)],
-      compDir: String,
-      maxAddr: Option[Long]
+    dep: DependencyInfo,
+    layers: Seq[Model.LayerInfo],
+    ddrBase: Long,
+    suffixToIdx: Map[String, Int],
+    cpuOut: Map[String, Long],
+    blockSize: Int,
+    inpElemBytes: Int,
+    cpuScratch: Seq[(String, Long, Long)],
+    compDir: String,
+    maxAddr: Option[Long]
   ): Boolean = (
     Seq(
       checkBufferOverlaps(layers, ddrBase, cpuScratch),
@@ -328,9 +327,8 @@ object Checks {
       for (bt <- DataType.names) {
         val m = layer.mem(bt)
         val tag = if (Set("INP", "OUT").contains(bt)) "*" else " "
-        println(
-          f"  L$i%-2d $bt%-4s ${Model.hex32(ddrBase + m.offset)} ${Model.hex32(m.byteSize)}%10s $tag"
-        )
+        println(f"  L$i%-2d $bt%-4s ${Model.hex32(ddrBase + m.offset)} ${Model
+            .hex32(m.byteSize)}%10s $tag")
       }
     }
   }

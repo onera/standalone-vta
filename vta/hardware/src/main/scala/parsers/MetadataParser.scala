@@ -7,12 +7,11 @@ import vta.models.CompilerOutputModel.{MemoryRegion, alignPage}
   * Scala multilayer spec and the synthesizable VtaHostDriver ROM.
   *
   * The relocation/layout strategy places each layer's regions at csvBase +
-  * RELO_L (RELO_L = layerIndex * reloStride) so the VTA's
-  * `baddr | (offset<<shift)` address math reduces to baddr + offset with no
-  * cross-layer overlap.
+  * RELO_L (RELO_L = layerIndex * reloStride) so the VTA's `baddr |
+  * (offset<<shift)` address math reduces to baddr + offset with no cross-layer
+  * overlap.
   */
 object MetadataParser {
-
 
   /** Parse CSV lines into regions, leaving `byteSize` at 0. Accepts both
     * 2-column (name, address) and 3-column (name, physical, logical) formats.
@@ -43,8 +42,8 @@ object MetadataParser {
     * DRAM at base 0).
     */
   def baseAddrMap(
-      regions: Seq[MemoryRegion],
-      zero: Set[String] = Set("INP", "WGT", "OUT")
+    regions: Seq[MemoryRegion],
+    zero: Set[String] = Set("INP", "WGT", "OUT")
   ): Map[String, String] =
     regions
       .map(r =>
@@ -65,15 +64,14 @@ object MetadataParser {
     *   per-layer regions, in `layers` order, with `byteSize` populated.
     */
   def loadLayerRegions(
-      compilerOutDir: String,
-      layers: Seq[String],
-      lastBinFor: (String, String) => Option[String]
+    compilerOutDir: String,
+    layers: Seq[String],
+    lastBinFor: (String, String) => Option[String]
   ): Seq[(String, Seq[MemoryRegion])] = {
     val perLayer = layers.map { l =>
       l -> parseAddresses(
-        os.read.lines(
-          os.Path(s"$compilerOutDir/memory_addresses$l.csv", os.pwd)
-        )
+        os.read
+          .lines(os.Path(s"$compilerOutDir/memory_addresses$l.csv", os.pwd))
       )
     }
     val flatSorted =

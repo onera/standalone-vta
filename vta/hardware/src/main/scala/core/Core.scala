@@ -25,22 +25,22 @@ import vta.util.config._
 
 /** Core parameters */
 case class CoreParams(
-    target: String,
-    batch: Int,
-    blockOut: Int,
-    blockOutFactor: Int,
-    blockIn: Int,
-    inpBits: Int,
-    wgtBits: Int,
-    uopBits: Int,
-    accBits: Int,
-    outBits: Int,
-    uopMemDepth: Int,
-    inpMemDepth: Int,
-    wgtMemDepth: Int,
-    accMemDepth: Int,
-    outMemDepth: Int,
-    instQueueEntries: Int
+  target: String,
+  batch: Int,
+  blockOut: Int,
+  blockOutFactor: Int,
+  blockIn: Int,
+  inpBits: Int,
+  wgtBits: Int,
+  uopBits: Int,
+  accBits: Int,
+  outBits: Int,
+  uopMemDepth: Int,
+  inpMemDepth: Int,
+  wgtMemDepth: Int,
+  accMemDepth: Int,
+  outMemDepth: Int,
+  instQueueEntries: Int
 ) {
   require(
     uopBits % 8 == 0,

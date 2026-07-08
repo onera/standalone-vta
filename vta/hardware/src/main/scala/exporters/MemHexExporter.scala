@@ -5,12 +5,11 @@ import chisel3.UInt
 object MemHexExporter {
 
   def exportHexFiles(
-      content: Map[String, (Int, List[UInt])],
-      file: os.Path,
-      targetBytes: Int = 16
+    content: Map[String, (Int, List[UInt])],
+    file: os.Path,
+    targetBytes: Int = 16
   ): Unit = {
     content.foreach { case (name, (_, values)) =>
-
       val hexStrings =
         values
           .map(uint => {
@@ -51,28 +50,23 @@ object MemHexExporter {
   }
 
   def exportHexToMemFiles(
-      content: Map[String, Array[String]],
-      file: os.Path
+    content: Map[String, Array[String]],
+    file: os.Path
   ): Map[String, os.Path] = {
     content.map { case (name, values) =>
-
       require(values.forall { l =>
         !values.exists(s => s.size != l.size)
       })
 
       val filePath = file / (name + ".mem")
-      os.write.over(
-        filePath,
-        values.mkString("\n"),
-        createFolders = true
-      )
+      os.write.over(filePath, values.mkString("\n"), createFolders = true)
       name -> filePath
     }
   }
   def exportHexToMemFile[T <: Iterable[String]](
-      name: String,
-      content: T,
-      file: os.Path
+    name: String,
+    content: T,
+    file: os.Path
   ): (String, os.Path) = {
 
     val filePath = file / (name + ".mem")

@@ -16,7 +16,7 @@ import TestBenchLayout.LaunchParams
   * finishes within `perLayerTimeout` cycles.
   */
 class VtaHostDriver(layers: Seq[LaunchParams], perLayerTimeout: Int = 2000000)(
-    implicit p: Parameters
+  implicit p: Parameters
 ) extends Module {
   require(layers.nonEmpty, "VtaHostDriver needs at least one layer")
   val hp = p(ShellKey).hostParams
@@ -129,9 +129,7 @@ class VtaHostDriver(layers: Seq[LaunchParams], perLayerTimeout: Int = 2000000)(
       rdAddr := ctrlOff.U
       when(!rdBusy) { rdStart := true.B }
       watchdog := watchdog + 1.U
-      when(
-        (rdDone && rdData(1)) || io.finishHint
-      ) { // ctrl bit1 = finish flag (AXI poll or clean probe)
+      when((rdDone && rdData(1)) || io.finishHint) { // ctrl bit1 = finish flag (AXI poll or clean probe)
         state := sNext
       }
       when(watchdog >= perLayerTimeout.U) {

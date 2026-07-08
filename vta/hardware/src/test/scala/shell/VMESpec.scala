@@ -38,12 +38,12 @@ import scala.collection.mutable.ArrayBuffer
   *      VME must hold the AXI R channel (`io.mem.r.ready` low) and NOT drop the
   *      beat. The original VME hard-wired `io.mem.r.ready := true.B` and gated
   *      client `data.valid` with `data.ready`, so a stalled client silently
-  *      lost the beat and its burst never completed -> FPGA deadlock.
-  *   2. Tag free-list - slots must be freed on the actual beat transfer so more
+  *      lost the beat and its burst never completed -> FPGA deadlock. 2. Tag
+  *      free-list - slots must be freed on the actual beat transfer so more
   *      than `RequestQueueDepth` reads can complete back-to-back without
-  *      stalling.
-  *   3. Tag routing - interleaved / out-of-order responses must reach the
-  *      client identified by the returned AXI id, with the correct client tag.
+  *      stalling. 3. Tag routing - interleaved / out-of-order responses must
+  *      reach the client identified by the returned AXI id, with the correct
+  *      client tag.
   *
   * The testbench plays both roles: the core-side read client (drives `cmd`,
   * controls `data.ready`) and the DDR-side AXI slave (drives `ar.ready` and the
@@ -59,12 +59,12 @@ class VMESpec extends AnyFlatSpecSim with Matchers {
 
   /** Issue a read command from a client and wait until the VME accepts it. */
   private def issueClientCmd(
-      dut: VME,
-      client: Int,
-      addr: BigInt,
-      len: Int,
-      tag: Int,
-      maxWait: Int = 50
+    dut: VME,
+    client: Int,
+    addr: BigInt,
+    len: Int,
+    tag: Int,
+    maxWait: Int = 50
   ): Unit = {
     dut.io.vme.rd(client).cmd.valid.poke(true.B)
     dut.io.vme.rd(client).cmd.bits.addr.poke(addr.U)
@@ -85,8 +85,8 @@ class VMESpec extends AnyFlatSpecSim with Matchers {
   /** Act as the AXI slave: accept the next AR and return its (id, addr, len).
     */
   private def acceptAR(
-      dut: VME,
-      maxWait: Int = 50
+    dut: VME,
+    maxWait: Int = 50
   ): (BigInt, BigInt, BigInt) = {
     dut.io.mem.ar.ready.poke(true.B)
     var n = 0
@@ -106,11 +106,11 @@ class VMESpec extends AnyFlatSpecSim with Matchers {
     * Returns the (data, tag, last) actually delivered to that client.
     */
   private def respondBurst(
-      dut: VME,
-      id: BigInt,
-      data: Seq[BigInt],
-      client: Int,
-      maxWait: Int = 100
+    dut: VME,
+    id: BigInt,
+    data: Seq[BigInt],
+    client: Int,
+    maxWait: Int = 100
   ): Seq[(BigInt, BigInt, Boolean)] = {
     val out = ArrayBuffer[(BigInt, BigInt, Boolean)]()
     dut.io.vme.rd(client).data.ready.poke(true.B)

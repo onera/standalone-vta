@@ -4,25 +4,23 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import scala.jdk.CollectionConverters._
 
 final case class Board(
-    name: String,
-    part: String,
-    boardPart: String,
-    isVersal: Boolean,
-    psIp: String,
-    psCell: String,
-    psPresetRule: String,
-    psPresetConfig: String,
-    boardRepo: String,
-    plClockMhz: String,
-    plClockProperty: String,
-    cpu: String,
-    psConfig: Seq[(String, String)], // ordered
-    ports: Map[String, String],
-    psClkAclks: Seq[String],
-    addresses: Seq[
-      (String, String, String, String)
-    ], // space, seg, offset, range
-    addressExcludes: Seq[(String, String)]
+  name: String,
+  part: String,
+  boardPart: String,
+  isVersal: Boolean,
+  psIp: String,
+  psCell: String,
+  psPresetRule: String,
+  psPresetConfig: String,
+  boardRepo: String,
+  plClockMhz: String,
+  plClockProperty: String,
+  cpu: String,
+  psConfig: Seq[(String, String)], // ordered
+  ports: Map[String, String],
+  psClkAclks: Seq[String],
+  addresses: Seq[(String, String, String, String)], // space, seg, offset, range
+  addressExcludes: Seq[(String, String)]
 )
 
 object Board {

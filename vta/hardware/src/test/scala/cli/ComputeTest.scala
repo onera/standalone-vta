@@ -10,17 +10,17 @@ trait ComputeTest extends AnyFlatSpecSim {
 
   implicit val param: Parameters = new DefaultPynqConfig
   def computeSimulation(
-      insn: String,
-      uop: String,
-      input: String,
-      weight: String,
-      out: String,
-      acc: String,
-      expected: String,
-      memoryAddr: String,
-      doCompare: Boolean = false,
-      debug: Boolean = false,
-      fromResources: Boolean = true
+    insn: String,
+    uop: String,
+    input: String,
+    weight: String,
+    out: String,
+    acc: String,
+    expected: String,
+    memoryAddr: String,
+    doCompare: Boolean = false,
+    debug: Boolean = false,
+    fromResources: Boolean = true
   ) = {
 
     // The 32x32 tests rely on the acc scratchpad (a memory) powering up zeroed,

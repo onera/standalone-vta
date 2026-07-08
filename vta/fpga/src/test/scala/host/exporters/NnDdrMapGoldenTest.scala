@@ -12,9 +12,7 @@ class NnDdrMapGoldenTest extends AnyFlatSpec {
       val c = GoldenSupport.loadCase(name)
       val layers = LayerParser.collectLayers(
         c.comp.toString,
-        loadDependencyInfo(
-          (c.comp / "dependency.csv").toString
-        )
+        loadDependencyInfo((c.comp / "dependency.csv").toString)
       )
       val tmp = os.pwd / "nn_ddr_map.h"
       DdrMap(layers, c.ddrBase).export(tmp)

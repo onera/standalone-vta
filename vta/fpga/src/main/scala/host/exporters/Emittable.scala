@@ -7,8 +7,8 @@ trait Emittable[T] {
 object Emittable {
 
   /** Build an `Emittable[T]` from a plain render function. Lets each instance
-    * be a one-liner:
-    * `implicit val x: Emittable[T] = Emittable(SomeRender.foo)`.
+    * be a one-liner: `implicit val x: Emittable[T] =
+    * Emittable(SomeRender.foo)`.
     */
   def apply[T](render: T => String): Emittable[T] =
     new Emittable[T] {

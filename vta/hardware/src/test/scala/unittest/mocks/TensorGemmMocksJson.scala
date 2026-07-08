@@ -8,9 +8,9 @@ import vta.core.{TensorGemmPipelinedSplit, TensorMaster, UopMaster}
 import scala.io.Source
 
 class TensorGemmJsonTester(
-    c: TensorGemmPipelinedSplit,
-    fn: String = "/x.json",
-    debug: Boolean = false
+  c: TensorGemmPipelinedSplit,
+  fn: String = "/x.json",
+  debug: Boolean = false
 ) extends PeekPokeAPI {
 
   val bufferedSource = Source.fromURL(getClass.getResource(fn))

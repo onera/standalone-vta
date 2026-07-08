@@ -89,12 +89,12 @@ object CheckOutput {
   }
 
   private case class Opts(
-      baremetalOut: String = "",
-      compDir: String = "compiler_output",
-      configJson: Option[String] = None,
-      shape: Option[String] = None,
-      ref: Option[String] = None,
-      detiled: Boolean = false
+    baremetalOut: String = "",
+    compDir: String = "compiler_output",
+    configJson: Option[String] = None,
+    shape: Option[String] = None,
+    ref: Option[String] = None,
+    detiled: Boolean = false
   )
 
   private val argParser: OParser[_, Opts] = {
@@ -141,9 +141,7 @@ object CheckOutput {
             val parts = shapeStr.split(",")
             (parts(0).toInt, parts(1).toInt, parts(2).toInt)
           case None =>
-            val dep = loadDependencyInfo(
-              s"$compDir/dependency.csv"
-            )
+            val dep = loadDependencyInfo(s"$compDir/dependency.csv")
             dep.layers.get(dep.outputLayer) match {
               case None =>
                 System.err.println(

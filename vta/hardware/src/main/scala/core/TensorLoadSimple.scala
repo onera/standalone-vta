@@ -33,10 +33,8 @@ import vta.util.config._
   * The TensorDataCtrl is in charge of handling the way tensors are stored on
   * the scratchpads.
   */
-case class TensorLoadSimple(
-    tensorType: String = "none"
-)(implicit
-    val parameters: Parameters
+case class TensorLoadSimple(tensorType: String = "none")(implicit
+  val parameters: Parameters
 ) extends TensorLoad {
 
   require(
@@ -212,9 +210,7 @@ case class TensorLoadSimple(
     state === sXPad1 |
     state === sYPad1
 
-  when(
-    state === sReadCmd && tag =/= (tp.numMemBlock - 1).U
-  ) { // split read inside row of mem blocks
+  when(state === sReadCmd && tag =/= (tp.numMemBlock - 1).U) { // split read inside row of mem blocks
     tag := tag
   }.elsewhen(
     state === sIdle || state === sReadCmd || tag === (tp.numMemBlock - 1).U

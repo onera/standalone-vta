@@ -13,7 +13,7 @@ import vta.util.config._
 /** Formal verification
   */
 class MatrixVectorMultiplicationBypassFormalSpec(
-    makeDut: => MatrixVectorMultiplicationBypass
+  makeDut: => MatrixVectorMultiplicationBypass
 ) extends Module {
   // Create an instance of our DUT and expose its I/O
   val dut = Module(makeDut)

@@ -29,11 +29,9 @@ import vta.util.config._
   *
   * Store 1D and 2D tensors from out-scratchpad (SRAM) to main memory (DRAM).
   */
-case class TensorStoreWideVME(
-    tensorType: String = "none"
-)(implicit
-    val
-    parameters: Parameters
+case class TensorStoreWideVME(tensorType: String = "none")(implicit
+  val
+  parameters: Parameters
 ) extends TensorStore {
   val writePipeLatency = tp.writePipeLatency
   val io: TensorStoreIf = IO(new TensorStoreIf())

@@ -26,12 +26,12 @@ object MemoryLayout {
     * covers CPU ops that write to VTA INP/ACC or to CPU scratch).
     */
   def outAddr(
-      layerName: String,
-      dep: DependencyInfo,
-      layers: Seq[Model.LayerInfo],
-      ddrBase: Long,
-      suffixToIdx: Map[String, Int],
-      cpuOut: Map[String, Long]
+    layerName: String,
+    dep: DependencyInfo,
+    layers: Seq[Model.LayerInfo],
+    ddrBase: Long,
+    suffixToIdx: Map[String, Int],
+    cpuOut: Map[String, Long]
   ): Long = {
     suffixToIdx.get(layerName) match {
       case Some(idx) => ddrBase + layers(idx).mem("OUT").offset
@@ -54,11 +54,11 @@ object MemoryLayout {
     * freshly allocated here (not aliasing a VTA buffer).
     */
   def buildCpuOutAddrs(
-      dep: DependencyInfo,
-      layers: Seq[Model.LayerInfo],
-      ddrBase: Long,
-      suffixToIdx: Map[String, Int],
-      compDir: String
+    dep: DependencyInfo,
+    layers: Seq[Model.LayerInfo],
+    ddrBase: Long,
+    suffixToIdx: Map[String, Int],
+    compDir: String
   ): (Map[String, Long], Long, Seq[(String, Long, Long)]) = {
     val rawPhys = scratchAddr(layers, ddrBase)
     val inputNnPath = os.Path(s"$compDir/input_nn.bin", os.pwd)
@@ -121,16 +121,16 @@ object MemoryLayout {
     * page-aligned address above these blobs
     */
   def buildCpuParamAddrs(
-      dep: DependencyInfo,
-      compDir: String,
-      allocBase: Long
+    dep: DependencyInfo,
+    compDir: String,
+    allocBase: Long
   ): (Map[String, CtParams], Seq[ExtraBlob], Long) = {
 
     case class Acc(
-        alloc: Long,
-        ctParams: Map[String, CtParams],
-        blobs: Vector[ExtraBlob],
-        ctIdx: Int
+      alloc: Long,
+      ctParams: Map[String, CtParams],
+      blobs: Vector[ExtraBlob],
+      ctIdx: Int
     )
 
     val result = dep.executionOrder.foldLeft(
@@ -169,11 +169,7 @@ object MemoryLayout {
                 ba,
                 bsize
               )
-            (
-              ba,
-              alloc1 + math.max(alignPage(bsize), PAGE),
-              Some(blob2)
-            )
+            (ba, alloc1 + math.max(alignPage(bsize), PAGE), Some(blob2))
           } else {
             (0L, alloc1, None)
           }
@@ -212,106 +208,93 @@ object MemoryLayout {
     * layers and its ACC buffer for int32 layers (matching fsim's dump).
     */
   def assignLayerCheckRegions(
-      layers: Seq[Model.LayerInfo],
-      depInfo: DependencyInfo,
-      ddrBase: Long,
-      refDir: String,
-      baseTop: Long
+    layers: Seq[Model.LayerInfo],
+    depInfo: DependencyInfo,
+    ddrBase: Long,
+    refDir: String,
+    baseTop: Long
   ): (Seq[Model.LayerInfo], Long) = {
     // Thread the page-aligned allocation pointer through the layers with a fold
     // (was a `var` mutated inside `map`). Per layer the golden OUT region is
     // allocated before the golden IN region, matching the old order.
     val (updatedRev, finalPtr) =
-      layers.foldLeft(
-        (List.empty[Model.LayerInfo], alignPage(baseTop))
-      ) { case ((acc, allocPtr), layer) =>
-        val suffix = layer.suffix
-        val ld = depInfo.layers.get(suffix)
-        val reshape = ld.map(_.reshapeInfo).getOrElse("im2row")
+      layers.foldLeft((List.empty[Model.LayerInfo], alignPage(baseTop))) {
+        case ((acc, allocPtr), layer) =>
+          val suffix = layer.suffix
+          val ld = depInfo.layers.get(suffix)
+          val reshape = ld.map(_.reshapeInfo).getOrElse("im2row")
 
-        val dstBuf =
-          if (reshape == "im2row") layer.mem("INP")
-          else layer.mem("ACC")
-        val inDstAddr = ddrBase + dstBuf.offset
-        if (reshape != "im2row" && dstBuf.byteSize == 0)
-          println(
-            s"WARNING: int32 layer '$suffix' has no ACC region" +
-              s" - golden input has nowhere to land"
-          )
-
-        // Golden output (raw OUT, pre-rescale) - compared against board OUT.
-        val outFile = Model.refOutputPath(refDir, suffix)
-        val (outRefFile, outRefAddr, outRefSize, ptrAfterOut) =
-          if (Model.isFile(outFile)) {
-            val size = os.size(os.Path(outFile, os.pwd))
-            if (size > layer.mem("OUT").byteSize)
-              println(
-                s"WARNING: $outFile ($size B) larger than OUT buffer" +
-                  s" (${layer.mem("OUT").byteSize} B) for layer '$suffix'"
-              )
-            (
-              outFile,
-              allocPtr,
-              size,
-              allocPtr + alignPage(
-                size
-              )
-            )
-          } else {
+          val dstBuf =
+            if (reshape == "im2row") layer.mem("INP")
+            else layer.mem("ACC")
+          val inDstAddr = ddrBase + dstBuf.offset
+          if (reshape != "im2row" && dstBuf.byteSize == 0)
             println(
-              s"WARNING: golden output not found: $outFile" +
-                s" - layer '$suffix' output will not be checked"
+              s"WARNING: int32 layer '$suffix' has no ACC region" +
+                s" - golden input has nowhere to land"
             )
-            ("", 0L, 0L, allocPtr)
-          }
 
-        // Golden input - copied into inDstAddr before the layer runs.
-        val inFile = Model.refInputPath(refDir, suffix)
-        val (inRefFile, inRefAddr, inRefSize, ptrAfterIn) =
-          if (Model.isFile(inFile)) {
-            val size = os.size(os.Path(inFile, os.pwd))
-            if (size > dstBuf.byteSize)
+          // Golden output (raw OUT, pre-rescale) - compared against board OUT.
+          val outFile = Model.refOutputPath(refDir, suffix)
+          val (outRefFile, outRefAddr, outRefSize, ptrAfterOut) =
+            if (Model.isFile(outFile)) {
+              val size = os.size(os.Path(outFile, os.pwd))
+              if (size > layer.mem("OUT").byteSize)
+                println(
+                  s"WARNING: $outFile ($size B) larger than OUT buffer" +
+                    s" (${layer.mem("OUT").byteSize} B) for layer '$suffix'"
+                )
+              (outFile, allocPtr, size, allocPtr + alignPage(size))
+            } else {
               println(
-                s"WARNING: $inFile ($size B) larger than destination" +
-                  s" buffer (${dstBuf.byteSize} B) for layer '$suffix'"
+                s"WARNING: golden output not found: $outFile" +
+                  s" - layer '$suffix' output will not be checked"
               )
-            (
-              inFile,
-              ptrAfterOut,
-              size,
-              ptrAfterOut + alignPage(size)
-            )
-          } else {
+              ("", 0L, 0L, allocPtr)
+            }
+
+          // Golden input - copied into inDstAddr before the layer runs.
+          val inFile = Model.refInputPath(refDir, suffix)
+          val (inRefFile, inRefAddr, inRefSize, ptrAfterIn) =
+            if (Model.isFile(inFile)) {
+              val size = os.size(os.Path(inFile, os.pwd))
+              if (size > dstBuf.byteSize)
+                println(
+                  s"WARNING: $inFile ($size B) larger than destination" +
+                    s" buffer (${dstBuf.byteSize} B) for layer '$suffix'"
+                )
+              (inFile, ptrAfterOut, size, ptrAfterOut + alignPage(size))
+            } else {
+              println(
+                s"WARNING: golden input not found: $inFile" +
+                  s" - layer '$suffix' will run on its preloaded buffer"
+              )
+              ("", 0L, 0L, ptrAfterOut)
+            }
+
+          // Dual-operand isolation is not wired up (no such VTA layer in current
+          // nets; nbInp==2 int32 is the CPU qadd path).
+          val yFile = Model.refInputYPath(refDir, suffix)
+          if (Model.isFile(yFile))
             println(
-              s"WARNING: golden input not found: $inFile" +
-                s" - layer '$suffix' will run on its preloaded buffer"
+              s"WARNING: $yFile exists but dual-operand (accY) isolation is" +
+                s" not implemented - layer '$suffix' second input is ignored"
             )
-            ("", 0L, 0L, ptrAfterOut)
-          }
 
-        // Dual-operand isolation is not wired up (no such VTA layer in current
-        // nets; nbInp==2 int32 is the CPU qadd path).
-        val yFile = Model.refInputYPath(refDir, suffix)
-        if (Model.isFile(yFile))
-          println(
-            s"WARNING: $yFile exists but dual-operand (accY) isolation is" +
-              s" not implemented - layer '$suffix' second input is ignored"
-          )
-
-        val updatedLayer = layer.copy(check =
-          Some(
-            LayerCheck(
-              inRefFile = inRefFile,
-              inRefAddr = inRefAddr,
-              inRefSize = inRefSize,
-              inDstAddr = inDstAddr,
-              outRefFile = outRefFile,
-              outRefAddr = outRefAddr,
-              outRefSize = outRefSize
+          val updatedLayer = layer.copy(check =
+            Some(
+              LayerCheck(
+                inRefFile = inRefFile,
+                inRefAddr = inRefAddr,
+                inRefSize = inRefSize,
+                inDstAddr = inDstAddr,
+                outRefFile = outRefFile,
+                outRefAddr = outRefAddr,
+                outRefSize = outRefSize
+              )
             )
           )
-        )
-        (updatedLayer :: acc, ptrAfterIn)
+          (updatedLayer :: acc, ptrAfterIn)
       }
 
     (updatedRev.reverse, finalPtr)

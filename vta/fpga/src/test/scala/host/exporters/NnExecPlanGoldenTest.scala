@@ -11,9 +11,7 @@ class NnExecPlanGoldenTest extends AnyFlatSpec {
   for (name <- GoldenSupport.cases) {
     s"ExecPlan [$name]" should "match golden nn_exec_plan.h" in {
       val c = GoldenSupport.loadCase(name)
-      val dep = loadDependencyInfo(
-        (c.comp / "dependency.csv").toString
-      )
+      val dep = loadDependencyInfo((c.comp / "dependency.csv").toString)
       val layers = LayerParser.collectLayers(c.comp.toString, dep)
       val cfg = ConfigParser.load(c.cfg.toString)
       // Mirror the CLI wiring: resolve cpuOut + the convtranspose param blobs

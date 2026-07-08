@@ -24,8 +24,8 @@ object BinaryReader {
     *   an Array[Byte] of all the bytes inside the file
     */
   def readBinaryFile(
-      filePath: String,
-      fromResources: Boolean
+    filePath: String,
+    fromResources: Boolean
   ): Try[Array[Byte]] = {
     for {
       inputStream <- getFileOrResourceAsStream(filePath, fromResources)
@@ -70,8 +70,8 @@ object BinaryReader {
     *   an array containing the data grouped together according to its byte size
     */
   def reverseLE(
-      binaryData: Array[Byte],
-      dataType: DataTypeValue
+    binaryData: Array[Byte],
+    dataType: DataTypeValue
   ): Array[Array[Byte]] = {
     val sizeOfElement =
       (for {
@@ -97,8 +97,8 @@ object BinaryReader {
   }
 
   def readBinaryStream(
-      binStream: BufferedInputStream,
-      dt: DataTypeValue
+    binStream: BufferedInputStream,
+    dt: DataTypeValue
   ): LazyList[String] =
     LazyList
       .continually(readUpToNBytes(binStream, 8))
@@ -116,9 +116,9 @@ object BinaryReader {
     *   a Map[String, String] of the data type and its base address
     */
   def computeCSVFile(
-      filePath: String,
-      fromResources: Boolean,
-      isBaseAddr: Boolean = true
+    filePath: String,
+    fromResources: Boolean,
+    isBaseAddr: Boolean = true
   ): Map[String, String] = {
     val newFilePath =
       if (!fromResources) {
@@ -208,11 +208,11 @@ object BinaryReader {
     *   with its values
     */
   def computeAddresses(
-      filePath: String,
-      dataType: DataTypeValue,
-      baseAddress: String,
-      isDRAM: Boolean,
-      fromResources: Boolean
+    filePath: String,
+    dataType: DataTypeValue,
+    baseAddress: String,
+    isDRAM: Boolean,
+    fromResources: Boolean
   ): Try[Map[BigInt, Array[BigInt]]] = {
     val newFilePath = getCompilerOutputFile(filePath, fromResources)
     val groupedBinaryData =
@@ -346,8 +346,8 @@ object BinaryReader {
     *   a Map that associates the addresses of a vector and its values
     */
   def printMap(
-      map: Map[BigInt, Array[BigInt]],
-      dataType: DataTypeValue
+    map: Map[BigInt, Array[BigInt]],
+    dataType: DataTypeValue
   ): Unit = {
     println("Content of the Map :")
     val toPrint = map.toSeq.sortBy(_._1)

@@ -16,16 +16,15 @@ object ConfigParser {
     readFile(filePath, fromResources = false).map(parseConfig)
 
   /** Parse the simple one-key-per-line config JSON content into a string map.
-    * Brace lines, comments, and blanks are dropped; each remaining
-    * `"KEY": VALUE` line becomes `KEY -> VALUE` (quotes/commas/spaces removed).
+    * Brace lines, comments, and blanks are dropped; each remaining `"KEY":
+    * VALUE` line becomes `KEY -> VALUE` (quotes/commas/spaces removed).
     */
   def parseConfig(content: String): Map[String, String] =
     content
       .split("\n")
       .filterNot(line =>
-        line.startsWith("//") || line.trim.isEmpty || line.contains(
-          "{"
-        ) || line.contains("}")
+        line.startsWith("//") || line.trim.isEmpty || line.contains("{") || line
+          .contains("}")
       )
       .map { line =>
         val array = line.trim
@@ -49,8 +48,8 @@ object ConfigParser {
     *   a Map with the parsed content from the file
     */
   def getConfigParametersFromFile(
-      filePath: String,
-      fromResources: Boolean
+    filePath: String,
+    fromResources: Boolean
   ): Map[String, Int] = {
     (for {
       decodedJson <- parseConfigJson(filePath, fromResources)
@@ -68,8 +67,8 @@ object ConfigParser {
   }
 
   def parseConfigJson(
-      filePath: String,
-      fromResources: Boolean
+    filePath: String,
+    fromResources: Boolean
   ): Try[Map[String, String]] = {
     val newFilePath = getConfigFile(filePath, fromResources)
     parseConfigJsonAt(newFilePath)

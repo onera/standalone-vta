@@ -37,9 +37,7 @@ import scala.math.pow
   *   - Compute ALU instructions (tensorAlu module)
   *   - Compute GEMM instructions (tensorGemm module)
   */
-class Compute(implicit
-    val p: Parameters
-) extends Module {
+class Compute(implicit val p: Parameters) extends Module {
   val mp = p(ShellKey).memParams
   val io = IO(new Bundle {
     val i_post = Vec(2, Input(Bool()))
@@ -76,9 +74,7 @@ class Compute(implicit
   // try to use the acc closest to top IO
   val topAccGrpIdx = tensorGemm.io.acc.closestIOGrpIdx
 
-  val inst_q = Module(
-    SyncQueue(UInt(INST_BITS.W), p(CoreKey).instQueueEntries)
-  )
+  val inst_q = Module(SyncQueue(UInt(INST_BITS.W), p(CoreKey).instQueueEntries))
 
   // decode
   val dec = Module(new ComputeDecode)

@@ -57,22 +57,22 @@ object XilinxEmit {
             instQueueEntries
           ) =>
         s"""
-          |Using following core config for target ${target}:
-          | -batch=${batch}
-          | -blockOut=${blockOut}
-          | -blockOutFactor=${blockOutFactor}
-          | -blockIn=${blockIn}
-          | -inpBits=${inpBits}
-          | -wgtBits=${wgtBits}
-          | -uopBits=${uopBits}
-          | -accBits=${accBits}
-          | -outBits=${outBits}
-          | -uopMemDepth=${uopMemDepth}
-          | -inpMemDepth=${inpMemDepth}
-          | -wgtMemDepth=${wgtMemDepth}
-          | -accMemDepth=${accMemDepth}
-          | -outMemDepth=${outMemDepth}
-          | -instQueueEntries=${instQueueEntries}
+           |Using following core config for target ${target}:
+           | -batch=${batch}
+           | -blockOut=${blockOut}
+           | -blockOutFactor=${blockOutFactor}
+           | -blockIn=${blockIn}
+           | -inpBits=${inpBits}
+           | -wgtBits=${wgtBits}
+           | -uopBits=${uopBits}
+           | -accBits=${accBits}
+           | -outBits=${outBits}
+           | -uopMemDepth=${uopMemDepth}
+           | -inpMemDepth=${inpMemDepth}
+           | -wgtMemDepth=${wgtMemDepth}
+           | -accMemDepth=${accMemDepth}
+           | -outMemDepth=${outMemDepth}
+           | -instQueueEntries=${instQueueEntries}
           """.stripMargin
       case _ => ""
     }
@@ -82,7 +82,7 @@ object XilinxEmit {
     * the VLNV string "vendor:lib:name:version".
     */
   def emitXilinx(
-      outDir: os.Path
+    outDir: os.Path
   )(implicit p: Parameters = new DefaultPynqConfig): String = {
     ChiselStage.emitSystemVerilogFile(
       new XilinxShell,

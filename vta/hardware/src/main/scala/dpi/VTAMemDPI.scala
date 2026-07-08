@@ -27,11 +27,11 @@ import vta.util.config._
 
 /** Memory DPI parameters */
 case class VTAMemDPIParams(
-    dpiDelay: Int,
-    dpiLenBits: Int,
-    dpiAddrBits: Int,
-    dpiDataBits: Int,
-    dpiTagBits: Int
+  dpiDelay: Int,
+  dpiLenBits: Int,
+  dpiAddrBits: Int,
+  dpiDataBits: Int,
+  dpiTagBits: Int
 ) {}
 case object DpiKey extends Field[VTAMemDPIParams]
 

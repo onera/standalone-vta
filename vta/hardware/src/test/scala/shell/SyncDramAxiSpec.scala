@@ -7,9 +7,8 @@ import vta.tags.tagObjects.UnitTests
 import vta.util.config.Parameters
 import vta.util.{AnyFlatSpecSim, EnableMemInit}
 
-class SyncAxiDram(memoryFile: String = "", size: Int)(implicit
-    p: Parameters
-) extends Module {
+class SyncAxiDram(memoryFile: String = "", size: Int)(implicit p: Parameters)
+    extends Module {
   val io = IO(new Bundle {
     val axis = new AXIClient(p(ShellKey).memParams)
   })

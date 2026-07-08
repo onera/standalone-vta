@@ -10,9 +10,7 @@ class LayoutTest extends AnyFlatSpec with Matchers {
   private val c = GoldenSupport.loadCase("lenet5-default")
   private val layers = LayerParser.collectLayers(
     c.comp.toString,
-    loadDependencyInfo(
-      (c.comp / "dependency.csv").toString
-    )
+    loadDependencyInfo((c.comp / "dependency.csv").toString)
   )
 
   "scratchAddr" should "be page-aligned and above every VTA region" in {

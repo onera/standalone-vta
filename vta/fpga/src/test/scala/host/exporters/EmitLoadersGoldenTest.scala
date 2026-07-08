@@ -11,9 +11,7 @@ class EmitLoadersGoldenTest extends AnyFlatSpec {
   for (name <- GoldenSupport.cases) {
     s"emit loaders [$name]" should "match golden tcl/asm/ld" in {
       val c = GoldenSupport.loadCase(name)
-      val dep = loadDependencyInfo(
-        (c.comp / "dependency.csv").toString
-      )
+      val dep = loadDependencyInfo((c.comp / "dependency.csv").toString)
       val layers = LayerParser.collectLayers(c.comp.toString, dep)
       val suffixToIdx = layers.zipWithIndex.map { case (l, i) =>
         l.suffix -> i

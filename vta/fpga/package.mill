@@ -7,9 +7,7 @@ import build.MyModule
 
 object `package` extends MyModule { m =>
 
-  def mvnDeps = Seq(
-    mvn"com.github.scopt::scopt:4.1.0"
-  )
+  def mvnDeps = Seq(mvn"com.github.scopt::scopt:4.1.0")
   def moduleDeps = Seq(build.vta.hardware)
 
   /** Board name for the FPGA synthesis pipeline. Mirrors the
@@ -40,12 +38,12 @@ object `package` extends MyModule { m =>
     * global config) for the software Makefile's `make gen*` targets.
     */
   def runGenNnBaremetal(
-      runner: mill.javalib.RunModule.Runner,
-      compDir: os.Path,
-      outdir: os.Path,
-      configKey: String,
-      ddrBase: String,
-      extraArgs: Seq[String]
+    runner: mill.javalib.RunModule.Runner,
+    compDir: os.Path,
+    outdir: os.Path,
+    configKey: String,
+    ddrBase: String,
+    extraArgs: Seq[String]
   )(using ctx: mill.api.TaskCtx): Unit =
     runner.run(
       args = Seq(
@@ -105,9 +103,9 @@ object `package` extends MyModule { m =>
   }
 
   /** Plain (untracked) resolution of the vivado binary from XILINX_VIVADO.
-    * Deliberately NOT a Task.Input read via Task.env inside a cached Task:
-    * the tool's location is an environment/tooling detail, not build content,
-    * so it must not invalidate fpgaBuild's cache (see vivado/fpgaBuild below).
+    * Deliberately NOT a Task.Input read via Task.env inside a cached Task: the
+    * tool's location is an environment/tooling detail, not build content, so it
+    * must not invalidate fpgaBuild's cache (see vivado/fpgaBuild below).
     */
   def resolveVivado(env: Map[String, String]): String =
     env
@@ -119,10 +117,7 @@ object `package` extends MyModule { m =>
 
   def buildFpga(args: Args) = Task.Command {
     runner().run(
-      args = args.value ++ Seq(
-        "--vivado",
-        vivado().toString
-      ),
+      args = args.value ++ Seq("--vivado", vivado().toString),
       mainClass = "fpga.synthesis.BuildFpga",
       workingDir = BuildCtx.workspaceRoot,
       propagateEnv = true
@@ -136,9 +131,9 @@ object `package` extends MyModule { m =>
     * Reuses hardware.vtaFpgaConfig()'s RTL emit (--skip-emit) so Vivado never
     * redoes work Mill already cached.
     *
-    * Resolves the vivado binary via resolveVivado(Task.env) rather than
-    * calling the vivado() Task.Input, so whether/how XILINX_VIVADO is set
-    * cannot invalidate this cache - only config/board/RTL content can.
+    * Resolves the vivado binary via resolveVivado(Task.env) rather than calling
+    * the vivado() Task.Input, so whether/how XILINX_VIVADO is set cannot
+    * invalidate this cache - only config/board/RTL content can.
     */
   def fpgaBuild = Task {
     val emitDir = build.vta.hardware.vtaFpgaConfig().path
@@ -165,11 +160,11 @@ object `package` extends MyModule { m =>
     PathRef(outDir)
   }
 
-  /** Config-keyed Cross submodule for the cacheable, config-only Vivado
-    * build: each config is an independently addressable, independently
-    * cached module instance (vta.fpga.configs[vta_w8b].fpgaBuild). Depends
-    * on hardware.configs(configKey).vtaFpgaConfig() (the matching config's
-    * RTL emit), not the global vtaFpgaConfig().
+  /** Config-keyed Cross submodule for the cacheable, config-only Vivado build:
+    * each config is an independently addressable, independently cached module
+    * instance (vta.fpga.configs[vta_w8b].fpgaBuild). Depends on
+    * hardware.configs(configKey).vtaFpgaConfig() (the matching config's RTL
+    * emit), not the global vtaFpgaConfig().
     */
   object configs extends Cross[ConfigModule](build.configNames)
   trait ConfigModule extends build.ConfigCrossModule {
@@ -177,24 +172,25 @@ object `package` extends MyModule { m =>
       val emitDir = build.vta.hardware.configs(configKey).vtaFpgaConfig().path
       val board = m.vtaBoardName()
       val outDir = Task.dest / configKey / board
-      m.runner().run(
-        args = Seq(
-          "--board",
-          board,
-          "--config",
-          configPath.toString,
-          "--emit-dir",
-          emitDir.toString,
-          "--skip-emit",
-          "--out",
-          outDir.toString,
-          "--vivado",
-          m.resolveVivado(Task.env)
-        ),
-        mainClass = "fpga.synthesis.BuildFpga",
-        workingDir = BuildCtx.workspaceRoot,
-        propagateEnv = true
-      )
+      m.runner()
+        .run(
+          args = Seq(
+            "--board",
+            board,
+            "--config",
+            configPath.toString,
+            "--emit-dir",
+            emitDir.toString,
+            "--skip-emit",
+            "--out",
+            outDir.toString,
+            "--vivado",
+            m.resolveVivado(Task.env)
+          ),
+          mainClass = "fpga.synthesis.BuildFpga",
+          workingDir = BuildCtx.workspaceRoot,
+          propagateEnv = true
+        )
       PathRef(outDir)
     }
   }
@@ -227,19 +223,19 @@ object `package` extends MyModule { m =>
       .group(1)
   }
 
-  /** Plain function: create/update a Vitis workspace. genDir is optional so
-    * the config-only createVitisProject Command below can omit it (the
-    * script falls back to its own software/gen default) while build.mill's
-    * per-example task passes a specific model's genBaremetal() output.
+  /** Plain function: create/update a Vitis workspace. genDir is optional so the
+    * config-only createVitisProject Command below can omit it (the script falls
+    * back to its own software/gen default) while build.mill's per-example task
+    * passes a specific model's genBaremetal() output.
     */
   def runCreateVitisWorkspace(
-      vitisExe: String,
-      script: os.Path,
-      xsa: String,
-      cpu: String,
-      genDir: Option[os.Path],
-      workspace: os.Path,
-      extraArgs: Seq[String]
+    vitisExe: String,
+    script: os.Path,
+    xsa: String,
+    cpu: String,
+    genDir: Option[os.Path],
+    workspace: os.Path,
+    extraArgs: Seq[String]
   ): Unit =
     os.proc(
       vitisExe,

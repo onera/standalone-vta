@@ -11,9 +11,9 @@ import vta.util.AnyFlatSpecSim
 import scala.io._
 
 class TensorAluJsonTest(
-    c: TensorAlu,
-    fn: String = "/x.json",
-    debug: Boolean = false
+  c: TensorAlu,
+  fn: String = "/x.json",
+  debug: Boolean = false
 ) extends PeekPokeAPI {
   // Number of mismatching lanes for this fixture; the runner reads it after
   // construction so a single bad fixture doesn't abort the whole sweep.
@@ -54,8 +54,8 @@ class TensorAluJsonTest(
 
   // Print scratchpad
   def print_scratchpad(
-      scratchpad: Map[BigInt, Array[BigInt]],
-      index: BigInt
+    scratchpad: Map[BigInt, Array[BigInt]],
+    index: BigInt
   ): Unit = {
     print("\n (")
     for { i <- scratchpad(index).indices } {
@@ -69,8 +69,8 @@ class TensorAluJsonTest(
 
   // Compare scratchpad
   def compare_scratchpad(
-      reference: Map[BigInt, Array[BigInt]],
-      scratchpadUnderTest: Map[BigInt, Array[BigInt]]
+    reference: Map[BigInt, Array[BigInt]],
+    scratchpadUnderTest: Map[BigInt, Array[BigInt]]
   ): Unit = {
     val availableIndexes = reference.keySet
     for (index <- availableIndexes) {
@@ -178,8 +178,8 @@ class TensorAluJsonTest(
 
   // Read scratchpad
   class TensorMasterMock(
-      tm: TensorMaster,
-      scratchpad: Map[BigInt, Array[BigInt]]
+    tm: TensorMaster,
+    scratchpad: Map[BigInt, Array[BigInt]]
   ) {
     tm.rd(0).data.valid.poke(0)
     var valid = tm.rd(0).idx.valid.peekBoolean()
@@ -209,8 +209,8 @@ class TensorAluJsonTest(
   // before TensorMasterMock.logical_step runs), which hides the
   // TensorAluPipelined RAW bypass gap that real hardware exposes.
   class TensorMasterMockWr(
-      tm: TensorMaster,
-      scratchpad: Map[BigInt, Array[BigInt]]
+    tm: TensorMaster,
+    scratchpad: Map[BigInt, Array[BigInt]]
   ) {
     private var pending: Option[(Int, IndexedSeq[BigInt])] = None
     def logical_step(): Unit = {

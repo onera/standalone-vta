@@ -6,7 +6,7 @@ import vta.interface.axi.AXILiteClient
 trait AxiLiteSimUtils extends PeekPokeAPI {
 
   def writeAxiLiteData(
-      data: BigInt
+    data: BigInt
   )(implicit clock: Clock, axi: AXILiteClient, timeout: Int = 2): Unit = {
     if (!axi.w.ready.peekBoolean()) {
       clock.stepUntil(axi.w.ready, 1, timeout)
@@ -17,7 +17,7 @@ trait AxiLiteSimUtils extends PeekPokeAPI {
     axi.w.valid.poke(false.B)
   }
   def writeAxiLiteWriteAddress(
-      data: BigInt
+    data: BigInt
   )(implicit clock: Clock, axi: AXILiteClient, timeout: Int = 2): Unit = {
     if (!axi.aw.ready.peekBoolean()) {
       clock.stepUntil(axi.aw.ready, 1, timeout)
@@ -29,7 +29,7 @@ trait AxiLiteSimUtils extends PeekPokeAPI {
   }
 
   def writeAxiLiteReadAddress(
-      data: BigInt
+    data: BigInt
   )(implicit axi: AXILiteClient, clock: Clock, timeout: Int = 2): Unit = {
     if (!axi.ar.ready.peekBoolean()) {
       clock.stepUntil(axi.ar.ready, 1, timeout)
@@ -41,9 +41,9 @@ trait AxiLiteSimUtils extends PeekPokeAPI {
   }
 
   def readAxiLiteData()(implicit
-      clock: Clock,
-      axi: AXILiteClient,
-      timeout: Int = 2
+    clock: Clock,
+    axi: AXILiteClient,
+    timeout: Int = 2
   ): Option[UInt] = {
     // clock.stepUntil(axi.r.valid, 1, timeout)
     axi.r.ready.poke(true.B)

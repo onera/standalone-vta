@@ -5,7 +5,6 @@ import org.scalatest.TagAnnotation;
 
 @TagAnnotation
 @Retention(RetentionPolicy.RUNTIME)
-@Target({ ElementType.METHOD, ElementType.TYPE })
+@Target({ElementType.METHOD, ElementType.TYPE})
 @Inherited
-public @interface LongTests {
-}
+public @interface LongTests {}

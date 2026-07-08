@@ -12,15 +12,15 @@ object BuildFpga {
   def main(args: Array[String]): Unit = sys.exit(run(args))
 
   private case class Opts(
-      board: String = "zcu104",
-      config: Option[String] = None,
-      out: Option[String] = None,
-      emitDir: Option[String] = None,
-      jobs: Option[Int] = None,
-      vivado: String = "vivado",
-      skipEmit: Boolean = false,
-      skipPackage: Boolean = false,
-      dryRun: Boolean = false
+    board: String = "zcu104",
+    config: Option[String] = None,
+    out: Option[String] = None,
+    emitDir: Option[String] = None,
+    jobs: Option[Int] = None,
+    vivado: String = "vivado",
+    skipEmit: Boolean = false,
+    skipPackage: Boolean = false,
+    dryRun: Boolean = false
   )
 
   private val argParser: OParser[_, Opts] = {
@@ -98,7 +98,7 @@ object BuildFpga {
     val configDir = repoRoot / "config"
     val configPath = o.config match {
       case Some(c) => os.Path(c, os.pwd)
-      case None    =>
+      case None =>
         os.Path(
           sys.props.getOrElse("vta.config.file", "vta_config.json"),
           configDir
@@ -144,9 +144,7 @@ object BuildFpga {
     // Stage 1: emit RTL
     val vlnv: String = if (!skipEmit) {
       if (dryRun) {
-        println(
-          s"\n[1/3 emit RTL] Emitting VTAXilinxShell to $emitDir"
-        )
+        println(s"\n[1/3 emit RTL] Emitting VTAXilinxShell to $emitDir")
         s"${vta.XilinxEmit.vendor}:${vta.XilinxEmit.lib}:${vta.XilinxEmit.name}:${vta.XilinxEmit.version}"
       } else {
         vta.XilinxEmit.emitXilinx(emitDir)
@@ -304,10 +302,10 @@ object BuildFpga {
   }
 
   private def runCmd(
-      cmd: Seq[String],
-      cwd: os.Path,
-      dryRun: Boolean,
-      stage: String
+    cmd: Seq[String],
+    cwd: os.Path,
+    dryRun: Boolean,
+    stage: String
   ): Unit = {
     println(s"\n[$stage] (cwd=$cwd)\n    ${cmd.mkString(" ")}")
     if (dryRun) return

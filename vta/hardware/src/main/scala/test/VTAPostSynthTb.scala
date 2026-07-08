@@ -21,9 +21,9 @@ import TestBenchLayout.LaunchParams
   * XilinxShell does internally.
   */
 class VTAPostSynthTb(
-    memoryConfigs: Seq[MemoryConfig],
-    layers: Seq[LaunchParams],
-    perLayerTimeout: Int = 2000000
+  memoryConfigs: Seq[MemoryConfig],
+  layers: Seq[LaunchParams],
+  perLayerTimeout: Int = 2000000
 )(implicit p: Parameters)
     extends Module {
   val io = IO(new Bundle {

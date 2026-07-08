@@ -63,11 +63,7 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val tensorStore = Module(TensorStore(tensorType = "out", debug))
 
   val start =
-    instructionQueue.io.deq.valid & Mux(
-      dec.io.pop_prev,
-      sem.io.sready,
-      true.B
-    )
+    instructionQueue.io.deq.valid & Mux(dec.io.pop_prev, sem.io.sready, true.B)
   val done = tensorStore.io.done
 
   // control

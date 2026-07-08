@@ -23,11 +23,10 @@ import vta.util.SimulationUtils.verilatorWithWaveDump
   *   the AXI parameters configuration
   */
 class MultiMemAxiClient(
-    memoryConfigs: Seq[MemoryConfig],
-    enforceOutBounds: Boolean = true
-)(implicit
-    val param: AXIParams
-) extends Module {
+  memoryConfigs: Seq[MemoryConfig],
+  enforceOutBounds: Boolean = true
+)(implicit val param: AXIParams)
+    extends Module {
   val io = IO(new AXIClient(param))
 
   val readEnable = RegInit(true.B)

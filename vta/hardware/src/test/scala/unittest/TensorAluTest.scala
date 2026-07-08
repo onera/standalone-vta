@@ -57,9 +57,9 @@ class TensorAluIndexGeneratorTest extends AnyFlatSpecSim {
     }
   }
   def tensorAluIndexGeneratorTester(
-      c: TensorAluIndexGenerator,
-      alu_use_imm: Boolean = false,
-      debug: Boolean = false
+    c: TensorAluIndexGenerator,
+    alu_use_imm: Boolean = false,
+    debug: Boolean = false
   ) = {
 
     val uop_begin = 0

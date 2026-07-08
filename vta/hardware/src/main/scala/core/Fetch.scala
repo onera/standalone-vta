@@ -57,9 +57,7 @@ trait Fetch extends Module {
   })
 }
 object Fetch {
-  def apply(forceSimpleFetch: Boolean = false)(implicit
-      p: Parameters
-  ) = {
+  def apply(forceSimpleFetch: Boolean = false)(implicit p: Parameters) = {
 
     val mp = p(ShellKey).memParams
     // Force use original implementation of fetch

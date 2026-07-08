@@ -20,10 +20,10 @@ import fpga.host.parsers.ConfigParser
 object RegenHostGolden {
 
   private case class CaseDef(
-      name: String,
-      configName: String,
-      ddrBaseHex: String,
-      modelDesc: String
+    name: String,
+    configName: String,
+    ddrBaseHex: String,
+    modelDesc: String
   ) {
     def ddrBase: Long =
       java.lang.Long.parseLong(ddrBaseHex.stripPrefix("0x"), 16)
@@ -60,19 +60,18 @@ object RegenHostGolden {
     s.replace(compDir.toString, "@COMP_DIR@")
 
   private def withTempDir[A](prefix: String)(f: os.Path => A): A = {
-    val tmp = os.Path(
-      java.nio.file.Files.createTempDirectory(prefix).toAbsolutePath
-    )
+    val tmp =
+      os.Path(java.nio.file.Files.createTempDirectory(prefix).toAbsolutePath)
     try f(tmp)
     finally os.remove.all(tmp)
   }
 
   /** Regenerate all golden sub-dirs for the given case definition. */
   private def regenCase(
-      cd: CaseDef,
-      binRoot: os.Path,
-      goldenRoot: os.Path,
-      configRoot: os.Path
+    cd: CaseDef,
+    binRoot: os.Path,
+    goldenRoot: os.Path,
+    configRoot: os.Path
   ): Unit = {
     val comp = binRoot / cd.name / "compiler_output"
     require(
@@ -187,10 +186,7 @@ object RegenHostGolden {
   }
 
   def main(args: Array[String]): Unit = {
-    require(
-      args.length >= 2,
-      "Usage: RegenHostGolden <binRoot> <goldenRoot>"
-    )
+    require(args.length >= 2, "Usage: RegenHostGolden <binRoot> <goldenRoot>")
     val binRoot = os.Path(args(0))
     val goldenRoot = os.Path(args(1))
     // Config JSON files live under config/ relative to the workspace root.

@@ -34,9 +34,7 @@ import vta.util.AnyFlatSpecSim
 class TensorGemmTestSuite extends AnyFlatSpecSim {
   behavior of "TensorGemmSimple"
   it should "compute a simple operation" in
-    simulate(new TensorGemmSimple)(
-      new TensorGemmTester(_)
-    )
+    simulate(new TensorGemmSimple)(new TensorGemmTester(_))
 
   it should "correctly generate indices" in simulate(new TensorGemmSimple)(
     new TensorGemmIdxTester(_)

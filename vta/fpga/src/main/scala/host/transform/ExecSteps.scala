@@ -11,10 +11,10 @@ object ExecSteps {
     * (suffixToIdx membership; int32 needs ACC byteSize > 0).
     */
   def of(
-      dep: DependencyInfo,
-      layers: Seq[Model.LayerInfo],
-      suffixToIdx: Map[String, Int],
-      logOutWidth: Int
+    dep: DependencyInfo,
+    layers: Seq[Model.LayerInfo],
+    suffixToIdx: Map[String, Int],
+    logOutWidth: Int
   ): Seq[ExecStep] = {
     // (kind, layerName) pairs in execution order; stepIdx is the position, so it
     // is assigned by zipWithIndex below (matching the old running-counter `add`).

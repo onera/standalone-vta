@@ -12,12 +12,12 @@ package fpga.host.models
 object HwConfig {
 
   case class ConfigParams(
-      blockSize: Int,
-      logInpWidth: Int,
-      logOutWidth: Int,
-      logWgtWidth: Int,
-      logAccWidth: Int,
-      target: Option[String]
+    blockSize: Int,
+    logInpWidth: Int,
+    logOutWidth: Int,
+    logWgtWidth: Int,
+    logAccWidth: Int,
+    target: Option[String]
   )
 
   def ctypeFromLogWidth(logWidth: Int): String = {

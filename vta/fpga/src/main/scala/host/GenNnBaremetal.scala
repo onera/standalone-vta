@@ -28,17 +28,17 @@ object GenNnBaremetal {
     * or let it propagate to [[main]], which maps it to `sys.exit(1)`.
     */
   def generate(
-      compDir: String,
-      outdir: String,
-      ddrBase: Long,
-      cfg: HwConfig.ConfigParams,
-      emitLayerCheck: Boolean = false,
-      emitCpuCheck: Boolean = false,
-      emitSdManifest: Boolean = false,
-      refDir: Option[String] = None,
-      sdDir: String = "",
-      maxAddr: Option[Long] = None,
-      verbose: Boolean = false
+    compDir: String,
+    outdir: String,
+    ddrBase: Long,
+    cfg: HwConfig.ConfigParams,
+    emitLayerCheck: Boolean = false,
+    emitCpuCheck: Boolean = false,
+    emitSdManifest: Boolean = false,
+    refDir: Option[String] = None,
+    sdDir: String = "",
+    maxAddr: Option[Long] = None,
+    verbose: Boolean = false
   ): Unit = {
     val blockSize = cfg.blockSize
     val emitCheck = emitLayerCheck || emitCpuCheck
@@ -167,11 +167,9 @@ object GenNnBaremetal {
         extraBlobs = ctBlobs
       ).export(out("nn_sd_manifest.h"))
 
-    AsmIncbin(
-      activeL,
-      emitCheck = emitCheck,
-      extraBlobs = ctBlobs
-    ).export(out("nn_bin_data.S"))
+    AsmIncbin(activeL, emitCheck = emitCheck, extraBlobs = ctBlobs).export(
+      out("nn_bin_data.S")
+    )
     LinkerFragment(
       activeL,
       ddrBase,
@@ -182,14 +180,9 @@ object GenNnBaremetal {
     if (emitCheck)
       DebugMap(activeL).export(out("nn_debug_map.h"))
     if (emitCpuCheck)
-      CpuDebugMap(
-        dep,
-        activeL,
-        cfg,
-        suffixToIdx,
-        ddrBase,
-        compDir
-      ).export(out("nn_cpu_debug_map.h"))
+      CpuDebugMap(dep, activeL, cfg, suffixToIdx, ddrBase, compDir).export(
+        out("nn_cpu_debug_map.h")
+      )
 
     if (verbose) Checks.printSummary(activeL, ddrBase)
 
@@ -210,16 +203,16 @@ object GenNnBaremetal {
     * comes from the Chisel DefaultPynqConfig (`-Dvta.config.file`).
     */
   private case class Opts(
-      compilerOutputDir: String = "",
-      ddrBase: String = "0x0",
-      outdir: String = "build/baremetal",
-      maxAddr: Option[String] = None,
-      verbose: Boolean = false,
-      emitLayerCheck: Boolean = false,
-      emitCpuCheck: Boolean = false,
-      emitSdManifest: Boolean = false,
-      refDir: Option[String] = None,
-      sdDir: String = ""
+    compilerOutputDir: String = "",
+    ddrBase: String = "0x0",
+    outdir: String = "build/baremetal",
+    maxAddr: Option[String] = None,
+    verbose: Boolean = false,
+    emitLayerCheck: Boolean = false,
+    emitCpuCheck: Boolean = false,
+    emitSdManifest: Boolean = false,
+    refDir: Option[String] = None,
+    sdDir: String = ""
   )
 
   private val argParser: OParser[_, Opts] = {

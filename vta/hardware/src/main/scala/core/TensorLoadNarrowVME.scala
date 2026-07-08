@@ -33,11 +33,9 @@ import scala.math.pow
   * Load 1D and 2D tensors from main memory (DRAM) to input/weight scratchpads
   * (SRAM). Also, there is support for zero padding, while doing the load.
   */
-case class TensorLoadNarrowVME(
-    tensorType: String = "none"
-)(implicit
-    val
-    parameters: Parameters
+case class TensorLoadNarrowVME(tensorType: String = "none")(implicit
+  val
+  parameters: Parameters
 ) extends TensorLoad {
   val writePipeLatency = tp.writePipeLatency
 
@@ -385,9 +383,8 @@ case class TensorLoadNarrowVME(
 
 //Fill algorithm fills row by row from TOP then sides, then BOT
 //----------------------------------------------------------------------------
-class ZeroPadding(tensorType: String = "none")(implicit
-    p: Parameters
-) extends Module {
+class ZeroPadding(tensorType: String = "none")(implicit p: Parameters)
+    extends Module {
   val tp = new TensorParams(tensorType)
   val mp = p(ShellKey).memParams
   val io = IO(new Bundle {
@@ -420,9 +417,7 @@ class ZeroPadding(tensorType: String = "none")(implicit
   ) // current padding row
   // current padding column
   val zpDestRowOffset = Reg(
-    chiselTypeOf(
-      dec.sramOffset
-    )
+    chiselTypeOf(dec.sramOffset)
   ) // one-dimentional offset for zpRowIdx
   zpRowIdx := zpRowIdx
   zpColIdx := zpColIdx
@@ -559,9 +554,8 @@ class ZeroPadding(tensorType: String = "none")(implicit
 // Different transactions are identified by tag change
 // SAME DESTINATION SUBSEQUENT REQUESTS IN ONE INSTRUCTION LEADS TO UNDEFINED BEHAVIOR
 //----------------------------------------------------------------------------
-class ReadVMEData(tensorType: String = "none")(implicit
-    p: Parameters
-) extends Module {
+class ReadVMEData(tensorType: String = "none")(implicit p: Parameters)
+    extends Module {
   val tp = new TensorParams(tensorType)
   val mp = p(ShellKey).memParams
   val io = IO(new Bundle {
@@ -599,17 +593,13 @@ class ReadVMEData(tensorType: String = "none")(implicit
   // decode data destination
   val vmeTagDecode = io.vmeData.bits.tag
   val vmeTagDecodeLast = Reg(
-    chiselTypeOf(
-      vmeTagDecode
-    )
+    chiselTypeOf(vmeTagDecode)
   ) // store tag to identify a new burst
   val rdDataIdx = vmeTagDecode(vmeTagDecode.getWidth - 1, blkOffsetWidth)
   val rdDataCol =
     if (tp.tsSizeRatio == 1) 0.U else vmeTagDecode(blkOffsetWidth - 1, 0)
   val rdDataDestColNext = Reg(
-    chiselTypeOf(
-      rdDataDestCol
-    )
+    chiselTypeOf(rdDataDestCol)
   ) // this is an index in a col in tensor
   val rdDataDestIdxNext = Reg(
     UInt(M_SRAM_OFFSET_BITS.W)
@@ -656,9 +646,8 @@ class ReadVMEData(tensorType: String = "none")(implicit
 // transaction TAG is a data block offset in scratchpad
 // Different transactions are identified by tag change
 // SAME DESTINATION SUBSEQUENT REQUESTS IN ONE INSTRUCTION LEADS TO UNDEFINED BEHAVIOR
-class GenVMECmd(tensorType: String = "none")(implicit
-    p: Parameters
-) extends Module {
+class GenVMECmd(tensorType: String = "none")(implicit p: Parameters)
+    extends Module {
   val tp = new TensorParams(tensorType)
   val mp = p(ShellKey).memParams
   val io = IO(new Bundle {
@@ -704,9 +693,10 @@ class GenVMECmd(tensorType: String = "none")(implicit
   ) // read cmd transaction length. It is <= maxTransfer
   val commandsDone = RegInit(true.B) // Done generating VME commands
   val stride = Wire(Bool()) // flags change to the next row to read
-  val blocksReadSize = (dec.xsize << log2Ceil(
-    sizeFactor
-  )) // how many blocks to read in a singl src row
+  val blocksReadSize =
+    (dec.xsize << log2Ceil(
+      sizeFactor
+    )) // how many blocks to read in a singl src row
   val blocksReadNb = Reg(chiselTypeOf(blocksReadSize))
   val rdCmdExtAddrRowBegin = Reg(
     UInt(mp.addrBits.W)

@@ -22,12 +22,12 @@ object Filter {
     *   filtered scratchpad
     */
   def filter(
-      scratchpad: Map[BigInt, Array[BigInt]],
-      uop: Int,
-      loop_in: Int,
-      loop_out: Int,
-      dst_in: Int,
-      dst_out: Int
+    scratchpad: Map[BigInt, Array[BigInt]],
+    uop: Int,
+    loop_in: Int,
+    loop_out: Int,
+    dst_in: Int,
+    dst_out: Int
   ): Map[BigInt, Array[BigInt]] = { // should have OUT scratchpad of size 208 after filtering
     // Filtering out 'useless' data post-average pooling
     var filteredOut: Map[BigInt, Array[BigInt]] = Map.empty

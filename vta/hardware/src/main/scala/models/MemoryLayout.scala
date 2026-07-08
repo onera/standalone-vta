@@ -16,10 +16,10 @@ package vta.models
   *   an optional logfile to store the memory (written during simulation)
   */
 case class MemoryConfig(
-    name: String,
-    path: String,
-    baseAddress: Int,
-    numberOfData: Int,
-    words64: Int,
-    logging: Boolean = false
+  name: String,
+  path: String,
+  baseAddress: Int,
+  numberOfData: Int,
+  words64: Int,
+  logging: Boolean = false
 )

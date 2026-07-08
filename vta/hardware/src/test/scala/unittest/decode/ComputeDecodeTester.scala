@@ -282,8 +282,8 @@ class ComputeDecodeTest(c: ComputeDecode, debug: Boolean = false)
 }
 
 class AlternativeComputeMemDecodeTest(
-    c: AlternativeComputeMemDecode,
-    debug: Boolean = false
+  c: AlternativeComputeMemDecode,
+  debug: Boolean = false
 ) extends ChiselSim {
   if (debug) {
     // Print the test name
@@ -375,8 +375,8 @@ class AlternativeComputeMemDecodeTest(
 }
 
 class AlternativeComputeGemmDecodeTest(
-    c: AlternativeComputeGemmDecode,
-    debug: Boolean = false
+  c: AlternativeComputeGemmDecode,
+  debug: Boolean = false
 ) extends ChiselSim {
   if (debug) {
     // Print the test name

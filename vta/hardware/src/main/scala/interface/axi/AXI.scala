@@ -25,12 +25,12 @@ import chisel3.util._
 import vta.util.genericbundle._
 
 case class AXIParams(
-    coherent: Boolean = false,
-    idBits: Int = 8,
-    addrBits: Int = 32,
-    dataBits: Int = 64,
-    lenBits: Int = 8,
-    userBits: Int = 0
+  coherent: Boolean = false,
+  idBits: Int = 8,
+  addrBits: Int = 32,
+  dataBits: Int = 64,
+  lenBits: Int = 8,
+  userBits: Int = 0
 ) {
   require(addrBits > 0)
   require(dataBits >= 8 && dataBits % 2 == 0)

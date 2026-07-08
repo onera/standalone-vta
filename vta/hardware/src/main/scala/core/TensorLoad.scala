@@ -49,11 +49,8 @@ trait TensorLoad extends Module {
 
 }
 object TensorLoad {
-  def apply(
-      tensorType: String,
-      forceSimpleTensorLoad: Boolean = false
-  )(implicit
-      p: Parameters
+  def apply(tensorType: String, forceSimpleTensorLoad: Boolean = false)(implicit
+    p: Parameters
   ) = {
     val tp = new TensorParams(tensorType)
     val mp = p(ShellKey).memParams

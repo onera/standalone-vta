@@ -28,10 +28,10 @@ object AuditDram {
     *   if given, verify all allocations fit below this address
     */
   def audit(
-      compDir: String,
-      ddrBase: Long,
-      configJson: String,
-      maxAddr: Option[Long]
+    compDir: String,
+    ddrBase: Long,
+    configJson: String,
+    maxAddr: Option[Long]
   ): Int = {
     val cfg = ConfigParser.load(configJson)
     val dep =
@@ -75,10 +75,10 @@ object AuditDram {
   }
 
   private case class Opts(
-      compDir: String = "",
-      ddrBase: String = "0x0",
-      configJson: Option[String] = None,
-      maxAddr: Option[String] = None
+    compDir: String = "",
+    ddrBase: String = "0x0",
+    configJson: Option[String] = None,
+    maxAddr: Option[String] = None
   )
 
   private val argParser: OParser[_, Opts] = {

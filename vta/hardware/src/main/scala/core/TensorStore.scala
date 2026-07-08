@@ -45,11 +45,8 @@ trait TensorStore extends Module {
 }
 
 object TensorStore {
-  def apply(
-      tensorType: String = "none",
-      forceSimpleStore: Boolean = false
-  )(implicit
-      p: Parameters
+  def apply(tensorType: String = "none", forceSimpleStore: Boolean = false)(
+    implicit p: Parameters
   ): TensorStore = {
 
     val tp = new TensorParams(tensorType)

@@ -14,9 +14,9 @@ import scala.io._
   */
 
 class TensorGemmTest(
-    c: TensorGemmPipelinedSplit,
-    fn: String = "/x.json",
-    debug: Boolean = false
+  c: TensorGemmPipelinedSplit,
+  fn: String = "/x.json",
+  debug: Boolean = false
 ) extends PeekPokeAPI
     with Matchers {
 
@@ -58,9 +58,9 @@ class TensorGemmTest(
 
   // Print scratchpad
   def print_scratchpad(
-      scratchpad: Map[BigInt, Array[BigInt]],
-      index: BigInt,
-      name: String = "?"
+    scratchpad: Map[BigInt, Array[BigInt]],
+    index: BigInt,
+    name: String = "?"
   ): Unit = {
     print(s"\n ${name} scratchpad (index: ${index}) = \n (")
     for { i <- scratchpad(index).indices } {
@@ -74,8 +74,8 @@ class TensorGemmTest(
 
   // Compare scratchpad
   def compare_scratchpad(
-      reference: Map[BigInt, Array[BigInt]],
-      scratchpadUnderTest: Map[BigInt, Array[BigInt]]
+    reference: Map[BigInt, Array[BigInt]],
+    scratchpadUnderTest: Map[BigInt, Array[BigInt]]
   ): Unit = {
     val availableIndexes = reference.keySet
     for (index <- availableIndexes) {
@@ -161,8 +161,8 @@ class TensorGemmTest(
 
   // Read scratchpad
   class TensorMasterMock(
-      tm: TensorMaster,
-      scratchpad: Map[BigInt, Array[BigInt]]
+    tm: TensorMaster,
+    scratchpad: Map[BigInt, Array[BigInt]]
   ) {
     tm.rd(0).data.valid.poke(0)
     var valid = tm.rd(0).idx.valid.peekBoolean()
@@ -188,8 +188,8 @@ class TensorGemmTest(
 
   // Write scratchpad
   class TensorMasterMockWr(
-      tm: TensorMaster,
-      scratchpad: Map[BigInt, Array[BigInt]]
+    tm: TensorMaster,
+    scratchpad: Map[BigInt, Array[BigInt]]
   ) {
     def logical_step(): Unit = {
       if (tm.wr(0).valid.peekBoolean()) {
@@ -251,10 +251,7 @@ class TensorGemmTest(
 
       if (c.io.uop.idx.valid.peekBoolean()) {
         val index = uop_indices.dequeue()
-        c.io.uop.idx.bits.expect(
-          index,
-          "inconsistent uop index"
-        )
+        c.io.uop.idx.bits.expect(index, "inconsistent uop index")
       }
       if (c.io.acc.rd(0).idx.valid.peekBoolean()) {
         c.io.acc
@@ -287,10 +284,7 @@ class TensorGemmTest(
           .rd(0)
           .idx
           .bits
-          .expect(
-            index,
-            "inconsistent wgt index"
-          )
+          .expect(index, "inconsistent wgt index")
         if (debug) {
           // Print WEIGHT tensor
           print(
@@ -309,10 +303,7 @@ class TensorGemmTest(
           .wr(0)
           .bits
           .idx
-          .expect(
-            index,
-            "inconsistent acc index"
-          )
+          .expect(index, "inconsistent acc index")
       }
       if (c.io.out.wr(0).valid.peekBoolean()) {
         val index = out_indices.dequeue()
@@ -320,10 +311,7 @@ class TensorGemmTest(
           .wr(0)
           .bits
           .idx
-          .expect(
-            index,
-            "inconsistent"
-          )
+          .expect(index, "inconsistent")
         if (debug) {
           // Print the result
           print(

@@ -11,8 +11,8 @@ import scala.io.Source
 object DramInitParser {
 
   def parseJsonMemoryInitFile(
-      file: String,
-      fromResources: Boolean = false
+    file: String,
+    fromResources: Boolean = false
   ): Map[String, Object] = {
     val bufferedSource =
       if (!fromResources) Source.fromFile(file)
@@ -60,9 +60,9 @@ object DramInitParser {
     * MultiMemAxiClient bounds assertion.
     */
   def outRegionWords64(
-      meta: LayerMetadata,
-      outElemBytes: Int,
-      bytesPerWord64: Int = 8
+    meta: LayerMetadata,
+    outElemBytes: Int,
+    bytesPerWord64: Int = 8
   ): Int = {
     def ceilToBlock(n: Int): Int =
       ((n - 1) / meta.blockSize + 1) * meta.blockSize

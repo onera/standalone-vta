@@ -31,17 +31,16 @@ object GenInitDramTestGemm {
       "};\n"
 
   // Hardcoded VTA program for random-data mode (same uint32 words as Python).
-  private val _HARDCODED_INSN_WORDS: Array[Long] = Array(
-    0x00000000L, 0x00000050L, 0x00010001L, 0x00000001L, 0x002000a2L,
-    0x00200008L, 0x00000810L, 0x00000000L, 0x00000110L, 0x00000001L,
-    0x00100001L, 0x00000010L, 0x200000c0L, 0x00000000L, 0x00010001L,
-    0x00000001L, 0x00000188L, 0x00000003L, 0x00100001L, 0x00000010L,
-    0x04000000L, 0x00000050L, 0x00010001L, 0x00000001L, 0x00200062L,
-    0x00200008L, 0x00000800L, 0x00000002L, 0x00000229L, 0x00000004L,
-    0x00100001L, 0x00000010L, 0x00000150L, 0x00000000L, 0x00000000L,
-    0x00000000L, 0x00000018L, 0x00000000L, 0x00000000L, 0x00000000L,
-    0x00000003L, 0x00000000L, 0x00000000L, 0x00000000L
-  )
+  private val _HARDCODED_INSN_WORDS: Array[Long] = Array(0x00000000L,
+    0x00000050L, 0x00010001L, 0x00000001L, 0x002000a2L, 0x00200008L,
+    0x00000810L, 0x00000000L, 0x00000110L, 0x00000001L, 0x00100001L,
+    0x00000010L, 0x200000c0L, 0x00000000L, 0x00010001L, 0x00000001L,
+    0x00000188L, 0x00000003L, 0x00100001L, 0x00000010L, 0x04000000L,
+    0x00000050L, 0x00010001L, 0x00000001L, 0x00200062L, 0x00200008L,
+    0x00000800L, 0x00000002L, 0x00000229L, 0x00000004L, 0x00100001L,
+    0x00000010L, 0x00000150L, 0x00000000L, 0x00000000L, 0x00000000L,
+    0x00000018L, 0x00000000L, 0x00000000L, 0x00000000L, 0x00000003L,
+    0x00000000L, 0x00000000L, 0x00000000L)
   private val _HARDCODED_UOP_WORDS: Array[Long] =
     Array(0x00000000L, 0x00000000L)
 
@@ -79,10 +78,10 @@ object GenInitDramTestGemm {
     * exactly.
     */
   def formatCArray(
-      name: String,
-      data: Array[Int],
-      storageDtypeStr: String,
-      chunkSize: Int
+    name: String,
+    data: Array[Int],
+    storageDtypeStr: String,
+    chunkSize: Int
   ): String = {
     val cType = s"std::${storageDtypeStr}_t"
     val maxLen = data.map(_.toString.length).max
@@ -122,9 +121,9 @@ object GenInitDramTestGemm {
   /** Emit `static const std::uint32_t name[] = { ... };` from a uint32 stream.
     */
   def formatUopArray(
-      name: String,
-      uopWords: Array[Long],
-      chunkSize: Int = 4
+    name: String,
+    uopWords: Array[Long],
+    chunkSize: Int = 4
   ): String = {
     val n = uopWords.length
     val lines = Seq(s"static const std::uint32_t $name[] = {") ++
@@ -150,10 +149,10 @@ object GenInitDramTestGemm {
     * Int truncates the low 32 bits, matching NumPy int32 wrap semantics.
     */
   private def computeGolden(
-      inp: Array[Int],
-      wgt: Array[Int],
-      acc: Array[Int],
-      n: Int
+    inp: Array[Int],
+    wgt: Array[Int],
+    acc: Array[Int],
+    n: Int
   ): Array[Int] = {
     Array.tabulate(n * n) { idx =>
       val i = idx / n
@@ -194,16 +193,16 @@ object GenInitDramTestGemm {
     *   maximum random value (random-data mode only)
     */
   def generate(
-      outFile: String,
-      n: Int = 16,
-      inpStorage: String = "int32",
-      wgtStorage: String = "int32",
-      accStorage: String = "int32",
-      outStorage: Option[String] = None,
-      compilerOutputDir: Option[String] = None,
-      suffix: String = "",
-      minVal: Int = -128,
-      maxVal: Int = 127
+    outFile: String,
+    n: Int = 16,
+    inpStorage: String = "int32",
+    wgtStorage: String = "int32",
+    accStorage: String = "int32",
+    outStorage: Option[String] = None,
+    compilerOutputDir: Option[String] = None,
+    suffix: String = "",
+    minVal: Int = -128,
+    maxVal: Int = 127
   ): Unit = {
     val outStorageStr = outStorage.getOrElse(accStorage)
 
@@ -270,15 +269,15 @@ object GenInitDramTestGemm {
   }
 
   private case class Opts(
-      n: Int = 16,
-      inpStorage: String = "int32",
-      wgtStorage: String = "int32",
-      accStorage: String = "int32",
-      outStorage: Option[String] = None,
-      compilerOutputDir: Option[String] = None,
-      suffix: String = "",
-      filename: String = "init_dram.h",
-      outdir: String = "gen"
+    n: Int = 16,
+    inpStorage: String = "int32",
+    wgtStorage: String = "int32",
+    accStorage: String = "int32",
+    outStorage: Option[String] = None,
+    compilerOutputDir: Option[String] = None,
+    suffix: String = "",
+    filename: String = "init_dram.h",
+    outdir: String = "gen"
   )
 
   private val argParser: OParser[_, Opts] = {

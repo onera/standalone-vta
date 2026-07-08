@@ -15,11 +15,11 @@ import scala.util.{Failure, Success}
 object ComputeSimulator {
   /* COMMON PART - MANAGE VIRTUAL MEMORIES */
   def build_scratchpad_binary(
-      filePath: String,
-      dataType: DataTypeValue,
-      offset: String,
-      isDRAM: Boolean,
-      fromResources: Boolean
+    filePath: String,
+    dataType: DataTypeValue,
+    offset: String,
+    isDRAM: Boolean,
+    fromResources: Boolean
   ): Map[BigInt, Array[BigInt]] = {
     computeAddresses(filePath, dataType, offset, isDRAM, fromResources) match {
       case Success(scratchpad) =>
@@ -33,18 +33,33 @@ object ComputeSimulator {
   }
 
   def getBaseAddr(
-      base_addresses: String,
-      fromResources: Boolean
+    base_addresses: String,
+    fromResources: Boolean
   ): Map[String, String] = {
     computeCSVFile(base_addresses, fromResources)
   }
 }
 
 class ComputeSimulator(
+  c: Compute,
+  insn: String,
+  uop: String,
+  input: Map[BigInt, Array[BigInt]],
+  weight: String,
+  out: String,
+  acc: String,
+  expected_out: String,
+  base_addresses: String,
+  doCompare: Boolean,
+  debug: Boolean,
+  fromResources: Boolean
+) extends PeekPokeAPI {
+
+  def this(
     c: Compute,
     insn: String,
     uop: String,
-    input: Map[BigInt, Array[BigInt]],
+    input: String,
     weight: String,
     out: String,
     acc: String,
@@ -53,21 +68,6 @@ class ComputeSimulator(
     doCompare: Boolean,
     debug: Boolean,
     fromResources: Boolean
-) extends PeekPokeAPI {
-
-  def this(
-      c: Compute,
-      insn: String,
-      uop: String,
-      input: String,
-      weight: String,
-      out: String,
-      acc: String,
-      expected_out: String,
-      base_addresses: String,
-      doCompare: Boolean,
-      debug: Boolean,
-      fromResources: Boolean
   ) = {
     this(
       c,
@@ -92,17 +92,17 @@ class ComputeSimulator(
   }
 
   def this(
-      c: Compute,
-      insn: String,
-      uop: String,
-      input: Map[BigInt, Array[BigInt]],
-      weight: String,
-      out: String,
-      acc: String,
-      base_addresses: String,
-      doCompare: Boolean,
-      debug: Boolean,
-      fromResources: Boolean
+    c: Compute,
+    insn: String,
+    uop: String,
+    input: Map[BigInt, Array[BigInt]],
+    weight: String,
+    out: String,
+    acc: String,
+    base_addresses: String,
+    doCompare: Boolean,
+    debug: Boolean,
+    fromResources: Boolean
   ) = {
     this(
       c,
@@ -123,16 +123,7 @@ class ComputeSimulator(
   // Check if it is compute instruction
   def isComputeInstruction(instruction: BigInt): Boolean = {
     // List of BitPats that FetchDecode maps to OP_G (Compute group)
-    val computeBitPats = Seq(
-      LUOP,
-      LACC,
-      GEMM,
-      FNSH,
-      VMIN,
-      VMAX,
-      VADD,
-      VSHX
-    )
+    val computeBitPats = Seq(LUOP, LACC, GEMM, FNSH, VMIN, VMAX, VADD, VSHX)
 
     // Check if the instruction matches any of the compute BitPats
     // A match occurs if (instruction & mask) == value for the BitPat
@@ -156,9 +147,9 @@ class ComputeSimulator(
 
   // Print scratchpad
   def print_scratchpad(
-      scratchpad: Map[BigInt, Array[BigInt]],
-      index: BigInt,
-      name: String = "?"
+    scratchpad: Map[BigInt, Array[BigInt]],
+    index: BigInt,
+    name: String = "?"
   ): Unit = {
     print(s"\n ${name} scratchpad (index: ${index}) = \n (")
     for { i <- scratchpad(index).indices } {
@@ -172,8 +163,8 @@ class ComputeSimulator(
 
   // Compare scratchpad
   def compare_scratchpad(
-      reference: Map[BigInt, Array[BigInt]],
-      scratchpadUnderTest: Map[BigInt, Array[BigInt]]
+    reference: Map[BigInt, Array[BigInt]],
+    scratchpadUnderTest: Map[BigInt, Array[BigInt]]
   ): Unit = {
     val availableIndexes = reference.keySet.toSeq.sorted
     var noDifference = true
@@ -235,8 +226,8 @@ class ComputeSimulator(
   /* DEFINE THE MOCKS */
   // Emulate a READ access to the data buffer
   class TensorMasterMockRd(
-      tm: TensorMaster,
-      scratchpad: Map[BigInt, Array[BigInt]]
+    tm: TensorMaster,
+    scratchpad: Map[BigInt, Array[BigInt]]
   ) {
     // Unset the data validity signal
     tm.rd(0).data.valid.poke(0)
@@ -278,8 +269,8 @@ class ComputeSimulator(
 
   // Emulate a WRITE access to the OUTPUT buffer (scratchpad)
   class TensorMasterMockWr(
-      tm: TensorMaster,
-      scratchpad: Map[BigInt, Array[BigInt]]
+    tm: TensorMaster,
+    scratchpad: Map[BigInt, Array[BigInt]]
   ) {
     def logical_step(): Unit = {
       // If data is valid
@@ -304,8 +295,8 @@ class ComputeSimulator(
 
   // Emulate a READ access to the DRAM by the LoadUop
   class DramUopMockRd(
-      dm: VMEReadMaster,
-      scratchpad: Map[BigInt, Array[BigInt]]
+    dm: VMEReadMaster,
+    scratchpad: Map[BigInt, Array[BigInt]]
   ) {
     // Store VME_RD information
     var tag = BigInt("00", 16)
@@ -415,8 +406,8 @@ class ComputeSimulator(
 
   // Emulate a READ access to the DRAM by the TensorAcc
   class DramAccMockRd(
-      dm: VMEReadMaster,
-      scratchpad: Map[BigInt, Array[BigInt]]
+    dm: VMEReadMaster,
+    scratchpad: Map[BigInt, Array[BigInt]]
   ) {
     // Store VME_RD information
     var tag = BigInt("00", 16)

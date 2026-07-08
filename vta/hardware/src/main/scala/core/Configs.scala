@@ -91,9 +91,7 @@ object CoreConfig {
       ) * params("LOG_BLOCK") * params("LOG_INP_WIDTH")),
       wgtMemDepth = (params("LOG_WGT_BUFF_SIZE") * pow(2, 3).toInt) / (params(
         "LOG_BATCH"
-      ) * params("LOG_BLOCK") * params("LOG_BLOCK") * params(
-        "LOG_WGT_WIDTH"
-      )),
+      ) * params("LOG_BLOCK") * params("LOG_BLOCK") * params("LOG_WGT_WIDTH")),
       accMemDepth = (params("LOG_ACC_BUFF_SIZE") * pow(2, 3).toInt) / (params(
         "LOG_BATCH"
       ) * params("LOG_BLOCK") * params("LOG_ACC_WIDTH")),

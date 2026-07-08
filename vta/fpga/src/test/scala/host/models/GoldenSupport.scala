@@ -26,12 +26,12 @@ object GoldenSupport {
       }
   }
   final case class Case(
-      name: String,
-      dir: os.Path,
-      comp: os.Path,
-      gen: os.Path,
-      cfg: os.Path,
-      ddrBase: Long
+    name: String,
+    dir: os.Path,
+    comp: os.Path,
+    gen: os.Path,
+    cfg: os.Path,
+    ddrBase: Long
   )
   def loadCase(name: String): Case = {
     val dir = goldenRoot / name

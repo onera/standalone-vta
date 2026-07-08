@@ -60,21 +60,20 @@ object `package` extends build.MyModule with PublishModule { m =>
     Seq(),
     VersionControl(
       Some("https://github.com/onera/standalone-vta"),
-        Some("scm:git:https://github.com/onera/standalone-vta.git"),
-          Some("scm:git:git@github.com:onera/standalone-vta.git"),
-          None
-        ),
-      Seq()
-    )
+      Some("scm:git:https://github.com/onera/standalone-vta.git"),
+      Some("scm:git:git@github.com:onera/standalone-vta.git"),
+      None
+    ),
+    Seq()
+  )
 
   def publishVersion = "6.0-SNAPSHOT"
 
-
   /** Content-hashed view of the active config JSON. The forked emit JVM only
     * receives the config *filename* (via forkArgs -Dvta.config.file), so cached
-    * tasks must depend on this to be invalidated when the file is edited.
-    * None when the name does not resolve under config/ (e.g. resource-based
-    * test configs).
+    * tasks must depend on this to be invalidated when the file is edited. None
+    * when the name does not resolve under config/ (e.g. resource-based test
+    * configs).
     */
   def vtaConfigSignature = Task.Input {
     // Same property BaseVtaModule.vtaConfigFile reads (Task.Input cannot
@@ -84,18 +83,18 @@ object `package` extends build.MyModule with PublishModule { m =>
     if (os.exists(path)) Some(PathRef(path)) else None
   }
 
-  /** Shared body for vtaSimConfig/vtaFpgaConfig (flat, global-prop-driven)
-    * and configs[X]'s versions (cross-value-driven): emit a Chisel config's
-    * SV/tcl output with an explicit -Dvta.config.file, scoped to just this
-    * call. RunModule.Runner.run's forkArgs parameter *replaces* (not appends
-    * to) the module's own default forkArgs, so this works whether the
-    * caller wants the global config or a specific cross value.
+  /** Shared body for vtaSimConfig/vtaFpgaConfig (flat, global-prop-driven) and
+    * configs[X]'s versions (cross-value-driven): emit a Chisel config's SV/tcl
+    * output with an explicit -Dvta.config.file, scoped to just this call.
+    * RunModule.Runner.run's forkArgs parameter *replaces* (not appends to) the
+    * module's own default forkArgs, so this works whether the caller wants the
+    * global config or a specific cross value.
     */
   def emitConfig(
-      runner: mill.javalib.RunModule.Runner,
-      dest: os.Path,
-      configFileName: String,
-      mainClass: String
+    runner: mill.javalib.RunModule.Runner,
+    dest: os.Path,
+    configFileName: String,
+    mainClass: String
   )(using ctx: mill.api.TaskCtx): PathRef = {
     runner.run(
       args = Seq(dest.toString),
@@ -108,7 +107,12 @@ object `package` extends build.MyModule with PublishModule { m =>
 
   def vtaSimConfig = Task {
     vtaConfigSignature()
-    emitConfig(runner(), Task.dest, vtaConfigFile(), "vta.exporters.TestDefaultPynqConfigEmitter")
+    emitConfig(
+      runner(),
+      Task.dest,
+      vtaConfigFile(),
+      "vta.exporters.TestDefaultPynqConfigEmitter"
+    )
   }
 
   /** Emit VTA for DPI simulation using `vta.StandaloneSimConfig` main class.
@@ -119,9 +123,9 @@ object `package` extends build.MyModule with PublishModule { m =>
   def emitVtaSimConfig(args: Args) = Task.Command {
     val outDir = BuildCtx.workspaceRoot / "build" / "emitted" / "vta-sim-shell"
     val taskPath = vtaSimConfig()
-    os.remove.all(target = outDir,ignoreErrors = true)
+    os.remove.all(target = outDir, ignoreErrors = true)
     println(s"[INFO] copying sim config from ${taskPath.path} to ${outDir}")
-    os.copy(taskPath.path,outDir,replaceExisting = true,createFolders = true)
+    os.copy(taskPath.path, outDir, replaceExisting = true, createFolders = true)
   }
 
   /** Cached, per-config RTL + package_ip.tcl emission (DefaultXilinxConfig).
@@ -131,34 +135,52 @@ object `package` extends build.MyModule with PublishModule { m =>
     */
   def vtaFpgaConfig = Task {
     vtaConfigSignature()
-    emitConfig(runner(), Task.dest, vtaConfigFile(), "vta.exporters.DefaultXilinxConfigEmitter")
+    emitConfig(
+      runner(),
+      Task.dest,
+      vtaConfigFile(),
+      "vta.exporters.DefaultXilinxConfigEmitter"
+    )
   }
 
-  /** Config-keyed Cross submodule for the two artifacts above: each config
-    * is an independently addressable, independently cached module instance
-    * (vta.hardware.configs[vta_w8b].vtaFpgaConfig), sharing emitConfig's
-    * logic with the flat, global-prop-driven tasks. The outer module keeps
-    * compiling once regardless of config - only these two tasks vary.
+  /** Config-keyed Cross submodule for the two artifacts above: each config is
+    * an independently addressable, independently cached module instance
+    * (vta.hardware.configs[vta_w8b].vtaFpgaConfig), sharing emitConfig's logic
+    * with the flat, global-prop-driven tasks. The outer module keeps compiling
+    * once regardless of config - only these two tasks vary.
     */
   object configs extends Cross[ConfigModule](build.configNames)
   trait ConfigModule extends build.ConfigCrossModule {
     def vtaSimConfig = Task {
       configSignature()
-      m.emitConfig(m.runner(), Task.dest, s"$configKey.json", "vta.StandaloneSimConfig")
+      m.emitConfig(
+        m.runner(),
+        Task.dest,
+        s"$configKey.json",
+        "vta.StandaloneSimConfig"
+      )
     }
     def vtaFpgaConfig = Task {
       configSignature()
-      m.emitConfig(m.runner(), Task.dest, s"$configKey.json", "vta.DefaultXilinxConfig")
+      m.emitConfig(
+        m.runner(),
+        Task.dest,
+        s"$configKey.json",
+        "vta.DefaultXilinxConfig"
+      )
     }
   }
 
-  /**
-      * Emit the default FPGA Xilinx config
-      *
-      * @param args optional path string for the target dir
-      */
+  /** Emit the default FPGA Xilinx config
+    *
+    * @param args
+    *   optional path string for the target dir
+    */
   def emitVtaFpgaConfig(args: Args) = Task.Command {
-    val outDir = if (args.value.isEmpty) BuildCtx.workspaceRoot / "build" / "emitted" / "vta-xilinx-shell" else os.Path(args.value.head)
+    val outDir =
+      if (args.value.isEmpty)
+        BuildCtx.workspaceRoot / "build" / "emitted" / "vta-xilinx-shell"
+      else os.Path(args.value.head)
     val taskPath = vtaFpgaConfig()
     os.remove.all(target = outDir, ignoreErrors = true)
     println(s"[INFO] copying fpga config from ${taskPath.path} to ${outDir}")
@@ -175,12 +197,10 @@ object `package` extends build.MyModule with PublishModule { m =>
 
     // Forward the optional emit knobs from the Mill JVM's -D props as program
     // args, so they reach the forked run JVM regardless of -D propagation.
-    val forwarded = Seq(
-      "compilerOutDir",
-      "layers",
-      "reloStride",
-      "perLayerTimeout"
-    ).flatMap(k => sys.props.get(s"vta.$k").map(v => s"--$k=$v"))
+    val forwarded =
+      Seq("compilerOutDir", "layers", "reloStride", "perLayerTimeout").flatMap(
+        k => sys.props.get(s"vta.$k").map(v => s"--$k=$v")
+      )
 
     runner().run(
       args = Seq(outDir.toString) ++ forwarded,
@@ -189,7 +209,6 @@ object `package` extends build.MyModule with PublishModule { m =>
     )
     println(s"[INFO] VTA post-synth TB emitted in ${outDir}")
   }
-
 
   def cleanOutputs() = Task.Command {
     val outputDir = BuildCtx.workspaceRoot / "build"
@@ -204,29 +223,30 @@ object `package` extends build.MyModule with PublishModule { m =>
     def forkEnv = m.forkEnv
     def testSandboxWorkingDir = true
     def testParallelism = true
-    def vtaConfigFile = Task.Input{
+    def vtaConfigFile = Task.Input {
       sys.props.get("vta.config.file")
     }
-  
+
     def getConfigArgs = Task {
       (for {
         file <- vtaConfigFile()
       } yield {
         Seq(s"-Dvta.config.file=${file}")
-      }).getOrElse{
+      }).getOrElse {
         Seq(
-      "-Dvta.config.file=vta_config_test.json",
-      "-Dvta.config.fromResources=true"
-    )
+          "-Dvta.config.file=vta_config_test.json",
+          "-Dvta.config.fromResources=true"
+        )
       }
     }
-    override def forkArgs: Simple[Seq[String]] = super.forkArgs() ++ getConfigArgs() 
-    def unittest : Simple[(msg: String, results: Seq[TestResult])] = {
-        testForked("-n","vta.tags.UnitTests")()
+    override def forkArgs: Simple[Seq[String]] =
+      super.forkArgs() ++ getConfigArgs()
+    def unittest: Simple[(msg: String, results: Seq[TestResult])] = {
+      testForked("-n", "vta.tags.UnitTests")()
     }
 
-    def testWaves(args: String*) = Task.Command{
-      testOnly(args ++ Seq("--","-DemitFst=1")*)()
+    def testWaves(args: String*) = Task.Command {
+      testOnly(args ++ Seq("--", "-DemitFst=1")*)()
     }
 
   }

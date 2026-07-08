@@ -10,11 +10,11 @@ class CheckOutputTest extends AnyFlatSpec with Matchers {
     * raw[(rb*Cb+cb)*B*B + rr*B + cc] = nchw[c*N + n]
     */
   private def tile(
-      nchw: Array[Byte],
-      C: Int,
-      H: Int,
-      W: Int,
-      B: Int
+    nchw: Array[Byte],
+    C: Int,
+    H: Int,
+    W: Int,
+    B: Int
   ): Array[Byte] = {
     val N = H * W
     val Cb = (C + B - 1) / B

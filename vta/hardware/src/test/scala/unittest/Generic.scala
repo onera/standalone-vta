@@ -24,10 +24,10 @@ import vta.tags.tagObjects.{LongTests, UnitTests}
 import vta.util.config.Parameters
 
 class GenericTest[T <: Module, C <: Parameters](
-    tag: String,
-    dutFactory: (Parameters) => T,
-    testerFactory: (T) => Unit,
-    isLongTest: Boolean = false
+  tag: String,
+  dutFactory: (Parameters) => T,
+  testerFactory: (T) => Unit,
+  isLongTest: Boolean = false
 ) extends vta.util.AnyFlatSpecSim {
 
   behavior of tag

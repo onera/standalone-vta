@@ -12,9 +12,7 @@ class EmitSdGoldenTest extends AnyFlatSpec with Matchers {
   for (name <- GoldenSupport.cases) {
     s"SdManifest [$name]" should "match golden manifest and stage the right files" in {
       val c = GoldenSupport.loadCase(name)
-      val dep = loadDependencyInfo(
-        (c.comp / "dependency.csv").toString
-      )
+      val dep = loadDependencyInfo((c.comp / "dependency.csv").toString)
       val layers = LayerParser.collectLayers(c.comp.toString, dep)
       val suffixToIdx = layers.zipWithIndex.map { case (l, i) =>
         l.suffix -> i

@@ -142,12 +142,12 @@ trait ExampleModule extends Cross.Module2[String, String] {
     * other tasks.
     */
   private def compileStage(
-      python: os.Path,
-      root: os.Path,
-      onnx: os.Path,
-      config: os.Path,
-      dir: os.Path,
-      env: Map[String, String]
+    python: os.Path,
+    root: os.Path,
+    onnx: os.Path,
+    config: os.Path,
+    dir: os.Path,
+    env: Map[String, String]
   ): os.Path = {
     val compOut = dir / "compiler_output"
     os.remove.all(compOut)
@@ -158,12 +158,12 @@ trait ExampleModule extends Cross.Module2[String, String] {
   }
 
   private def funcsimStage(
-      python: os.Path,
-      root: os.Path,
-      compOut: os.Path,
-      fsim: os.Path,
-      fsimFlags: Seq[String],
-      env: Map[String, String]
+    python: os.Path,
+    root: os.Path,
+    compOut: os.Path,
+    fsim: os.Path,
+    fsimFlags: Seq[String],
+    env: Map[String, String]
   ): Unit = {
     build.vta.simulator.launchFsim(
       fsim,
@@ -174,12 +174,12 @@ trait ExampleModule extends Cross.Module2[String, String] {
   }
 
   private def verilatorSimStage(
-      python: os.Path,
-      root: os.Path,
-      compOut: os.Path,
-      vsim: os.Path,
-      vsimFlags: Seq[String],
-      env: Map[String, String]
+    python: os.Path,
+    root: os.Path,
+    compOut: os.Path,
+    vsim: os.Path,
+    vsimFlags: Seq[String],
+    env: Map[String, String]
   ): Unit = {
     build.vta.simulator.launchVsim(
       vsim,
@@ -193,14 +193,14 @@ trait ExampleModule extends Cross.Module2[String, String] {
     * dir. Never invokes the Python compiler.
     */
   private def simStage(
-      python: os.Path,
-      root: os.Path,
-      compOut: os.Path,
-      fsim: os.Path,
-      fsimFlags: Seq[String],
-      vsim: os.Path,
-      vsimFlags: Seq[String],
-      env: Map[String, String]
+    python: os.Path,
+    root: os.Path,
+    compOut: os.Path,
+    fsim: os.Path,
+    fsimFlags: Seq[String],
+    vsim: os.Path,
+    vsimFlags: Seq[String],
+    env: Map[String, String]
   ): Unit = {
     funcsimStage(python, root, compOut, fsim, fsimFlags, env)
     verilatorSimStage(python, root, compOut, vsim, vsimFlags, env)
@@ -248,14 +248,7 @@ trait ExampleModule extends Cross.Module2[String, String] {
     val python = build.vta.compiler.pythonExe().path
     val compOut = compile().path
     val fsim = build.vta.simulator.configs(configKey).fsimBinary().path
-    funcsimStage(
-      python,
-      root,
-      compOut,
-      fsim,
-      args.value,
-      Task.env
-    )
+    funcsimStage(python, root, compOut, fsim, args.value, Task.env)
     BuildCtx.withFilesystemCheckerDisabled { PathRef(runDir()) }
   }
 
@@ -264,14 +257,7 @@ trait ExampleModule extends Cross.Module2[String, String] {
     val python = build.vta.compiler.pythonExe().path
     val compOut = compile().path
     val vsim = build.vta.simulator.configs(configKey).vsimBinary().path
-    verilatorSimStage(
-      python,
-      root,
-      compOut,
-      vsim,
-      args.value,
-      Task.env
-    )
+    verilatorSimStage(python, root, compOut, vsim, args.value, Task.env)
     BuildCtx.withFilesystemCheckerDisabled { PathRef(runDir()) }
   }
 

@@ -27,10 +27,10 @@ object TestBenchLayout {
     *   file), or 0 if `fileIn` is blank.
     */
   def fileBin2hex(
-      fileIn: String,
-      dirOut: os.Path,
-      dt: DataType.DataTypeValue,
-      outName: String = ""
+    fileIn: String,
+    dirOut: os.Path,
+    dt: DataType.DataTypeValue,
+    outName: String = ""
   ): Int = {
     if (fileIn.trim.isEmpty) {
       0
@@ -56,7 +56,7 @@ object TestBenchLayout {
   // Standard compiler binary for a region, used only to page-align the size of
   // the globally last region (see .loadLayerRegions).
   private def lastBinFor(
-      compilerOutDir: String
+    compilerOutDir: String
   ): (String, String) => Option[String] =
     (layer, name) =>
       name match {
@@ -69,11 +69,11 @@ object TestBenchLayout {
       }
 
   private def fileFor(
-      compilerOutDir: String,
-      inpDir: String,
-      layer: String,
-      regionName: String,
-      accFromDump: Boolean
+    compilerOutDir: String,
+    inpDir: String,
+    layer: String,
+    regionName: String,
+    accFromDump: Boolean
   ): Option[String] =
     regionName match {
       case "INSN" => Some(s"$compilerOutDir/instructions$layer.bin")
@@ -99,11 +99,11 @@ object TestBenchLayout {
     * per-layer launch parameters (in `layers` order).
     */
   def build(
-      compilerOutDir: String,
-      layers: Seq[String],
-      reloStride: BigInt,
-      memOutDir: os.Path,
-      simOutDir: String = ""
+    compilerOutDir: String,
+    layers: Seq[String],
+    reloStride: BigInt,
+    memOutDir: os.Path,
+    simOutDir: String = ""
   ): (Seq[MemoryConfig], Seq[LaunchParams]) = {
     // INP regions are loaded from simOutDir (fsim/vsim --dump-layers output) when
     // given, since the compiler's input$layer.bin is a zero placeholder; all other
@@ -114,11 +114,7 @@ object TestBenchLayout {
     // Parse all layers up front so byte sizes are derived from the global
     // physical layout (gap to the next region), not the per-row logical address.
     val parsedLayers =
-      loadLayerRegions(
-        compilerOutDir,
-        layers,
-        lastBinFor(compilerOutDir)
-      )
+      loadLayerRegions(compilerOutDir, layers, lastBinFor(compilerOutDir))
 
     val layerResults = parsedLayers.zipWithIndex.map {
       case ((layer, regionsRaw), idx) =>
@@ -149,12 +145,7 @@ object TestBenchLayout {
                 // Write the per-layer init file the MultiMemAxiClient $readmemh's
                 // (named memName == the recorded memPath basename), and return its
                 // 64-bit word count.
-                fileBin2hex(
-                  binPath,
-                  memOutDir,
-                  dt,
-                  outName = memName
-                )
+                fileBin2hex(binPath, memOutDir, dt, outName = memName)
               }
               val numData =
                 if (r.name == "INSN") wordCount / 2 else binSize.toInt
@@ -191,11 +182,8 @@ object TestBenchLayout {
           )
         val insnCount =
           insnCountFromFile(s"$compilerOutDir/instructions$layer.bin", 0L).toInt
-        val launch = LaunchParams(
-          BigInt(insnRegion.offset) + relo,
-          insnCount,
-          relo
-        )
+        val launch =
+          LaunchParams(BigInt(insnRegion.offset) + relo, insnCount, relo)
 
         (layerConfigs, launch)
     }

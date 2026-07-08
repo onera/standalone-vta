@@ -8,9 +8,4 @@ package fpga.host.models
   *
   * Allocated by [[fpga.host.transform.MemoryLayout.buildCpuParamAddrs]].
   */
-final case class ExtraBlob(
-    label: String,
-    path: String,
-    addr: Long,
-    size: Long
-)
+final case class ExtraBlob(label: String, path: String, addr: Long, size: Long)

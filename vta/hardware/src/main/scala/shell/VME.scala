@@ -29,14 +29,14 @@ import vta.util.genericbundle._
   * These parameters are used on VME interfaces and modules.
   */
 case class VMEParams(
-    val nReadClients: Int = 5,
-    val nWriteClients: Int = 1,
-    val clientBits: Int = 3,
-    val RequestQueueDepth: Int = 16,
-    val vmeParams: Int = 18,
-    val clientCmdQueueDepth: Int = 1,
-    val clientTagBitWidth: Int = 21,
-    val clientDataQueueDepth: Int = 16
+  val nReadClients: Int = 5,
+  val nWriteClients: Int = 1,
+  val clientBits: Int = 3,
+  val RequestQueueDepth: Int = 16,
+  val vmeParams: Int = 18,
+  val clientCmdQueueDepth: Int = 1,
+  val clientTagBitWidth: Int = 21,
+  val clientDataQueueDepth: Int = 16
 ) {
 
   val RequestQueueMaskBits: Int = RequestQueueDepth.toInt

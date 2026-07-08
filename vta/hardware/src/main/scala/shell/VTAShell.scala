@@ -26,10 +26,10 @@ import vta.util.config._
 
 /** Shell parameters. */
 case class ShellParams(
-    hostParams: AXIParams,
-    memParams: AXIParams,
-    vcrParams: VCRParams,
-    vmeParams: VMEParams
+  hostParams: AXIParams,
+  memParams: AXIParams,
+  vcrParams: VCRParams,
+  vmeParams: VMEParams
 )
 
 case object ShellKey extends Field[ShellParams]

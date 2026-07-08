@@ -5,10 +5,11 @@ import vta.interface.axi.AXIClient
 
 trait AxiFullSimUtils extends PeekPokeAPI {
 
-  def writeAxiData(
-      data: BigInt,
-      isLast: Boolean = false
-  )(implicit clock: Clock, axi: AXIClient, timeout: Int = 2): Unit = {
+  def writeAxiData(data: BigInt, isLast: Boolean = false)(implicit
+    clock: Clock,
+    axi: AXIClient,
+    timeout: Int = 2
+  ): Unit = {
     if (!axi.w.ready.peekBoolean()) {
       clock.stepUntil(axi.w.ready, 1, timeout)
     }
@@ -20,9 +21,9 @@ trait AxiFullSimUtils extends PeekPokeAPI {
     axi.w.bits.last.poke(false.B)
   }
   def writeAxiWriteAddress(
-      address: BigInt,
-      burst: Int = 0,
-      len: Int = 0
+    address: BigInt,
+    burst: Int = 0,
+    len: Int = 0
   )(implicit clock: Clock, axi: AXIClient, timeout: Int = 2): Unit = {
     if (!axi.aw.ready.peekBoolean()) {
       clock.stepUntil(axi.aw.ready, 1, timeout)
@@ -36,9 +37,9 @@ trait AxiFullSimUtils extends PeekPokeAPI {
   }
 
   def writeAxiReadAddress(
-      address: BigInt,
-      burst: Int = 0,
-      len: Int = 0
+    address: BigInt,
+    burst: Int = 0,
+    len: Int = 0
   )(implicit clock: Clock, axi: AXIClient, timeout: Int = 2): Unit = {
     if (!axi.ar.ready.peekBoolean()) {
       clock.stepUntil(axi.ar.ready, 1, timeout)
@@ -51,10 +52,7 @@ trait AxiFullSimUtils extends PeekPokeAPI {
     axi.ar.valid.poke(false.B)
   }
 
-  def readAxiData()(implicit
-      clock: Clock,
-      axi: AXIClient
-  ): Option[UInt] = {
+  def readAxiData()(implicit clock: Clock, axi: AXIClient): Option[UInt] = {
     // clock.stepUntil(axi.r.valid, 1, timeout)
     axi.r.ready.poke(true.B)
     val res = if (axi.r.valid.peekBoolean()) {
@@ -66,8 +64,8 @@ trait AxiFullSimUtils extends PeekPokeAPI {
   }
 
   def writeAxiBurst(baseAddress: Int, data: Seq[Int])(implicit
-      clock: Clock,
-      axi: AXIClient
+    clock: Clock,
+    axi: AXIClient
   ): Unit = {
     writeAxiWriteAddress(baseAddress, 1, data.size - 1)
     clock.step()
@@ -78,8 +76,8 @@ trait AxiFullSimUtils extends PeekPokeAPI {
   }
 
   def readAxiBurst(baseAddress: Int, size: Int)(implicit
-      clock: Clock,
-      axi: AXIClient
+    clock: Clock,
+    axi: AXIClient
   ) = {
     writeAxiReadAddress(baseAddress, 1, size - 1)
     for {

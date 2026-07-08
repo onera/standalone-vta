@@ -18,11 +18,10 @@ import vta.shell.{ShellKey, VTAShell}
 import vta.util.config.Parameters
 
 class VTAShellTestFull(
-    content: Seq[MemoryConfig],
-    enforceOutBounds: Boolean = true
-)(implicit
-    param: Parameters
-) extends Module {
+  content: Seq[MemoryConfig],
+  enforceOutBounds: Boolean = true
+)(implicit param: Parameters)
+    extends Module {
   val io = IO(new Bundle {
     val host = new AXILiteClient(param(ShellKey).hostParams)
     val finish = Output(Bool())
@@ -71,9 +70,7 @@ class VTAShellTestFull(
   val dramMock = Module(
     new MultiMemAxiClient(content, enforceOutBounds)(param(ShellKey).memParams)
   )
-  io.finish := dontTouch(
-    RegNext(BoringUtils.tapAndRead(vta.vcr.io.vcr.finish))
-  )
+  io.finish := dontTouch(RegNext(BoringUtils.tapAndRead(vta.vcr.io.vcr.finish)))
 
   // Debug probes - same wiring as XilinxDebugShell. All tapped via BoringUtils
   // so they don't depend on adding IO to the VTA core itself.
@@ -143,17 +140,17 @@ class VTAShellTestFull(
 trait VTAShellTest extends ChiselSim with AxiFullSimUtils with VcrTestUtils {
 
   def runVtaTestWithInitializedMem(
-      content: Seq[MemoryConfig],
-      timeout: Int = 10000,
-      waves: Boolean = false
+    content: Seq[MemoryConfig],
+    timeout: Int = 10000,
+    waves: Boolean = false
   )(implicit
-      testingDirectory: HasTestingDirectory,
-      simulator: HasSimulator,
-      chiselOptsModifications: ChiselOptionsModifications,
-      firtoolOptsModifications: FirtoolOptionsModifications,
-      commonSettingsModifications: svsim.CommonSettingsModifications,
-      backendSettingsModifications: svsim.BackendSettingsModifications,
-      parameters: Parameters = new DefaultPynqConfig
+    testingDirectory: HasTestingDirectory,
+    simulator: HasSimulator,
+    chiselOptsModifications: ChiselOptionsModifications,
+    firtoolOptsModifications: FirtoolOptionsModifications,
+    commonSettingsModifications: svsim.CommonSettingsModifications,
+    backendSettingsModifications: svsim.BackendSettingsModifications,
+    parameters: Parameters = new DefaultPynqConfig
   ) = {
     // Settings modifications (mem-init, FST tracing, ...) are forwarded from
     // the call site rather than fixed here, so each caller controls them.

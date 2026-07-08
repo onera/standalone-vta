@@ -30,10 +30,10 @@ import scala.math.pow
 
 /** Pipelined multiply and accumulate */
 class MAC(
-    aBits: Int = 8,
-    bBits: Int = 8,
-    cBits: Int = 16,
-    flopIn: Boolean = false
+  aBits: Int = 8,
+  bBits: Int = 8,
+  cBits: Int = 16,
+  flopIn: Boolean = false
 ) extends Module {
   val outBits = Math.max(aBits + bBits, cBits) + 1
   val io = IO(new Bundle {
@@ -117,13 +117,11 @@ class DotProduct(aBits: Int = 8, bBits: Int = 8, blockIn: Int = 16)
     Module(new MAC(aBits, bBits, cBits = 1, flopIn = p < 6))
   ) // # of total vector pairs
   val a = Seq.tabulate(p)(i =>
-    Seq.fill(s(i + 1))(
-      if ((i == 0 && p < 4) || (i == p - 2 && p >= 4)) {
-        Module(new PipeAdder(aBits = (b + i + 1), bBits = (b + i + 1)))
-      } else {
-        Module(new Adder(aBits = (b + i + 1), bBits = (b + i + 1)))
-      }
-    )
+    Seq.fill(s(i + 1))(if ((i == 0 && p < 4) || (i == p - 2 && p >= 4)) {
+      Module(new PipeAdder(aBits = (b + i + 1), bBits = (b + i + 1)))
+    } else {
+      Module(new Adder(aBits = (b + i + 1), bBits = (b + i + 1)))
+    })
   ) // # adders within each layer
 
   // Vector MACs

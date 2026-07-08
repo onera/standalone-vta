@@ -32,9 +32,8 @@ trait EmitFst {
             options.verilogPreprocessorDefines :+ VerilogPreprocessorDefine(
               svsim.Backend.HarnessCompilationFlags.enableFstTracingSupport
             ),
-          simulationSettings = options.simulationSettings.copy(
-            enableWavesAtTimeZero = true
-          )
+          simulationSettings =
+            options.simulationSettings.copy(enableWavesAtTimeZero = true)
         )
       },
       updateBackendSettings = (options) =>
@@ -59,12 +58,7 @@ trait EmitFst {
 }
 trait DebugLayerCliOption {
   this: HasCliOptions =>
-  addOption(
-    CliOption.flag(
-      "debug",
-      "enables debug"
-    )
-  )
+  addOption(CliOption.flag("debug", "enables debug"))
 }
 
 /** Enables `$readmemh` memory initialization for tests that load simulation
@@ -74,7 +68,7 @@ trait DebugLayerCliOption {
   */
 trait EnableMemInit extends HasCliOptions { this: org.scalatest.TestSuite =>
   override implicit def commonSettingsModifications
-      : svsim.CommonSettingsModifications =
+    : svsim.CommonSettingsModifications =
     (s: svsim.CommonCompilationSettings) =>
       SimulationUtils.EnableMemInitVerilog(super.commonSettingsModifications(s))
 }
@@ -106,19 +100,19 @@ trait AnyFlatSpecSim
   }).getOrElse(debugLayerDisabled)
 
   override def simulate[T <: Module](
-      module: => T,
-      chiselOpts: Array[String] = Array.empty,
-      firtoolOpts: Array[String] = Array.empty,
-      settings: Settings[T] = customSettings[T],
-      additionalResetCycles: Int = 0,
-      subdirectory: Option[String] = None
+    module: => T,
+    chiselOpts: Array[String] = Array.empty,
+    firtoolOpts: Array[String] = Array.empty,
+    settings: Settings[T] = customSettings[T],
+    additionalResetCycles: Int = 0,
+    subdirectory: Option[String] = None
   )(stimulus: T => Unit)(implicit
-      hasSimulator: HasSimulator,
-      testingDirectory: HasTestingDirectory,
-      chiselOptsModifications: ChiselOptionsModifications,
-      firtoolOptsModifications: FirtoolOptionsModifications,
-      commonSettingsModifications: CommonSettingsModifications,
-      backendSettingsModifications: BackendSettingsModifications
+    hasSimulator: HasSimulator,
+    testingDirectory: HasTestingDirectory,
+    chiselOptsModifications: ChiselOptionsModifications,
+    firtoolOptsModifications: FirtoolOptionsModifications,
+    commonSettingsModifications: CommonSettingsModifications,
+    backendSettingsModifications: BackendSettingsModifications
   ): Unit = super.simulate(
     module,
     chiselOpts,
@@ -136,9 +130,9 @@ trait AnyFlatSpecSim
   )
 }
 class GenericSim[T <: Module, C <: Parameters](
-    tag: String,
-    dutFactory: (Parameters) => T,
-    testerFactory: (T) => Unit
+  tag: String,
+  dutFactory: (Parameters) => T,
+  testerFactory: (T) => Unit
 ) extends AnyFlatSpecSim {
 
   behavior of tag

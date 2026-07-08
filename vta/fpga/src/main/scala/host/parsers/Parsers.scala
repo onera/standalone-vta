@@ -50,8 +50,8 @@ object ConfigParser {
   */
 object LayerParser {
   def collectLayers(
-      compDir: String,
-      dep: DependencyInfo
+    compDir: String,
+    dep: DependencyInfo
   ): Seq[Model.LayerInfo] = {
     val vtaSuffixes = dep.executionOrder.collect { case (_, "vta", n) => n }
     if (vtaSuffixes.isEmpty)

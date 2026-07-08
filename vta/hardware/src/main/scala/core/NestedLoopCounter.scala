@@ -32,19 +32,19 @@ import chisel3.util._
   *
   * Streams are heterogeneous in width (GEMM: acc/inp/wgt; ALU: dst/src), so the
   * index/stride ports are MixedVecs sized per stream. Mixed-width adds truncate
-  * to the index width on assignment, matching the original
-  * `idx := idx + stride`.
+  * to the index width on assignment, matching the original `idx := idx +
+  * stride`.
   *
   * `advance` gates stepping and the terminal: GEMM ties it true (advances every
   * running cycle); the ALU drives it from its stutter/use-imm pacing. `flush`
   * forces the counter back to clean idle (clears `running`).
   */
 class NestedLoopCounter(
-    idxWidths: Seq[Int],
-    strideWidths: Seq[Int],
-    loopBits0: Int,
-    loopBits1: Int,
-    uopBits: Int
+  idxWidths: Seq[Int],
+  strideWidths: Seq[Int],
+  loopBits0: Int,
+  loopBits1: Int,
+  uopBits: Int
 ) extends Module {
   require(
     idxWidths.length == strideWidths.length,

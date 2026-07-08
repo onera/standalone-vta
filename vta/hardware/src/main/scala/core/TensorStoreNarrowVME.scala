@@ -29,11 +29,9 @@ import vta.util.config._
   *
   * Store 1D and 2D tensors from out-scratchpad (SRAM) to main memory (DRAM).
   */
-case class TensorStoreNarrowVME(
-    tensorType: String = "none"
-)(implicit
-    val
-    parameters: Parameters
+case class TensorStoreNarrowVME(tensorType: String = "none")(implicit
+  val
+  parameters: Parameters
 ) extends Module
     with TensorStore {
   val io: TensorStoreIf = IO(new TensorStoreIf())
@@ -216,9 +214,7 @@ case class TensorStoreNarrowVME(
     tag := Mux(tag === (numMemBlock - 1).U, 0.U, tag + 1.U)
   }
 
-  when(
-    state === sWriteCmd
-  ) {
+  when(state === sWriteCmd) {
     set := 0.U
   }.elsewhen(io.vmeWr.data.fire && tag === (numMemBlock - 1).U) {
     set := Mux(set === (tensorLength - 1).U, 0.U, set + 1.U)

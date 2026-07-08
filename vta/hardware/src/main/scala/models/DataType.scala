@@ -10,9 +10,9 @@ object DataType extends Enumeration {
     Map.empty.withDefaultValue(x)
 
   class DataTypeValue(
-      val id: Int,
-      val nbValues: Int,
-      val precision: Map[Int, Int]
+    val id: Int,
+    val nbValues: Int,
+    val precision: Map[Int, Int]
   ) extends Value
 
   val configFileName =

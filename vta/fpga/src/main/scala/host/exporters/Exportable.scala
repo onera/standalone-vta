@@ -22,7 +22,7 @@ object Exportable {
       def export(path: os.Path) = exportable.export(t, path)
     }
     implicit def emittableIsExportable[T](implicit
-        emittable: Emittable[T]
+      emittable: Emittable[T]
     ): Exportable[T] =
       new Exportable[T] {
         def export(t: T, path: Path): Unit = {

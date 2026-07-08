@@ -30,40 +30,21 @@ import scala.math.pow
 
 /** TensorLoad.
   *
-  * Load Cachelines from main memory (DRAM) into SRAM
-  * Mux Cachelines to tensor size memory blocks in
-  * scratchpads (SRAM). Also, there is support for zero padding, while
-  * doing the load. Zero-padding works on the y and x axis, and it is
-  * managed by ZeroPadding.
-  * Read tensors from SRAM.
+  * Load Cachelines from main memory (DRAM) into SRAM Mux Cachelines to tensor
+  * size memory blocks in scratchpads (SRAM). Also, there is support for zero
+  * padding, while doing the load. Zero-padding works on the y and x axis, and
+  * it is managed by ZeroPadding. Read tensors from SRAM.
   *
-  * banks number (BN) = CachLineSize (CS) / Tensor bit size (TS)
-  * the number of banks is pow of 2
-  * Scratchpad: Seq(BN) {Mem(TensorsNb/BN, TS)}
-  * Cacheline: Vec(BN,CS/BN)
+  * banks number (BN) = CachLineSize (CS) / Tensor bit size (TS) the number of
+  * banks is pow of 2 Scratchpad: Seq(BN) {Mem(TensorsNb/BN, TS)} Cacheline:
+  * Vec(BN,CS/BN)
   *
-  * Load:
-  *          Scratchpad
-  *       bank1      bank2
-  *         |          |
-  *        ---        ---
-  * wmask-/   \     -/   \
-  *       -----      -----
-  *        | |        | |
-  *  c     | |        | |
-  *  a  -----|--------  |
-  *  c       |          |
-  *  h       |          |
-  *  e       |          |
-  *  l       |          |
-  *  i ------------------
-  *  n
-  *  e
+  * Load: Scratchpad bank1 bank2 \| | --- --- wmask-/ \ -/ \ ----- ----- \| | |
+  * \| c | | | | a -----|-------- | c | | h | | e | | l | | i ------------------
+  * n e
   */
-case class TensorLoadWideVME(
-    tensorType: String = "none"
-)(implicit
-    val parameters: Parameters
+case class TensorLoadWideVME(tensorType: String = "none")(implicit
+  val parameters: Parameters
 ) extends TensorLoad {
   // the delay cycles of write pipe. Needed to deliver singal over physical distance
   val writePipeLatency = tp.writePipeLatency
@@ -385,9 +366,8 @@ case class TensorLoadWideVME(
 // Different transactions are identified by atag change
 // SAME DESTINATION SUBSEQUENT REQUESTS IN ONE INSTRUCTION LEADS TO UNDEFINED BEHAVIOR
 //----------------------------------------------------------------------------
-class ReadVMEDataWide(tensorType: String = "none")(implicit
-    p: Parameters
-) extends Module {
+class ReadVMEDataWide(tensorType: String = "none")(implicit p: Parameters)
+    extends Module {
   val tp = new TensorParams(tensorType)
   val mp = p(ShellKey).memParams
   val wmaskWidth = mp.dataBits / tp.tensorSizeBits
@@ -534,9 +514,8 @@ class ReadVMEDataWide(tensorType: String = "none")(implicit
 // transaction TAG is a data block offset in scratchpad
 // Different transactions are identified by atag change
 // SAME DESTINATION SUBSEQUENT REQUESTS IN ONE INSTRUCTION LEADS TO UNDEFINED BEHAVIOR
-class GenVMECmdWide(tensorType: String = "none")(implicit
-    p: Parameters
-) extends Module {
+class GenVMECmdWide(tensorType: String = "none")(implicit p: Parameters)
+    extends Module {
   val tp = new TensorParams(tensorType)
   val mp = p(ShellKey).memParams
   val io = IO(new Bundle {
@@ -843,9 +822,8 @@ class GenVMECmdWide(tensorType: String = "none")(implicit
   io.done := commandsDone
 }
 
-class GenVMECmdWideTL(tensorType: String = "none")(implicit
-    p: Parameters
-) extends Module {
+class GenVMECmdWideTL(tensorType: String = "none")(implicit p: Parameters)
+    extends Module {
   val tp = new TensorParams(tensorType)
   val mp = p(ShellKey).memParams
   val io = IO(new Bundle {

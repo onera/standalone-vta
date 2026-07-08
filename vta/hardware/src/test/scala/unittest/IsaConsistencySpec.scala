@@ -97,12 +97,12 @@ class IsaConsistencySpec extends AnyFlatSpecSim with Matchers {
   private case object CNone extends Cls
 
   private case class Case(
-      name: String,
-      inst: BigInt,
-      op: BigInt,
-      route: Route,
-      cls: Cls,
-      aluId: Option[BigInt]
+    name: String,
+    inst: BigInt,
+    op: BigInt,
+    route: Route,
+    cls: Cls,
+    aluId: Option[BigInt]
   )
 
   private val cases = Seq(

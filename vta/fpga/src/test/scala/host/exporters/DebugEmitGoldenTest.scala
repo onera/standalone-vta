@@ -12,9 +12,7 @@ class DebugEmitGoldenTest extends AnyFlatSpec with Matchers {
   for (name <- GoldenSupport.cases) {
     s"DebugEmit [$name]" should "match golden nn_debug_map.h + nn_cpu_debug_map.h" in {
       val c = GoldenSupport.loadCase(name)
-      val dep = loadDependencyInfo(
-        (c.comp / "dependency.csv").toString
-      )
+      val dep = loadDependencyInfo((c.comp / "dependency.csv").toString)
       val layers = LayerParser.collectLayers(c.comp.toString, dep)
       val cfg = ConfigParser.load(c.cfg.toString)
       val suffixToIdx = layers.zipWithIndex.map { case (l, i) =>

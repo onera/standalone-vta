@@ -46,9 +46,9 @@ import chisel3.util._
   * simulation and silicon.
   */
 class SyncQueueModule[T <: Data](
-    gen: T,
-    val entries: Int,
-    useSyncReadMem: Boolean
+  gen: T,
+  val entries: Int,
+  useSyncReadMem: Boolean
 ) extends Module {
   require(entries > 0, "SyncQueueModule requires entries > 0")
 
@@ -129,16 +129,13 @@ object SyncQueue {
     * @return
     */
   def apply[U <: Data](
-      gen: U,
-      entries: Int,
-      forceSimpleQueue: Boolean = false,
-      pipe: Boolean = false,
-      flow: Boolean = false
+    gen: U,
+    entries: Int,
+    forceSimpleQueue: Boolean = false,
+    pipe: Boolean = false,
+    flow: Boolean = false
   ): SyncQueueModule[U] = {
-    require(
-      !pipe && !flow,
-      "-F- SyncQueue does not support pipe/flow"
-    )
+    require(!pipe && !flow, "-F- SyncQueue does not support pipe/flow")
     new SyncQueueModule(
       gen,
       entries,

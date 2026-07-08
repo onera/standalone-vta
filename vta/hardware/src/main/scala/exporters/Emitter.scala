@@ -67,22 +67,22 @@ sealed abstract class EmitterApp(p: Parameters) extends App {
             instQueueEntries
           ) =>
         s"""
-          |Using following core config for target ${target}:
-          | -batch=${batch}
-          | -blockOut=${blockOut}
-          | -blockOutFactor=${blockOutFactor}
-          | -blockIn=${blockIn}
-          | -inpBits=${inpBits}
-          | -wgtBits=${wgtBits}
-          | -uopBits=${uopBits}
-          | -accBits=${accBits}
-          | -outBits=${outBits}
-          | -uopMemDepth=${uopMemDepth}
-          | -inpMemDepth=${inpMemDepth}
-          | -wgtMemDepth=${wgtMemDepth}
-          | -accMemDepth=${accMemDepth}
-          | -outMemDepth=${outMemDepth}
-          | -instQueueEntries=${instQueueEntries}
+           |Using following core config for target ${target}:
+           | -batch=${batch}
+           | -blockOut=${blockOut}
+           | -blockOutFactor=${blockOutFactor}
+           | -blockIn=${blockIn}
+           | -inpBits=${inpBits}
+           | -wgtBits=${wgtBits}
+           | -uopBits=${uopBits}
+           | -accBits=${accBits}
+           | -outBits=${outBits}
+           | -uopMemDepth=${uopMemDepth}
+           | -inpMemDepth=${inpMemDepth}
+           | -wgtMemDepth=${wgtMemDepth}
+           | -accMemDepth=${accMemDepth}
+           | -outMemDepth=${outMemDepth}
+           | -instQueueEntries=${instQueueEntries}
           """.stripMargin
       case _ => ""
     }
@@ -96,11 +96,7 @@ object DefaultXilinxConfigEmitter extends EmitterApp(new DefaultPynqConfig) {
   override val defaultDir = os.RelPath("build") / "emitted" / "vta-xilinx-shell"
   ChiselStage.emitSystemVerilogFile(
     new XilinxShell,
-    args = Array(
-      "--target-dir",
-      outputDir.toString(),
-      "--split-verilog"
-    ),
+    args = Array("--target-dir", outputDir.toString(), "--split-verilog"),
     firtoolOpts = Array(
       "--lowering-options=disallowLocalVariables,disallowPackedArrays,mitigateVivadoArrayIndexConstPropBug"
     )
@@ -126,11 +122,7 @@ object DebugXilinxConfigEmitter extends EmitterApp(new DefaultPynqConfig) {
     os.RelPath("build") / "emitted" / "vta-debug-xilinx-shell"
   ChiselStage.emitSystemVerilogFile(
     new XilinxDebugShell,
-    args = Array(
-      "--target-dir",
-      outputDir.toString(),
-      "--split-verilog"
-    ),
+    args = Array("--target-dir", outputDir.toString(), "--split-verilog"),
     firtoolOpts = Array(
       "--lowering-options=disallowLocalVariables,disallowPackedArrays,mitigateVivadoArrayIndexConstPropBug"
     )
@@ -177,10 +169,11 @@ object DefaultPynqConfigTbEmitter extends EmitterApp(new DefaultPynqConfig) {
 
   val compilerOutDir = argVal("compilerOutDir", "../../../compiler_output")
   val layers =
-    argVal(
-      "layers",
-      "QLinearConv1"
-    ).split(",").map(_.trim).filter(_.nonEmpty).toSeq
+    argVal("layers", "QLinearConv1")
+      .split(",")
+      .map(_.trim)
+      .filter(_.nonEmpty)
+      .toSeq
   val baseAddressOffset = BigInt(argVal("reloStride", "2097152")) // 0x200000
   val perLayerTimeout = argVal("perLayerTimeout", "2000000").toInt
   // INP buffers come from the fsim/vsim --dump-layers output

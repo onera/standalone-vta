@@ -23,12 +23,12 @@ object `package` extends build.BaseVtaModule { m =>
     * logic serves both entry points without duplication.
     */
   def buildSim(
-      configPath: os.Path,
-      configKey: String,
-      dest: os.Path,
-      env: Map[String, String],
-      binaryName: String,
-      extraMakeArgs: Seq[String]
+    configPath: os.Path,
+    configKey: String,
+    dest: os.Path,
+    env: Map[String, String],
+    binaryName: String,
+    extraMakeArgs: Seq[String]
   ): PathRef = {
     os.proc(
       "make",
@@ -36,12 +36,7 @@ object `package` extends build.BaseVtaModule { m =>
       s"BUILD_DIR=$dest/$configKey",
       extraMakeArgs,
       s"compile-$binaryName"
-    ).call(
-      cwd = moduleDir,
-      env = env,
-      stdout = os.Inherit,
-      stderr = os.Inherit
-    )
+    ).call(cwd = moduleDir, env = env, stdout = os.Inherit, stderr = os.Inherit)
     BuildCtx.withFilesystemCheckerDisabled {
       PathRef(dest / configKey / binaryName)
     }

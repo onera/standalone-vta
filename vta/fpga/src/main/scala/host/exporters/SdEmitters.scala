@@ -116,11 +116,8 @@ private[exporters] object SdRender {
     val staticFileLines = static.map { case (name, addr, size) =>
       s"""    {"$name", ${Model.hex32(addr)}, ${size}u},"""
     }
-    val staticFooter = Seq(
-      "};",
-      s"#define NN_SD_NUM_STATIC ${static.size}u",
-      ""
-    )
+    val staticFooter =
+      Seq("};", s"#define NN_SD_NUM_STATIC ${static.size}u", "")
     val inputLines: Seq[String] = inputEntry match {
       case Some((name, addr, size)) =>
         Seq(
@@ -142,10 +139,7 @@ private[exporters] object SdRender {
         refs.map { case (name, addr, size) =>
           s"""    {"$name", ${Model.hex32(addr)}, ${size}u},"""
         } ++
-        Seq(
-          "};",
-          s"#define NN_SD_NUM_REF ${refs.size}u"
-        )
+        Seq("};", s"#define NN_SD_NUM_REF ${refs.size}u")
     } else {
       Seq("", "#define NN_SD_HAS_REFS 0")
     }

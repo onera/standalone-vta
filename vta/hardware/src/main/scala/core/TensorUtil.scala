@@ -70,9 +70,9 @@ class TensorParams(tensorType: String = "none")(implicit p: Parameters)
   val numMemBlock = (tensorWidth * tensorElemBits) / memBlockBits
 
   val memDepth = tensorType match {
-    case "inp"   => p(CoreKey).inpMemDepth
-    case "wgt"   => p(CoreKey).wgtMemDepth
-    case "acc"   => p(CoreKey).accMemDepth
+    case "inp" => p(CoreKey).inpMemDepth
+    case "wgt" => p(CoreKey).wgtMemDepth
+    case "acc" => p(CoreKey).accMemDepth
     case "fetch" => {
       require(
         p(ShellKey).memParams.dataBits >= INST_BITS,
@@ -443,9 +443,9 @@ class TensorPadCtrl(padType: String = "none", sizeFactor: Int = 1)
 
 /** TensorDataCtrl. Data controller for TensorLoad. */
 class TensorDataCtrl(
-    tensorType: String = "none",
-    sizeFactor: Int = 1,
-    strideFactor: Int = 1
+  tensorType: String = "none",
+  sizeFactor: Int = 1,
+  strideFactor: Int = 1
 )(implicit p: Parameters)
     extends Module {
   val mp = p(ShellKey).memParams

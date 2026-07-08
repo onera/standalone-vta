@@ -11,10 +11,7 @@ import vta.models.CompilerOutputModel.DependencyInfo
   */
 
 /** `nn_ddr_map.h` - the `nn_layers[]` LayerDesc table. */
-final case class DdrMap(
-    layers: Seq[Model.LayerInfo],
-    ddrBase: Long
-)
+final case class DdrMap(layers: Seq[Model.LayerInfo], ddrBase: Long)
 
 /** `nn_exec_plan.h` - the ordered `nn_exec_steps[]` table.
   *
@@ -23,15 +20,15 @@ final case class DdrMap(
   * `layers` exactly as the standalone emitter did.
   */
 final case class ExecPlan(
-    dep: DependencyInfo,
-    layers: Seq[Model.LayerInfo],
-    ddrBase: Long,
-    compDir: String,
-    blockSize: Int = 16,
-    suffixToIdx: Option[Map[String, Int]] = None,
-    cpuOut: Option[Map[String, Long]] = None,
-    logOutWidth: Int = 3,
-    ctParams: Option[Map[String, CtParams]] = None
+  dep: DependencyInfo,
+  layers: Seq[Model.LayerInfo],
+  ddrBase: Long,
+  compDir: String,
+  blockSize: Int = 16,
+  suffixToIdx: Option[Map[String, Int]] = None,
+  cpuOut: Option[Map[String, Long]] = None,
+  logOutWidth: Int = 3,
+  ctParams: Option[Map[String, CtParams]] = None
 )
 
 /** An XSDB `dow` loader script (`load_nn.tcl` / `load_nn_static.tcl`).
@@ -41,35 +38,35 @@ final case class ExecPlan(
   * rather than read back from the export path.
   */
 final case class LoadTcl(
-    layers: Seq[Model.LayerInfo],
-    ddrBase: Long,
-    compDir: String,
-    scriptName: String,
-    includeInput: Boolean,
-    extraBlobs: Seq[ExtraBlob] = Nil
+  layers: Seq[Model.LayerInfo],
+  ddrBase: Long,
+  compDir: String,
+  scriptName: String,
+  includeInput: Boolean,
+  extraBlobs: Seq[ExtraBlob] = Nil
 )
 
 /** `load_input.tcl` - loads only `input_nn.bin` into the scratch region. */
 final case class InputTcl(
-    layers: Seq[Model.LayerInfo],
-    ddrBase: Long,
-    compDir: String
+  layers: Seq[Model.LayerInfo],
+  ddrBase: Long,
+  compDir: String
 )
 
 /** `nn_bin_data.S` - one `.incbin` section per static buffer per layer. */
 final case class AsmIncbin(
-    layers: Seq[Model.LayerInfo],
-    emitCheck: Boolean = false,
-    extraBlobs: Seq[ExtraBlob] = Nil
+  layers: Seq[Model.LayerInfo],
+  emitCheck: Boolean = false,
+  extraBlobs: Seq[ExtraBlob] = Nil
 )
 
 /** `nn_vta_sections.ld` - placement of each `.incbin` section at its address.
   */
 final case class LinkerFragment(
-    layers: Seq[Model.LayerInfo],
-    ddrBase: Long,
-    emitCheck: Boolean = false,
-    extraBlobs: Seq[ExtraBlob] = Nil
+  layers: Seq[Model.LayerInfo],
+  ddrBase: Long,
+  emitCheck: Boolean = false,
+  extraBlobs: Seq[ExtraBlob] = Nil
 )
 
 /** `nn_sd_manifest.h` plus the staged `.bin` set under `sdCardDir`.
@@ -78,27 +75,25 @@ final case class LinkerFragment(
   * so its `Exportable` instance is bespoke (it does more than write `path`).
   */
 final case class SdManifest(
-    layers: Seq[Model.LayerInfo],
-    ddrBase: Long,
-    compDir: String,
-    sdCardDir: String,
-    sdDir: String = "",
-    emitRefs: Boolean = false,
-    extraBlobs: Seq[ExtraBlob] = Nil
+  layers: Seq[Model.LayerInfo],
+  ddrBase: Long,
+  compDir: String,
+  sdCardDir: String,
+  sdDir: String = "",
+  emitRefs: Boolean = false,
+  extraBlobs: Seq[ExtraBlob] = Nil
 )
 
 /** `nn_debug_map.h` - the per-layer `DebugLayerDesc nn_debug[]` table. */
-final case class DebugMap(
-    layers: Seq[Model.LayerInfo]
-)
+final case class DebugMap(layers: Seq[Model.LayerInfo])
 
 /** `nn_cpu_debug_map.h` - the per-CPU-op `DebugCpuStep nn_cpu_debug[]` table.
   */
 final case class CpuDebugMap(
-    dep: DependencyInfo,
-    layers: Seq[Model.LayerInfo],
-    cfg: HwConfig.ConfigParams,
-    suffixToIdx: Map[String, Int],
-    ddrBase: Long,
-    compDir: String
+  dep: DependencyInfo,
+  layers: Seq[Model.LayerInfo],
+  cfg: HwConfig.ConfigParams,
+  suffixToIdx: Map[String, Int],
+  ddrBase: Long,
+  compDir: String
 )

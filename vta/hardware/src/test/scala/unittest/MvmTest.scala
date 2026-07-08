@@ -37,9 +37,9 @@ class MatrixVectorMultiplicationTest extends AnyFlatSpecSim {
    * This is used as a reference for the hardware
    */
   def mvmRef(
-      inp: Array[Int],
-      wgt: Array[Array[Int]],
-      shift: Int
+    inp: Array[Int],
+    wgt: Array[Array[Int]],
+    shift: Int
   ): Array[Int] = {
     val size = inp.length
     val res = Array.fill(size) { 0 }

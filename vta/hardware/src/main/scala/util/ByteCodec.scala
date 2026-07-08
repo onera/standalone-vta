@@ -3,9 +3,9 @@ package vta.util
 object ByteCodec {
 
   def bytesToHexWord(
-      bytes: Array[Byte],
-      bytesPerWord: Int = 8,
-      littleEndian: Boolean = false
+    bytes: Array[Byte],
+    bytesPerWord: Int = 8,
+    littleEndian: Boolean = false
   ): String = {
     require(
       bytesPerWord > 0,
@@ -38,9 +38,9 @@ object ByteCodec {
     * `$readmemh`.
     */
   def bin2hex(
-      bytes: Array[Byte],
-      bytesPerWord: Int = 8,
-      littleEndian: Boolean = false
+    bytes: Array[Byte],
+    bytesPerWord: Int = 8,
+    littleEndian: Boolean = false
   ): Array[String] = {
     require(
       bytesPerWord > 0,

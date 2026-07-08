@@ -11,11 +11,11 @@ import vta.util.{Filter, GenericSim}
 import java.io.File
 
 class ComputeCNN(
-    c: Compute,
-    CNN_param: String,
-    doCompare: Boolean = true,
-    debug: Boolean = true,
-    fromResources: Boolean = false
+  c: Compute,
+  CNN_param: String,
+  doCompare: Boolean = true,
+  debug: Boolean = true,
+  fromResources: Boolean = false
 ) {
 
   /** params contains a description of the CNN layers : Int = number of layers

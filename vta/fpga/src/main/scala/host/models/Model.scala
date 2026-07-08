@@ -9,13 +9,13 @@ import vta.models.CompilerOutputModel.MemoryRegion
   * at all (non-check-mode run).
   */
 case class LayerCheck(
-    inRefFile: String,
-    inRefAddr: Long,
-    inRefSize: Long,
-    inDstAddr: Long,
-    outRefFile: String,
-    outRefAddr: Long,
-    outRefSize: Long
+  inRefFile: String,
+  inRefAddr: Long,
+  inRefSize: Long,
+  inDstAddr: Long,
+  outRefFile: String,
+  outRefAddr: Long,
+  outRefSize: Long
 )
 
 /** Host-generator data model and path/name helpers.
@@ -47,13 +47,13 @@ object Model {
     * so an unannotated layer keeps the conv behaviour (ACC = static bias).
     */
   case class LayerInfo(
-      suffix: String,
-      mem: Map[String, MemoryRegion],
-      binFiles: Map[String, String],
-      reshapeInfo: String = "im2row",
-      // Isolation-check golden region, populated only with --emit-layer-check
-      // (written by DebugEmit.assignLayerCheckMemoryRegions). None in non-check mode.
-      check: Option[LayerCheck] = None
+    suffix: String,
+    mem: Map[String, MemoryRegion],
+    binFiles: Map[String, String],
+    reshapeInfo: String = "im2row",
+    // Isolation-check golden region, populated only with --emit-layer-check
+    // (written by DebugEmit.assignLayerCheckMemoryRegions). None in non-check mode.
+    check: Option[LayerCheck] = None
   )
 
   /** 8-digit hex address literal, e.g. `0x10000000` (no type suffix). */
@@ -82,11 +82,11 @@ object Model {
     * asm, linker, SD, and overlap-check emitters.
     */
   case class RefEntry(
-      section: String,
-      file: String,
-      addr: Long,
-      size: Long,
-      isInput: Boolean
+    section: String,
+    file: String,
+    addr: Long,
+    size: Long,
+    isInput: Boolean
   )
 
   /** In-ref then out-ref entries for layer `l` at index `idx`.
@@ -186,7 +186,7 @@ object Model {
     * int32/maxpool layers.
     */
   def iterStaticBuffers(
-      layers: Seq[LayerInfo]
+    layers: Seq[LayerInfo]
   ): Seq[(Int, LayerInfo, String, MemoryRegion)] =
     for {
       (layer, i) <- layers.zipWithIndex

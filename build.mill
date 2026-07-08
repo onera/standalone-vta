@@ -21,8 +21,14 @@ import mill.javalib.spotless.SpotlessModule
 object `package` extends Module with SpotlessModule {
 
   def spotlessExcludes = Task {
-    super.spotlessExcludes() ++ Seq("glob:.*", "glob:**/.*", "glob:build", "glob:build/**")
+    super.spotlessExcludes() ++ Seq(
+      "glob:.*",
+      "glob:**/.*",
+      "glob:build",
+      "glob:build/**"
+    )
   }
+
   /** One cross module per (example model, config) pair. Tasks defined once on
     * [[ExampleModule]] are available for every combination:
     *
@@ -35,9 +41,10 @@ object `package` extends Module with SpotlessModule {
       )
       with BaseVtaModule {
 
-    def allOutputs = Task.traverse(
-      exampleModels.flatMap(m => configNames.map(c => (m, c)))
-    ) { case (m, c) => examples(m, c).outputs }
+    def allOutputs =
+      Task.traverse(exampleModels.flatMap(m => configNames.map(c => (m, c)))) {
+        case (m, c) => examples(m, c).outputs
+      }
 
     /** Run every (model, config) pair. Each is hermetic (own config-keyed run
       * dir) and cached, so they execute in parallel and only changed inputs

@@ -7,10 +7,10 @@ object CompilerOutputModel {
     * `outRows`/`outCols` from the (unpadded) `C` row.
     */
   case class LayerMetadata(
-      isSquare: Boolean,
-      blockSize: Int,
-      outRows: Int,
-      outCols: Int
+    isSquare: Boolean,
+    blockSize: Int,
+    outRows: Int,
+    outCols: Int
   )
 
   private val page = 0x1000L
@@ -31,47 +31,47 @@ object CompilerOutputModel {
     *   (e.g. WGT on an ALU/maxpool layer).
     */
   case class MemoryRegion(
-      name: String,
-      offset: Long,
-      logicalAddr: Option[Long],
-      byteSize: Long = 0L
+    name: String,
+    offset: Long,
+    logicalAddr: Option[Long],
+    byteSize: Long = 0L
   )
 
   /** One layer-details row of dependency.csv. */
   case class LayerDependency(
-      processor: String,
-      reshapeInfo: String,
-      offsetA: Int,
-      scaleA: Double,
-      offsetB: Int,
-      scaleB: Double,
-      offsetU: Int,
-      scaleU: Double,
-      offsetV: Int,
-      scaleV: Double,
-      tensorCh: Int,
-      tensorH: Int,
-      tensorW: Int,
-      kh: Int,
-      kw: Int,
-      sh: Int,
-      sw: Int,
-      pad: (Int, Int, Int, Int),
-      outCh: Int,
-      outH: Int,
-      outW: Int,
-      offsetC: Int,
-      scaleC: Double,
-      scale: Double,
-      nbInp: Int,
-      deps: Seq[String]
+    processor: String,
+    reshapeInfo: String,
+    offsetA: Int,
+    scaleA: Double,
+    offsetB: Int,
+    scaleB: Double,
+    offsetU: Int,
+    scaleU: Double,
+    offsetV: Int,
+    scaleV: Double,
+    tensorCh: Int,
+    tensorH: Int,
+    tensorW: Int,
+    kh: Int,
+    kw: Int,
+    sh: Int,
+    sw: Int,
+    pad: (Int, Int, Int, Int),
+    outCh: Int,
+    outH: Int,
+    outW: Int,
+    offsetC: Int,
+    scaleC: Double,
+    scale: Double,
+    nbInp: Int,
+    deps: Seq[String]
   )
 
   case class DependencyInfo(
-      executionOrder: Seq[(Int, String, String)],
-      layers: Map[String, LayerDependency],
-      imageH: Int,
-      imageW: Int,
-      outputLayer: String
+    executionOrder: Seq[(Int, String, String)],
+    layers: Map[String, LayerDependency],
+    imageH: Int,
+    imageW: Int,
+    outputLayer: String
   )
 }

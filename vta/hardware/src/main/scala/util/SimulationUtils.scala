@@ -35,12 +35,12 @@ object SimulationUtils {
   object EnableMemInitVerilog extends CommonSettingsModifications {
 
     override def apply(
-        v1: CommonCompilationSettings
+      v1: CommonCompilationSettings
     ): CommonCompilationSettings = {
       // Append to v1 so this composes with other settings modifications
       // (e.g. CLI-driven FST tracing) rather than overwriting them.
-      v1.copy(
-        verilogPreprocessorDefines = v1.verilogPreprocessorDefines.appended(
+      v1.copy(verilogPreprocessorDefines =
+        v1.verilogPreprocessorDefines.appended(
           CommonCompilationSettings
             .VerilogPreprocessorDefine("ENABLE_INITIAL_MEM_")
         )

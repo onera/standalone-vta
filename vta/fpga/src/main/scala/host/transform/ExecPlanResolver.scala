@@ -11,10 +11,10 @@ import fpga.host.models._
 object ExecPlanResolver {
 
   final case class ResolvedPlan(
-      outputAddr: Long,
-      outputBytes: Long,
-      numSteps: Int,
-      steps: Seq[PlanStep]
+    outputAddr: Long,
+    outputBytes: Long,
+    numSteps: Int,
+    steps: Seq[PlanStep]
   )
 
   def resolve(t: ExecPlan): ResolvedPlan = {
@@ -25,9 +25,9 @@ object ExecPlanResolver {
     val blockSize = t.blockSize
     val logOutWidth = t.logOutWidth
 
-    val resolvedSuffixToIdx = t.suffixToIdx.getOrElse(
-      layers.zipWithIndex.map { case (l, i) => l.suffix -> i }.toMap
-    )
+    val resolvedSuffixToIdx = t.suffixToIdx.getOrElse(layers.zipWithIndex.map {
+      case (l, i) => l.suffix -> i
+    }.toMap)
     val resolvedCpuOut = t.cpuOut.getOrElse {
       val (m, _, _) = MemoryLayout.buildCpuOutAddrs(
         dep,

@@ -14,9 +14,9 @@ object Reshape {
   }
 
   def toBlocks(
-      vector: Array[BigInt],
-      blockCol: Int,
-      blockSize: Int
+    vector: Array[BigInt],
+    blockCol: Int,
+    blockSize: Int
   ): Array[Array[Array[Array[BigInt]]]] = { // vector: Vector[Byte] ?
     var B: Array[Array[Array[Array[BigInt]]]] = Array.empty
     val elements_per_full_row = blockCol * blockSize * blockSize
@@ -59,9 +59,10 @@ object Reshape {
           block_flat = pushBack(block_flat, 0)
         }
         print("ok\n")
-        val block: Array[Array[BigInt]] = Array.tabulate(subheight, blockSize)(
-          (r, c) => block_flat(r * blockSize + c)
-        )
+        val block: Array[Array[BigInt]] =
+          Array.tabulate(subheight, blockSize)((r, c) =>
+            block_flat(r * blockSize + c)
+          )
         last_row = pushBack(last_row, block)
         print("ok\n")
       }
@@ -72,10 +73,10 @@ object Reshape {
   }
 
   def unsplit(
-      list_blocks: Array[Array[Array[Array[BigInt]]]],
-      block_size: Int,
-      matrix_height: Int,
-      matrix_width: Int
+    list_blocks: Array[Array[Array[Array[BigInt]]]],
+    block_size: Int,
+    matrix_height: Int,
+    matrix_width: Int
   ): Array[Array[BigInt]] = {
     val reconstructed: Array[Array[BigInt]] =
       Array.fill(matrix_height, matrix_width)(0)
@@ -104,11 +105,11 @@ object Reshape {
   }
 
   def mat_to_tensor(
-      res: Array[Array[BigInt]],
-      batch_size: Int,
-      output_channels: Int,
-      output_height: Int,
-      output_width: Int
+    res: Array[Array[BigInt]],
+    batch_size: Int,
+    output_channels: Int,
+    output_height: Int,
+    output_width: Int
   ): Array[Array[Array[Array[BigInt]]]] = {
     val tensor: Array[Array[Array[Array[BigInt]]]] =
       Array.fill(batch_size, output_channels, output_height, output_width)(
@@ -137,9 +138,9 @@ object Reshape {
   }
 
   def im2row(
-      X: Array[Array[Array[Array[BigInt]]]],
-      kernel_size: (Int, Int),
-      stride: Int
+    X: Array[Array[Array[Array[BigInt]]]],
+    kernel_size: (Int, Int),
+    stride: Int
   ): Array[Array[BigInt]] = {
     val batch_size = X.size
     val input_channels = X(0).size
@@ -177,10 +178,10 @@ object Reshape {
   }
 
   def matrix_padding(
-      matrix: Array[Array[BigInt]],
-      block_size: Int = 16,
-      isWeight: Boolean = false,
-      isSquare: Boolean = true
+    matrix: Array[Array[BigInt]],
+    block_size: Int = 16,
+    isWeight: Boolean = false,
+    isSquare: Boolean = true
   ): Array[Array[BigInt]] = {
     val n_row = matrix.length
     val n_col = matrix(0).length
@@ -207,10 +208,10 @@ object Reshape {
   }
 
   def matrix_splitting(
-      matrix: Array[Array[BigInt]],
-      block_size: Int = 16,
-      isWeight: Boolean = false,
-      isSquare: Boolean = true
+    matrix: Array[Array[BigInt]],
+    block_size: Int = 16,
+    isWeight: Boolean = false,
+    isSquare: Boolean = true
   ): (Array[Array[Array[BigInt]]], Int) = {
     val n_row = matrix.size
     val n_col = matrix(0).size
@@ -266,18 +267,18 @@ object Reshape {
   }
 
   def reshape(
-      vector: Array[BigInt],
-      block_col: Int,
-      block_size: Int,
-      out_matrix_height: Int,
-      out_matrix_width: Int,
-      batch_size: Int,
-      out_tensor_channel: Int,
-      out_tensor_height: Int,
-      out_tensor_width: Int,
-      kernel_size: (Int, Int),
-      stride: Int,
-      isSquare: Boolean
+    vector: Array[BigInt],
+    block_col: Int,
+    block_size: Int,
+    out_matrix_height: Int,
+    out_matrix_width: Int,
+    batch_size: Int,
+    out_tensor_channel: Int,
+    out_tensor_height: Int,
+    out_tensor_width: Int,
+    kernel_size: (Int, Int),
+    stride: Int,
+    isSquare: Boolean
   ): Array[BigInt] = {
 
     // Vector -> Blocks
@@ -311,8 +312,8 @@ object Reshape {
   }
 
   def vector_to_map(
-      vector: Array[BigInt],
-      baseAddress: String
+    vector: Array[BigInt],
+    baseAddress: String
   ): Map[BigInt, Array[BigInt]] = {
     val baseAddrBigInt =
       BigInt(baseAddress, 16) // Value of base address in BigInt

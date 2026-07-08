@@ -40,8 +40,8 @@ object TensorGemmMocks extends PeekPokeAPI {
     val out_indices = new scala.collection.mutable.Queue[BigInt]
 
     def logical_step(
-        sram_valid: Option[BigInt] = None,
-        uop_valid: Option[BigInt] = None
+      sram_valid: Option[BigInt] = None,
+      uop_valid: Option[BigInt] = None
     ): Unit = {
       c.clock.step(1)
       uop_mock.logical_step(uop_valid)
@@ -89,19 +89,19 @@ object TensorGemmMocks extends PeekPokeAPI {
 class TensorGemmGenericTester[T <: TensorGemmIfc](c: T) extends PeekPokeAPI {
 
   def initialProcedure(
-      uopBegin: Int,
-      uopEnd: Int,
-      lp0: Int,
-      lp1: Int,
-      acc0: Int,
-      acc1: Int,
-      inp0: Int,
-      inp1: Int,
-      wgt0: Int,
-      wgt1: Int,
-      u0: BigInt,
-      u1: BigInt,
-      u2: BigInt
+    uopBegin: Int,
+    uopEnd: Int,
+    lp0: Int,
+    lp1: Int,
+    acc0: Int,
+    acc1: Int,
+    inp0: Int,
+    inp1: Int,
+    wgt0: Int,
+    wgt1: Int,
+    u0: BigInt,
+    u1: BigInt,
+    u2: BigInt
   ) = {
 
     require(uopBegin < uopEnd, "uop begin cannot be greater than uop end")
@@ -124,9 +124,9 @@ class TensorGemmGenericTester[T <: TensorGemmIfc](c: T) extends PeekPokeAPI {
   }
 
   def pokeInputs(
-      inp: IndexedSeq[BigInt],
-      wgt: IndexedSeq[BigInt],
-      acc: IndexedSeq[BigInt]
+    inp: IndexedSeq[BigInt],
+    wgt: IndexedSeq[BigInt],
+    acc: IndexedSeq[BigInt]
   ) = {
 
     require(inp.size == c.io.inp.rd.head.data.bits.head.size)
@@ -229,8 +229,8 @@ class TensorGemmTester(c: TensorGemmSimple) extends TensorGemmGenericTester(c) {
 
 }
 class TensorGemmIndexGeneratorTester(
-    c: TensorGemmIndexGenerator,
-    debug: Boolean = false
+  c: TensorGemmIndexGenerator,
+  debug: Boolean = false
 ) extends PeekPokeAPI {
   val uopBegin = 0
   val uopEnd = 2
@@ -313,8 +313,8 @@ class TensorGemmIndexGeneratorTester(
   mocks.test_if_done()
 }
 class TensorGemmPipelinedTester(
-    c: TensorGemmPipelinedSplit,
-    debug: Boolean = false
+  c: TensorGemmPipelinedSplit,
+  debug: Boolean = false
 ) extends PeekPokeAPI {
   c.io.start.poke(0)
   c.io.flush.poke(0)
