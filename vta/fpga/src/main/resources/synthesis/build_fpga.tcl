@@ -80,29 +80,25 @@ if {[info exists is_versal] && $is_versal} {
   # --- Versal-specific Block Design ---
 
   # 1. Create external interface ports for LPDDR4 memory
-  set ch0_lpddr4_trip1 [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:lpddr4_rtl:1.0 ch0_lpddr4_trip1 ]
-  set ch1_lpddr4_trip1 [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:lpddr4_rtl:1.0 ch1_lpddr4_trip1 ]
-  set lpddr4_clk1 [ create_bd_intf_port -mode Slave -vlnv xilinx.com:interface:diff_clock_rtl:1.0 lpddr4_clk1 ]
-  set_property -dict [ list CONFIG.FREQ_HZ {200000000} ] $lpddr4_clk1
+  set ch0_port [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:lpddr4_rtl:1.0 $versal_ch0 ]
+  set ch1_port [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:lpddr4_rtl:1.0 $versal_ch1 ]
+  set lpddr4_clk [ create_bd_intf_port -mode Slave -vlnv xilinx.com:interface:diff_clock_rtl:1.0 $versal_clk ]
+  set_property -dict [ list CONFIG.FREQ_HZ {200000000} ] $lpddr4_clk
 
   # 2. Instantiate and configure AXI NoC
   set noc [create_bd_cell -type ip -vlnv xilinx.com:ip:axi_noc:1.1 axi_noc_0]
-  set_property -dict [list \
-    CONFIG.CH0_LPDDR4_0_BOARD_INTERFACE {ch0_lpddr4_trip1} \
-    CONFIG.CH1_LPDDR4_0_BOARD_INTERFACE {ch1_lpddr4_trip1} \
-    CONFIG.MC2_FLIPPED_PINOUT {true} \
-    CONFIG.MC_CHANNEL_INTERLEAVING {true} \
-    CONFIG.MC_CHAN_REGION1 {DDR_LOW1} \
-    CONFIG.MC_LP4_OVERWRITE_IO_PROP {true} \
-    CONFIG.MC_LP4_PIN_EFFICIENT {true} \
-    CONFIG.MC_SYSTEM_CLOCK {Differential} \
+  set noc_props [list \
+    CONFIG.CH0_LPDDR4_0_BOARD_INTERFACE $versal_ch0 \
+    CONFIG.CH1_LPDDR4_0_BOARD_INTERFACE $versal_ch1 \
     CONFIG.NUM_CLKS {7} \
     CONFIG.NUM_MC {1} \
     CONFIG.NUM_MCP {4} \
     CONFIG.NUM_MI {0} \
     CONFIG.NUM_SI {7} \
-    CONFIG.sys_clk0_BOARD_INTERFACE {lpddr4_clk1} \
-  ] $noc
+    CONFIG.sys_clk0_BOARD_INTERFACE $versal_clk \
+  ]
+  foreach {k v} $noc_config { lappend noc_props CONFIG.$k $v }
+  set_property -dict $noc_props $noc
 
   # Configure NoC ports
   set_property -dict [ list \
@@ -172,10 +168,10 @@ if {[info exists is_versal] && $is_versal} {
   # Connect VTA DRAM master (m_axi_gmem) to NoC S06_AXI
   connect_bd_intf_net [get_bd_intf_pins $vta_cell/$port_vta_dram_master] [get_bd_intf_pins axi_noc_0/S06_AXI]
   # Connect NoC channels to external memory interface ports
-  connect_bd_intf_net [get_bd_intf_ports ch0_lpddr4_trip1] [get_bd_intf_pins axi_noc_0/CH0_LPDDR4_0]
-  connect_bd_intf_net [get_bd_intf_ports ch1_lpddr4_trip1] [get_bd_intf_pins axi_noc_0/CH1_LPDDR4_0]
+  connect_bd_intf_net [get_bd_intf_ports $versal_ch0] [get_bd_intf_pins axi_noc_0/CH0_LPDDR4_0]
+  connect_bd_intf_net [get_bd_intf_ports $versal_ch1] [get_bd_intf_pins axi_noc_0/CH1_LPDDR4_0]
   # Connect external clock to NoC system clock
-  connect_bd_intf_net [get_bd_intf_ports lpddr4_clk1] [get_bd_intf_pins axi_noc_0/sys_clk0]
+  connect_bd_intf_net [get_bd_intf_ports $versal_clk] [get_bd_intf_pins axi_noc_0/sys_clk0]
   # Connect SmartConnect to VTA control slave
   connect_bd_intf_net [get_bd_intf_pins axi_smc/M00_AXI] [get_bd_intf_pins $vta_cell/$port_vta_ctrl_slave]
   # Connect CIPS master AXI FPD to SmartConnect S00

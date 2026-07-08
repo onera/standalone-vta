@@ -17,6 +17,7 @@ final case class Board(
   plClockProperty: String,
   cpu: String,
   psConfig: Seq[(String, String)], // ordered
+  nocConfig: Seq[(String, String)], // ordered; empty => renderer uses defaults
   ports: Map[String, String],
   psClkAclks: Seq[String],
   addresses: Seq[(String, String, String, String)], // space, seg, offset, range
@@ -92,6 +93,7 @@ object Board {
       plClockProperty = str("pl_clock_property"),
       cpu = str("cpu"),
       psConfig = orderedObj("ps_config"),
+      nocConfig = orderedObj("noc_config"),
       ports = ports,
       psClkAclks = psClkAclks,
       addresses = addresses,

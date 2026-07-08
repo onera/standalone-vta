@@ -18,7 +18,10 @@ class BoardParamsGoldenTest extends AnyFlatSpec with Matchers {
         .get(getClass.getClassLoader.getResource("fpga-golden").toURI)
     )
 
-  for (name <- Seq("zcu104", "vek280")) {
+  // zcu104: non-Versal (noc_config + versal ports come from defaults).
+  // vek280: Versal, omits noc_config/versal_* (defaults path).
+  // vck190: Versal, overrides both noc_config and the versal_* ports.
+  for (name <- Seq("zcu104", "vek280", "vck190")) {
     s"renderBoardParams [$name]" should "match the Python golden" in {
       val b = Board.load(
         (repoRoot / "vta" / "fpga" / "boards" / s"$name.json").toString

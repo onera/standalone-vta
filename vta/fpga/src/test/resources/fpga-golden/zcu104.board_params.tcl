@@ -20,6 +20,7 @@ set proj_dir {/fixed/out/project}
 set jobs {4}
 
 set ps_config {PSU__FPGA_PL0_ENABLE {1} PSU__USE__M_AXI_GP0 {1} PSU__USE__M_AXI_GP1 {0} PSU__USE__M_AXI_GP2 {0} PSU__USE__S_AXI_GP0 {1} PSU__USE__IRQ0 {1}}
+set noc_config {MC2_FLIPPED_PINOUT {true} MC_CHANNEL_INTERLEAVING {true} MC_CHAN_REGION1 {DDR_LOW1} MC_LP4_OVERWRITE_IO_PROP {true} MC_LP4_PIN_EFFICIENT {true} MC_SYSTEM_CLOCK {Differential}}
 set port_vta_dram_master {m_axi_gmem}
 set port_vta_ctrl_slave {s_axi_control}
 set port_vta_clk {ap_clk}
@@ -28,6 +29,9 @@ set port_ps_dram_slave {S_AXI_HPC0_FPD}
 set port_ps_ctrl_master {M_AXI_HPM0_FPD}
 set port_ps_clk {pl_clk0}
 set port_ps_resetn {pl_resetn0}
+set versal_ch0 {ch0_lpddr4_trip1}
+set versal_ch1 {ch1_lpddr4_trip1}
+set versal_clk {lpddr4_clk1}
 set ps_clk_aclks {maxihpm0_fpd_aclk saxihpc0_fpd_aclk}
 
 set addresses {{zynq_ultra_ps_e_0/Data VTA_0/s_axi_control/reg0 0xA0000000 0x00010000} {VTA_0/m_axi_gmem VTA_0/s_axi_control/reg0 0xA0000000 0x00010000} {VTA_0/m_axi_gmem zynq_ultra_ps_e_0/SAXIGP0/HPC0_DDR_LOW 0x00000000 0x80000000} {VTA_0/m_axi_gmem zynq_ultra_ps_e_0/SAXIGP0/HPC0_LPS_OCM 0xFF000000 0x01000000} {VTA_0/m_axi_gmem zynq_ultra_ps_e_0/SAXIGP0/HPC0_QSPI 0xC0000000 0x20000000}}

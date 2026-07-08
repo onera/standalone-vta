@@ -135,7 +135,7 @@ object `package` extends MyModule { m =>
     * the vivado() Task.Input, so whether/how XILINX_VIVADO is set cannot
     * invalidate this cache - only config/board/RTL content can.
     */
-  def fpgaBuild = Task {
+  def fpgaBuild = Task(persistent = true) {
     val emitDir = build.vta.hardware.vtaFpgaConfig().path
     val board = vtaBoardName()
     val outDir = Task.dest / configKey() / board
@@ -168,7 +168,7 @@ object `package` extends MyModule { m =>
     */
   object configs extends Cross[ConfigModule](build.configNames)
   trait ConfigModule extends build.ConfigCrossModule {
-    def fpgaBuild = Task {
+    def fpgaBuild = Task(persistent = true) {
       val emitDir = build.vta.hardware.configs(configKey).vtaFpgaConfig().path
       val board = m.vtaBoardName()
       val outDir = Task.dest / configKey / board

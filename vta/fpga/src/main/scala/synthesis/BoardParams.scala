@@ -20,6 +20,28 @@ object BoardParams {
       if (b.boardRepo.isEmpty) ""
       else b.boardRepo.replaceFirst("^~", System.getProperty("user.home"))
     val psCfg = b.psConfig.map { case (k, v) => s"$k ${br(v)}" }.mkString(" ")
+    // NoC config deltas (Versal). Mirrors build_fpga.py: when the board omits
+    // noc_config, fall back to the same default LPDDR4 dict, in the same order.
+    val nocPairs =
+      if (b.nocConfig.nonEmpty) b.nocConfig
+      else
+        Seq(
+          "MC2_FLIPPED_PINOUT" -> "true",
+          "MC_CHANNEL_INTERLEAVING" -> "true",
+          "MC_CHAN_REGION1" -> "DDR_LOW1",
+          "MC_LP4_OVERWRITE_IO_PROP" -> "true",
+          "MC_LP4_PIN_EFFICIENT" -> "true",
+          "MC_SYSTEM_CLOCK" -> "Differential"
+        )
+    val nocCfg = nocPairs.map { case (k, v) => s"$k ${br(v)}" }.mkString(" ")
+    // Versal external memory interface ports, emitted for every board (the
+    // recipe only reads them under is_versal). Defaults match build_fpga.py.
+    val versalLines = Seq(
+      "versal_ch0" -> "ch0_lpddr4_trip1",
+      "versal_ch1" -> "ch1_lpddr4_trip1",
+      "versal_clk" -> "lpddr4_clk1"
+    ).map { case (k, dflt) => s"set $k ${br(b.ports.getOrElse(k, dflt))}" }
+      .mkString("\n")
     val portKeys = Seq(
       "port_vta_dram_master" -> "vta_dram_master",
       "port_vta_ctrl_slave" -> "vta_ctrl_slave",
@@ -63,11 +85,13 @@ object BoardParams {
        |set jobs ${br(jobs.toString)}
        |
        |set ps_config {$psCfg}
+       |set noc_config {$nocCfg}
        |${portKeys
         .map { case (tclKey, jsonKey) =>
           s"set $tclKey ${br(b.ports.getOrElse(jsonKey, sys.error(s"board ${b.name} missing port '$jsonKey'")))}"
         }
         .mkString("\n")}
+       |$versalLines
        |set ps_clk_aclks {${b.psClkAclks.mkString(" ")}}
        |
        |set addresses {${addrItems}}
