@@ -278,39 +278,3 @@ set top_name [file rootname [file tail $wrapper]]
 set_property top $top_name [current_fileset]
 generate_target all [get_files $bd.bd]
 update_compile_order -fileset sources_1
-
-# ---------------------------------------------------------------------------
-# 4. Synthesis + implementation through bitstream
-# ---------------------------------------------------------------------------
-launch_runs impl_1 -to_step write_bitstream -jobs $jobs
-wait_on_run impl_1
-if {[get_property PROGRESS [get_runs impl_1]] ne "100%"} {
-  error "impl_1 did not finish (PROGRESS=[get_property PROGRESS [get_runs impl_1]]).\n\
-         See logs under [file join $proj_dir $board_name]."
-}
-
-# ---------------------------------------------------------------------------
-# 5. Export XSA (with bitstream) + copy bit / reports
-# ---------------------------------------------------------------------------
-file mkdir $out_dir
-set xsa [file join $out_dir vta_$board_name.xsa]
-write_hw_platform -fixed -include_bit -force $xsa
-puts "INFO: wrote hardware platform: $xsa"
-
-set impl_dir [get_property DIRECTORY [get_runs impl_1]]
-set bit [file join $impl_dir $top_name.bit]
-if {[file exists $bit]} {
-  file copy -force $bit [file join $out_dir vta_$board_name.bit]
-}
-set pdi [file join $impl_dir $top_name.pdi]
-if {[file exists $pdi]} {
-  file copy -force $pdi [file join $out_dir vta_$board_name.pdi]
-}
-
-open_run impl_1
-report_timing_summary -warn_on_violation -file [file join $out_dir timing_summary.rpt]
-report_utilization -file [file join $out_dir utilization.rpt]
-
-set wns [get_property SLACK [get_timing_paths -delay_type max]]
-puts "INFO: post-route worst-case setup slack (WNS) = $wns ns"
-puts "INFO: synthesis complete -> $xsa"

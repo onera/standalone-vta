@@ -20,6 +20,8 @@ object BuildFpga {
     vivado: String = "vivado",
     skipEmit: Boolean = false,
     skipPackage: Boolean = false,
+    skipProject: Boolean = false,
+    skipSynth: Boolean = false,
     dryRun: Boolean = false
   )
 
@@ -57,6 +59,16 @@ object BuildFpga {
       opt[Unit]("skip-package")
         .action((_, c) => c.copy(skipPackage = true))
         .text("skip the IP-package stage"),
+      opt[Unit]("skip-project")
+        .action((_, c) => c.copy(skipProject = true))
+        .text(
+          "skip the create-project stage; assume <out>/project/<board>/<board>.xpr already exists"
+        ),
+      opt[Unit]("skip-synth")
+        .action((_, c) => c.copy(skipSynth = true))
+        .text(
+          "stop after creating the project, before synthesis/implementation/XSA export"
+        ),
       opt[Unit]("dry-run")
         .action((_, c) => c.copy(dryRun = true))
         .text("print commands without executing them")
@@ -74,15 +86,12 @@ object BuildFpga {
       os.exists(boardsDir),
       s"$boardsDir not found; run from the repo root (./mill vta.fpga.BuildFpga)"
     )
-    // Extract the TCL recipe from the classpath to a real file for Vivado's
-    // -source: URL.getPath is percent-encoded (breaks on paths with spaces)
-    // and unusable when the resource sits inside a jar.
-    val buildTcl = {
-      val url =
-        getClass.getClassLoader.getResource("synthesis/build_fpga.tcl")
-      os.temp(url.openStream().readAllBytes(), suffix = "-build_fpga.tcl")
-        .toString
-    }
+    // Extracted here (not deferred to point of use) so a missing classpath
+    // resource fails fast, before any Vivado stage runs.
+    val createProjectTcl =
+      extractResource("synthesis/create_project.tcl", "-create_project.tcl")
+    val synthesisTcl =
+      extractResource("synthesis/synthesis.tcl", "-synthesis.tcl")
 
     val o = OParser.parse(argParser, argv, Opts()) match {
       case Some(parsed) => parsed
@@ -125,6 +134,8 @@ object BuildFpga {
     val vivado = o.vivado
     val skipEmit = o.skipEmit
     val skipPkg = o.skipPackage
+    val skipProject = o.skipProject
+    val skipSynth = o.skipSynth
     val dryRun = o.dryRun
 
     val board = Board.load((boardsDir / s"$boardName.json").toString)
@@ -144,13 +155,13 @@ object BuildFpga {
     // Stage 1: emit RTL
     val vlnv: String = if (!skipEmit) {
       if (dryRun) {
-        println(s"\n[1/3 emit RTL] Emitting VTAXilinxShell to $emitDir")
+        println(s"\n[1/4 emit RTL] Emitting VTAXilinxShell to $emitDir")
         s"${vta.XilinxEmit.vendor}:${vta.XilinxEmit.lib}:${vta.XilinxEmit.name}:${vta.XilinxEmit.version}"
       } else {
         vta.XilinxEmit.emitXilinx(emitDir)
       }
     } else {
-      println("\n[1/3 emit RTL] skipped (--skip-emit)")
+      println("\n[1/4 emit RTL] skipped (--skip-emit)")
       if (dryRun && !os.exists(emitDir / "package_ip.tcl")) {
         s"${vta.XilinxEmit.vendor}:${vta.XilinxEmit.lib}:${vta.XilinxEmit.name}:${vta.XilinxEmit.version}"
       } else {
@@ -173,15 +184,16 @@ object BuildFpga {
         ),
         cwd = emitDir,
         dryRun = dryRun,
-        stage = "2/3 package IP"
+        stage = "2/4 package IP"
       )
     } else {
-      println("\n[2/3 package IP] skipped (--skip-package)")
+      println("\n[2/4 package IP] skipped (--skip-package)")
     }
 
     println(s"  VTA IP     : $vlnv")
 
-    // Stage 3: build project -> bitstream -> XSA
+    // board_params.tcl: always (re)written so a later --skip-project run
+    // (possibly with different --jobs) sources fresh values.
     val params = BoardParams.render(
       board,
       vtaCell,
@@ -199,22 +211,54 @@ object BuildFpga {
     } else {
       os.makeDir.all(outDir)
       os.write.over(paramsFile, params + "\n")
-      println(s"\n[3/3 build] wrote $paramsFile")
+      println(s"\n[3/4 create project] wrote $paramsFile")
     }
 
+    // Stage 3: create project + block design
+    if (!skipProject) {
+      runCmd(
+        Seq(
+          vivado,
+          "-mode",
+          "batch",
+          "-source",
+          createProjectTcl,
+          "-tclargs",
+          paramsFile.toString
+        ),
+        cwd = outDir,
+        dryRun = dryRun,
+        stage = "3/4 create project"
+      )
+    } else {
+      println("\n[3/4 create project] skipped (--skip-project)")
+    }
+
+    if (skipSynth) {
+      val xpr = projDir / board.name / s"${board.name}.xpr"
+      println("\n[4/4 synth] skipped (--skip-synth)")
+      println(s"Project ready: $xpr")
+      println("Open it in the Vivado GUI to edit, then resume with:")
+      println(
+        s"  buildFpga --board ${board.name} --out $outDir --skip-emit --skip-package --skip-project"
+      )
+      return 0
+    }
+
+    // Stage 4: synthesis + implementation + XSA export
     runCmd(
       Seq(
         vivado,
         "-mode",
         "batch",
         "-source",
-        buildTcl,
+        synthesisTcl,
         "-tclargs",
         paramsFile.toString
       ),
       cwd = outDir,
       dryRun = dryRun,
-      stage = "3/3 build"
+      stage = "4/4 synth"
     )
 
     // Timing verdict
@@ -280,6 +324,16 @@ object BuildFpga {
     println(s"  make -C $softwareDir workspace XSA=$xsa CPU=${board.cpu}")
 
     0
+  }
+
+  /** Extract a TCL recipe from the classpath to a real file for Vivado's
+    * -source: URL.getPath is percent-encoded (breaks on paths with spaces)
+    * and unusable when the resource sits inside a jar.
+    */
+  private def extractResource(resourcePath: String, suffix: String): String = {
+    val url = getClass.getClassLoader.getResource(resourcePath)
+    require(url != null, s"classpath resource not found: $resourcePath")
+    os.temp(url.openStream().readAllBytes(), suffix = suffix).toString
   }
 
   private def vlnvFromEmit(emitDir: os.Path): String = {
