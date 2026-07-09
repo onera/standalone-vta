@@ -105,13 +105,16 @@ RUNNER_SOURCE: dict[str, Path] = {
     "sd_loader_test": EXAMPLES_DIR / "sd_loader_test.cc",
 }
 
-# Extra files to copy alongside the runner source (e.g. local headers)
-RUNNER_EXTRAS: dict[str, list[Path]] = {
+# Extra files to copy alongside the runner source (e.g. local headers),
+# named relative to the gen dir (see --gen-dir / gen_dir below) - resolved by
+# collect_sources(), not baked in here, so a --gen-dir override applies to
+# these too.
+RUNNER_EXTRAS: dict[str, list[str]] = {
     "run_nn": [],
     "run_nn_uart": [],
     "run_nn_debug": [],
     "run_nn_cpu_debug": [],
-    "test_gemm": [CONFIG_DIR / "init_dram.h"],
+    "test_gemm": ["init_dram.h"],
     "sd_loader_test": [],
 }
 
@@ -181,7 +184,9 @@ XILFFS_RUNNERS = {"sd_loader_test"}
 # ---------------------------------------------------------------------------
 
 
-def collect_sources(runner: str, data_loader: str | None) -> dict[Path, Path]:
+def collect_sources(
+    runner: str, data_loader: str | None, gen_dir: Path
+) -> dict[Path, Path]:
     """
     Return {dest_relative_path: src_path} for files copied into the app.
 
@@ -192,6 +197,10 @@ def collect_sources(runner: str, data_loader: str | None) -> dict[Path, Path]:
       <runner>.cc   - runner entry point (root; picked up by aux_source_directory)
       <extras>      - e.g. init_dram.h for test_gemm (root)
       <generated>   - nn_ddr_map.h, nn_exec_plan.h, nn_bin_data.S, ... (root)
+
+    gen_dir is where gen_nn_baremetal.py output lives - defaults to
+    CONFIG_DIR (software/gen) but can be any directory (e.g. a Mill
+    genBaremetal() cache dir for a specific model/config).
     """
     files: dict[Path, Path] = {}
 
@@ -201,7 +210,7 @@ def collect_sources(runner: str, data_loader: str | None) -> dict[Path, Path]:
     files[Path(runner_src.name)] = runner_src
 
     for extra in RUNNER_EXTRAS[runner]:
-        files[Path(extra.name)] = extra
+        files[Path(extra)] = gen_dir / extra
 
     if runner not in STANDALONE_RUNNERS:
         # Required by vta_cpu_ops.cc (and hence every VTA-driver app) at
@@ -210,10 +219,10 @@ def collect_sources(runner: str, data_loader: str | None) -> dict[Path, Path]:
 
     if data_loader is not None:
         for fname in DATA_LOADER_GENERATED[data_loader]:
-            files[Path(fname)] = CONFIG_DIR / fname
+            files[Path(fname)] = gen_dir / fname
 
     for fname in RUNNER_GENERATED_EXTRA.get(runner, []):
-        files[Path(fname)] = CONFIG_DIR / fname
+        files[Path(fname)] = gen_dir / fname
 
     return files
 
@@ -419,10 +428,11 @@ def copy_sources(
     app_src: Path,
     runner: str,
     data_loader: str | None,
+    gen_dir: Path,
     baud: int = 115200,
     extra_defines: list[str] | None = None,
 ) -> None:
-    sources = collect_sources(runner, data_loader)
+    sources = collect_sources(runner, data_loader, gen_dir)
     print(f"[copy] Copying files to {app_src}")
     for dest_rel, src_path in sources.items():
         if not src_path.exists():
@@ -434,7 +444,11 @@ def copy_sources(
         dest = app_src / dest_rel
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src_path, dest)
-        print(f"       {src_path.relative_to(SOFTWARE_DIR)} -> {dest_rel}")
+        try:
+            rel = src_path.relative_to(SOFTWARE_DIR)
+        except ValueError:
+            rel = src_path
+        print(f"       {rel} -> {dest_rel}")
     if runner in STANDALONE_RUNNERS:
         # Standalone app: only its own .cc, compiled against the BSP (xilffs).
         # No VTA driver sources/includes, so UserConfig.cmake is left as-is.
@@ -664,6 +678,17 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--gen-dir",
+        default=str(CONFIG_DIR),
+        metavar="PATH",
+        help=(
+            "Directory containing gen_nn_baremetal.py output (vta_hw_config.h, "
+            "nn_ddr_map.h, nn_exec_plan.h, ...). Defaults to <software>/gen; "
+            "override to point at a specific model/config's generated headers "
+            "(e.g. a Mill genBaremetal() cache dir)."
+        ),
+    )
+    parser.add_argument(
         "--baud",
         type=int,
         default=115200,
@@ -715,6 +740,7 @@ def main() -> None:
 
     xsa = Path(args.xsa).resolve() if args.xsa else None
     workspace = Path(args.workspace).resolve()
+    gen_dir = Path(args.gen_dir).resolve()
     xpfm = xpfm_path(workspace, args.platform_name)
 
     app_names = {
@@ -743,9 +769,12 @@ def main() -> None:
                 f"(runner={runner}, data-loader={dl or 'n/a'})"
             )
             print("  Files that would be copied:")
-            for dest_rel, src_path in collect_sources(runner, dl).items():
+            for dest_rel, src_path in collect_sources(runner, dl, gen_dir).items():
                 exists = "ok" if src_path.exists() else "MISSING"
-                rel = src_path.relative_to(SOFTWARE_DIR)
+                try:
+                    rel = src_path.relative_to(SOFTWARE_DIR)
+                except ValueError:
+                    rel = src_path
                 print(f"    [{exists:7s}]  {rel} -> {dest_rel}")
             for d in RUNNER_DEFINES.get(runner, []) + _extra_defines_for(runner):
                 print(f"  Define: {d}")
@@ -811,7 +840,7 @@ def main() -> None:
         client.close()
 
     for (runner, dl), app_src in app_srcs.items():
-        copy_sources(app_src, runner, dl, args.baud, _extra_defines_for(runner))
+        copy_sources(app_src, runner, dl, gen_dir, args.baud, _extra_defines_for(runner))
 
     print()
     print("=== Done ===")
