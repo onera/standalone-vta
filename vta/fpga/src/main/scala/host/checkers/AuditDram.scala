@@ -4,6 +4,7 @@ import fpga.host.transform.MemoryLayout
 import fpga.host.parsers.{ConfigParser, LayerParser}
 import scopt.OParser
 import vta.parsers.Dependency.loadDependencyInfo
+import fpga.utils.HexUtils.parseAddr
 
 /** Static DRAM-layout guard for the VTA baremetal path.
   *
@@ -106,8 +107,8 @@ object AuditDram {
     OParser.parse(argParser, args, Opts()) match {
       case Some(o) =>
         val compDir = new java.io.File(o.compDir).getAbsolutePath
-        val ddrBase = BigInt(o.ddrBase, 16).toLong
-        val maxAddr = o.maxAddr.map(BigInt(_, 16).toLong)
+        val ddrBase = parseAddr(o.ddrBase)
+        val maxAddr = o.maxAddr.map(parseAddr(_))
         sys.exit(audit(compDir, ddrBase, o.configJson.orNull, maxAddr))
       case _ => sys.exit(1)
     }
