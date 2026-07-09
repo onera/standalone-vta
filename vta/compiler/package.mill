@@ -17,26 +17,10 @@ trait CompilerPythonModule extends PythonModule {
 
   override def pythonExe = Task.Source {
     val env = Task.env
-    val python =
-      onPath(
-        env.getOrElse("PATH", ""),
-        "python3"
-      ).get // OrElse(hostPythonCommand())
+    val python = onPath(env.getOrElse("PATH", ""), "python3")
+      .getOrElse(sys.error("python3 not found on PATH"))
     os.Path(python)
   }
-  // override def run(args: Args) = Task.Command {
-  //   val root = BuildCtx.workspaceRoot
-  //   val resolved = args.value.map(a =>
-  //     if (a.startsWith("-")) a else os.Path(a, root).toString
-  //   )
-  //   os.call(
-  //     (pythonExe(), resolved),
-  //     stdout = os.Inherit,
-  //     env = Task.env,
-  //     propagateEnv = false,
-  //     cwd = root / "examples"
-  //   )
-  // }
 
 }
 object `package` extends CompilerPythonModule { m =>

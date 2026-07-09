@@ -3,22 +3,16 @@ package build.vta.hardware
 import mill._
 import mill.javalib._
 import mill.javalib.publish._
-import mill.scalalib.SbtModule
 import mill.javalib.TestModule.ScalaTest
 import mill.api.Task.Simple
 import mill.api.BuildCtx
-import com.goyeau.mill.scalafix.ScalafixModule
 import mill.javalib.testrunner.TestResult
-import mill.javalib.Assembly.Rule
 
 object `package` extends build.MyModule with PublishModule { m =>
 
   def artifactName = "vta-standalone"
 
   def javacOptions = Seq("--release", "8")
-
-  // def scalaVersion = "2.13.18"
-  def forkEnv = Task{Task.env}
 
   def scalacOptions = Seq(
     "-deprecation",
@@ -32,12 +26,6 @@ object `package` extends build.MyModule with PublishModule { m =>
 
   override def mainClass: Simple[Option[String]] = Some("cli.VTAShellSimulator")
 
-  // def repositories = Seq(
-  //   "https://oss.sonatype.org/content/repositories/snapshots",
-  //   "https://s01.oss.sonatype.org/content/repositories/snapshots",
-  //   "https://oss.sonatype.org/service/local/repositories/releases/content/",
-  //   "https://s01.oss.sonatype.org/content/repositories/releases"
-  // )
   def chiselVersion = "7.11.0"
 
   def mvnDeps = Seq(
@@ -46,8 +34,8 @@ object `package` extends build.MyModule with PublishModule { m =>
     mvn"net.java.dev.jna:jna:5.18.0",
     mvn"org.chipsalliance::chisel:${chiselVersion}",
     mvn"edu.berkeley.cs::chiseltest:6.0.0",
-    // mvn"edu.berkeley.cs::firrtl2:6.0-SNAPSHOT",
-    mvn"org.scalatest::scalatest:3.2.19"
+    mvn"org.scalatest::scalatest:3.2.19",
+    mvn"com.github.scopt::scopt:4.1.0"
   )
   override def scalacPluginMvnDeps: Simple[Seq[Dep]] = Seq(
     mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}"
@@ -78,9 +66,8 @@ object `package` extends build.MyModule with PublishModule { m =>
   def vtaConfigSignature = Task.Input {
     // Same property BaseVtaModule.vtaConfigFile reads (Task.Input cannot
     // depend on another task).
-    val name = sys.props.getOrElse("vta.config.file", "vta_config.json")
-    val path = os.Path(name, BuildCtx.workspaceRoot / "config")
-    if (os.exists(path)) Some(PathRef(path)) else None
+    val name = sys.props.getOrElse("vta.config.file", build.defaultConfigName)
+    build.configSig(os.Path(name, BuildCtx.workspaceRoot / "config"))
   }
 
   /** Shared body for vtaSimConfig/vtaFpgaConfig (flat, global-prop-driven) and
@@ -115,6 +102,20 @@ object `package` extends build.MyModule with PublishModule { m =>
     )
   }
 
+  /** Copy an emitted-config task's output dir to a stable location under
+    * build/emitted, replacing whatever is there. Shared by emitVtaSimConfig and
+    * emitVtaFpgaConfig.
+    */
+  private def exportEmitted(
+    src: PathRef,
+    outDir: os.Path,
+    label: String
+  ): Unit = {
+    os.remove.all(target = outDir, ignoreErrors = true)
+    os.copy(src.path, outDir, replaceExisting = true, createFolders = true)
+    println(s"[INFO] emitted $label config to $outDir")
+  }
+
   /** Emit VTA for DPI simulation using `vta.StandaloneSimConfig` main class.
    *
    * Usage: ./mill emitVtaSimConfig
@@ -122,10 +123,7 @@ object `package` extends build.MyModule with PublishModule { m =>
    */
   def emitVtaSimConfig(args: Args) = Task.Command {
     val outDir = BuildCtx.workspaceRoot / "build" / "emitted" / "vta-sim-shell"
-    val taskPath = vtaSimConfig()
-    os.remove.all(target = outDir, ignoreErrors = true)
-    println(s"[INFO] copying sim config from ${taskPath.path} to ${outDir}")
-    os.copy(taskPath.path, outDir, replaceExisting = true, createFolders = true)
+    exportEmitted(vtaSimConfig(), outDir, "sim")
   }
 
   /** Cached, per-config RTL + package_ip.tcl emission (DefaultXilinxConfig).
@@ -181,11 +179,7 @@ object `package` extends build.MyModule with PublishModule { m =>
       if (args.value.isEmpty)
         BuildCtx.workspaceRoot / "build" / "emitted" / "vta-xilinx-shell"
       else os.Path(args.value.head)
-    val taskPath = vtaFpgaConfig()
-    os.remove.all(target = outDir, ignoreErrors = true)
-    println(s"[INFO] copying fpga config from ${taskPath.path} to ${outDir}")
-    os.copy(taskPath.path, outDir, replaceExisting = true, createFolders = true)
-    println(s"[INFO] VTA FPGA config emitted in ${outDir}")
+    exportEmitted(vtaFpgaConfig(), outDir, "fpga")
   }
 
   def emitVtaPostSynthTb(args: Args) = Task.Command {

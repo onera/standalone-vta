@@ -99,22 +99,20 @@ object `package` extends build.BaseVtaModule { m =>
   }
 
   /** Launch a built simulator binary directly (this is the "run in Mill, not
-    * make" path). Callers pass --comp-dir and any runtime flags.
+    * make" path). Callers pass --comp-dir and any runtime flags. Shared by the
+    * functional (fsim) and Verilated (vsim) paths - both just exec a binary.
     */
-  def launchFsim(binary: os.Path, flags: Seq[String], cwd: os.Path): Unit =
-    os.proc(binary, flags).call(cwd = cwd, stdout = os.Inherit)
-
-  def launchVsim(binary: os.Path, flags: Seq[String], cwd: os.Path): Unit =
+  def launchSim(binary: os.Path, flags: Seq[String], cwd: os.Path): Unit =
     os.proc(binary, flags).call(cwd = cwd, stdout = os.Inherit)
 
   // Standalone build+run. Runtime args (e.g. --comp-dir DIR --layer 3) are
   // passed straight to the binary.
   def fsim(args: Args) = Task.Command {
-    launchFsim(fsimBinary().path, args.value, BuildCtx.workspaceRoot)
+    launchSim(fsimBinary().path, args.value, BuildCtx.workspaceRoot)
   }
 
   def vsim(args: Args) = Task.Command {
-    launchVsim(vsimBinary().path, args.value, BuildCtx.workspaceRoot)
+    launchSim(vsimBinary().path, args.value, BuildCtx.workspaceRoot)
   }
 
 }

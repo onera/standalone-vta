@@ -2,22 +2,28 @@ package build
 
 import mill._
 import mill.javalib._
-import mill.javalib.publish._
 import mill.scalalib.SbtModule
-import mill.javalib.TestModule.ScalaTest
-import mill.api.Task.Simple
 import mill.api.BuildCtx
 import com.goyeau.mill.scalafix.ScalafixModule
-import mill.javalib.testrunner.TestResult
-import mill.javalib.Assembly.Rule
-import mill.api.TaskCtx
-import os.Path
+
+/** Content-hashed view of a config JSON, or None when it does not exist (e.g. a
+  * resource-only test config). Shared by every config-signature Task so cached
+  * tasks invalidate when the file is edited in place - the forked JVMs only
+  * ever receive the config filename, never its contents.
+  */
+def configSig(path: os.Path): Option[PathRef] =
+  BuildCtx.withFilesystemCheckerDisabled {
+    if (os.exists(path)) Some(PathRef(path)) else None
+  }
+
+/** Default config filename when -Dvta.config.file is unset. */
+val defaultConfigName = "vta_config.json"
 
 trait BaseVtaModule extends Module {
   def configDir = Task.Source(BuildCtx.workspaceRoot / "config")
-  def configFiles = Task { os.walk(configDir().path).filter(_.ext == "json") }
+  def configFiles = Task { os.list(configDir().path).filter(_.ext == "json") }
   def vtaConfigFile = Task.Input {
-    sys.props.getOrElse("vta.config.file", "vta_config.json")
+    sys.props.getOrElse("vta.config.file", defaultConfigName)
   }
 
   /** Absolute path to the active config JSON. Falls back to configDir/<name>
@@ -33,15 +39,7 @@ trait BaseVtaModule extends Module {
     */
   def configKey = Task { vtaConfigPath().baseName }
 
-  /** Content-hashed config file, so cached tasks invalidate when it is edited
-    * in place (the forked JVMs only ever see the filename).
-    */
-  def configSignature = Task {
-    val p = vtaConfigPath()
-    BuildCtx.withFilesystemCheckerDisabled {
-      if (os.exists(p)) Some(PathRef(p)) else None
-    }
-  }
+  def configSignature = Task { configSig(vtaConfigPath()) }
 
   /** DDR base address for baremetal codegen (GenNnBaremetal --ddr-base).
     * Mirrors the vtaConfigFile / -Dvta.config.file property pattern.
@@ -85,6 +83,12 @@ def configNames = BuildCtx.watchValue(
   os.list(configDirPath).filter(_.ext == "json").map(_.baseName).sorted
 )
 
+/** Every (example model, config) pair - the Cross keys for `examples`. Computed
+  * eagerly (not a Task) since Cross needs its values before the task graph
+  * exists.
+  */
+def examplePairs = exampleModels.flatMap(m => configNames.map(c => (m, c)))
+
 /** A single config's identity, derived directly from a Cross value instead of
   * the global -Dvta.config.file property that BaseVtaModule reads. Mixed into
   * the `configs` Cross submodule of vta.hardware/vta.simulator/ vta.fpga, so
@@ -96,30 +100,14 @@ def configNames = BuildCtx.watchValue(
 trait ConfigCrossModule extends Cross.Module[String] {
   def configKey: String = crossValue
   def configPath: os.Path = build.configDirPath / s"$configKey.json"
-
-  /** Content-hashed, so cached tasks invalidate when the file is edited in
-    * place (mirrors BaseVtaModule.configSignature).
-    */
-  def configSignature = Task {
-    BuildCtx.withFilesystemCheckerDisabled {
-      if (os.exists(configPath)) Some(PathRef(configPath)) else None
-    }
-  }
+  def configSignature = Task { configSig(configPath) }
 }
 trait ExampleModule extends Cross.Module2[String, String] {
   // crossValue = model, crossValue2 = config key (e.g. "vta_w8b") - a
   // direct Cross value instead of BaseVtaModule's global -Dvta.config.file.
   def configKey: String = crossValue2
   def configPath: os.Path = configDirPath / s"$configKey.json"
-
-  /** Content-hashed, so cached tasks invalidate when the file is edited in
-    * place (mirrors ConfigCrossModule.configSignature / BaseVtaModule's).
-    */
-  def configSignature = Task {
-    BuildCtx.withFilesystemCheckerDisabled {
-      if (os.exists(configPath)) Some(PathRef(configPath)) else None
-    }
-  }
+  def configSignature = Task { configSig(configPath) }
 
   def onnxPath = Task.Source(onnxDir / os.RelPath(s"$crossValue.onnx"))
 
@@ -165,7 +153,7 @@ trait ExampleModule extends Cross.Module2[String, String] {
     fsimFlags: Seq[String],
     env: Map[String, String]
   ): Unit = {
-    build.vta.simulator.launchFsim(
+    build.vta.simulator.launchSim(
       fsim,
       Seq("--comp-dir", compOut.toString) ++ fsimFlags,
       root
@@ -181,7 +169,7 @@ trait ExampleModule extends Cross.Module2[String, String] {
     vsimFlags: Seq[String],
     env: Map[String, String]
   ): Unit = {
-    build.vta.simulator.launchVsim(
+    build.vta.simulator.launchSim(
       vsim,
       Seq("--comp-dir", compOut.toString) ++ vsimFlags,
       root
