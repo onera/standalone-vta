@@ -157,7 +157,7 @@ object `package` extends build.MyModule with PublishModule { m =>
         m.runner(),
         Task.dest,
         s"$configKey.json",
-        "vta.StandaloneSimConfig"
+        "vta.exporters.TestDefaultPynqConfigEmitter"
       )
     }
     def vtaFpgaConfig = Task {

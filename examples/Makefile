@@ -11,18 +11,24 @@ PROJECT_DIR  := $(abspath $(MAKEFILE_DIR)/..)
 
 COMPILER_OUTPUT_DIR  := $(PROJECT_DIR)/compiler_output
 SIMULATOR_OUTPUT_DIR := $(PROJECT_DIR)/simulators_output
+HW_OUTPUT_DIR := $(PROJECT_DIR)/build
+MILL=cd $(PROJECT_DIR) && ./mill
 
-SRC_DIR          := $(PROJECT_DIR)/src
+# The compiler scripts resolve their output dir from VTA_COMPILER_OUT (no '.git'
+# walk). make runs them from examples/, so pin it to the project-level dir; this
+# covers every invocation, including the ones without an '-o' flag (reference,
+# check, random_raw_binary_generator).
+export VTA_COMPILER_OUT := $(COMPILER_OUTPUT_DIR)
+
+SRC_DIR          := $(PROJECT_DIR)/vta
 COMPILER_DIR     := $(SRC_DIR)/compiler
 LOG_OUTPUT_DIR   := $(PROJECT_DIR)/log_output
 
 VTA_COMPILER_DIR := $(COMPILER_DIR)/vta_compiler
 NN_COMPILER_DIR  := $(COMPILER_DIR)/nn_compiler
-FSIM_DIR         := $(SRC_DIR)/simulators/functional_simulator
-TSIM_DIR         := $(SRC_DIR)/simulators/cycle_accurate_simulator
+FSIM_DIR         := $(SRC_DIR)/simulator
+TSIM_DIR         := $(SRC_DIR)/hardware
 CONFIG_DIR       := $(PROJECT_DIR)/config
-FPGA_HW_DIR	     := $(SRC_DIR)/fpga/synthesis
-FPGA_SW_DIR	     := $(SRC_DIR)/fpga/software
 
 # ==============================================================================
 # CONFIGURATION
@@ -57,6 +63,12 @@ COMPILE_SUMMARY ?= True
 DRAM_JSON       ?= False
 EXPANDBIAS_AT_COMPILATION ?= True
 REF_MODE        ?= numpy   # ort | numpy | compare
+
+NN_DEBUG_FLAG   := $(if $(filter True true,$(DEBUG_PARSE)),--debug,)
+EXPANDBIAS_FLAG := $(if $(filter True true,$(EXPANDBIAS_AT_COMPILATION)),--expand-bias,)
+VTA_DEBUG_FLAG  := $(if $(filter True true,$(DEBUG)),--debug,)
+SUMMARY_FLAG    := $(if $(filter True true,$(COMPILE_SUMMARY)),--summary,)
+DRAM_JSON_FLAG  := $(if $(filter True true,$(DRAM_JSON)),--dram-json,)
 
 ONNX_FILE ?= onnx/qyolo_pattern.onnx
 # onnx/qlinearconv_debug.onnx
@@ -98,8 +110,8 @@ nn_compiler: ## Stage 1 - qONNX -> CPU parameters + VTA IRs
 	@echo "Parsing ONNX..."
 	@date
 	python $(NN_COMPILER_DIR)/vta_backend.py \
-	$(DEBUG_PARSE) \
-	$(EXPANDBIAS_AT_COMPILATION) \
+	$(NN_DEBUG_FLAG) \
+	$(EXPANDBIAS_FLAG) \
 	$(CONFIG) \
 	$(ONNX_FILE) > $(LOG_OUTPUT_DIR)/prompt_vta_backend.txt
 	@date
@@ -109,9 +121,9 @@ vta_compiler: ## Stage 2 - VTA IRs → VTA binary
 	@date
 	$(PYTHON_CMD) \
 	$(VTA_COMPILER_DIR)/main_vta_compiler.py \
-	$(DEBUG) \
-	$(COMPILE_SUMMARY) \
-	$(DRAM_JSON) \
+	$(VTA_DEBUG_FLAG) \
+	$(SUMMARY_FLAG) \
+	$(DRAM_JSON_FLAG) \
 	$(CONFIG) \
 	$(JSON_FILES) > $(LOG_OUTPUT_DIR)/prompt_vta_compiler.txt
 	@date
@@ -135,7 +147,7 @@ fsim_compile_single_layer: ## Build fsim_single_layer
 
 
 exported_sv:
-	cd $(TSIM_DIR) && ./mill -Dvta.config.file=$(CONFIG_FILE) emitVtaSimConfig
+	$(MILL) -Dvta.config.file=$(CONFIG_FILE) vta.hardware.emitVtaSimConfig
 
 
 vsim_compile: exported_sv ## Generate Verilated C++ model and build fsim_nn_rtl
@@ -197,8 +209,8 @@ vsim_inference: exported_sv ## Build (if needed) and run fsim_nn_rtl, capture ou
 tsim: ## Run cycle-accurate TSIM via Mill/ScalaTest
 	@echo "Running TSIM..."
 	@date
-	cd $(TSIM_DIR) && ./mill -Dvta.config.file=$(CONFIG_FILE) \
-	  runMain org.scalatest.run cli.ComputeApp \
+	$(MILL) -Dvta.config.file=$(CONFIG_FILE) \
+	  vta.hardware.runMain org.scalatest.run cli.ComputeApp \
 	  > $(LOG_OUTPUT_DIR)/tsim_report.txt
 	@date
 	@echo "TSIM DONE!"
@@ -280,12 +292,13 @@ custom_insn: ## Generate custom instruction test
 # ==============================================================================
 # CLEAN
 # ==============================================================================
+
 clean: | $(COMPILER_OUTPUT_DIR) $(SIMULATOR_OUTPUT_DIR) $(LOG_OUTPUT_DIR) ## Delete generated compiler and simulator output files
 	-rm $(COMPILER_OUTPUT_DIR)/*.*
 	-rm $(LOG_OUTPUT_DIR)/*.*
 	-rm $(SIMULATOR_OUTPUT_DIR)/*.*
 
-cleaner: clean fsim_clean clean_hw clean_fpga ## Delete generated files and the FSIM build directory
+cleaner: clean fsim_clean clean_hw ## Delete generated files and the FSIM build directory
 
 force_clean: cleaner ## backward compatible clean
 
@@ -296,11 +309,7 @@ clean_csv: | $(COMPILER_OUTPUT_DIR) ## Delete CSV output files only
 	-rm $(COMPILER_OUTPUT_DIR)/*.csv
 
 clean_hw: ## Clean Chisel/Mill build outputs
-	cd $(TSIM_DIR) && ./mill cleanOutputs
-
-clean_fpga: ## Clean Vitis and Vivado workspaces
-	-rm -r $(FPGA_HW_DIR)/build
-	-rm -r $(FPGA_SW_DIR)/build
+	-rm -rf $(HW_OUTPUT_DIR)/*
 
 # ==============================================================================
 # OUTPUT DIRECTORIES
@@ -324,6 +333,7 @@ debug: ## Print all resolved paths and active configuration
 	@echo "INP_DTYPE:            $(INP_DTYPE)"
 	@echo "WGT_DTYPE:            $(WGT_DTYPE)"
 	@echo "ACC_DTYPE:            $(ACC_DTYPE)"
+	@echo "PYTHON_CMD:           $(PYTHON_CMD)"
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?##' $(MAKEFILE_LIST) \
