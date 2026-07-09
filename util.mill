@@ -55,7 +55,7 @@ trait MyModule extends BaseVtaModule with SbtModule with ScalafixModule {
   def scalaVersion = "2.13.18"
 
   def forkArgs = Seq(s"-Dvta.config.file=${vtaConfigFile()}")
-  def forkEnv = Map("VTA_ROOT" -> BuildCtx.workspaceRoot.toString)
+  def forkEnv = Task.env ++ Map("VTA_ROOT" -> BuildCtx.workspaceRoot.toString)
 }
 
 def onnxDir = BuildCtx.workspaceRoot / "examples" / "onnx"
