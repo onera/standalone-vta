@@ -125,21 +125,49 @@ export XILINXD_LICENSE_FILE=<port>@<server> # or path/to/license.lic
 
 ### 3. Run an Example
 
-Once inside the environment (after running `pixi shell`), you can use the `examples/Makefile` to run full end-to-end flows (Compiler -> Functional Simulator).
+Once inside the environment (after running `pixi shell`), Mill drives the
+full flow (Compiler -> Functional Simulator -> check, plus FPGA baremetal
+codegen and Vitis workspace creation) for each (model, config) pair - config
+is a Cross axis alongside the model, like `examples[lenet5]` itself:
 
 ```bash
-cd examples
-# View available targets
-make help
+# Compile the model (nn_compiler + vta_compiler + ONNX reference) for a
+# given config - config is a required second cross value, not a flag
+./mill "examples[lenet5,vta_config].compile"
 
+# Run the (already-compiled) sim + check: fsim -> check -> vsim -> check
+./mill "examples[lenet5,vta_config].run"
+
+# Same model, a different config - independent, cached, buildable together
+./mill "examples[lenet5,vta_w8b].run"
 # Run a simple 16x16 matrix multiplication example
 make test_gemm
 
-# Compile and simulate a simple neural network
-make compile_and_run ONNX_FILE=onnx/lenet5.onnx
+# Generate the baremetal codegen for this model/config (needs no Vivado)
+./mill "examples[lenet5,vta_config].genBaremetal"
+
+# Create/update a Vitis workspace wired to that baremetal codegen and the
+# config's synthesized bitstream (needs Vivado + Vitis)
+./mill "examples[lenet5,vta_config].createVitisProject" --data-loader tcl
 ```
 
 This will:
 
 1. Run the compiler, placing binaries in `../compiler_output/`.
 2. Run the functional simulator, reading those binaries and placing logs in `../log_output/`.
+`run` never re-invokes the Python compiler itself - it depends on `compile`,
+which only re-runs when the model, config, or compiler sources actually
+change.
+
+Outputs are isolated per model and config under `out/runs/<model>/<config>/`:
+`compiler_output/` (compile), `baremetal/` (genBaremetal), `vitis_proj/`
+(createVitisProject). The C++/Verilator simulator (`vta.simulator.configs[<config>]`)
+and the FPGA bitstream (`vta.fpga.configs[<config>]`) are each built once per
+config and cached, so switching config or adding a new example model does not
+rebuild everything - `./mill examples.runAll` builds every (model, config)
+pair in one invocation. The older `-Dvta.config.file=<name>.json` global
+property still selects the config for the flat, non-crossed tasks
+(`vta.hardware.emitVtaSimConfig`, `vta.fpga.buildFpga`, `vta.hardware.test.unittest`,
+...) used by `examples/Makefile`, `vta/simulator/Makefile`, and
+`vta/fpga/software/Makefile`, which remain available for standalone use
+outside Mill.
