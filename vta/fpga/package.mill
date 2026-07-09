@@ -105,7 +105,7 @@ object `package` extends MyModule { m =>
   /** Plain (untracked) resolution of the vivado binary from XILINX_VIVADO.
     * Deliberately NOT a Task.Input read via Task.env inside a cached Task: the
     * tool's location is an environment/tooling detail, not build content, so it
-    * must not invalidate fpgaBuild's cache (see vivado/fpgaBuild below).
+    * must not invalidate fpgaProject/fpgaSynth's cache (see below).
     */
   def resolveVivado(env: Map[String, String]): String =
     env
@@ -125,72 +125,136 @@ object `package` extends MyModule { m =>
     println(s"[INFO] buildFpga done")
   }
 
-  /** Cached, per-config Vivado build (package IP -> synth -> impl -> XSA/bit).
-    * Depends only on the config + board, never on a compiled model - behaves
-    * like vsimBinary/fsimBinary: build once per config, reused across models.
-    * Reuses hardware.vtaFpgaConfig()'s RTL emit (--skip-emit) so Vivado never
-    * redoes work Mill already cached.
-    *
-    * Resolves the vivado binary via resolveVivado(Task.env) rather than calling
-    * the vivado() Task.Input, so whether/how XILINX_VIVADO is set cannot
-    * invalidate this cache - only config/board/RTL content can.
+  /** Plain function: run one stage of the split Vivado build for a given
+    * (config, board, out) triple. Shared by fpgaProject (create the project,
+    * --skip-synth) and fpgaSynth (reopen it and synth/impl/XSA,
+    * --skip-project), for both this module and the per-config Cross submodule
+    * below. Always --skip-emit (hardware.vtaFpgaConfig() owns the RTL emit,
+    * cached by Mill) and propagateEnv (Vivado needs XILINX_* / DISPLAY).
+    * `stageFlags` selects the stage: Seq("--skip-synth") for the project stage,
+    * Seq("--skip-package", "--skip-project") for the synth stage. Takes an
+    * already-resolved Runner and vivado path since Task APIs can't be invoked
+    * outside a Task{} block.
     */
-  def fpgaBuild = Task(persistent = true) {
-    val emitDir = build.vta.hardware.vtaFpgaConfig().path
-    val board = vtaBoardName()
-    val outDir = Task.dest / configKey() / board
-    runner().run(
+  def runBuildFpga(
+    runner: mill.javalib.RunModule.Runner,
+    board: String,
+    configPath: os.Path,
+    emitDir: os.Path,
+    outDir: os.Path,
+    vivado: String,
+    stageFlags: Seq[String]
+  )(using ctx: mill.api.TaskCtx): Unit =
+    runner.run(
       args = Seq(
         "--board",
         board,
         "--config",
-        vtaConfigPath().toString,
+        configPath.toString,
         "--emit-dir",
         emitDir.toString,
         "--skip-emit",
         "--out",
         outDir.toString,
         "--vivado",
-        resolveVivado(Task.env)
-      ),
+        vivado
+      ) ++ stageFlags,
       mainClass = "fpga.synthesis.BuildFpga",
       workingDir = BuildCtx.workspaceRoot,
       propagateEnv = true
+    )
+
+  /** Stage 1 of the split, config-only Vivado build: package IP -> create the
+    * Vivado project + block design, stopping before synthesis (--skip-synth).
+    * Fast relative to synth/impl; leaves <dest>/<config>/<board>/project ready
+    * to open in the Vivado GUI, edit, and save before fpgaSynth reopens it.
+    *
+    * Depends only on the config + board, never on a compiled model - behaves
+    * like vsimBinary/fsimBinary: build once per config, reused across models.
+    * Reuses hardware.vtaFpgaConfig()'s RTL emit (--skip-emit) so Vivado never
+    * redoes work Mill already cached. Persistent so the created project (and
+    * any GUI edits) survive across runs and are recreated only when
+    * config/board/RTL change.
+    *
+    * Resolves the vivado binary via resolveVivado(Task.env) rather than calling
+    * the vivado() Task.Input, so whether/how XILINX_VIVADO is set cannot
+    * invalidate this cache - only config/board/RTL content can.
+    */
+  def fpgaProject = Task(persistent = true) {
+    val emitDir = build.vta.hardware.vtaFpgaConfig().path
+    val board = vtaBoardName()
+    val outDir = Task.dest / configKey() / board
+    runBuildFpga(
+      runner(),
+      board,
+      vtaConfigPath(),
+      emitDir,
+      outDir,
+      resolveVivado(Task.env),
+      Seq("--skip-synth")
+    )
+    PathRef(outDir)
+  }
+
+  /** Stage 2 of the split build: reopen the project created by fpgaProject and
+    * run synthesis -> implementation -> XSA/bit export (--skip-project, plus
+    * --skip-package since fpgaProject already packaged the IP). Runs in
+    * fpgaProject's persistent output dir so it picks up any GUI edits the user
+    * saved into that same project. Produces manifest.json (consumed by
+    * createVitisProject). Invoking this directly builds the project first if it
+    * does not exist yet, so it doubles as the one-shot full build.
+    */
+  def fpgaSynth = Task(persistent = true) {
+    val outDir = fpgaProject().path
+    val emitDir = build.vta.hardware.vtaFpgaConfig().path
+    runBuildFpga(
+      runner(),
+      vtaBoardName(),
+      vtaConfigPath(),
+      emitDir,
+      outDir,
+      resolveVivado(Task.env),
+      Seq("--skip-package", "--skip-project")
     )
     PathRef(outDir)
   }
 
   /** Config-keyed Cross submodule for the cacheable, config-only Vivado build:
     * each config is an independently addressable, independently cached module
-    * instance (vta.fpga.configs[vta_w8b].fpgaBuild). Depends on
+    * instance (vta.fpga.configs[vta_w8b].fpgaProject / .fpgaSynth). Depends on
     * hardware.configs(configKey).vtaFpgaConfig() (the matching config's RTL
     * emit), not the global vtaFpgaConfig().
     */
   object configs extends Cross[ConfigModule](build.configNames)
   trait ConfigModule extends build.ConfigCrossModule {
-    def fpgaBuild = Task(persistent = true) {
+    def fpgaProject = Task(persistent = true) {
       val emitDir = build.vta.hardware.configs(configKey).vtaFpgaConfig().path
       val board = m.vtaBoardName()
-      val outDir = Task.dest / configKey / board
-      m.runner()
-        .run(
-          args = Seq(
-            "--board",
-            board,
-            "--config",
-            configPath.toString,
-            "--emit-dir",
-            emitDir.toString,
-            "--skip-emit",
-            "--out",
-            outDir.toString,
-            "--vivado",
-            m.resolveVivado(Task.env)
-          ),
-          mainClass = "fpga.synthesis.BuildFpga",
-          workingDir = BuildCtx.workspaceRoot,
-          propagateEnv = true
-        )
+      val outDir = Task.dest / board
+      m.runBuildFpga(
+        m.runner(),
+        board,
+        configPath,
+        emitDir,
+        outDir,
+        m.resolveVivado(Task.env),
+        Seq("--skip-synth")
+      )
+      PathRef(outDir)
+    }
+
+    def fpgaSynth = Task(persistent = true) {
+      val outDir = fpgaProject().path
+      val emitDir = build.vta.hardware.configs(configKey).vtaFpgaConfig().path
+      m.runBuildFpga(
+        m.runner(),
+        m.vtaBoardName(),
+        configPath,
+        emitDir,
+        outDir,
+        m.resolveVivado(Task.env),
+        Seq("--skip-package", "--skip-project")
+      )
       PathRef(outDir)
     }
   }
@@ -252,12 +316,12 @@ object `package` extends MyModule { m =>
     ).call(stdout = os.Inherit)
 
   /** Orchestrated Vitis workspace creation: resolves the XSA + board CPU from
-    * the cached fpgaBuild() output's manifest.json, so callers don't need to
+    * the cached fpgaSynth() output's manifest.json, so callers don't need to
     * hand-copy paths out of build/synthesis. Extra args (--runner,
     * --data-loader, ...) forward to create_vitis_workspace.py.
     */
   def createVitisProject(args: Args) = Task.Command {
-    val synthDir = fpgaBuild().path
+    val synthDir = fpgaSynth().path
     val manifest = synthDir / "manifest.json"
     val outPath = BuildCtx.workspaceRoot / "build" / "baremetal" / "vitis_proj"
     runCreateVitisWorkspace(

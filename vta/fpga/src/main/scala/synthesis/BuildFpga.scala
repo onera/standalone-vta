@@ -333,8 +333,8 @@ object BuildFpga {
   }
 
   /** Extract a TCL recipe from the classpath to a real file for Vivado's
-    * -source: URL.getPath is percent-encoded (breaks on paths with spaces)
-    * and unusable when the resource sits inside a jar.
+    * -source: URL.getPath is percent-encoded (breaks on paths with spaces) and
+    * unusable when the resource sits inside a jar.
     */
   private def extractResource(resourcePath: String, suffix: String): String = {
     val url = getClass.getClassLoader.getResource(resourcePath)

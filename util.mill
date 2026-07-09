@@ -316,13 +316,13 @@ trait ExampleModule extends Cross.Module2[String, String] {
 
   /** Always executes: create/update this model's Vitis workspace, wired
     * automatically to its generated baremetal (genBaremetal(), this
-    * model/config's headers) and the config-only bitstream/XSA (fpgaBuild()'s
+    * model/config's headers) and the config-only bitstream/XSA (fpgaSynth()'s
     * manifest). Extra args (--runner, --data-loader, ...) forward to
     * create_vitis_workspace.py.
     */
   def createVitisProject(args: Args) = Task.Command {
     val genDir = genBaremetal().path
-    val synthDir = build.vta.fpga.configs(configKey).fpgaBuild().path
+    val synthDir = build.vta.fpga.configs(configKey).fpgaSynth().path
     val manifest = synthDir / "manifest.json"
     val workspace = runDir() / "vitis_proj"
     build.vta.fpga.runCreateVitisWorkspace(

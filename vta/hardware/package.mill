@@ -130,7 +130,7 @@ object `package` extends build.MyModule with PublishModule { m =>
 
   /** Cached, per-config RTL + package_ip.tcl emission (DefaultXilinxConfig).
     * Depends only on the config content, never on a compiled model - callers
-    * (fpgaBuild, genBaremetal) use this as a fast "hardware config is emitted
+    * (fpgaProject, genBaremetal) use this as a fast "hardware config is emitted
     * and consistent" gate without paying for Vivado.
     */
   def vtaFpgaConfig = Task {
