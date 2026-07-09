@@ -237,10 +237,16 @@ object BuildFpga {
     if (skipSynth) {
       val xpr = projDir / board.name / s"${board.name}.xpr"
       println("\n[4/4 synth] skipped (--skip-synth)")
-      println(s"Project ready: $xpr")
+      if (os.exists(xpr)) {
+        println(s"Project ready: $xpr")
+      } else {
+        println(
+          s"WARNING: project not found at $xpr (--skip-project was also set, so it was never created this run)"
+        )
+      }
       println("Open it in the Vivado GUI to edit, then resume with:")
       println(
-        s"  buildFpga --board ${board.name} --out $outDir --skip-emit --skip-package --skip-project"
+        s"  buildFpga --board ${board.name} --out $outDir --config $configPath --emit-dir $emitDirStr --jobs $jobs --vivado $vivado --skip-emit --skip-package --skip-project"
       )
       return 0
     }
