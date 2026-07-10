@@ -161,12 +161,18 @@ if {[info exists is_versal] && $is_versal} {
   set smc [create_bd_cell -type ip -vlnv xilinx.com:ip:smartconnect:1.0 axi_smc]
   set_property -dict {CONFIG.NUM_SI 1 CONFIG.NUM_MI 1} $smc
 
+  # Instantiate SmartConnect for VTA DRAM data path (1 SI / 1 MI) to prevent AXI read interleaving
+  set dram_smc [create_bd_cell -type ip -vlnv xilinx.com:ip:smartconnect:1.0 vta_dram_smc]
+  set_property -dict {CONFIG.NUM_SI 1 CONFIG.NUM_MI 1} $dram_smc
+
   # 4. Instantiate proc_sys_reset
   set rst [create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 proc_sys_reset_0]
 
   # 5. Interface connections
-  # Connect VTA DRAM master (m_axi_gmem) to NoC S06_AXI
-  connect_bd_intf_net [get_bd_intf_pins $vta_cell/$port_vta_dram_master] [get_bd_intf_pins axi_noc_0/S06_AXI]
+  # Connect VTA DRAM master (m_axi_gmem) to DRAM SmartConnect S00_AXI
+  connect_bd_intf_net [get_bd_intf_pins $vta_cell/$port_vta_dram_master] [get_bd_intf_pins vta_dram_smc/S00_AXI]
+  # Connect DRAM SmartConnect M00_AXI to NoC S06_AXI
+  connect_bd_intf_net [get_bd_intf_pins vta_dram_smc/M00_AXI] [get_bd_intf_pins axi_noc_0/S06_AXI]
   # Connect NoC channels to external memory interface ports
   connect_bd_intf_net [get_bd_intf_ports $versal_ch0] [get_bd_intf_pins axi_noc_0/CH0_LPDDR4_0]
   connect_bd_intf_net [get_bd_intf_ports $versal_ch1] [get_bd_intf_pins axi_noc_0/CH1_LPDDR4_0]
@@ -187,7 +193,7 @@ if {[info exists is_versal] && $is_versal} {
 
   # 6. Clocks and Reset Net connections
   connect_bd_net [get_bd_pins proc_sys_reset_0/peripheral_aresetn] \
-    [get_bd_pins $vta_cell/$port_vta_resetn] [get_bd_pins axi_smc/aresetn]
+    [get_bd_pins $vta_cell/$port_vta_resetn] [get_bd_pins axi_smc/aresetn] [get_bd_pins vta_dram_smc/aresetn]
 
   connect_bd_net [get_bd_pins $ps_cell/fpd_cci_noc_axi0_clk] [get_bd_pins axi_noc_0/aclk0]
   connect_bd_net [get_bd_pins $ps_cell/fpd_cci_noc_axi1_clk] [get_bd_pins axi_noc_0/aclk1]
@@ -201,6 +207,7 @@ if {[info exists is_versal] && $is_versal} {
     [get_bd_pins axi_noc_0/aclk6] \
     [get_bd_pins proc_sys_reset_0/slowest_sync_clk] \
     [get_bd_pins axi_smc/aclk] \
+    [get_bd_pins vta_dram_smc/aclk] \
     [get_bd_pins $ps_cell/m_axi_fpd_aclk]
 
   connect_bd_net [get_bd_pins $ps_cell/$port_ps_resetn] [get_bd_pins proc_sys_reset_0/ext_reset_in]
