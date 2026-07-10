@@ -56,38 +56,6 @@ class VMESpec extends AnyFlatSpecSim with Matchers {
   private val reqQueueDepth = p(ShellKey).vmeParams.RequestQueueDepth
   private val memDataBits = p(ShellKey).memParams.dataBits
 
-  /** Drive every DUT input to a safe idle state. */
-  private def init(dut: VME): Unit = {
-    // DDR (AXI slave) side
-    dut.io.mem.ar.ready.poke(false.B)
-    dut.io.mem.r.valid.poke(false.B)
-    dut.io.mem.r.bits.data.poke(0.U)
-    dut.io.mem.r.bits.id.poke(0.U)
-    dut.io.mem.r.bits.last.poke(false.B)
-    dut.io.mem.r.bits.resp.poke(0.U)
-    dut.io.mem.r.bits.user.poke(0.U)
-    dut.io.mem.aw.ready.poke(false.B)
-    dut.io.mem.w.ready.poke(false.B)
-    dut.io.mem.b.valid.poke(false.B)
-    dut.io.mem.b.bits.resp.poke(0.U)
-    dut.io.mem.b.bits.id.poke(0.U)
-    dut.io.mem.b.bits.user.poke(0.U)
-    // Core (read/write client) side
-    for (i <- 0 until dut.nReadClients) {
-      dut.io.vme.rd(i).cmd.valid.poke(false.B)
-      dut.io.vme.rd(i).cmd.bits.addr.poke(0.U)
-      dut.io.vme.rd(i).cmd.bits.len.poke(0.U)
-      dut.io.vme.rd(i).cmd.bits.tag.poke(0.U)
-      dut.io.vme.rd(i).data.ready.poke(false.B)
-    }
-    dut.io.vme.wr(0).cmd.valid.poke(false.B)
-    dut.io.vme.wr(0).cmd.bits.addr.poke(0.U)
-    dut.io.vme.wr(0).cmd.bits.len.poke(0.U)
-    dut.io.vme.wr(0).cmd.bits.tag.poke(0.U)
-    dut.io.vme.wr(0).data.valid.poke(false.B)
-    dut.io.vme.wr(0).data.bits.data.poke(0.U)
-    dut.io.vme.wr(0).data.bits.strb.poke(0.U)
-  }
 
   /** Issue a read command from a client and wait until the VME accepts it. */
   private def issueClientCmd(
@@ -180,10 +148,7 @@ class VMESpec extends AnyFlatSpecSim with Matchers {
   }
 
   it should "backpressure the AXI read channel and drop no beats when a client stalls" in {
-    simulate(new VME) { dut =>
-      init(dut)
-      dut.clock.step(2)
-
+    simulate(new VME,additionalResetCycles=2) { dut =>
       val client = 0
       val tag = 7
       val beats = Seq[BigInt](0xaa, 0xbb, 0xcc, 0xdd) // len = 3 (4 beats)
@@ -225,10 +190,7 @@ class VMESpec extends AnyFlatSpecSim with Matchers {
   }
 
   it should "free tag slots so more than RequestQueueDepth reads complete" in {
-    simulate(new VME) { dut =>
-      init(dut)
-      dut.clock.step(2)
-
+    simulate(new VME,additionalResetCycles=2) { dut =>
       val client = 0
       val nReads = reqQueueDepth + 8 // exceed the 16-entry free-list
       for (r <- 0 until nReads) {
@@ -246,8 +208,7 @@ class VMESpec extends AnyFlatSpecSim with Matchers {
   }
 
   it should "route interleaved responses to the correct client by id" in {
-    simulate(new VME) { dut =>
-      init(dut)
+    simulate(new VME,additionalResetCycles=2) { dut =>
       dut.clock.step(2)
 
       // Two outstanding reads on different clients.
@@ -277,9 +238,7 @@ class VMESpec extends AnyFlatSpecSim with Matchers {
   // must key only on the bits the VME actually issued. Registered with `ignore`
   // until that fix lands; flip `ignore`->`it` afterwards.
   it should "free tag slots even when the slave returns dirty upper id bits (#2)" in {
-    simulate(new VME) { dut =>
-      init(dut)
-      dut.clock.step(2)
+    simulate(new VME,additionalResetCycles=2) { dut =>
 
       val client = 0
       // A bit set just above the RequestQueueAddrWidth slot-index field.
@@ -307,8 +266,6 @@ class VMESpec extends AnyFlatSpecSim with Matchers {
   // `ignore`->`it` if/when the VME splits.
   ignore should "not issue AR bursts that cross a 4 KB boundary (#4)" in {
     simulate(new VME) { dut =>
-      init(dut)
-      dut.clock.step(2)
 
       val bytesPerBeat = memDataBits / 8
       // 16 beats x 8 B = 128 B starting at 0xFC0 spans 0xFC0..0x1040 (crosses 0x1000).
