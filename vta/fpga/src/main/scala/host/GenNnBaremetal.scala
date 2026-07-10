@@ -215,6 +215,14 @@ object GenNnBaremetal {
     sdDir: String = ""
   )
 
+  /** Get repo root absolute path from VTA_ROOT env variable, fallback to
+    * current working dir
+    *
+    * @return
+    *   absolute repo root path
+    */
+  private def repoRoot = sys.env.get("VTA_ROOT").getOrElse(os.pwd)
+
   private val argParser: OParser[_, Opts] = {
     val b = OParser.builder[Opts]
     import b._

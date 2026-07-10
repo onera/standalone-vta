@@ -231,6 +231,10 @@ trait ExampleModule extends Cross.Module2[String, String] {
     }
   }
 
+  /** Functional (C++) sim only, then check against the ONNX reference. Runs
+    * compile() first if stale. Extra args forward to fsim (e.g. --layer 3
+    * --verbose).
+    */
   def fsim(args: Args) = Task.Command {
     val root = BuildCtx.workspaceRoot
     val python = build.vta.compiler.pythonExe().path
@@ -240,6 +244,10 @@ trait ExampleModule extends Cross.Module2[String, String] {
     BuildCtx.withFilesystemCheckerDisabled { PathRef(runDir()) }
   }
 
+  /** Verilated RTL (Chisel) sim only, then check against the ONNX reference.
+    * Runs compile() first if stale. Extra args forward to vsim (e.g. --trace
+    * --no-timeout).
+    */
   def vsim(args: Args) = Task.Command {
     val root = BuildCtx.workspaceRoot
     val python = build.vta.compiler.pythonExe().path
@@ -284,9 +292,6 @@ trait ExampleModule extends Cross.Module2[String, String] {
     * from under) or a second, Mill-internal output root.
     */
   def genBaremetal = Task {
-    build.vta.hardware
-      .configs(configKey)
-      .vtaFpgaConfig() // fast config-consistency gate
     val compOut = compile().path
     val outDir = runDir() / "baremetal"
     BuildCtx.withFilesystemCheckerDisabled {

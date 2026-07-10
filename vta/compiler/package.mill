@@ -53,7 +53,7 @@ object `package` extends CompilerPythonModule { m =>
     dest: os.Path,
     env: Map[String, String]
   ): Unit =
-    os.proc(python, nnCompilerMain, "--debug", "--expand-bias", config, onnx)
+    os.proc(python, nnCompilerMain, "--expand-bias", config, onnx)
       .call(
         cwd = root,
         env = envFor(env, dest),
