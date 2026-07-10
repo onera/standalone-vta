@@ -39,7 +39,7 @@ class PynqConfig
           idBits = 8,
           dataBits = 64,
           lenBits = 8,
-          userBits = 1
+          userBits = 0
         ),
         vcrParams = VCRParams(),
         vmeParams = VMEParams()
