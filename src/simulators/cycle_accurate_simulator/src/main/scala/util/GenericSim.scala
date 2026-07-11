@@ -87,6 +87,18 @@ trait AnyFlatSpecSim
 
   implicit val p: Parameters = new DefaultPynqConfig
 
+  // svsim's Timescale.toString calls Class.getSimpleName on deeply-nested Scala
+  // module classes (svsim...$Timescale$Unit$ns$), which throws
+  // "InternalError: Malformed class name" on a JDK 8 runtime (fixed in JDK 9+).
+  // svsim sets defaultTimescale = Some(...) and stringifies it when generating
+  // the verilator "--timescale" argument. Drop the timescale so it is never
+  // stringified; verilator falls back to its own default timescale, which does
+  // not affect the cycle-accurate values these tests check.
+  override implicit def commonSettingsModifications
+      : svsim.CommonSettingsModifications =
+    (s: svsim.CommonCompilationSettings) =>
+      super.commonSettingsModifications(s).copy(defaultTimescale = None)
+
   def customSettings[A <: Module] = (for {
     _ <- getOption[BoxedUnit]("debug")
   } yield {
