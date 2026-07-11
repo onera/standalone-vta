@@ -1,0 +1,140 @@
+#!/usr/bin/env sh
+# Drill-down helper for the fzf mill task picker in tools/mill.fish and
+# tools/mill-completion.sh. Sub-modes:
+#
+#   mill-fzf-level level [prefix]   Emit fzf rows for one level of the task tree.
+#   mill-fzf-level drill <path>     Print the fzf action for <Tab> on <path>:
+#                                     drill (reload with children) or accept a leaf.
+#   mill-fzf-level up               Print the fzf action for <Left>: go up a level
+#                                     (or move the cursor when a query is typed).
+#   mill-fzf-level resolve <token>  Print "prefix<TAB>query" for an already-typed
+#                                     token so fzf opens at the right level:
+#                                     a complete module -> inside it (its children),
+#                                     a partial token   -> its parent level, filtered.
+#
+# The drill/up modes read fzf's state from the environment fzf exports to child
+# processes ($FZF_PROMPT, $FZF_QUERY) and emit fzf action strings, so the key
+# bindings themselves stay shell-agnostic. <Enter> is fzf's built-in accept
+# (leave the picker at whatever is selected) and needs no helper.
+#
+# Env: MILL_EXE = path to the mill launcher (default "./mill").
+: "${MILL_EXE:=./mill}"
+
+# Optional: set MILL_FZF_DEBUG to a file path to trace how fzf calls this helper.
+if [ -n "${MILL_FZF_DEBUG:-}" ]; then
+  printf 'args=[%s] PROMPT=[%s] QUERY=[%s]\n' "$*" "${FZF_PROMPT-}" "${FZF_QUERY-}" >>"$MILL_FZF_DEBUG"
+fi
+
+# _rows_awk <prefix> : filter `mill --tab-complete` output (on stdin) to the
+# children ONE level below <prefix>. `mill --tab-complete` flattens nested Cross
+# modules (examples.<model>.<config>), so we keep only the segment immediately
+# after <prefix> and dedup on it: each level shows each child once (models under
+# examples., then configs under examples.<model>., then real tasks). TSV fields:
+#   1 path   the drill/accept target, e.g. vta.compiler or examples.lenet5
+#   2 seg    the single segment shown, e.g. compiler or lenet5
+#   3 short  first sentence of the cleaned description (empty for collapsed nodes)
+#   4 full   cleaned description (javadoc tags dropped, [[Foo]] unwrapped)
+_rows_awk() {
+  awk -v prefix="$1" '
+  {
+    line = $0
+    if (match(line, /^[^ \t]+/)) { name = substr(line, 1, RLENGTH); rest = substr(line, RLENGTH + 1) }
+    else { name = line; rest = "" }
+    if (name == "") next
+    plen = length(prefix)
+    if (substr(name, 1, plen) != prefix) next      # only entries under the prefix (drops self/siblings)
+    tail = substr(name, plen + 1)                  # path portion below the prefix
+    if (tail == "") next
+    dot = index(tail, ".")
+    if (dot > 0) {
+      seg = substr(tail, 1, dot - 1)               # deeper node: collapse to next segment
+      path = prefix seg
+      hasdesc = 0                                  # description belongs to a descendant
+    } else {
+      seg = tail                                   # exactly one level below the prefix
+      path = name
+      hasdesc = 1
+    }
+    if (path == "" || seen[path]++) next           # each child once
+    if (hasdesc) {
+      sub(/^[ \t]+/, "", rest)
+      full = rest
+      if (match(full, / @(returns|return|param|note|see|throws|example|group)([^A-Za-z]|$)/))
+        full = substr(full, 1, RSTART - 1)
+      gsub(/\[\[/, "", full); gsub(/\]\]/, "", full)
+      gsub(/[ \t]+/, " ", full)
+      sub(/^ /, "", full); sub(/ $/, "", full)
+      short = full
+      if (match(short, /\. /)) short = substr(short, 1, RSTART)
+    } else {
+      full = ""; short = ""
+    }
+    printf "%s\t%s\t%s\t%s\n", path, seg, short, full
+  }'
+}
+
+# rows <prefix> : children one level below <prefix>. mill is inconsistent about
+# the trailing dot for Cross modules - a partial cross key ("examples.lenet5")
+# lists its children only WITHOUT the dot, while a full cross instance
+# ("examples.lenet5.vta_config") needs the dot. Try un-dotted first, fall back to
+# dotted when that yields nothing.
+rows() {
+  prefix="${1-}"
+  out=$("$MILL_EXE" --tab-complete 1 "$MILL_EXE" "${prefix%.}" 2>/dev/null | _rows_awk "$prefix")
+  if [ -z "$out" ] && [ "${prefix%.}" != "$prefix" ]; then
+    out=$("$MILL_EXE" --tab-complete 1 "$MILL_EXE" "$prefix" 2>/dev/null | _rows_awk "$prefix")
+  fi
+  [ -n "$out" ] && printf '%s\n' "$out"
+}
+
+# Reusable tail of fzf actions after a reload: fresh list, empty query, cursor
+# on the first row, preview redrawn.
+_after='+clear-query+first+refresh-preview'
+
+case "${1:-level}" in
+  level)
+    rows "${2-}"
+    ;;
+  drill)
+    # <Tab>: drill into a module (reload with its children) or accept a leaf.
+    sel="${2-}"
+    if [ -n "$sel" ] && [ -n "$(rows "$sel.")" ]; then
+      printf 'reload(mill-fzf-level level %s.)+change-prompt(%s. > )%s' "$sel" "$sel" "$_after"
+    else
+      printf 'accept'
+    fi
+    ;;
+  up)
+    # <Left>: while a query is being typed, just move the cursor as usual.
+    if [ -n "${FZF_QUERY-}" ]; then
+      printf 'backward-char'
+      exit 0
+    fi
+    cur=${FZF_PROMPT}              # e.g. "vta.compiler. > " or top-level "> "
+    cur=${cur%> }                  # drop trailing "> "
+    cur=${cur% }                   # drop the space before it, leaving "vta.compiler."
+    if [ -z "$cur" ]; then
+      exit 0                       # already at the top level: do nothing
+    fi
+    parent=$(printf '%s' "$cur" | sed -E 's/[^.]*\.$//')   # drop last "seg."
+    if [ -z "$parent" ]; then
+      printf 'reload(mill-fzf-level level)+change-prompt(> )%s' "$_after"
+    else
+      printf 'reload(mill-fzf-level level %s)+change-prompt(%s > )%s' "$parent" "$parent" "$_after"
+    fi
+    ;;
+  resolve)
+    # Map an already-typed token to the level fzf should open at.
+    tok="${2-}"
+    if [ -z "$tok" ]; then
+      printf '\t'                                  # empty prefix, empty query -> top level
+    elif [ -n "$(rows "$tok.")" ]; then
+      printf '%s.\t' "$tok"                        # complete module -> open inside it
+    else
+      case "$tok" in
+        *.*) printf '%s.\t%s' "${tok%.*}" "${tok##*.}" ;;   # partial: parent level, filter by tail
+        *)   printf '\t%s' "$tok" ;;                        # partial top-level name
+      esac
+    fi
+    ;;
+esac

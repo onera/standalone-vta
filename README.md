@@ -171,3 +171,35 @@ property still selects the config for the flat, non-crossed tasks
 ...) used by `examples/Makefile`, `vta/simulator/Makefile`, and
 `vta/fpga/software/Makefile`, which remain available for standalone use
 outside Mill.
+
+### 4. Tab Completion
+
+`./mill <Tab>` can complete task names and show each task's description (its
+`/** ... */` doc comment in the `*.mill` build files). Completion is a shell
+hook that calls `mill --tab-complete` live on every keypress, so the candidate
+list always matches the current build. Enable it once per clone by sourcing the
+script for your shell (use your clone's path):
+
+```bash
+# bash / zsh - add to ~/.bashrc or ~/.zshrc
+source /path/to/standalone-vta/tools/completions/mill-completion.sh
+
+# fish - add to ~/.config/fish/config.fish
+source /path/to/standalone-vta/tools/completions/mill-completion.fish
+```
+
+Restart the shell (or re-`source` the rc file) and press `<Tab>` after `./mill`.
+
+If [`fzf`](https://github.com/junegunn/fzf) is installed (it ships in the pixi
+env), `<Tab>` opens a drill-down picker instead of the plain menu: the full
+description shows in a preview pane, `<Tab>` descends into a module's sub-tasks
+(e.g. `examples` -> model -> config), `<Left>` goes back up, and `<Enter>`
+accepts the highlighted path. Without fzf it falls back to a native single-line
+menu. Both rely on the `mill-fzf-level` helper beside these scripts, so keep the
+three `tools/completions/` files together.
+
+Mill also ships an installer that writes the bash/zsh hook and edits your rc
+files for you: `./mill mill.tabcomplete/install`.
+
+A task shows a description only if it has a doc comment; add a `/** ... */`
+above a `def ... = Task { ... }` to describe it.
