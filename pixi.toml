@@ -5,16 +5,23 @@ description = "Complete environment for training, ONNX export and Chisel/Verilat
 authors = ["Julien Posso <jposso@onera.fr>"]
 # Add conda-forge first to resolve system library channels, followed by PyTorch and NVIDIA
 channels = ["conda-forge", "pytorch", "nvidia"]
-platforms = ["linux-64"]
+# win-64 applies to the default (core) environment only; the training feature
+# below restricts itself to linux-64.
+platforms = ["linux-64", "win-64"]
 
 [activation.env]
 MILL_VERSION = "1.1.7-jvm"
+
+# --- Default environment ---------------------------------------------------
+# Everything needed for the VTA compile / simulate / test / FPGA-host flow.
+# The heavy training/quantization stack lives in the `training` feature below
+# and is only pulled into the `training` environment.
 
 [dependencies]
 # --- Base Languages and Runtimes ---
 python = "3.12.*"
 openjdk = "17.*"
-verilator = "==5.046"
+verilator = "==5.048"
 
 # --- System Tools and Hardware Compilation Toolchain ---
 # C/C++ toolchain for the functional simulator and the verilated model. Verilator
@@ -24,15 +31,20 @@ verilator = "==5.046"
 # ship. The activation sets CC/CXX, which the functional_simulator Makefile honours.
 cxx-compiler = "*"
 make = "*"
-gawk = "*"         # Ensure we have GNU Awk for Vivado and scripts
 curl = "*"         # Required by Mill to download its jars
-flex = "*"
-bison = "*"
 ccache = "*"
 zlib = "*"
+fzf = "*"          # fzf-powered mill tab-completion (tools/completions/mill-completion.{fish,sh})
+
+# --- Host / FPGA serial comms ---
+pyserial = ">=3.5"
+
+# Linux-only tools (no win-64 conda-forge build). gawk is used by Vivado and the
+# `make help` target.
+[target.linux-64.dependencies]
+gawk = "*"
 
 
-# --- Mathematical & Communication Libraries ---
 matplotlib = "*"
 tqdm = ">=4.67.3,<5"
 pyserial = ">=3.5"
@@ -45,7 +57,13 @@ onnxruntime = "==1.20.1"
 onnx = "==1.18.0"
 
 [feature.training]
+# Training is linux-only; this keeps the `training` env off win-64 even though
+# the workspace lists win-64 for the default env.
+platforms = ["linux-64"]
 
+# --- Training / quantization feature ---------------------------------------
+# Only present in the `training` environment (see [environments] below), so a
+# plain `pixi install` / default env does not drag in PyTorch + CUDA.
 [feature.training.dependencies]
 # PyTorch ecosystem with GPU support (CUDA 12.1)
 # Pixi directly downloads heavy NVIDIA dependencies in an isolated manner
