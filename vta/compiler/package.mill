@@ -15,6 +15,9 @@ trait CompilerPythonModule extends PythonModule {
       .find(java.nio.file.Files.isExecutable)
       .map(_.toString)
 
+  /** The python3 interpreter used for every compiler stage: the first one on
+    * PATH, so activate your venv/pixi env before invoking Mill.
+    */
   override def pythonExe = Task.Source {
     val env = Task.env
     val python = onPath(env.getOrElse("PATH", ""), "python3")
@@ -23,10 +26,18 @@ trait CompilerPythonModule extends PythonModule {
   }
 
 }
+
+/** The Python compiler: ONNX model -> VTA IR -> instruction/uop/data .bin
+  * streams, plus the ONNX reference used to check simulator output.
+  *
+  * Needs a Python env with the compiler dependencies active on PATH. Examples
+  * call these stages through `examples[<model>,<config>].compile`; use
+  * [[compile]] here to compile an arbitrary model by hand.
+  */
 object `package` extends CompilerPythonModule { m =>
 
-  /** Narrow code sources - the single source-of-truth for "what invalidates a
-    * compile". Deliberately excludes .venv and the legacy uv pins.
+  /** Compiler source dirs whose content invalidates a compile (excludes .venv
+    * and the legacy uv pins).
     */
   def sources = Task.Sources(
     moduleDir / "nn_compiler",
@@ -129,8 +140,15 @@ object `package` extends CompilerPythonModule { m =>
     dest
   }
 
-  /** Standalone compile: `./mill "vta.compiler.compile <config> <onnx>"`.
-    * Output dir comes from VTA_COMPILER_OUT, else repo-root compiler_output.
+  /** Compile one ONNX model for one config, outside the examples cross module:
+    * `./mill vta.compiler.compile <config.json> <model.onnx>`.
+    *
+    * Runs nn_compiler then vta_compiler. Writes to $VTA_COMPILER_OUT, or to
+    * compiler_output/ at the repo root when that is unset. Uncached.
+    *
+    * @param args
+    *   two positional paths (relative to the repo root or absolute): the config
+    *   JSON, then the ONNX model.
     */
   def compile(args: Args) = Task.Command {
     val root = BuildCtx.workspaceRoot

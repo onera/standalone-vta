@@ -8,6 +8,18 @@ import mill._
 import mill.javalib._
 import mill.javalib.spotless.SpotlessModule
 
+// Doc-comment convention for every task in the *.mill files, so that the
+// completion scripts (tools/completions/) and `./mill inspect <task>` both read
+// well:
+//   * first sentence  - self-contained one-liner; this is ALL that the native
+//                       completion menu shows next to the task name.
+//   * next 1-3 lines  - what it produces, what it caches on, where it writes.
+//                       This is the fzf preview (~4 lines) - keep it short.
+//   * @param args     - how the CLI arguments are used, with an example. Doc
+//                       tags are stripped by the completion scripts and shown
+//                       only by `./mill inspect`, so details belong here.
+// Implementation rationale (why persistent, why a Cross module, ...) goes in
+// plain `//` comments, which stay out of the user-facing description.
 object `package` extends Module with SpotlessModule {
 
   def spotlessExcludes = Task {
@@ -19,22 +31,27 @@ object `package` extends Module with SpotlessModule {
     )
   }
 
-  /** One cross module per (example model, config) pair. Tasks defined once on
-    * [[ExampleModule]] are available for every combination:
+  /** End-to-end pipelines for every (model, config) pair: compile, simulate,
+    * check, generate baremetal.
     *
-    * ./mill "examples[lenet5,vta_config].run" ./mill
-    * "examples[lenet5,vta_w8b].run"
+    * One cross instance per ONNX model in examples/onnx and config in config/;
+    * address it as `examples[<model>,<config>]`, e.g. `./mill
+    * "examples[lenet5,vta_w8b].run"`.
     */
   object examples
       extends Cross[ExampleModule](examplePairs)
       with BaseVtaModule {
 
+    /** The `outputs` (compile + fsim + vsim + check) of every (model, config)
+      * pair, as a list of run dirs. Used by [[runAll]].
+      */
     def allOutputs =
       Task.traverse(examplePairs) { case (m, c) => examples(m, c).outputs }
 
-    /** Run every (model, config) pair. Each is hermetic (own config-keyed run
-      * dir) and cached, so they execute in parallel and only changed inputs
-      * re-run. Pass --keep-going to Mill to see all failures at once.
+    /** Validate every (model, config) pair and print the run dir of each.
+      *
+      * Pairs are cached and hermetic, so they run in parallel and only stale
+      * ones re-execute. Add Mill's --keep-going to see all failures at once.
       */
     def runAll = Task.Uncached {
       examplePairs.zip(allOutputs()).foreach { case ((m, c), out) =>
