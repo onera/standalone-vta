@@ -153,12 +153,29 @@ which only re-runs when the model, config, or compiler sources actually
 change.
 
 Outputs are isolated per model and config under `out/runs/<model>/<config>/`:
-`compiler_output/` (compile), `baremetal/` (genBaremetal), `vitis_proj/`
+`compiler_output/` (compile), `baremetal/` (genBaremetal), `vitis_proj/<board>/`
 (createVitisProject). The C++/Verilator simulator (`vta.simulator.configs[<config>]`)
-and the FPGA bitstream (`vta.fpga.configs[<config>]`) are each built once per
-config and cached, so switching config or adding a new example model does not
-rebuild everything - `./mill examples.runAll` builds every (model, config)
-pair in one invocation. The older `-Dvta.config.file=<name>.json` global
+is built once per config and cached, and the FPGA bitstream once per
+(config, board) pair (`vta.fpga.targets[<config>,<board>]`), so switching
+config, board, or adding a new example model does not rebuild everything -
+`./mill examples.runAll` builds every (model, config) pair in one invocation.
+
+An FPGA build is identified by both its config (which fixes the RTL) and its
+board (which fixes the pinout and XSA), so each pair is independently
+addressable and cached - flipping between boards does not re-synthesize the
+other one:
+
+```bash
+./mill "vta.fpga.targets[vta_w8b,zcu104].fpgaSynth"    # bitstream + XSA
+./mill "vta.fpga.targets[vta_w8b,vek280].fpgaProject"  # Vivado project only
+
+# examples pick their board from -Dvta.board.name (default zcu104)
+./mill -Dvta.board.name=vek280 "examples[lenet5,vta_w8b].createVitisProject"
+```
+
+Boards are the JSONs under `vta/fpga/boards/` (`zcu104`, `vck190`, `vek280`);
+adding one there adds the cross entries with no build-file edit. The older
+`-Dvta.config.file=<name>.json` global
 property still selects the config for the flat, non-crossed tasks
 (`vta.hardware.emitVtaSimConfig`, `vta.fpga.buildFpga`, `vta.hardware.test.unittest`,
 ...) used by `examples/Makefile`, `vta/simulator/Makefile`, and

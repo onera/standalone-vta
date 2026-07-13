@@ -19,30 +19,51 @@ def configSig(path: os.Path): Option[PathRef] =
 /** Default config filename when -Dvta.config.file is unset. */
 val defaultConfigName = "vta_config.json"
 
+/** Hardware-config plumbing shared by every VTA module: which config JSON is
+  * active, and the tasks that must be invalidated when its content changes.
+  *
+  * The active config is selected globally with `-Dvta.config.file=<name>.json`
+  * (default vta_config.json); the `configs[...]` cross modules take theirs from
+  * the cross value instead.
+  */
 trait BaseVtaModule extends Module {
+
+  /** The config/ directory: every hardware config JSON lives here. */
   def configDir = Task.Source(BuildCtx.workspaceRoot / "config")
+
+  /** All hardware config JSONs available under config/. */
   def configFiles = Task { os.list(configDir().path).filter(_.ext == "json") }
+
+  /** File name of the active config, from -Dvta.config.file (default
+    * vta_config.json). Set it to switch the whole build to another config.
+    */
   def vtaConfigFile = Task.Input {
     sys.props.getOrElse("vta.config.file", defaultConfigName)
   }
 
-  /** Absolute path to the active config JSON. Falls back to configDir/<name>
-    * when the name is not found (e.g. a resource-only test config).
+  /** Absolute path to the active config JSON.
+    *
+    * Falls back to config/<name> when the name is not found there (e.g. a
+    * resource-only test config).
     */
   def vtaConfigPath = Task {
     val name = vtaConfigFile()
     configFiles().find(_.last == name).getOrElse(configDir().path / name)
   }
 
-  /** Config file base name without ".json" - used as the per-config key for
-    * build dirs and run output dirs.
+  /** Name of the active config without its ".json" suffix, such as vta_w8b.
+    *
+    * Keys the per-config build and run output directories.
     */
   def configKey = Task { vtaConfigPath().baseName }
 
+  /** Content hash of the active config JSON: depend on it to make a cached task
+    * re-run when the config file is edited in place.
+    */
   def configSignature = Task { configSig(vtaConfigPath()) }
 
-  /** DDR base address for baremetal codegen (GenNnBaremetal --ddr-base).
-    * Mirrors the vtaConfigFile / -Dvta.config.file property pattern.
+  /** DDR base address used by the baremetal codegen, from -Dvta.ddr.base
+    * (default 0x0). Must match the board's DDR base, e.g. 0x10000000.
     */
   def vtaDdrBase = Task.Input {
     sys.props.getOrElse("vta.ddr.base", "0x0")
@@ -89,6 +110,35 @@ def configNames = BuildCtx.watchValue(
   */
 def examplePairs = exampleModels.flatMap(m => configNames.map(c => (m, c)))
 
+/** Plain (non-Task) path to the FPGA board definitions, listed eagerly for the
+  * same reason as configDirPath.
+  */
+def boardsDirPath = BuildCtx.workspaceRoot / "vta" / "fpga" / "boards"
+
+/** The board JSONs under vta/fpga/boards/, as cross keys (extension stripped).
+  * watchValue: adding or removing a board file updates the cross entries
+  * without touching the build file. Mirrors configNames.
+  */
+def boardNames = BuildCtx.watchValue(
+  os.list(boardsDirPath).filter(_.ext == "json").map(_.baseName).sorted
+)
+
+/** Board used by the tasks that are not board-crossed: the `examples` FPGA
+  * wiring and the flat vta.fpga tasks. From -Dvta.board.name, default zcu104.
+  *
+  * Read as a plain value, not a Task.Input, because it selects a Cross instance
+  * (`vta.fpga.targets(config, board)`) and Cross keys must be known before the
+  * task graph exists. Untracked is fine: a different board resolves to a
+  * different, independently cached module instance rather than dirtying one.
+  */
+def defaultBoardName = sys.props.getOrElse("vta.board.name", "zcu104")
+
+/** Every (config, board) pair - the Cross keys for `vta.fpga.targets`. An FPGA
+  * build is identified by both: the config fixes the RTL, the board fixes the
+  * pinout and the XSA.
+  */
+def fpgaTargets = configNames.flatMap(c => boardNames.map(b => (c, b)))
+
 /** A single config's identity, derived directly from a Cross value instead of
   * the global -Dvta.config.file property that BaseVtaModule reads. Mixed into
   * the `configs` Cross submodule of vta.hardware/vta.simulator/ vta.fpga, so
@@ -100,6 +150,10 @@ def examplePairs = exampleModels.flatMap(m => configNames.map(c => (m, c)))
 trait ConfigCrossModule extends Cross.Module[String] {
   def configKey: String = crossValue
   def configPath: os.Path = build.configDirPath / s"$configKey.json"
+
+  /** Content hash of this cross module's config JSON: depend on it to re-run
+    * when the config file is edited in place.
+    */
   def configSignature = Task { configSig(configPath) }
 }
 trait ExampleModule extends Cross.Module2[String, String] {
@@ -107,18 +161,27 @@ trait ExampleModule extends Cross.Module2[String, String] {
   // direct Cross value instead of BaseVtaModule's global -Dvta.config.file.
   def configKey: String = crossValue2
   def configPath: os.Path = configDirPath / s"$configKey.json"
+
+  // Board this example's FPGA tasks target. A plain def, not a Task: it indexes
+  // the vta.fpga.targets Cross, whose keys must exist before the task graph.
+  def fpgaBoard: String = defaultBoardName
+
+  /** Content hash of this example's config JSON: depend on it to re-run when
+    * the config file is edited in place.
+    */
   def configSignature = Task { configSig(configPath) }
 
+  /** The ONNX model of this example, under examples/onnx. */
   def onnxPath = Task.Source(onnxDir / os.RelPath(s"$crossValue.onnx"))
 
-  /** Durable, config-isolated output root for this (model, config). Lives
-    * OUTSIDE Task.dest so switching config writes a sibling dir instead of
-    * clobbering the previous config's run. The single home for every example
-    * artifact - compiler_output/ (compile), baremetal/ (genBaremetal),
-    * vitis_proj/ (createVitisProject) - documented at README.md's
-    * "out/runs/<model>/<config>/" layout, rather than being split across this
-    * and Mill's internal per-task dest directories.
+  /** Output root of this (model, config): out/runs/<model>/<config>/.
+    *
+    * Holds every artifact of the example - compiler_output/, baremetal/,
+    * vitis_proj/. Switching config writes a sibling dir, so runs never clobber
+    * each other.
     */
+  // Deliberately outside Task.dest: durable across configs and a single
+  // documented home (README) instead of Mill's per-task dest dirs.
   def runDir = Task {
     BuildCtx.workspaceRoot / "out" / "runs" / crossValue / configKey
   }
@@ -194,8 +257,12 @@ trait ExampleModule extends Cross.Module2[String, String] {
     verilatorSimStage(python, root, compOut, vsim, vsimFlags, env)
   }
 
-  /** Cached: nn_compiler + vta_compiler + ONNX reference. Re-runs only when the
-    * model, the config content, or the compiler sources change.
+  /** Compile this model for this config: nn_compiler, vta_compiler and the ONNX
+    * reference.
+    *
+    * Writes the .bin / .csv streams to <runDir>/compiler_output/. Cached:
+    * re-runs only when the model, the config content or the compiler sources
+    * change.
     */
   def compile = Task {
     val root = BuildCtx.workspaceRoot
@@ -216,8 +283,12 @@ trait ExampleModule extends Cross.Module2[String, String] {
     }
   }
 
-  /** Cached full validation: compile, then one functional + RTL sim pass.
-    * Re-runs when compile()'s inputs or the fsim/vsim binaries change.
+  /** Full cached validation of this example: compile, then functional (fsim)
+    * and Verilated RTL (vsim) simulation, each checked against the ONNX
+    * reference.
+    *
+    * Re-runs only when the compile inputs or the simulator binaries change; use
+    * [[run]] to force a fresh simulation.
     */
   def outputs = Task {
     val root = BuildCtx.workspaceRoot
@@ -231,9 +302,15 @@ trait ExampleModule extends Cross.Module2[String, String] {
     }
   }
 
-  /** Functional (C++) sim only, then check against the ONNX reference. Runs
-    * compile() first if stale. Extra args forward to fsim (e.g. --layer 3
-    * --verbose).
+  /** Run the functional (C++) simulator on this example and check its output
+    * against the ONNX reference.
+    *
+    * Compiles the model first if stale. Always simulates, so it is the task to
+    * use when passing flags.
+    *
+    * @param args
+    *   extra flags forwarded to the fsim binary, e.g. `--layer 3 --verbose` to
+    *   run and print a single VTA layer.
     */
   def fsim(args: Args) = Task.Command {
     val root = BuildCtx.workspaceRoot
@@ -244,9 +321,15 @@ trait ExampleModule extends Cross.Module2[String, String] {
     BuildCtx.withFilesystemCheckerDisabled { PathRef(runDir()) }
   }
 
-  /** Verilated RTL (Chisel) sim only, then check against the ONNX reference.
-    * Runs compile() first if stale. Extra args forward to vsim (e.g. --trace
-    * --no-timeout).
+  /** Run the Verilated RTL (Chisel) simulator on this example and check its
+    * output against the ONNX reference.
+    *
+    * Compiles the model first if stale, and rebuilds the RTL/vsim binary if the
+    * hardware changed. Always simulates.
+    *
+    * @param args
+    *   extra flags forwarded to the vsim binary, e.g. `--no-timeout`, `--trace`
+    *   (waveform per layer), `--layer 3`, `--dump-layers`.
     */
   def vsim(args: Args) = Task.Command {
     val root = BuildCtx.workspaceRoot
@@ -257,10 +340,15 @@ trait ExampleModule extends Cross.Module2[String, String] {
     BuildCtx.withFilesystemCheckerDisabled { PathRef(runDir()) }
   }
 
-  /** Always executes: fsim -> check -> vsim -> check against whatever compile()
-    * currently resolves to (a no-op re-run of the Python compiler unless its
-    * own inputs changed). Extra args forward to fsim/vsim (e.g. --layer 3
-    * --verbose).
+  /** Run this example end to end: fsim and vsim, each checked against the ONNX
+    * reference.
+    *
+    * Same coverage as [[outputs]] but always simulates (compilation is still
+    * cached). vsim is given --no-timeout.
+    *
+    * @param args
+    *   extra flags forwarded to both simulator binaries, e.g. `--layer 3
+    *   --verbose`.
     */
   def run(args: Args) = Task.Command {
     val root = BuildCtx.workspaceRoot
@@ -281,16 +369,14 @@ trait ExampleModule extends Cross.Module2[String, String] {
     BuildCtx.withFilesystemCheckerDisabled { PathRef(runDir()) }
   }
 
-  /** Cached: gen_nn_baremetal codegen for this model against compile()'s
-    * output. Re-runs when compile()'s inputs, the config, or the DDR base
-    * change. Gated on the fast RTL-emit only (no Vivado) - GenNnBaremetal never
-    * touches the XSA/bitstream, just the hardware config (block size/widths)
-    * and the compiler_output dir. Writes into runDir()'s baremetal/ subdir (the
-    * documented out/runs/<model>/<config>/ tree), alongside compiler_output/
-    * and vitis_proj/, rather than the real vta/fpga/software/gen/ dir (which a
-    * Vitis build reads from and a cached task must not silently overwrite out
-    * from under) or a second, Mill-internal output root.
+  /** Generate the baremetal PS headers (nn_exec_plan.h, nn_ddr_map.h, ...) for
+    * this example into <runDir>/baremetal/.
+    *
+    * Compiles the model first if stale. No Vivado needed. Cached: re-runs when
+    * the compile inputs, the config or -Dvta.ddr.base change.
     */
+  // Writes into runDir, never the tracked vta/fpga/software/gen/ dir that a
+  // Vitis build reads from: a cached task must not silently overwrite it.
   def genBaremetal = Task {
     val compOut = compile().path
     val outDir = runDir() / "baremetal"
@@ -307,17 +393,26 @@ trait ExampleModule extends Cross.Module2[String, String] {
     }
   }
 
-  /** Always executes: create/update this model's Vitis workspace, wired
-    * automatically to its generated baremetal (genBaremetal(), this
-    * model/config's headers) and the config-only bitstream/XSA (fpgaSynth()'s
-    * manifest). Extra args (--runner, --data-loader, ...) forward to
-    * create_vitis_workspace.py.
+  /** Create (or refresh) this example's Vitis workspace in
+    * <runDir>/vitis_proj/<board>/, ready to build and flash.
+    *
+    * Wires it to this example's generated headers ([[genBaremetal]]) and to the
+    * XSA synthesized for this (config, board) - vta.fpga.targets - building
+    * both first if stale. Requires Vivado and Vitis.
+    *
+    * The board comes from -Dvta.board.name (default zcu104); each board gets
+    * its own workspace, so they do not overwrite each other.
+    *
+    * @param args
+    *   extra flags forwarded to create_vitis_workspace.py, e.g. `--runner
+    *   <app>`, `--data-loader sd`.
     */
   def createVitisProject(args: Args) = Task.Command {
     val genDir = genBaremetal().path
-    val synthDir = build.vta.fpga.configs(configKey).fpgaSynth().path
+    val synthDir =
+      build.vta.fpga.targets(configKey, fpgaBoard).fpgaSynth().path
     val manifest = synthDir / "manifest.json"
-    val workspace = runDir() / "vitis_proj"
+    val workspace = runDir() / "vitis_proj" / fpgaBoard
     build.vta.fpga.runCreateVitisWorkspace(
       build.vta.fpga.vitis(),
       build.vta.fpga.vitisScript().path,
