@@ -87,6 +87,19 @@ rows() {
   [ -n "$out" ] && printf '%s\n' "$out"
 }
 
+# has_children <path> : succeed if the task tree has any node strictly below
+# <path>, i.e. <path> is a navigable module rather than a leaf task. Backed by
+# `mill resolve __`, a structural walk of the whole module tree that never
+# evaluates a task. This matters: probing a leaf with `mill --tab-complete <leaf>`
+# (or `mill resolve <leaf>._`) makes mill instantiate that task's module - for a
+# PythonModule task that builds a venv / runs code and hangs, which froze <Tab>
+# on nested leaves. Scanning the whole tree for a literal "<path>." prefix (awk
+# index, not regex) also handles Cross modules, whose instances only appear under
+# the cross root (examples.lenet5.<config>...), not under a partial key.
+has_children() {
+  "$MILL_EXE" resolve "__" 2>/dev/null | awk -v p="$1." 'index($0, p) == 1 { hit = 1; exit } END { exit !hit }'
+}
+
 # Reusable tail of fzf actions after a reload: fresh list, empty query, cursor
 # on the first row, preview redrawn.
 _after='+clear-query+first+refresh-preview'
@@ -98,7 +111,7 @@ case "${1:-level}" in
   drill)
     # <Tab>: drill into a module (reload with its children) or accept a leaf.
     sel="${2-}"
-    if [ -n "$sel" ] && [ -n "$(rows "$sel.")" ]; then
+    if [ -n "$sel" ] && has_children "$sel"; then
       printf 'reload(mill-fzf-level level %s.)+change-prompt(%s. > )%s' "$sel" "$sel" "$_after"
     else
       printf 'accept'
@@ -128,7 +141,7 @@ case "${1:-level}" in
     tok="${2-}"
     if [ -z "$tok" ]; then
       printf '\t'                                  # empty prefix, empty query -> top level
-    elif [ -n "$(rows "$tok.")" ]; then
+    elif has_children "$tok"; then
       printf '%s.\t' "$tok"                        # complete module -> open inside it
     else
       case "$tok" in

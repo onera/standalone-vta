@@ -78,8 +78,14 @@ _mill_fzf() {
   query=${res#*$'\t'}
   prompt='> '
   [ -n "$prefix" ] && prompt="$prefix > "
+  # Fullscreen (alt-screen), NOT --height: a `complete`-driven completion function
+  # cannot force a readline/zle redraw the way fish's `commandline -f repaint` does,
+  # so with --height fzf leaves the cursor mispositioned and readline repaints only
+  # the completed word - the prompt and the `./mill ` prefix visually vanish. The
+  # alt-screen save/restore keeps the original prompt line intact. (The fish
+  # front-end can and does use --height because it repaints explicitly.)
   "$_mill_tools_dir/mill-fzf-level" level "$prefix" 2>/dev/null | SHELL=/bin/sh fzf \
-    --height 45% --reverse --prompt "$prompt" --query="$query" \
+    --reverse --prompt "$prompt" --query="$query" \
     --delimiter=$'\t' --with-nth=2,3 --nth=1 \
     --preview 'printf "%s\n" {4}' --preview-window=down:4:wrap \
     --bind 'tab:transform:mill-fzf-level drill {1}' \
@@ -90,7 +96,7 @@ _mill_fzf() {
 _mill_bash() {
   local IFS=$'\n'
   shopt -s checkwinsize 2>/dev/null   # keep $COLUMNS current
-  local raw=( $("${COMP_WORDS[0]}" --tab-complete "$COMP_CWORD" "${COMP_WORDS[@]}") )
+  local raw=( $("${COMP_WORDS[0]}" --tab-complete "$COMP_CWORD" "${COMP_WORDS[@]}" 2>/dev/null) )
 
   if [[ $- == *i* ]] && command -v fzf >/dev/null 2>&1 \
      && [ -x "$_mill_tools_dir/mill-fzf-level" ] && (( ${#raw[@]} > 0 )); then
@@ -113,7 +119,7 @@ _mill_bash() {
 
 _mill_zsh() {
   local -a raw
-  raw=("${(f)$($words[1] --tab-complete "$((CURRENT - 1))" $words)}")
+  raw=("${(f)$($words[1] --tab-complete "$((CURRENT - 1))" $words 2>/dev/null)}")
 
   if [[ -o interactive ]] && (( $+commands[fzf] )) \
      && [[ -x "$_mill_tools_dir/mill-fzf-level" ]] && (( ${#raw} > 0 )); then
