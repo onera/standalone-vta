@@ -61,21 +61,20 @@ Explore the detailed documentation for each component of the `standalone-vta` ec
   - [Configuration (`vta_config.json`)](config/README.md)
   - [Environment Setup (Legacy Docker/Conda)](environment_setup/README.md)
 
-- **Compiler (`src/compiler/`)**
-  - [Standalone VTA Compiler](src/compiler/README.md)
-  - [VTA Instructions & Operations Definition](src/compiler/vta_compiler/operations_definition/README.md)
+- **Compiler (`vta/compiler/`)**
+  - [Standalone VTA Compiler](vta/compiler/vta_compiler/operations_definition/README.md)
 
-- **Simulators (`src/simulators/`)**
-  - [Simulators Architecture Overview](src/simulators/README.md)
-  - [Functional Simulator (C++)](src/simulators/functional_simulator/README.md)
-  - [Cycle-Accurate Simulator (Chisel)](src/simulators/cycle_accurate_simulator/README.md)
-    - [Simulator Test Documentation](src/simulators/cycle_accurate_simulator/src/test/documentation/test_documentation.md)
-    - [Simulator Testbench README](src/simulators/cycle_accurate_simulator/src/test/scala/simulatorTest/README.md)
-    - [Formal Verification README](src/simulators/cycle_accurate_simulator/src/test/scala/formal/README.md)
+- **Simulators (`vta/simulators/`)**
+    - [Functional Simulator (C++)](vta/simulator/README.md)
+- **Hardware (`vta/hardware/`)**
+  - [Hardware (Chisel)](vta/hardware/README.md)
+  - [Simulator Test Documentation](vta/hardware/src/test/documentation/test_documentation.md)
+  - [Simulator Testbench README](vta/hardware/src/test/scala/simulatorTest/README.md)
+  - [Formal Verification README](vta/hardware/src/test/scala/formal/README.md)
 
-- **Hardware & FPGA**
-  - [FPGA Implementation & IP Generation](src/fpga/README.md)
-  - [FPGA Runtime Software](src/fpga/software/README.md)
+- **FPGA (`vta/fpga/`)**
+  - [FPGA Implementation & IP Generation](vta/fpga/README.md)
+  - [FPGA Runtime Software](vta/fpga/software/README.md)
 - **Tutorials**
   - [Tutorials Overview](tutorials/README.md)
 
@@ -140,8 +139,6 @@ is a Cross axis alongside the model, like `examples[lenet5]` itself:
 
 # Same model, a different config - independent, cached, buildable together
 ./mill "examples[lenet5,vta_w8b].run"
-# Run a simple 16x16 matrix multiplication example
-make test_gemm
 
 # Generate the baremetal codegen for this model/config (needs no Vivado)
 ./mill "examples[lenet5,vta_config].genBaremetal"
@@ -151,10 +148,6 @@ make test_gemm
 ./mill "examples[lenet5,vta_config].createVitisProject" --data-loader tcl
 ```
 
-This will:
-
-1. Run the compiler, placing binaries in `../compiler_output/`.
-2. Run the functional simulator, reading those binaries and placing logs in `../log_output/`.
 `run` never re-invokes the Python compiler itself - it depends on `compile`,
 which only re-runs when the model, config, or compiler sources actually
 change.
