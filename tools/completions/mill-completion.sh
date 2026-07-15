@@ -21,6 +21,15 @@
 # per candidate (first sentence, truncated to the terminal width). Tasks without
 # a doc comment complete as a bare name either way.
 #
+# The fzf-vs-native choice auto-detects fzf by default. Set MILL_COMPLETION_FZF
+# before sourcing (or export it in your rc) to force one front-end:
+#     unset / auto            auto-detect (default): fzf when interactive and
+#                             installed, otherwise the native menu
+#     0 / off / no / false    force the basic native menu, even if fzf is
+#                             installed (still shows each task's description)
+#     1 / on / yes / true     prefer fzf; falls back to the native menu when fzf
+#                             or the mill-fzf-level helper is unavailable
+#
 # Enable it by sourcing this file from your shell startup, e.g. add to
 # ~/.bashrc or ~/.zshrc (adjust the path to your clone):
 #
@@ -41,7 +50,11 @@ unset _mill_src
 # Clean raw "name<pad>description" lines into TSV rows "name<TAB>short<TAB>full":
 #   full  = description with javadoc tags dropped, [[Foo]] unwrapped, ws collapsed
 #   short = full up to the first ". " (sentence boundary)
-# A single awk pass so large candidate sets don't fork a process per line.
+# `mill --tab-complete` emits flattened Cross modules, so the same name can appear
+# twice - once with its description and once bare (e.g. `examples`). Collapse to
+# one row per name, keeping the row that carries a description, so the native menu
+# does not list a task twice. A single awk pass so large candidate sets don't fork
+# a process per line.
 _mill_awk_rows() {
   awk '
   {
@@ -58,8 +71,11 @@ _mill_awk_rows() {
     sub(/^ /, "", full); sub(/ $/, "", full)
     short = full
     if (match(short, /\. /)) short = substr(short, 1, RSTART)   # up to first ". "
-    printf "%s\t%s\t%s\n", name, short, full
-  }'
+    row = name "\t" short "\t" full
+    if (!(name in seen)) { seen[name] = 1; order[++n] = name; keep[name] = row; if (full != "") hasdesc[name] = 1 }
+    else if (full != "" && !(name in hasdesc)) { keep[name] = row; hasdesc[name] = 1 }
+  }
+  END { for (i = 1; i <= n; i++) print keep[order[i]] }'
 }
 
 # $1 = mill launcher, $2 = already-typed token. Opens the fzf drill-down picker
@@ -85,7 +101,7 @@ _mill_fzf() {
   # alt-screen save/restore keeps the original prompt line intact. (The fish
   # front-end can and does use --height because it repaints explicitly.)
   "$_mill_tools_dir/mill-fzf-level" level "$prefix" 2>/dev/null | SHELL=/bin/sh fzf \
-    --reverse --prompt "$prompt" --query="$query" \
+    --ansi --reverse --prompt "$prompt" --query="$query" \
     --delimiter=$'\t' --with-nth=2,3 --nth=1 \
     --preview 'printf "%s\n" {4}' --preview-window=down:4:wrap \
     --bind 'tab:transform:mill-fzf-level drill {1}' \
@@ -93,13 +109,26 @@ _mill_fzf() {
     | sed $'s/\t.*//'
 }
 
+# Decide whether the fzf drill-down picker should be used, folding in the
+# MILL_COMPLETION_FZF override (see the header). Returns success (0) when fzf
+# should handle completion:
+#   0/off/no/false  -> never (force the basic native menu)
+#   1/on/yes/true, auto, or unset -> use fzf when it is installed and the
+#                                    mill-fzf-level helper is executable
+# Interactivity is checked by the caller (it is shell-specific).
+_mill_want_fzf() {
+  case "${MILL_COMPLETION_FZF:-auto}" in
+    0|off|no|false|OFF|NO|FALSE) return 1 ;;
+  esac
+  command -v fzf >/dev/null 2>&1 && [ -x "$_mill_tools_dir/mill-fzf-level" ]
+}
+
 _mill_bash() {
   local IFS=$'\n'
   shopt -s checkwinsize 2>/dev/null   # keep $COLUMNS current
   local raw=( $("${COMP_WORDS[0]}" --tab-complete "$COMP_CWORD" "${COMP_WORDS[@]}" 2>/dev/null) )
 
-  if [[ $- == *i* ]] && command -v fzf >/dev/null 2>&1 \
-     && [ -x "$_mill_tools_dir/mill-fzf-level" ] && (( ${#raw[@]} > 0 )); then
+  if [[ $- == *i* ]] && _mill_want_fzf && (( ${#raw[@]} > 0 )); then
     local chosen
     chosen=$(_mill_fzf "${COMP_WORDS[0]}" "${COMP_WORDS[COMP_CWORD]}")
     if [ -n "$chosen" ]; then COMPREPLY=( "$chosen" ); else COMPREPLY=(); fi
@@ -121,8 +150,7 @@ _mill_zsh() {
   local -a raw
   raw=("${(f)$($words[1] --tab-complete "$((CURRENT - 1))" $words 2>/dev/null)}")
 
-  if [[ -o interactive ]] && (( $+commands[fzf] )) \
-     && [[ -x "$_mill_tools_dir/mill-fzf-level" ]] && (( ${#raw} > 0 )); then
+  if [[ -o interactive ]] && _mill_want_fzf && (( ${#raw} > 0 )); then
     local chosen
     chosen=$(_mill_fzf "$words[1]" "$words[CURRENT]")
     [ -n "$chosen" ] && compadd -- "$chosen"

@@ -31,11 +31,15 @@ fi
 # after <prefix> and dedup on it: each level shows each child once (models under
 # examples., then configs under examples.<model>., then real tasks). TSV fields:
 #   1 path   the drill/accept target, e.g. vta.compiler or examples.lenet5
-#   2 seg    the single segment shown, e.g. compiler or lenet5
-#   3 short  first sentence of the cleaned description (empty for collapsed nodes)
+#   2 seg    the single segment shown, e.g. compiler or lenet5 (ANSI: bold cyan)
+#   3 short  first sentence of the cleaned description (empty for collapsed nodes;
+#            ANSI: faint, so it reads as secondary next to the name)
 #   4 full   cleaned description (javadoc tags dropped, [[Foo]] unwrapped)
+# Fields 2 and 3 carry ANSI color codes for fzf --ansi; field 1 (path) stays
+# plain because the tab/accept bindings and the final selection parse it.
 _rows_awk() {
   awk -v prefix="$1" '
+  BEGIN { ESC = sprintf("%c", 27); C_NAME = ESC "[1;36m"; C_DESC = ESC "[2m"; C_OFF = ESC "[0m" }
   {
     line = $0
     if (match(line, /^[^ \t]+/)) { name = substr(line, 1, RLENGTH); rest = substr(line, RLENGTH + 1) }
@@ -69,7 +73,9 @@ _rows_awk() {
     } else {
       full = ""; short = ""
     }
-    printf "%s\t%s\t%s\t%s\n", path, seg, short, full
+    seg_c = C_NAME seg C_OFF
+    short_c = (short == "" ? "" : C_DESC short C_OFF)
+    printf "%s\t%s\t%s\t%s\n", path, seg_c, short_c, full
   }'
 }
 
@@ -87,19 +93,6 @@ rows() {
   [ -n "$out" ] && printf '%s\n' "$out"
 }
 
-# has_children <path> : succeed if the task tree has any node strictly below
-# <path>, i.e. <path> is a navigable module rather than a leaf task. Backed by
-# `mill resolve __`, a structural walk of the whole module tree that never
-# evaluates a task. This matters: probing a leaf with `mill --tab-complete <leaf>`
-# (or `mill resolve <leaf>._`) makes mill instantiate that task's module - for a
-# PythonModule task that builds a venv / runs code and hangs, which froze <Tab>
-# on nested leaves. Scanning the whole tree for a literal "<path>." prefix (awk
-# index, not regex) also handles Cross modules, whose instances only appear under
-# the cross root (examples.lenet5.<config>...), not under a partial key.
-has_children() {
-  "$MILL_EXE" resolve "__" 2>/dev/null | awk -v p="$1." 'index($0, p) == 1 { hit = 1; exit } END { exit !hit }'
-}
-
 # Reusable tail of fzf actions after a reload: fresh list, empty query, cursor
 # on the first row, preview redrawn.
 _after='+clear-query+first+refresh-preview'
@@ -111,7 +104,7 @@ case "${1:-level}" in
   drill)
     # <Tab>: drill into a module (reload with its children) or accept a leaf.
     sel="${2-}"
-    if [ -n "$sel" ] && has_children "$sel"; then
+    if [ -n "$sel" ] && [ -n "$(rows "$sel.")" ]; then
       printf 'reload(mill-fzf-level level %s.)+change-prompt(%s. > )%s' "$sel" "$sel" "$_after"
     else
       printf 'accept'
@@ -141,7 +134,17 @@ case "${1:-level}" in
     tok="${2-}"
     if [ -z "$tok" ]; then
       printf '\t'                                  # empty prefix, empty query -> top level
-    elif has_children "$tok"; then
+    elif [ "${tok%.}" != "$tok" ]; then
+      # Token already ends with a dot: the user explicitly asked to descend into
+      # it, so open inside it with an empty query and issue NO mill probe. This
+      # also dodges a pathological mill cost: probing `rows "$tok."` here would
+      # ask mill to resolve a trailing-dot partial key, and for a 2-axis
+      # Cross.Module2 (e.g. vta.fpga.targets.<config>.) that resolution walks the
+      # whole project tree (incl. vta/compiler/.venv, ~100k files) and takes 10+
+      # seconds. The old code fell through to the same result below anyway, just
+      # after burning that probe.
+      printf '%s\t' "$tok"
+    elif [ -n "$(rows "$tok.")" ]; then
       printf '%s.\t' "$tok"                        # complete module -> open inside it
     else
       case "$tok" in

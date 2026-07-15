@@ -23,6 +23,15 @@
 # Tab only diverts to fzf when the command line is a mill command; every other
 # command falls through to fish's normal completion untouched.
 #
+# The fzf-vs-native choice auto-detects fzf by default. Set MILL_COMPLETION_FZF
+# before sourcing (or in your config) to force one front-end:
+#     unset / auto            auto-detect (default): fzf when installed, else the
+#                             native completion menu
+#     0 / off / no / false    force the basic native menu, even if fzf is
+#                             installed (still shows each task's description)
+#     1 / on / yes / true     prefer fzf; falls back to the native menu when fzf
+#                             or the mill-fzf-level helper is unavailable
+#
 # Enable it by sourcing this file from ~/.config/fish/config.fish (it binds Tab,
 # so it must run for interactive shells; adjust the path to your clone):
 #
@@ -74,8 +83,19 @@ end
 # --- native completion ------------------------------------------------------
 
 # name<TAB>short (drop the full field, and any trailing tab when short is empty).
+# `mill --tab-complete` emits flattened Cross modules, so the same name can
+# appear twice - once with its description and once bare (e.g. `examples`). Fish
+# keeps both as distinct candidates (their descriptions differ), showing the name
+# twice with the description on only one. Collapse to one row per name, keeping
+# the row that carries a description.
 function __mill_complete_native
     __mill_rows \
+        | awk -F '\t' '
+            { name = $1
+              if (!(name in seen)) { seen[name] = 1; order[++n] = name; row[name] = $0; if ($3 != "") hasdesc[name] = 1 }
+              else if ($3 != "" && !(name in hasdesc)) { row[name] = $0; hasdesc[name] = 1 }
+            }
+            END { for (i = 1; i <= n; i++) print row[order[i]] }' \
         | string replace -r '^([^\t]*\t[^\t]*)\t.*$' '$1' \
         | string replace -r '\t$' ''
 end
@@ -106,7 +126,7 @@ function __mill_fzf_complete
     test -n "$prefix"; and set prompt "$prefix > "
 
     set -l picked ($__mill_tools_dir/mill-fzf-level level "$prefix" 2>/dev/null \
-        | fzf --height 45% --reverse --prompt "$prompt" --query "$query" \
+        | fzf --ansi --height 45% --reverse --prompt "$prompt" --query "$query" \
             --delimiter \t --with-nth 2,3 --nth 1 \
             --preview 'printf "%s\n" {4}' --preview-window 'down:4:wrap' \
             --bind 'tab:transform:mill-fzf-level drill {1}' \
@@ -120,10 +140,21 @@ end
 
 # --- Tab binding ------------------------------------------------------------
 
+# Whether the fzf drill-down picker should handle Tab, folding in the
+# MILL_COMPLETION_FZF override (see the header): 0/off/no/false forces the basic
+# native menu; auto/1/on/yes/true (or unset) uses fzf when it is installed and
+# the mill-fzf-level helper is executable.
+function __mill_want_fzf
+    switch (string lower -- "$MILL_COMPLETION_FZF")
+        case 0 off no false
+            return 1
+    end
+    type -q fzf; and test -x $__mill_tools_dir/mill-fzf-level
+end
+
 function __mill_tab
     set -l buf (commandline -pc)
-    if type -q fzf; and test -x $__mill_tools_dir/mill-fzf-level
-        and string match -qr '^\s*(\./)?mill\b' -- $buf
+    if string match -qr '^\s*(\./)?mill\b' -- $buf; and __mill_want_fzf
         __mill_fzf_complete
     else
         commandline -f complete
