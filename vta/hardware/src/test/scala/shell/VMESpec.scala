@@ -56,7 +56,6 @@ class VMESpec extends AnyFlatSpecSim with Matchers {
   private val reqQueueDepth = p(ShellKey).vmeParams.RequestQueueDepth
   private val memDataBits = p(ShellKey).memParams.dataBits
 
-
   /** Issue a read command from a client and wait until the VME accepts it. */
   private def issueClientCmd(
     dut: VME,
@@ -148,7 +147,7 @@ class VMESpec extends AnyFlatSpecSim with Matchers {
   }
 
   it should "backpressure the AXI read channel and drop no beats when a client stalls" in {
-    simulate(new VME,additionalResetCycles=2) { dut =>
+    simulate(new VME, additionalResetCycles = 2) { dut =>
       val client = 0
       val tag = 7
       val beats = Seq[BigInt](0xaa, 0xbb, 0xcc, 0xdd) // len = 3 (4 beats)
@@ -190,7 +189,7 @@ class VMESpec extends AnyFlatSpecSim with Matchers {
   }
 
   it should "free tag slots so more than RequestQueueDepth reads complete" in {
-    simulate(new VME,additionalResetCycles=2) { dut =>
+    simulate(new VME, additionalResetCycles = 2) { dut =>
       val client = 0
       val nReads = reqQueueDepth + 8 // exceed the 16-entry free-list
       for (r <- 0 until nReads) {
@@ -208,7 +207,7 @@ class VMESpec extends AnyFlatSpecSim with Matchers {
   }
 
   it should "route interleaved responses to the correct client by id" in {
-    simulate(new VME,additionalResetCycles=2) { dut =>
+    simulate(new VME, additionalResetCycles = 2) { dut =>
       dut.clock.step(2)
 
       // Two outstanding reads on different clients.
@@ -238,8 +237,7 @@ class VMESpec extends AnyFlatSpecSim with Matchers {
   // must key only on the bits the VME actually issued. Registered with `ignore`
   // until that fix lands; flip `ignore`->`it` afterwards.
   it should "free tag slots even when the slave returns dirty upper id bits (#2)" in {
-    simulate(new VME,additionalResetCycles=2) { dut =>
-
+    simulate(new VME, additionalResetCycles = 2) { dut =>
       val client = 0
       // A bit set just above the RequestQueueAddrWidth slot-index field.
       val dirtyBit = BigInt(1) << log2Ceil(reqQueueDepth)
@@ -266,7 +264,6 @@ class VMESpec extends AnyFlatSpecSim with Matchers {
   // `ignore`->`it` if/when the VME splits.
   ignore should "not issue AR bursts that cross a 4 KB boundary (#4)" in {
     simulate(new VME) { dut =>
-
       val bytesPerBeat = memDataBits / 8
       // 16 beats x 8 B = 128 B starting at 0xFC0 spans 0xFC0..0x1040 (crosses 0x1000).
       issueClientCmd(dut, client = 0, addr = 0xfc0, len = 15, tag = 0)
