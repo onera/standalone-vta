@@ -11,6 +11,7 @@ platforms = ["linux-64", "win-64"]
 
 [activation.env]
 MILL_VERSION = "1.1.7-jvm"
+MILL_COMPLETION_FZF = "yes" # enables fzf in the mill-completion shell script, switch to no for basic tab completion
 
 # --- Default environment ---------------------------------------------------
 # Everything needed for the VTA compile / simulate / test / FPGA-host flow.
@@ -34,7 +35,7 @@ make = "*"
 curl = "*"         # Required by Mill to download its jars
 ccache = "*"
 zlib = "*"
-fzf = "*"          # fzf-powered mill tab-completion (tools/completions/mill-completion.{fish,sh})
+fzf = "*"    # fzf-powered mill tab-completion (tools/completions/mill-completion.{fish,sh})
 
 # --- Host / FPGA serial comms ---
 pyserial = ">=3.5"
@@ -52,18 +53,19 @@ mpmath = "==1.3.0"   # Pin to 1.3.0 to satisfy executorch requirement on PyPI
 
 
 [pypi-dependencies]
-# ONNX tools, quantization and compilation
+# ONNX consumption for the compiler + reference/check flow (these pull numpy).
 onnxruntime = "==1.20.1"
 onnx = "==1.18.0"
+
+# --- Training / quantization feature ---------------------------------------
+# Only present in the `training` environment (see [environments] below), so a
+# plain `pixi install` / default env does not drag in PyTorch + CUDA.
 
 [feature.training]
 # Training is linux-only; this keeps the `training` env off win-64 even though
 # the workspace lists win-64 for the default env.
 platforms = ["linux-64"]
 
-# --- Training / quantization feature ---------------------------------------
-# Only present in the `training` environment (see [environments] below), so a
-# plain `pixi install` / default env does not drag in PyTorch + CUDA.
 [feature.training.dependencies]
 # PyTorch ecosystem with GPU support (CUDA 12.1)
 # Pixi directly downloads heavy NVIDIA dependencies in an isolated manner
