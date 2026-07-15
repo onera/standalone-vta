@@ -422,9 +422,8 @@ object `package` extends MyModule { m =>
     *   psu_cortexa53_0`, `--gen-dir <baremetal headers>`, `--runner <app>`.
     */
   def createVitisWorkspace(args: Args) = Task.Command {
-    val outPath = BuildCtx.workspaceRoot / "build" / "baremetal" / "vitis_proj"
     os.proc(vitis(), "-s", vitisScript(), args.value).call(stdout = os.Inherit)
-    PathRef(outPath)
+    PathRef(Task.dest)
   }
 
   /** Read a string field out of a BuildFpga manifest.json (xsa, cpu, board,
@@ -466,8 +465,8 @@ object `package` extends MyModule { m =>
       extraArgs
     ).call(stdout = os.Inherit)
 
-  /** Create a Vitis workspace in build/baremetal/vitis_proj/ for the active
-    * config, wired to the XSA it was synthesized into.
+  /** Create a Vitis workspace in this task's dest for the active config, wired
+    * to the XSA it was synthesized into.
     *
     * Synthesizes first if stale ([[fpgaSynth]]) and reads the XSA and CPU out
     * of its manifest, so no paths need copying by hand. Uses the checked-in
@@ -481,7 +480,7 @@ object `package` extends MyModule { m =>
   def createVitisProject(args: Args) = Task.Command {
     val synthDir = fpgaSynth().path
     val manifest = synthDir / "manifest.json"
-    val outPath = BuildCtx.workspaceRoot / "build" / "baremetal" / "vitis_proj"
+    val outPath = Task.dest / configKey() / vtaBoardName()
     runCreateVitisWorkspace(
       vitis(),
       vitisScript().path,
