@@ -152,9 +152,10 @@ is a Cross axis alongside the model, like `examples[lenet5]` itself:
 which only re-runs when the model, config, or compiler sources actually
 change.
 
-Outputs are isolated per model and config under `out/runs/<model>/<config>/`:
-`compiler_output/` (compile), `baremetal/` (genBaremetal), `vitis_proj/<board>/`
-(createVitisProject). The C++/Verilator simulator (`vta.simulator.configs[<config>]`)
+Outputs are isolated per model and config in each task's Mill dest under
+`out/examples/<model>/<config>/`: `compile.dest/` (compile),
+`genBaremetal.dest/` (genBaremetal), `createVitisProject.dest/<board>/`
+(createVitisProject). The C++/Verilator simulator (`vta.simulator[<config>]`)
 is built once per config and cached, and the FPGA bitstream once per
 (config, board) pair (`vta.fpga.targets[<config>,<board>]`), so switching
 config, board, or adding a new example model does not rebuild everything -

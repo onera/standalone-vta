@@ -3,14 +3,7 @@ package build.vta.simulator
 import mill.*
 import mill.api.BuildCtx
 
-/** The two C++ simulators: fsim (fast functional model) and vsim (the Chisel
-  * RTL, Verilated), both built per config.
-  *
-  * Tasks here build and launch a simulator against any compiler_output dir; to
-  * simulate an example model end to end (compile + check included), use
-  * `examples[<model>,<config>].fsim` / `.vsim` instead.
-  */
-object `package` extends build.BaseVtaModule { m =>
+trait ConfigModule extends build.ConfigCrossModule {
 
   /** C++/Verilator source dirs whose content triggers a simulator rebuild
     * (narrow, so the .d/.o artefacts under build/ never feed back in).
@@ -49,32 +42,25 @@ object `package` extends build.BaseVtaModule { m =>
     }
   }
 
-  /** Build the functional simulator for the active config and return the fsim
-    * binary.
-    *
-    * Depends only on the C++ sources and the config content, never on a model.
-    * Binaries are kept per config, so switching config back and forth does not
-    * trigger a recompile.
+  /** Build the functional simulator for this config and return the fsim binary.
+    * See vta.simulator.fsimBinary.
     */
   def fsimBinary = Task {
     simSources()
     configSignature()
-    buildSim(vtaConfigPath(), configKey(), Task.dest, Task.env, "fsim", Seq())
+    buildSim(configPath, configKey, Task.dest, Task.env, "fsim", Seq())
   }
 
-  /** Build the Verilated RTL simulator for the active config and return the
-    * vsim binary.
-    *
-    * Emits VTAShell.sv from the Chisel hardware first (vta.hardware), so a
-    * change to the RTL rebuilds this. Kept per config, like [[fsimBinary]].
+  /** Build the Verilated RTL simulator for this config and return the vsim
+    * binary. See vta.simulator.vsimBinary.
     */
   def vsimBinary = Task {
     simSources()
     configSignature()
-    val shellDir = build.vta.hardware.vtaSimConfig().path
+    val shellDir = build.vta.hardware.configs(configKey).vtaSimConfig().path
     buildSim(
-      vtaConfigPath(),
-      configKey(),
+      configPath,
+      configKey,
       Task.dest,
       Task.env,
       "vsim",
@@ -82,49 +68,17 @@ object `package` extends build.BaseVtaModule { m =>
     )
   }
 
-  /** The same simulator binaries, one independently cached instance per config
-    * in config/.
-    *
-    * Use these to build for a config other than the global -Dvta.config.file
-    * one: `./mill vta.simulator.configs[vta_w8b].vsimBinary`. This is what the
-    * examples depend on.
-    */
-  object configs extends Cross[ConfigModule](build.configNames)
-  trait ConfigModule extends build.ConfigCrossModule {
-
-    /** Build the functional simulator for this config and return the fsim
-      * binary. See vta.simulator.fsimBinary.
-      */
-    def fsimBinary = Task {
-      m.simSources()
-      configSignature()
-      m.buildSim(configPath, configKey, Task.dest, Task.env, "fsim", Seq())
-    }
-
-    /** Build the Verilated RTL simulator for this config and return the vsim
-      * binary. See vta.simulator.vsimBinary.
-      */
-    def vsimBinary = Task {
-      m.simSources()
-      configSignature()
-      val shellDir = build.vta.hardware.configs(configKey).vtaSimConfig().path
-      m.buildSim(
-        configPath,
-        configKey,
-        Task.dest,
-        Task.env,
-        "vsim",
-        Seq(s"VTASHELL_DIR=$shellDir")
-      )
-    }
-  }
-
   /** Launch a built simulator binary directly (this is the "run in Mill, not
     * make" path). Callers pass --comp-dir and any runtime flags. Shared by the
     * functional (fsim) and Verilated (vsim) paths - both just exec a binary.
     */
-  def launchSim(binary: os.Path, flags: Seq[String], cwd: os.Path): Unit =
-    os.proc(binary, flags).call(cwd = cwd, stdout = os.Inherit)
+  def launchSim(
+    binary: os.Path,
+    flags: Seq[String],
+    cwd: os.Path,
+    env: Map[String, String]
+  ): Unit =
+    os.proc(binary, flags).call(env = env, cwd = cwd, stdout = os.Inherit)
 
   /** Build the functional simulator for the active config and launch it on an
     * already-compiled model. No compile, no reference check.
@@ -134,7 +88,7 @@ object `package` extends build.BaseVtaModule { m =>
     *   --verbose`. Defaults to compiler_output/ at the repo root.
     */
   def fsim(args: Args) = Task.Command {
-    launchSim(fsimBinary().path, args.value, BuildCtx.workspaceRoot)
+    launchSim(fsimBinary().path, args.value, BuildCtx.workspaceRoot, Task.env)
   }
 
   /** Build the Verilated RTL simulator for the active config and launch it on
@@ -145,7 +99,17 @@ object `package` extends build.BaseVtaModule { m =>
     *   --no-timeout --trace`. Defaults to compiler_output/ at the repo root.
     */
   def vsim(args: Args) = Task.Command {
-    launchSim(vsimBinary().path, args.value, BuildCtx.workspaceRoot)
+    launchSim(vsimBinary().path, args.value, BuildCtx.workspaceRoot, Task.env)
   }
-
 }
+
+/** The two C++ simulators: fsim (fast functional model) and vsim (the Chisel
+  * RTL, Verilated), both built per config.
+  *
+  * Tasks here build and launch a simulator against any compiler_output dir; to
+  * simulate an example model end to end (compile + check included), use
+  * `examples[<model>,<config>].fsim` / `.vsim` instead.
+  */
+object `package`
+    extends build.BaseVtaModule
+    with Cross[ConfigModule](build.configNames)
