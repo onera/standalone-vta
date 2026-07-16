@@ -117,7 +117,7 @@ except ImportError:
 
 TRIGGER = b"\x01"
 READY_SENTINEL = b"READY\r\n"
-BANNER_TIMEOUT_DEFAULT = 20.0
+BANNER_TIMEOUT_DEFAULT = 40.0
 
 
 # ---------------------------------------------------------------------------
