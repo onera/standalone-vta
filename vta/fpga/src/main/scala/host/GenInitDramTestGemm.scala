@@ -3,7 +3,7 @@ package fpga.host
 import scopt.OParser
 import fpga.host.models.Model
 
-/** Port of src/fpga/software/host/gen_init_dram_test_gemm.py to Scala.
+/** VTA test-gemm DRAM fixture generator.
   *
   * Generates the C++ header (init_dram.h) used by the VTA test-gemm C++
   * harness. In compiler-output mode the binary fixture files are loaded from
