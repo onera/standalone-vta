@@ -21,11 +21,11 @@ int run_nn(const FsimOptions &opts) {
   auto construct_sim_output_path = [&](const std::string &filename) {
     return sim_output_path(currentPath, filename);
   };
-  auto construct_output_path = [&](const std::string &filename) {
-    return g_sim_output_override.empty()
-               ? compiler_output_path(currentPath, filename)
-               : sim_output_path(currentPath, filename);
-  };
+  // Simulator results (final_output*.bin) always go to the simulator output
+  // dir, never the compiler dir: the compiler dir holds only compiler artefacts
+  // (reference.bin included). --output overrides the base; default is
+  // simulators_output.
+  auto construct_output_path = construct_sim_output_path;
 
   // 0. DEFINE GLOBAL FILE PATHES
   // ----------------------------

@@ -19,6 +19,11 @@ MILL=cd $(PROJECT_DIR) && ./mill
 # covers every invocation, including the ones without an '-o' flag (reference,
 # check, random_raw_binary_generator).
 export VTA_COMPILER_OUT := $(COMPILER_OUTPUT_DIR)
+# The simulators write final_output*.bin to the simulator output dir; pin it so
+# the checker (check_bin.py) reads the result from the same place. The simulator
+# binaries bake in this same default (see vta/simulator/Makefile), so a plain
+# run and the checker agree without extra flags.
+export VTA_SIMULATOR_OUT := $(SIMULATOR_OUTPUT_DIR)
 
 SRC_DIR          := $(PROJECT_DIR)/vta
 COMPILER_DIR     := $(SRC_DIR)/compiler

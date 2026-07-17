@@ -111,15 +111,18 @@ object `package` extends CompilerPythonModule { m =>
     python: os.Path,
     root: os.Path,
     dest: os.Path,
+    simDest: os.Path,
     env: Map[String, String],
     rtl: Boolean = false,
     debug: String = "False"
   ): Unit = {
     val extra = if (rtl) Seq("True") else Seq.empty[String]
+    // The checker reads reference.bin from VTA_COMPILER_OUT and the simulator
+    // result (final_output*.bin) from VTA_SIMULATOR_OUT.
     os.proc(python, checkMain, debug, extra)
       .call(
         cwd = root,
-        env = envFor(env, dest),
+        env = envFor(env, dest) + ("VTA_SIMULATOR_OUT" -> simDest.toString),
         stdout = os.Inherit,
         stderr = os.Inherit
       )

@@ -16,8 +16,10 @@ from utils.read_csv import *
 # MAIN FUNCTION
 # -------------
 def check_bin(dtype=np.int8, debug=False, rtl=False):
-    # Read dependency.csv to have high level information
+    # The compiler dir holds the reference + metadata; the simulator dir holds
+    # the simulator result (final_output*.bin).
     output_dir = compiler_output_setup()
+    sim_output_dir = simulator_output_setup()
     file_dep_path = filepath_definition(output_dir, "dependency.csv")
 
     # Get information
@@ -33,9 +35,9 @@ def check_bin(dtype=np.int8, debug=False, rtl=False):
     # Read the binaries
     file_ref_path = filepath_definition(output_dir, "reference.bin")
     if rtl:
-        file_out_path = filepath_definition(output_dir, "final_output_rtl.bin")
+        file_out_path = filepath_definition(sim_output_dir, "final_output_rtl.bin")
     else:
-        file_out_path = filepath_definition(output_dir, "final_output.bin")
+        file_out_path = filepath_definition(sim_output_dir, "final_output.bin")
 
     try:
         ref_raw = np.fromfile(file_ref_path, dtype=dtype)

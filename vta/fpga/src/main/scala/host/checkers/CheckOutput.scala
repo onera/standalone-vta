@@ -91,6 +91,7 @@ object CheckOutput {
   private case class Opts(
     baremetalOut: String = "",
     compDir: String = "compiler_output",
+    simDir: String = "simulators_output",
     configJson: Option[String] = None,
     shape: Option[String] = None,
     ref: Option[String] = None,
@@ -112,6 +113,9 @@ object CheckOutput {
       opt[String]("comp-dir")
         .action((x, c) => c.copy(compDir = x))
         .text("compiler output directory (default compiler_output)"),
+      opt[String]("sim-dir")
+        .action((x, c) => c.copy(simDir = x))
+        .text("simulator output directory (default simulators_output)"),
       opt[String]("config-json")
         .action((x, c) => c.copy(configJson = Some(x)))
         .text("path to vta_config.json (default: Chisel DefaultPynqConfig)"),
@@ -120,7 +124,7 @@ object CheckOutput {
         .text("output shape C,H,W (inferred from dependency.csv if omitted)"),
       opt[String]("ref")
         .action((x, c) => c.copy(ref = Some(x)))
-        .text("reference binary (default <comp-dir>/final_output.bin)"),
+        .text("reference binary (default <sim-dir>/final_output.bin)"),
       opt[Unit]("detiled")
         .action((_, c) => c.copy(detiled = true))
         .text("treat input as already NCHW (skip detile step)")
@@ -152,7 +156,7 @@ object CheckOutput {
             }
         }
 
-        val refPath = o.ref.getOrElse(s"$compDir/final_output.bin")
+        val refPath = o.ref.getOrElse(s"${o.simDir}/final_output.bin")
         val raw = os.read.bytes(os.Path(o.baremetalOut, os.pwd))
         val ref = os.read.bytes(os.Path(refPath, os.pwd))
 

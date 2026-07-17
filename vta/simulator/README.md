@@ -60,7 +60,8 @@ Runtime:
   --verbose             Print the layer result to stdout (single-layer only)
   --output DIR          Directory for every file the simulator writes
                         (final_output, dumps, traces, log). Defaults to the
-                        compile-time output dir when omitted.
+                        compile-time simulator-output dir (simulators_output)
+                        when omitted.
   --comp-dir DIR        Directory the compiler outputs are read from. Defaults
                         to the compile-time compiler-output dir when omitted.
   --dump-layers         Dump per-layer raw input/output to the output dir
