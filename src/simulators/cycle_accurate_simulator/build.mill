@@ -22,6 +22,7 @@ object `package` extends SbtModule with PublishModule with ScalafixModule { m =>
   def javacOptions = Seq("--release", "8")
 
   def scalaVersion = "2.13.18"
+  def forkEnv = Task{Task.env}
 
   def scalacOptions = Seq(
     "-deprecation",
@@ -149,6 +150,7 @@ object `package` extends SbtModule with PublishModule with ScalafixModule { m =>
 
   }
   object test extends SbtTests with ScalaTest with ScalafixModule {
+    def forkEnv = m.forkEnv
     override def scalaTestVersion: Simple[String] = "3.2.19"
 
     // override def testArgsDefault: Simple[Seq[String]] =
