@@ -22,18 +22,15 @@ object Vivado {
   ): Unit = {
     println(s"\n[$stage] (cwd=$cwd)\n    ${cmd.mkString(" ")}")
     if (dryRun) return
-    val libudev = os.Path("/lib/x86_64-linux-gnu/libudev.so.1")
-    val xilinxTool =
-      cmd.headOption.exists { c =>
-        val n = c.toLowerCase
-        n.contains("vivado") || n.endsWith("xvlog") || n.endsWith("xelab") ||
-        n.endsWith("xsim")
-      }
-    val extraEnv: Map[String, String] =
-      if (os.exists(libudev) && xilinxTool)
-        Map("LD_PRELOAD" -> libudev.toString)
-      else Map.empty
-    val result = os.proc(cmd).call(cwd = cwd, env = extraEnv, check = false)
+    val result = os
+      .proc(cmd)
+      .call(
+        cwd = cwd,
+        env = xilinxEnv(cmd.headOption.getOrElse("")),
+        check = false,
+        stdout = os.Inherit,
+        stderr = os.Inherit
+      )
     if (result.exitCode != 0) {
       val logHint = cwd / "vivado.log"
       val extra = if (os.exists(logHint)) s"\n       see $logHint" else ""
@@ -52,6 +49,19 @@ object Vivado {
     val url = getClass.getClassLoader.getResource(resourcePath)
     require(url != null, s"classpath resource not found: $resourcePath")
     os.temp(url.openStream().readAllBytes(), suffix = suffix).toString
+  }
+
+  /** LD_PRELOAD env for Xilinx tools that need libudev on some distros. Empty
+    * when the shim library is absent or the command is not a Xilinx tool.
+    * Shared by runCmd and the direct xsim invocation in RunXsim.
+    */
+  def xilinxEnv(cmdHead: String): Map[String, String] = {
+    val libudev = os.Path("/lib/x86_64-linux-gnu/libudev.so.1")
+    val n = cmdHead.toLowerCase
+    val isXilinx = n.contains("vivado") || n.endsWith("xvlog") ||
+      n.endsWith("xelab") || n.endsWith("xsim")
+    if (os.exists(libudev) && isXilinx) Map("LD_PRELOAD" -> libudev.toString)
+    else Map.empty
   }
 
   /** Resolve a Xilinx tool (vivado, xvlog, xelab, xsim): prefer
