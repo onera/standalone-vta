@@ -89,9 +89,12 @@ object BuildFpga {
     // Extracted here (not deferred to point of use) so a missing classpath
     // resource fails fast, before any Vivado stage runs.
     val createProjectTcl =
-      extractResource("synthesis/create_project.tcl", "-create_project.tcl")
+      Vivado.extractResource(
+        "synthesis/create_project.tcl",
+        "-create_project.tcl"
+      )
     val synthesisTcl =
-      extractResource("synthesis/synthesis.tcl", "-synthesis.tcl")
+      Vivado.extractResource("synthesis/synthesis.tcl", "-synthesis.tcl")
 
     val o = OParser.parse(argParser, argv, Opts()) match {
       case Some(parsed) => parsed
@@ -171,7 +174,7 @@ object BuildFpga {
 
     // Stage 2: package IP
     if (!skipPkg) {
-      runCmd(
+      Vivado.runCmd(
         Seq(
           vivado,
           "-mode",
@@ -216,7 +219,7 @@ object BuildFpga {
 
     // Stage 3: create project + block design
     if (!skipProject) {
-      runCmd(
+      Vivado.runCmd(
         Seq(
           vivado,
           "-mode",
@@ -252,7 +255,7 @@ object BuildFpga {
     }
 
     // Stage 4: synthesis + implementation + XSA export
-    runCmd(
+    Vivado.runCmd(
       Seq(
         vivado,
         "-mode",
@@ -332,16 +335,6 @@ object BuildFpga {
     0
   }
 
-  /** Extract a TCL recipe from the classpath to a real file for Vivado's
-    * -source: URL.getPath is percent-encoded (breaks on paths with spaces) and
-    * unusable when the resource sits inside a jar.
-    */
-  private def extractResource(resourcePath: String, suffix: String): String = {
-    val url = getClass.getClassLoader.getResource(resourcePath)
-    require(url != null, s"classpath resource not found: $resourcePath")
-    os.temp(url.openStream().readAllBytes(), suffix = suffix).toString
-  }
-
   private def vlnvFromEmit(emitDir: os.Path): String = {
     val pkg = emitDir / "package_ip.tcl"
     if (!os.exists(pkg))
@@ -359,34 +352,6 @@ object BuildFpga {
         }
     }
     fields.mkString(":")
-  }
-
-  private def runCmd(
-    cmd: Seq[String],
-    cwd: os.Path,
-    dryRun: Boolean,
-    stage: String
-  ): Unit = {
-    println(s"\n[$stage] (cwd=$cwd)\n    ${cmd.mkString(" ")}")
-    if (dryRun) return
-    val libudev = os.Path("/lib/x86_64-linux-gnu/libudev.so.1")
-    val extraEnv: Map[String, String] =
-      if (
-        os.exists(libudev) && cmd.headOption.exists(
-          _.toLowerCase.contains("vivado")
-        )
-      )
-        Map("LD_PRELOAD" -> libudev.toString)
-      else Map.empty
-    val result = os.proc(cmd).call(cwd = cwd, env = extraEnv, check = false)
-    if (result.exitCode != 0) {
-      val logHint = cwd / "vivado.log"
-      val extra = if (os.exists(logHint)) s"\n       see $logHint" else ""
-      println(
-        s"ERROR: [$stage] command failed (exit ${result.exitCode}).$extra"
-      )
-      sys.exit(result.exitCode)
-    }
   }
 
   private def timingMet(report: os.Path): Option[Boolean] = {
