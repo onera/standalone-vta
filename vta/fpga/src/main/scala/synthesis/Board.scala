@@ -89,7 +89,7 @@ object Board {
       psPresetRule = str("ps_preset_rule"),
       psPresetConfig = str("ps_preset_config", "apply_board_preset 1"),
       boardRepo = str("board_repo"),
-      plClockMhz = str("pl_clock_mhz"),
+      plClockMhz = str("pl_clock_mhz", "100"),
       plClockProperty = str("pl_clock_property"),
       cpu = str("cpu"),
       psConfig = orderedObj("ps_config"),
