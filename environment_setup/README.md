@@ -66,7 +66,7 @@ docker run --rm -it \
   -v $(pwd):/workspace/standalone-vta \
   --net=host \
   standalone-vta:latest \
-  bash -c "source /opt/Xilinx/2025.2/Vitis/settings64.sh && exec bash -i"
+  bash -c "source /opt/Xilinx/Vitis/2025.2/settings64.sh && exec bash -i"
 ```
 
 ## Software Stack

@@ -41,42 +41,43 @@ The `standalone-vta` ecosystem is designed with a clear separation of concerns, 
 ## Repository Map
 
 - `src/`: Core source code.
-    - `compiler/`: Python-based VTA compiler (TVM-independent).
-    - `simulators/`: VTA Simulators.
-        - `functional_simulator/`: Fast C++ functional simulator.
-        - `cycle_accurate_simulator/`: Detailed Chisel-based hardware simulator.
-- `config/`: Contains `vta_config.json` defining the VTA hardware parameters. See [Config Documentation](config/README.md).
+  - `compiler/`: Python-based VTA compiler (TVM-independent).
+  - `simulators/`: VTA Simulators.
+    - `functional_simulator/`: Fast C++ functional simulator (and the Verilated/DPI backend).
+    - `cycle_accurate_simulator/`: Detailed Chisel-based hardware simulator.
+  - `fpga/`: FPGA synthesis flow and the PS-side baremetal runtime software.
+- `config/`: Contains `vta_config.json` defining the VTA hardware parameters, plus alternative configurations. See [Config Documentation](config/README.md).
 - `environment_setup/`: Legacy setup files (Docker/Conda). The project now uses Pixi for package and environment management.
 - `examples/`: Makefiles and sample networks to compile and simulate.
 - `tutorials/`: Jupyter notebooks detailing the compiler components.
-- `compiler_output/` & `simulators_output/`: Default directories for generated artifacts and simulation results.
+- `compiler_output/`, `simulators_output/`, `log_output/`: Default directories for generated artifacts, simulation results and run logs.
 
 ## Documentation Index
 
 Explore the detailed documentation for each component of the `standalone-vta` ecosystem:
 
 - **Root Documentation**
-    - [Project Overview & Quickstart](README.md)
-    - [Configuration (`vta_config.json`)](config/README.md)
-    - [Environment Setup (Legacy Docker/Conda)](environment_setup/README.md)
+  - [Project Overview & Quickstart](README.md)
+  - [Configuration (`vta_config.json`)](config/README.md)
+  - [Environment Setup (Legacy Docker/Conda)](environment_setup/README.md)
 
 - **Compiler (`src/compiler/`)**
-    - [Standalone VTA Compiler](src/compiler/README.md)
-    - [VTA Instructions & Operations Definition](src/compiler/vta_compiler/operations_definition/README.md)
+  - [Standalone VTA Compiler](src/compiler/README.md)
+  - [VTA Instructions & Operations Definition](src/compiler/vta_compiler/operations_definition/README.md)
 
 - **Simulators (`src/simulators/`)**
-    - [Simulators Architecture Overview](src/simulators/README.md)
-    - [Functional Simulator (C++)](src/simulators/functional_simulator/README.md)
-    - [Cycle-Accurate Simulator (Chisel)](src/simulators/cycle_accurate_simulator/README.md)
-        - [Simulator Test Documentation](src/simulators/cycle_accurate_simulator/src/test/documentation/test_documentation.md)
-        - [Simulator Testbench README](src/simulators/cycle_accurate_simulator/src/test/scala/simulatorTest/README.md)
-        - [Formal Verification README](src/simulators/cycle_accurate_simulator/src/test/scala/formal/README.md)
+  - [Simulators Architecture Overview](src/simulators/README.md)
+  - [Functional Simulator (C++)](src/simulators/functional_simulator/README.md)
+  - [Cycle-Accurate Simulator (Chisel)](src/simulators/cycle_accurate_simulator/README.md)
+    - [Simulator Test Documentation](src/simulators/cycle_accurate_simulator/src/test/documentation/test_documentation.md)
+    - [Simulator Testbench README](src/simulators/cycle_accurate_simulator/src/test/scala/simulatorTest/README.md)
+    - [Formal Verification README](src/simulators/cycle_accurate_simulator/src/test/scala/formal/README.md)
 
 - **Hardware & FPGA**
   - [FPGA Implementation & IP Generation](src/fpga/README.md)
   - [FPGA Runtime Software](src/fpga/software/README.md)
 - **Tutorials**
-    - [Tutorials Overview](tutorials/README.md)
+  - [Tutorials Overview](tutorials/README.md)
 
 ## Getting Started
 
@@ -84,7 +85,7 @@ Explore the detailed documentation for each component of the `standalone-vta` ec
 
 Before setting up the environment, ensure you have the following installed on your host machine:
 
-- **Pixi** installed on your host machine ([Installation Guide](https://pixi.prefix.dev/latest/installation/).
+- **Pixi** installed on your host machine ([Installation Guide](https://pixi.prefix.dev/latest/installation/)).
 - **Vivado/Vitis 2025.2** installed on your host machine (only required for FPGA synthesis/implementation). Refer to the [Vitis Toolchain Setup Guide](https://toulouse-embedded-accel.github.io/HEAT/quickstarts/vitis-toolchain-setup/) for toolchain installation details.
 
 #### Working Behind a Corporate Proxy
@@ -132,12 +133,13 @@ cd examples
 make help
 
 # Run a simple 16x16 matrix multiplication example
-make matrix_16x16
+make test_gemm
 
 # Compile and simulate a simple neural network
 make compile_and_run ONNX_FILE=onnx/lenet5.onnx
 ```
 
 This will:
+
 1. Run the compiler, placing binaries in `../compiler_output/`.
-2. Run the functional simulator, reading those binaries and placing logs in `../simulators_output/`.
+2. Run the functional simulator, reading those binaries and placing logs in `../log_output/`.

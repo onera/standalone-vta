@@ -1,5 +1,18 @@
 # Formal verification
 
+> **Status: currently broken - none of these tests run.**
+>
+> Every formal test is marked `ignore` rather than `in`: 5 in `FormalMAC.scala`,
+> 3 in `FormalDotProduct.scala`, 1 in `FormalMatrixVectorMultiplicationBypass.scala`.
+> `FormalCompute.scala`'s only test is commented out, and `FormalTensorGemm.scala`
+> contains no test at all (just the `TensorGemmEmitter` object). `build.mill` has no
+> formal task or tag filter, so there is no Mill path to run them even once
+> re-enabled.
+>
+> The rest of this document describes the intended workflow and is kept as a
+> reference for whoever revives it. Treat it as a design note, not as instructions
+> that work today.
+
 The formal verification uses `chiseltest 6.0` to define the formal properties and generates a SMTLib problem.
 To verify the formal properties, the Z3 solver is needed. It can either be located in the system path or in the CHISEL project root (`cycle_accurate_simulator/`).
 

@@ -49,7 +49,7 @@ This step compiles the neural network model into VTA instructions and configures
 
 1. **Compile the neural network model (from the repository root):**
    ```bash
-   make -C examples/ compile_and_run ONNXFILE=onnx/<MODEL>.onnx
+   make -C examples/ compile_and_run ONNX_FILE=onnx/<MODEL>.onnx
    ```
    *Replace `<MODEL>` with the ONNX model file name (e.g., `lenet5.onnx`).*
 

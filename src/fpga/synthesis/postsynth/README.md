@@ -2,7 +2,7 @@
 
 Run the synthesized **`VTAXilinxShell` netlist** through a self-driving multi-layer testbench
 and compare its OUT to the fsim golden. This verifies that the gate-level netlist computes the
-same result as the behavioral RTL — a functional (output-correctness) check of synthesis,
+same result as the behavioral RTL: a functional (output-correctness) check of synthesis,
 **offline, without a board**.
 
 `VTAXilinxShell` is the board-faithful top (active-low `ap_rst_n` + Xilinx AXI shims), the same
@@ -56,7 +56,7 @@ make compile_and_run CONFIG_FILE=$CFG ONNX_FILE=onnx/lenet5.onnx        # CONFIG
 # 2. emit the board-faithful shell (the synth input) and the xsim TB (+ per-layer .mem).
 #    The TB instantiates VTAXilinxShell, so the netlist must be of VTAXilinxShell.
 cd $CAS
-./mill -Dvta.config.file=$CFG runMain vta.DebugXilinxConfig                       # -> build/emitted/vta-debug-xilinx-shell/VTAXilinxShell.sv
+./mill -Dvta.config.file=$CFG runMain vta.exporters.DebugXilinxConfigEmitter      # -> build/emitted/vta-debug-xilinx-shell/VTAXilinxShell.sv
 ./mill -Dvta.config.file=$CFG -Dvta.layers=$LAYERS -Dvta.perLayerTimeout=2000000 emitVtaPostSynthTb
 
 # 3. OOC-synthesize the gate-level netlist of VTAXilinxShell (minutes)

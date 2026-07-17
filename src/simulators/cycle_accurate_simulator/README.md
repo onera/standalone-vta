@@ -20,10 +20,23 @@ Alternatively, to use mill, you don't need to install other dependencies, as the
 ## Directory Structure
 
 - `src/main/scala/`: Contains the CHISEL hardware description of the VTA.
+  - `core/`: The VTA core - `ISA.scala`, `Decode.scala`, `Fetch.scala`, `Load.scala`,
+    `Store.scala`, `Compute.scala`, `TensorGemm.scala`, `TensorAlu.scala`, etc.
+    `core/ISA.scala` is the on-chip ISA decoder reference.
+  - `shell/`: Shells and the host/memory interfaces (`VTAShell`, `VCR`, `VME`).
+  - `configs/`: Configuration classes (e.g. `DefaultPynqConfig`).
+  - `exporters/`: SystemVerilog / IP emitters. These are the main classes behind the
+    `emitVta*` tasks below.
+  - `cli/`: Runnable simulator entry points (`VTAShellSimulator`, `ComputeSimulator`).
+  - `interface/`, `models/`, `parsers/`, `dpi/`, `util/`: AXI interfaces, behavioural
+    models, DRAM-init parsing, DPI glue, and shared utilities.
 - `src/test/scala/`: Contains the simulation testbenches.
-  - `src/test/scala/formal/`: Formal verification code. (broken in this version)
-  - `src/test/scala/simulator/`: Simulation code for executing JSON test files and obtaining step-by-step execution traces.
-  - `src/test/scala/unittest/`: Simple functional unit tests.
+  - `src/test/scala/cli/`: Simulation code for executing JSON test files and obtaining step-by-step execution traces (`ComputeTest`, `VTAShellSimulatorTest`).
+  - `src/test/scala/simulatorTest/`: JSON-driven `alu/` and `gemm/` integration tests.
+  - `src/test/scala/unittest/`: Simple functional unit tests. This is what CI runs.
+  - `src/test/scala/shell/`: Shell-level tests (`VCRSpec`, `VMESpec`, `SyncDramAxiSpec`).
+  - `src/test/scala/formal/`: Formal verification code. Every test in it is currently
+    `ignore`d, so the suite does not run - see the caveat in `formal/README.md`.
 - `src/test/resources/`: JSON files used as input for the simulator.
 
 ## Building
@@ -55,16 +68,22 @@ sbt compile
    Replace `<test_name>` with the fully qualified name of the test you want to run. For example:
 
    ```bash
-   sbt "testOnly simulator.ComputeApp"
+   sbt "testOnly cli.ComputeTests"
    ```
 
    ```bash
-   ./mill test.testOnly simulator.ComputeApp
+   ./mill test.testOnly cli.ComputeTests
+   ```
+
+To run the unit-test suite (what CI runs):
+
+   ```bash
+   ./mill test.unittest
    ```
 
 ## Chisel VTA simulation
 
-A simulation can be run on the entire VTA (VCR+VME+Core) that initializes an external memory (mocking the external DRAM) by providing a DRAM initialization file in a JSON format (for example [dram_state.json](src/test/resouces/examples_shell/dram_state.json))
+A simulation can be run on the entire VTA (VCR+VME+Core) that initializes an external memory (mocking the external DRAM) by providing a DRAM initialization file in a JSON format (for example [dram_state.json](src/test/resources/examples_shell/dram_state.json))
 
 To execute this simulation, run:
 
@@ -76,27 +95,33 @@ To execute this simulation, run:
 sbt "runMain cli.VTAShellSimulator <mem init file> <output dir>"
 ```
 
-The [VTAShellSpec.scala](src/test/scala/shell/VTAShellSpec.scala) file contains a simulation test in `src/resources/examples_shell/dram_state.json`
+The [VTAShellSimulatorTest.scala](src/test/scala/cli/VTAShellSimulatorTest.scala) file contains a simulation test driven by `src/test/resources/examples_shell/dram_state.json`
 
 ## VTA configs emission
 
 There are several configurations and shells available for the VTA that you can emit as SystemVerilog for synthesis or simulation.
 
-For DPI simulation (all those are equivalent):
+For DPI simulation:
 
 ```bash
 ./mill emitVtaSimConfig
-./mill run vta.StandaloneSimConfig
-sbt runMain "vta.StandaloneSimConfig"
 ```
 
+This runs the `vta.exporters.TestDefaultPynqConfigEmitter` main class and copies
+the result to `build/emitted/vta-sim-shell/`, which is where the functional
+simulator's Verilated build expects to find it. It takes no destination
+argument.
+
 For FPGA Xilinx IP flow:
-To emit the SystemVerilog and tcl script, run one of this command; you can specify a custom output directory by passing a path as argument:
+To emit the SystemVerilog and tcl script, run the command below; you can specify a custom output directory by passing a path as argument (it defaults to `build/emitted/vta-xilinx-shell/`):
 ```bash
 ./mill emitVtaFpgaConfig <destpath>
-./mill run vta.DefaultPynqConfig
-sbt runMain "vta.DefaultPynqConfig"
 ```
+
+This runs the `vta.exporters.DefaultXilinxConfigEmitter` main class. The
+emitters live in `src/main/scala/exporters/`; use `runMain` (not `run`) if you
+need to invoke one directly, since `run` would pass the class name as an
+argument to the default main class `cli.VTAShellSimulator`.
 You can pass a different configuration (ex: <project_root>/config/your_config.json):
 
 ```bash

@@ -45,7 +45,8 @@ emitted first:
 cd ../cycle_accurate_simulator && ./mill emitVtaSimConfig
 ```
 
-Override the VTA configuration: `make CONFIG=../config/vta_config_8b.json …`.
+Override the VTA configuration: `make CONFIG=../../../config/vta_config_8b.json ...`
+(the configs live at the repository root, three levels up from here).
 
 ## CLI
 
@@ -78,10 +79,15 @@ By default the SV `$display`/`$fwrite` stream prints to stderr - handy when
 exploring, noisy when piping. Pass `--sv-log PATH` to route it into a file:
 
 ```bash
-make vsim_inference VSIM_FLAGS='--sv-log sv.log'
-#   simulators_output/tsim_report.txt  ← C++ stdout (pipe-captured)
-#   sv.log                              ← SystemVerilog printfs
+# from this directory; RUNTIME_FLAGS is forwarded to ./build/vsim
+make vsim RUNTIME_FLAGS='--sv-log sv.log'
+#   sv.log   <- SystemVerilog printfs; C++ stdout stays on the console
 ```
+
+`examples/`'s `vsim_inference` target pins `RUNTIME_FLAGS=--no-timeout` on its
+sub-make, so extra runtime flags cannot be passed through it - run `make vsim`
+here instead (that target redirects C++ stdout to
+`log_output/tsim_report.txt`).
 
 When the archive is built with the firtool debug printf layer enabled
 (`make vsim-debug` or `VTA_VERIF_DEBUG=1 make build/vsim`), the binary
@@ -89,6 +95,40 @@ auto-defaults `--sv-log` to `simulators_output/verilator.log` so the firehose
 doesn't flood the console. The path is printed at the end of the run
 (`SystemVerilog log written to …`, right after the final-output line), and
 `--sv-log PATH` still overrides the destination.
+
+## Toolchain
+
+| Variable | Default | Effect |
+| -------- | ------- | ------ |
+| `CXX`    | `$CXX` from the environment, else `g++` | C++ compiler used for every object here and for the final link. |
+
+Inside the pixi environment `CXX` is exported and points at the environment's
+toolchain (`x86_64-conda-linux-gnu-c++`), so no override is needed. Outside
+pixi it falls back to whatever `g++` is on `PATH`.
+
+Two things to know:
+
+- **Do not set `CC` to select the compiler.** In a conda/pixi environment `CC`
+  is the *C* driver and cannot link libstdc++. Everything here is C++, so the
+  knob is `CXX`.
+- **The Verilated archive does not follow `CXX`.** `verilator --build` compiles
+  `VTest__ALL.a` with *its own* configured compiler (`verilator --getenv CXX`),
+  and `build/vsim` links that archive against objects built with `$(CXX)`. If
+  the two disagree, the resulting binary mixes compilers. Building inside pixi
+  keeps them the same; check with:
+
+  ```bash
+  verilator --getenv CXX      # what builds the archive
+  echo $CXX                   # what builds everything else
+  ```
+
+When `CONDA_PREFIX` is set, the Makefile adds that environment's include and
+library search paths (the conda toolchain compiles against its own sysroot and
+would otherwise not find `zlib.h`). Only search paths are taken, never the
+environment's `CPPFLAGS` / `CXXFLAGS`: those carry `-O2 -DNDEBUG` and
+`-march=nocona`, which would disable asserts and change float codegen. fsim and
+vsim must agree bit-for-bit, so codegen flags stay under this Makefile's
+control.
 
 ## Compile-time knobs
 

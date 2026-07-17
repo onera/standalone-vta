@@ -52,7 +52,7 @@ software/
 
 **Hardware / toolchain**
 
-- Xilinx Vitis 2023.x – 2025.x (source `settings64.sh` before running Vitis scripts)
+- Xilinx Vitis 2023.x - 2025.x (source `settings64.sh` before running Vitis scripts)
 - A Vivado-exported XSA file for the target board
 
 **Python (host scripts)**
@@ -192,7 +192,7 @@ vitis -s host/create_vitis_workspace.py \
 | `--data-loader tcl\|elf` | _(required for run_nn / run_nn_uart / run_nn_debug)_ | Selects which generated config files are copied into the app; not used for `test_gemm`. `run_nn_debug` requires `elf` (golden data is `.incbin`-embedded). |
 | `--cpu NAME`             | `psu_cortexa53_0`                     | BSP processor instance name; check `xparameters.h` in your BSP for the correct value      |
 | `--app-name NAME`        | `vta_<runner>_<loader>`               | Override the app component name (single runner only)                                      |
-| `--baud N`               | `921600`                              | UART baud rate compiled into the firmware (`VTA_UART_BAUD`)                               |
+| `--baud N`               | `115200`                              | UART baud rate compiled into the firmware (`VTA_UART_BAUD`)                               |
 | `--dry-run`              | -                                     | Print files that would be copied without calling Vitis APIs                               |
 
 App component names are auto-derived: `vta_run_nn_tcl`, `vta_run_nn_uart_elf`,
@@ -287,19 +287,20 @@ python host/uart_nn.py \
 | Flag                   | Default         | Description                                                       |
 | ---------------------- | --------------- | ----------------------------------------------------------------- |
 | `--port DEV`           | _(required)_    | Serial device (`/dev/ttyUSB0`, `COM3`, …)                         |
-| `--baud N`             | `921600`        | Baud rate (must match `VTA_UART_BAUD` compiled into the firmware) |
+| `--baud N`             | `115200`        | Baud rate (must match `VTA_UART_BAUD` compiled into the firmware) |
 | `--input FILE …`       | _(required)_    | Raw input file(s); one inference per file                         |
 | `--output FILE`        | -               | Output file (single-run shorthand)                                |
 | `--output-dir DIR`     | -               | Directory for per-run output files                                |
 | `--repeat N`           | `1`             | Repeat each input N times                                         |
 | `--input-bytes N`      | _(from banner)_ | Override input size (banner still consumed)                       |
 | `--output-bytes N`     | _(from banner)_ | Override output size (banner still consumed)                      |
-| `--banner-timeout SEC` | `20`            | Seconds to wait for banner after sending trigger                  |
+| `--banner-timeout SEC` | `40`            | Seconds to wait for banner after sending trigger                  |
 | `--ready-timeout SEC`  | `60`            | Seconds to wait for `READY` before each run                       |
 | `--verbose`            | -               | Print per-layer board logs during inference                       |
 | `--detile`             | -               | Convert VTA block output to NCHW flat before saving               |
 | `--output-shape C,H,W` | -               | Required with `--detile`; output tensor shape                     |
 | `--block-size N`       | `16`            | VTA block size used for de-tiling                                 |
+| `--check [FILE]`       | -               | Compare the received output against a reference; the bare flag defaults to `compiler_output/final_output.bin` |
 
 ### 4c - Per-layer isolation check (`run_nn_debug`)
 
@@ -317,10 +318,14 @@ carry no reference data.
 **1. Generate the golden dumps with the functional simulator:**
 
 ```sh
-# from examples/ (or the functional_simulator dir)
-make fsim_inference FSIM_FLAGS=--dump-layers
-# → simulators_output/input<SUFFIX>.bin and output<SUFFIX>.bin per VTA layer
+# from the functional_simulator dir; RUNTIME_FLAGS is forwarded to ./build/fsim
+make fsim RUNTIME_FLAGS=--dump-layers
+# -> input<SUFFIX>.bin and output<SUFFIX>.bin per VTA layer, in the output dir
 ```
+
+`examples/`'s `fsim_inference` target does not forward runtime flags, so it
+cannot produce the dumps - use `make fsim` above, or call the binary directly
+with `./build/fsim --dump-layers`.
 
 **2. Generate the board artifacts with the golden data embedded:**
 
@@ -366,15 +371,23 @@ The library has no dependencies beyond the Xilinx BSP (included by Vitis).
 | `vta_board.h`   | `board_init(baud)` - reinitializes the PS UART to the given baud rate at startup                                                                                  |
 | `vta_ctrl.h`    | `launch()`, `poll_done()` - thin wrappers around VCR MMIO                                                                                                         |
 | `vta_mem.h`     | `init_ddr_region()`, `dump_words()` - DDR init and debug helpers                                                                                                  |
-| `vta_nn.h`      | `LayerDesc`, `run_layer()`, `run_nn()`                                                                                                                            |
+| `vta_nn.h`      | `LayerDesc`, `run_layer()`, `run_nn()`, `find_input()`                                                                                                            |
 | `vta_nn_debug.h`| `DebugLayerDesc`, `check_layer_output()`, `run_nn_debug()` - per-layer isolation checker; active only when built with `NN_CHECK_LAYERS` (no-op otherwise)         |
-| `vta_cpu_ops.h` | `NnFormatInputStep`, `NnIm2RowStep`, `NnQaddStep`, `NnConcatStep`, `NnDequantStep`, `NnQuantStep`, `NnRescaleStep` and the corresponding `vta::run_*()` functions |
+| `vta_cpu_ops.h` | `NnStepType`, `NnExecStep`, and the step structs `NnFormatInputStep`, `NnIm2RowStep`, `NnQaddStep`, `NnConcatStep`, `NnDequantStep`, `NnQuantStep`, `NnRescaleStep`, `NnInt32ChainStep`, `NnConvTransposeStep`, plus the corresponding `vta::run_*()` functions |
 
 `board_init()` must be called at the very top of `main()`, before any
-`xil_printf` / `inbyte` / `outbyte`. The BSP's pre-compiled `libxil.a`
-boots the UART at 115200; `board_init()` reinitializes it to `VTA_UART_BAUD`
-(default 921600) at runtime so no BSP rebuild is required. Both `run_nn.cc`
-and `run_nn_uart.cc` call it as their first statement.
+`xil_printf` / `inbyte` / `outbyte`. On Zynq-7000 / Zynq UltraScale+ the BSP's
+pre-compiled `libxil.a` boots the UART at 115200 and `board_init()`
+reinitializes it to `VTA_UART_BAUD` at runtime, so no BSP rebuild is required.
+
+On Versal (vck190, vek280) it is a **no-op**: those parts drive the PS UART
+through the PL011-based `XUartPsv` driver and their BSP ships no `xuartps.h`,
+so `vta_board.cc` gates the whole body on `XPAR_XUARTPS_0_BASEADDR &&
+!versal && !VERSAL_NET`. There the BSP-configured baud rate stands, and the
+`--baud` passed to `create_vitis_workspace.py` must match it.
+
+`run_nn.cc`, `run_nn_uart.cc`, `run_nn_debug.cc` and `run_nn_cpu_debug.cc` all
+call it as their first statement.
 
 `run_layer()` handles the full hardware interaction for one layer: flush input
 caches, program VCR registers, launch VTA, poll for completion, and invalidate
