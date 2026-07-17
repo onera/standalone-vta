@@ -2,7 +2,7 @@
 # ooc_netlist.tcl - out-of-context synth/impl of VTAShell -> gate-level netlists.
 #
 # Produces the netlists used by the post-synthesis / post-implementation simulation
-# flow (sim_netlist.py):
+# flow (fpga.synthesis.OocNetlist):
 #   mode=synth : write_verilog -mode funcsim  -> VTAShell_funcsim.v   (functional, no timing)
 #   mode=impl  : + opt/place/route, write_verilog -mode timesim + write_sdf
 #                -> VTAShell_timesim.v + VTAShell_timesim.sdf          (SDF-annotated)
@@ -12,10 +12,10 @@
 # and the Chisel VTAPostSynthTb can drive the netlist by substituting VTAShell by name.
 # It contains the same Core datapath the full FPGA build synthesizes.
 #
-# Usage (driven by sim_netlist.py; not meant to be run by hand):
+# Usage (driven by the fpga.synthesis.OocNetlist task; not meant to be run by hand):
 #   vivado -mode batch -source ooc_netlist.tcl -tclargs <params.tcl>
 #
-# params.tcl (emitted by sim_netlist.py) sets:
+# params.tcl (emitted by OocNetlist) sets:
 #   part sv_dir top out_dir proj_dir clk_port clk_period_ns mode jobs
 #*****************************************************************************************
 
