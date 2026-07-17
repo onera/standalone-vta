@@ -1,18 +1,18 @@
 #*****************************************************************************************
-# build_fpga.tcl - generic, board-agnostic Vivado batch recipe for the VTA FPGA flow.
+# create_project.tcl - generic, board-agnostic Vivado batch recipe for the VTA FPGA flow
+# (create-project stage; synthesis.tcl runs synth/impl/XSA on the project it leaves).
 #
-# Replaces the 919-line GUI-exported vta_zcu104.tcl with a fixed ~150-line recipe that
-# is fully parameterized by a generated board_params.tcl. It builds the block design
-# (PS + VTA IP + SmartConnect + reset), assigns addresses, runs synthesis and
-# implementation through write_bitstream, and exports an XSA (with bitstream embedded).
+# Replaces the 919-line GUI-exported vta_zcu104.tcl with a fixed recipe that is fully
+# parameterized by a generated board_params.tcl. It builds the block design (PS + VTA
+# IP + SmartConnect + reset), assigns addresses, and creates the Vivado project.
 #
 # It wires the design by *stable* interface/port names and the VTA IP VLNV, so it does
 # not rot when the RTL interface or config changes - unlike a frozen net snapshot.
 #
-# Usage (driven by build_fpga.py; not meant to be run by hand):
-#   vivado -mode batch -source build_fpga.tcl -tclargs <board_params.tcl>
+# Usage (driven by the fpga.synthesis.BuildFpga task; not meant to be run by hand):
+#   vivado -mode batch -source create_project.tcl -tclargs <board_params.tcl>
 #
-# board_params.tcl (emitted by build_fpga.py from boards/<board>.json) must set:
+# board_params.tcl (emitted by BuildFpga from boards/<board>.json) must set:
 #   board_name part board_part ps_ip ps_cell ps_preset_rule ps_preset_config
 #   pl_clock_mhz vta_cell vta_vlnv ip_repo out_dir proj_dir jobs
 #   ps_config            - flat {KEY VALUE ...} list of CONFIG.PSU__* deltas
@@ -24,7 +24,7 @@
 #*****************************************************************************************
 
 if {[llength $argv] < 1} {
-  error "usage: vivado -mode batch -source build_fpga.tcl -tclargs <board_params.tcl>"
+  error "usage: vivado -mode batch -source create_project.tcl -tclargs <board_params.tcl>"
 }
 set params_file [lindex $argv 0]
 if {![file exists $params_file]} { error "board params file not found: $params_file" }
@@ -50,7 +50,7 @@ update_ip_catalog -rebuild
 
 if {[llength [get_ipdefs -all $vta_vlnv]] == 0} {
   error "VTA IP '$vta_vlnv' not found in ip_repo '$ip_repo'.\n\
-         Run the IP-packaging stage first (build_fpga.py does this automatically)."
+         Run the IP-packaging stage first (BuildFpga does this automatically)."
 }
 
 # ---------------------------------------------------------------------------

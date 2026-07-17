@@ -12,9 +12,10 @@ import TestBenchLayout.LaunchParams
 /** Self-driving multi-layer testbench for post-synthesis simulation of the
   * BOARD's actual top module: VTAXilinxShell (instantiated via XilinxDebugShell
   * so the board probe set is available as ports). This matches the FPGA IP flow
-  * (DefaultXilinxConfig / build_fpga.tcl): active-low ap_rst_n + Xilinx AXI
-  * interface shims, rather than the bare sim VTAShell. Vivado substitutes the
-  * post-synthesis netlist of VTAXilinxShell by module name.
+  * (DefaultXilinxConfig / the fpga.synthesis.BuildFpga recipe): active-low
+  * ap_rst_n + Xilinx AXI interface shims, rather than the bare sim VTAShell.
+  * Vivado substitutes the post-synthesis netlist of VTAXilinxShell by module
+  * name.
   *
   * The generic TB AXI (VtaHostDriver host master, MultiMemAxiClient DRAM slave)
   * is adapted to the Xilinx bundles with the AXI DataView (.viewAs), exactly as

@@ -22,8 +22,8 @@ make bitstream BOARD=zcu104 CONFIG=../../../config/vta_config.json
 make bitstream BOARD=vek280 CONFIG=../../../config/vta_config.json
 # or for vck190:
 make bitstream BOARD=vck190 CONFIG=../../../config/vta_config.json
-# or, equivalently:
-python build_fpga.py --board vck190 --config ../../../config/vta_config.json
+# or, equivalently, invoke the Mill task directly from the repo root:
+./mill vta.fpga.buildFpga --board vck190 --config config/vta_config.json
 ```
 
 The XSA lands in `build/vta_<board>.xsa`. Feed it straight to the software half:
@@ -45,16 +45,23 @@ Useful flags:
   run nothing (works without Xilinx tools installed).
 - `make bitstream SKIP_EMIT=1` - reuse RTL already emitted under the emit dir.
 - `make bitstream JOBS=8` - parallelism for synth/impl.
-- `python build_fpga.py --help` - all options.
+- `./mill vta.fpga.buildFpga --help` - all options.
 
 ## Files
 
+The orchestrator and the Vivado recipe are the Scala `fpga.synthesis.BuildFpga`
+task and two classpath TCL resources under
+`vta/fpga/src/main/scala/synthesis/` and
+`vta/fpga/src/main/resources/synthesis/` - run through Mill, and shared with the
+cached `vta.fpga.targets[<config>,<board>].fpgaSynth` pipeline. The former
+standalone `build_fpga.py` + `build_fpga.tcl` have been removed.
+
 | File | Role |
 |------|------|
-| `build_fpga.py` | Orchestrator: runs the 3 stages, derives the IP VLNV from the emit, writes `manifest.json`. Styled on `../software/host/create_vitis_workspace.py`. |
-| `build_fpga.tcl` | Board-agnostic Vivado recipe. Builds the block design, assigns addresses, runs to bitstream/device image, exports the XSA. Parameterized entirely by a generated `board_params.tcl`. |
+| `fpga.synthesis.BuildFpga` (Scala) | Orchestrator: runs the stages, derives the IP VLNV from the emit, writes `manifest.json`. Run via `./mill vta.fpga.buildFpga` or this Makefile. |
+| `resources/synthesis/{create_project,synthesis}.tcl` | Board-agnostic Vivado recipe (create-project stage + synth/impl/XSA stage). Builds the block design, assigns addresses, runs to bitstream/device image, exports the XSA. Parameterized entirely by a generated `board_params.tcl`. |
 | `boards/<board>.json` | The only place board specifics live: part, board preset, CPU, PL clock, AXI/NoC port wiring, address map. |
-| `Makefile` | Thin `make bitstream` / `dry-run` / `clean` entry. |
+| `Makefile` | Thin `make bitstream` / `dry-run` / `clean` entry (wraps the Mill task). |
 | `legacy/vta_zcu104.tcl` | The old 919-line `write_project_tcl` GUI dump, kept for reference. See below. |
 
 ## Adding a board
@@ -69,7 +76,7 @@ the `ps_*` / `ports` fields. Supported examples ship here:
 - `boards/vck190.json` - Versal AI Core (`versal_cips` + `axi_noc`), board files shipped
   with Vivado.
 
-The block design recipe and `build_fpga.tcl` automatically adapt to both ZynqMP and Versal architectures depending on the `is_versal` configuration.
+The block design recipe automatically adapts to both ZynqMP and Versal architectures depending on the `is_versal` configuration.
 
 ## Timing verdict
 
