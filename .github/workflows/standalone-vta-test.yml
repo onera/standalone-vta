@@ -7,47 +7,92 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
-  # Manual workflow execution
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  functional-simutator-test:
+  functional-simulator-test:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: bash -el {0}
     steps:
-      - uses: actions/checkout@v4
-      - uses: conda-incubator/setup-miniconda@v3
+      - uses: actions/checkout@v6
+      - name: Setup pixi
+        uses: prefix-dev/setup-pixi@v0.10.0
         with:
-          auto-activate: false
-          environment-file: environment_setup/standalone-vta.yml
-          activate-environment: standalone-vta
-          channels: conda-forge,defaults
-          channel-priority: flexible
+          pixi-version: v0.73.0
+          cache: true
+          locked: true
+          activate-environment: true
       - name: Tests VTA compiler and functional simulator
         run: cd examples && make compile_and_run
 
-  cycle-accurate-simulator-test:
+  chisel-unittests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Setup JDK
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v6
+      - name: Cache Scala
+        uses: coursier/cache-action@v8
+      - name: Cache Mill
+        uses: actions/cache@v6
         with:
-          distribution: temurin
-          java-version: 8
-          cache: sbt
-      - uses: sbt/setup-sbt@v1
-      - name: Setup Z3
-        id: z3
-        uses: cda-tum/setup-z3@v1
-      - name: Install Verilator
-        run: sudo apt-get update && sudo apt-get install -y verilator
-      - name: Run tests
+          path: |
+            ~/.cache/mill
+            src/simulators/cycle_accurate_simulator/out
+          key: mill-${{ runner.os }}-${{ hashFiles('src/simulators/cycle_accurate_simulator/**/*.scala', 'src/simulators/cycle_accurate_simulator/build.mill', 'src/simulators/cycle_accurate_simulator/src/test/resources/**/*.json') }}
+          restore-keys: |
+            mill-${{ runner.os }}-
+      - name: Setup pixi
+        uses: prefix-dev/setup-pixi@v0.10.0
+        with:
+          pixi-version: v0.73.0
+          cache: true
+          locked: true
+          activate-environment: true
+      - name: Run mill tests
         run: |
           cd src/simulators/cycle_accurate_simulator
-          sbt test
+          ./mill test.unittest
+
+  cycle-accurate-simulator-test:
+      needs: [functional-simulator-test, chisel-unittests]
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v6
+        - name: Cache Scala
+          uses: coursier/cache-action@v8
+        - name: Cache Mill
+          uses: actions/cache@v6
+          with:
+            path: |
+              ~/.cache/mill
+              src/simulators/cycle_accurate_simulator/out
+            key: mill-${{ runner.os }}-${{ hashFiles('src/simulators/cycle_accurate_simulator/**/*.scala', 'src/simulators/cycle_accurate_simulator/build.mill', 'src/simulators/cycle_accurate_simulator/src/test/resources/**/*.json') }}
+            restore-keys: |
+              mill-${{ runner.os }}-
+        - name: Setup pixi
+          uses: prefix-dev/setup-pixi@v0.10.0
+          with:
+            pixi-version: v0.73.0
+            cache: true
+            locked: true
+            activate-environment: true
+        - name: Compile ONNX and compute reference
+          run: |
+            cd examples
+            ONNX_FILE=onnx/lenet5.onnx make -s cleaner nn_compiler vta_compiler reference
+        - name: Simulate the inference
+          run: |
+            cd src/simulators/cycle_accurate_simulator && ./mill emitVtaSimConfig
+            cd ../functional_simulator
+            make clean
+            SIM_THREADS=2 make vsim
+
+        - name: Check output against reference
+          run: |
+            cd examples
+            make check_vsim
