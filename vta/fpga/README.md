@@ -58,9 +58,12 @@ This step compiles the neural network model into VTA instructions and configures
    cd src/fpga/software
    ```
 
-3. **Generate the baremetal source configuration files:**
+3. **Generate the baremetal source configuration files** (`make gen`, or the
+   underlying Mill task from the repo root):
    ```bash
-   python host/gen_nn_baremetal.py ../../../compiler_output/ \
+   make gen CONFIG=../../../config/vta_config.json DDR_BASE=0x200000
+   # equivalently, from the repo root:
+   ./mill -Dvta.config.file=vta_config.json vta.fpga.genNnBaremetal ../../../compiler_output/ \
        --ddr-base    0x200000      \
        --max-addr    0x1ff00000    \
        --outdir      gen
@@ -104,7 +107,7 @@ For further details and configuration options, see the [software/README.md](soft
        --port /dev/ttyUSB1 \
        --input ../../../compiler_output/input_nn.bin \
        --output ../../../compiler_output/out_board.bin \
-       --check ../../../compiler_output/final_output.bin
+       --check ../../../simulators_output/final_output.bin
    ```
 
 ---

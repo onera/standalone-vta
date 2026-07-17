@@ -24,6 +24,14 @@ XSA ?=
 CPU ?=
 GEN = $(wildcard $(OUTDIR)/*)
 
+# The baremetal codegen is the Scala GenNnBaremetal task, run through Mill from
+# the repo root. Mill resolves paths against the repo root, so the gen targets
+# pass absolute paths; the active hardware config is selected by its file name
+# via -Dvta.config.file (Mill reads config/<name>).
+REPO_ROOT   := $(abspath ../../..)
+MILL        := cd $(REPO_ROOT) && ./mill
+CONFIG_NAME  = $(notdir $(CONFIG))
+
 # Pass --sd-dir only when SD_DIR is set, so an empty value doesn't swallow the
 # positional compiler-output argument.
 SD_DIR_FLAG = $(if $(strip $(SD_DIR)),--sd-dir $(SD_DIR),)
@@ -33,24 +41,22 @@ SD_DIR_FLAG = $(if $(strip $(SD_DIR)),--sd-dir $(SD_DIR),)
 gen: gen-nn
 
 gen-nn: $(COMPILER_OUTPUTS) $(CONFIG)
-	python host/gen_nn_baremetal.py \
-		--config-json $(CONFIG)     \
-		--ddr-base    $(DDR_BASE)   \
-		--outdir      $(OUTDIR)     \
-		$(COMPILER_OUTPUT)
+	$(MILL) -Dvta.config.file=$(CONFIG_NAME) vta.fpga.genNnBaremetal \
+		$(abspath $(COMPILER_OUTPUT)) \
+		--ddr-base $(DDR_BASE)        \
+		--outdir   $(abspath $(OUTDIR))
 
 # gen-sd: gen-nn plus the runtime SD-card loader artifacts - nn_sd_manifest.h
 # (file -> DDR map compiled into the ELF) and $(OUTDIR)/sd_card/ (the .bin set to
 # copy to a FAT32 card). Set SD_DIR=<name> to read from a card subfolder (lets
 # several models share one card). Used with `make workspace DATA_LOADER=sd`.
 gen-sd: $(COMPILER_OUTPUTS) $(CONFIG)
-	python host/gen_nn_baremetal.py \
-		--config-json     $(CONFIG)   \
-		--ddr-base        $(DDR_BASE) \
+	$(MILL) -Dvta.config.file=$(CONFIG_NAME) vta.fpga.genNnBaremetal \
+		$(abspath $(COMPILER_OUTPUT)) \
+		--ddr-base $(DDR_BASE)        \
 		$(SD_DIR_FLAG)                \
-		--outdir          $(OUTDIR)   \
-		--emit-sd-manifest            \
-		$(COMPILER_OUTPUT)
+		--outdir   $(abspath $(OUTDIR)) \
+		--emit-sd-manifest
 
 # gen-sd-debug: gen-sd plus the per-layer isolation-check goldens
 # (input<suffix>.bin / output<suffix>.bin from a fsim VTA_DUMP_LAYERS=1 run in
@@ -59,22 +65,21 @@ gen-sd: $(COMPILER_OUTPUTS) $(CONFIG)
 # read their references from the card. Used with
 # `make workspace RUNNER=run_nn_debug DATA_LOADER=sd`.
 gen-sd-debug: $(COMPILER_OUTPUTS) $(CONFIG)
-	python host/gen_nn_baremetal.py \
-		--config-json     $(CONFIG)   \
-		--ddr-base        $(DDR_BASE) \
+	$(MILL) -Dvta.config.file=$(CONFIG_NAME) vta.fpga.genNnBaremetal \
+		$(abspath $(COMPILER_OUTPUT)) \
+		--ddr-base $(DDR_BASE)        \
 		$(SD_DIR_FLAG)                \
-		--outdir          $(OUTDIR)   \
+		--outdir   $(abspath $(OUTDIR)) \
 		--emit-sd-manifest            \
 		--emit-layer-check            \
 		--emit-cpu-check              \
-		--ref-dir         $(REF_DIR)  \
-		$(COMPILER_OUTPUT)
+		--ref-dir  $(abspath $(REF_DIR))
 
 # test_gemm is a unit test (hardcoded VTA program, randomised matrices); it
 # does NOT consume compiler_output/.  Kept as a separate target so it can run
 # in environments where no model has been compiled yet.
 gen-test_gemm:
-	python host/gen_init_dram_test_gemm.py --outdir $(OUTDIR)
+	$(MILL) vta.fpga.genInitDramTestGemm --outdir $(abspath $(OUTDIR))
 
 # Host unit test for the PS-side CPU ops (driver/src/vta_cpu_ops.cc). Compiles
 # the real ops with host stubs (test/host/) and checks them against the

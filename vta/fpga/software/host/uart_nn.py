@@ -46,6 +46,7 @@ Dependencies
 """
 
 import argparse
+import csv
 import re
 import sys
 import time
@@ -88,22 +89,32 @@ def detile(data: bytes, C: int, H: int, W: int, B: int = 8) -> bytes:
 def _check_output(
     raw_out: bytes, shape: "tuple[int,int,int]", block: int, ref_path: str
 ) -> None:
-    """Detile the raw block-tiled output to NCHW and diff it against the
-    reference bin. Delegates to check_output.py so the layout logic lives in one
-    place."""
+    """Detile the raw block-tiled output to NCHW (via this module's detile) and
+    diff it against the reference bin. The richer standalone checker is
+    `./mill vta.fpga.checkOutput`; this is the inline convenience path."""
     try:
         import numpy as np
-
-        import check_output as co
     except Exception as exc:  # numpy not installed, etc.
         print(f"  [check] skipped: {exc}")
         return
     c, h, w = shape
-    raw = np.frombuffer(raw_out, dtype=np.int8)
+    got = np.frombuffer(detile(raw_out, c, h, w, block), dtype=np.int8)
     ref = np.fromfile(ref_path, dtype=np.int8)
     print(f"  [check] vs {ref_path}  (C,H,W={c},{h},{w} block={block})")
-    ok = co.report_diff("  detiled vs NCHW ref", co.detile(raw, c, h, w, block), ref)
-    print("  [check] PASS" if ok else "  [check] FAIL - output diverges")
+    n = min(got.size, ref.size)
+    if got.size != ref.size:
+        print(f"  [check] SIZE DIFF: got {got.size} vs ref {ref.size} (comparing first {n})")
+    diff = got[:n].astype(np.int32) - ref[:n].astype(np.int32)
+    nz = np.flatnonzero(diff)
+    if got.size == ref.size and nz.size == 0:
+        print(f"  [check] PASS ({n} elements identical)")
+    else:
+        first = int(nz[0]) if nz.size else -1
+        max_abs = int(np.abs(diff).max()) if diff.size else 0
+        print(
+            f"  [check] FAIL - {nz.size}/{n} differ, "
+            f"max|diff|={max_abs}, first @ idx {first}"
+        )
 
 
 try:
@@ -337,7 +348,7 @@ def main() -> None:
         metavar="REF",
         help="After each run, compare the raw output against a reference NCHW bin "
         "(functional-sim final_output.bin). With no value, uses "
-        "../../../../compiler_output/final_output.bin relative to this script. "
+        "../../../../simulators_output/final_output.bin relative to this script. "
         "Requires --output-shape (or it is read from dependency.csv).",
     )
     args = parser.parse_args()
@@ -360,7 +371,7 @@ def main() -> None:
     if args.check is not None:
         here = Path(__file__).resolve().parent
         check_ref = args.check or str(
-            here / ".." / ".." / ".." / ".." / "compiler_output" / "final_output.bin"
+            here / ".." / ".." / ".." / ".." / "simulators_output" / "final_output.bin"
         )
         if not Path(check_ref).exists():
             sys.exit(f"ERROR: --check reference not found: {check_ref}")
@@ -370,25 +381,16 @@ def main() -> None:
             c, h, w = (int(x) for x in args.output_shape.split(","))
             check_shape = (c, h, w)
         else:
+            # Auto-read the output shape from the compiler's dependency.csv,
+            # whose "output" row is: output,<layer name>,<C>,<H>,<W>.
+            dep_csv = here / ".." / ".." / ".." / ".." / "compiler_output" / "dependency.csv"
             try:
-                import gen_nn_baremetal as gen
-
-                dep = gen.load_dependency_csv(
-                    str(
-                        here
-                        / ".."
-                        / ".."
-                        / ".."
-                        / ".."
-                        / "compiler_output"
-                        / "dependency.csv"
-                    )
-                )
-                ld = dep.layers.get(dep.output_layer)
-                check_shape = (ld.out_ch, ld.out_h, ld.out_w)
+                with open(dep_csv, newline="", encoding="utf-8") as f:
+                    row = next(r for r in csv.reader(f) if r and r[0] == "output")
+                check_shape = (int(row[2]), int(row[3]), int(row[4]))
             except Exception as exc:
                 sys.exit(
-                    f"ERROR: --check needs --output-shape (could not auto-read: {exc})"
+                    f"ERROR: --check needs --output-shape (could not auto-read {dep_csv}: {exc})"
                 )
 
     # Validate inputs.

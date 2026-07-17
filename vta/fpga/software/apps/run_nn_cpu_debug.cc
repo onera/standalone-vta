@@ -17,13 +17,11 @@
  * input_nn.bin the format_input op replays) are read from the FAT32 card into
  * the same DDR addresses by vta::sd_load_files() below.
  *
- * To regenerate headers:
- *   python3 host/gen_nn_baremetal.py <compiler_output_dir>      \
- *       --ddr-base    0x10000000                                \
- *       --outdir      gen                                       \
- *       --config-json ../../../config/vta_config.json           \
- *       --emit-layer-check --emit-cpu-check --ref-dir <repo>/simulators_output \
- *       [--emit-sd-manifest --sd-dir <model>]   # for the SD loader
+ * To regenerate headers (from software/):
+ *   make gen-sd-debug CONFIG=../../../config/vta_config.json \
+ *       DDR_BASE=0x10000000 REF_DIR=<repo>/simulators_output \
+ *       [SD_DIR=<model>]   # for the SD loader
+ *   (gen-sd-debug sets --emit-layer-check --emit-cpu-check)
  */
 
 #include "nn_cpu_debug_map.h"

@@ -215,7 +215,7 @@ def collect_sources(
     if runner not in STANDALONE_RUNNERS:
         # Required by vta_cpu_ops.cc (and hence every VTA-driver app) at
         # compile time, independent of runner or data-loader selection.
-        files[Path("vta_hw_config.h")] = CONFIG_DIR / "vta_hw_config.h"
+        files[Path("vta_hw_config.h")] = gen_dir / "vta_hw_config.h"
 
     if data_loader is not None:
         for fname in DATA_LOADER_GENERATED[data_loader]:
@@ -438,7 +438,7 @@ def copy_sources(
         if not src_path.exists():
             print(
                 f"WARNING: skipping missing file '{dest_rel}' "
-                f"(run gen_nn_baremetal.py first, then copy manually)"
+                f"(run `make gen` first, then copy manually)"
             )
             continue
         dest = app_src / dest_rel
@@ -682,7 +682,7 @@ def main() -> None:
         default=str(CONFIG_DIR),
         metavar="PATH",
         help=(
-            "Directory containing gen_nn_baremetal.py output (vta_hw_config.h, "
+            "Directory containing the baremetal codegen output (vta_hw_config.h, "
             "nn_ddr_map.h, nn_exec_plan.h, ...). Defaults to <software>/gen; "
             "override to point at a specific model/config's generated headers "
             "(e.g. a Mill genBaremetal() cache dir)."

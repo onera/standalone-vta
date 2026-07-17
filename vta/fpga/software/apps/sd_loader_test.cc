@@ -17,7 +17,7 @@
  *
  * Host prep: format a microSD as FAT32, copy TEST_FILE to its root.
  * The matching host checksum is `sum(open(f,'rb').read()) & 0xffffffff`
- * (see host/sd_checksum.py).
+ * (see `./mill vta.fpga.sdChecksum`).
  *
  * The SD controller's MIO pins + clocks must already be configured by
  * ps7_init / psu_init (run via XSDB `loadhw` and/or the FSBL) before this app
