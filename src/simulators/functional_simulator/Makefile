@@ -11,7 +11,9 @@
 # VARIABLES
 # ==============================================================================
 
-CC              := g++
+# Honour $(CXX) from the environment (the pixi env exports it, pointing at the toolchain that verilator
+# also uses for the verilated archive) and fall back to g++ outside pixi.
+CXX             ?= g++
 CFLAGS           = -std=c++17 -lstdc++fs -Wall -g -MMD -MP
 # CFLAGS         = -std=c++17 -lstdc++fs -fsanitize=address -g -MMD -MP
 DEBUGFLAG       ?= -DDEBUG_SIM=false
@@ -26,6 +28,20 @@ PATH_DEFINES          = -DVTA_COMPILER_OUTPUT='"$(abspath $(VTA_COMPILER_OUTPUT)
                         -DVTA_SIMULATOR_OUTPUT='"$(abspath $(VTA_SIMULATOR_OUTPUT))"'
 CFLAGS           += $(PATH_DEFINES)
 VERILATED_CFLAGS += $(PATH_DEFINES)
+
+# Inside a conda/pixi environment the toolchain compiles against its own sysroot
+# and does not search the environment's include/lib dirs, so headers installed by
+# the env (notably zlib.h, needed by verilated_fst_c.cpp) are invisible without
+# these. Only the search paths are taken: the environment also exports CPPFLAGS /
+# CXXFLAGS carrying -O2, -DNDEBUG and -march=nocona, which would silently disable
+# asserts and change float codegen - fsim and vsim must agree bit-for-bit, so
+# codegen flags stay under this Makefile's control.
+ifdef CONDA_PREFIX
+  CONDA_INCLUDE     = -isystem $(CONDA_PREFIX)/include
+  CONDA_LIBS        = -L$(CONDA_PREFIX)/lib -Wl,-rpath,$(CONDA_PREFIX)/lib
+  CFLAGS           += $(CONDA_INCLUDE)
+  VERILATED_CFLAGS += $(CONDA_INCLUDE)
+endif
 # VTA hardware configuration, defaults to ../../../config/vta_config.json
 # Override at build time: make CONFIG=path/to/config.json [target]
 CONFIG          ?=
@@ -250,7 +266,7 @@ FSIM_SHARED_OBJS = \
 
 build/fsim: $(addprefix build/,$(FSIM_ENTRY_OBJS)) $(FSIM_SHARED_OBJS) \
             $(OBJ_LIB_TVM) | build/
-	$(CC) $(CFLAGS) \
+	$(CXX) $(CFLAGS) \
 	  $(addprefix build/,$(FSIM_ENTRY_OBJS)) $(FSIM_SHARED_OBJS) \
 	  $(OBJ_LIB_TVM) -o $@
 
@@ -280,18 +296,18 @@ $(VVTASHELL_ARCHIVE): $(VTASHELL_DIR)/filelist.f | $(VERILATED_OBJ_DIR)/
 build/vsim: $(addprefix $(VERILATED_OBJ_DIR)/,$(FSIM_ENTRY_OBJS)) \
             $(FSIM_SHARED_OBJS) $(VERILATED_OBJS) \
             $(VVTASHELL_ARCHIVE) $(OBJ_LIB_TVM) | build/
-	$(CC) $(VERILATED_CFLAGS) -DVL_USER_FINISH $(VERILATOR_INCLUDES) \
+	$(CXX) $(VERILATED_CFLAGS) -DVL_USER_FINISH $(VERILATOR_INCLUDES) \
 	  $(addprefix $(VERILATED_OBJ_DIR)/,$(FSIM_ENTRY_OBJS)) \
 	  $(FSIM_SHARED_OBJS) $(VERILATED_OBJS) $(VVTASHELL_ARCHIVE) \
 	  $(VERILATED_RUNTIME_SRCS) $(OBJ_LIB_TVM) \
-	  -lz -lpthread -o $@
+	  $(CONDA_LIBS) -lz -lpthread -o $@
 
 # ==============================================================================
 # COMPILE - FUNCTIONAL SIMULATOR  (build/%.o)
 # ==============================================================================
 
 build/%.o: src/%.cc $(VTA_CONFIG_H) | build/
-	$(CC) $(CFLAGS) $(FORCE_INCLUDE) $(DEBUGFLAG) -c $< -o $@
+	$(CXX) $(CFLAGS) $(FORCE_INCLUDE) $(DEBUGFLAG) -c $< -o $@
 
 # ==============================================================================
 # COMPILE - VERILATED OBJECTS  (build/verilated/%.o)
@@ -299,21 +315,21 @@ build/%.o: src/%.cc $(VTA_CONFIG_H) | build/
 
 # src/sim_driver.cc and src/fsim_*.cc compiled against the Verilated model
 $(VERILATED_OBJ_DIR)/%.o: src/%.cc $(VTA_CONFIG_H) | $(VERILATED_OBJ_DIR)/ $(VVTASHELL_ARCHIVE)
-	$(CC) $(VERILATED_CFLAGS) $(FORCE_INCLUDE) $(DEBUGFLAG) \
+	$(CXX) $(VERILATED_CFLAGS) $(FORCE_INCLUDE) $(DEBUGFLAG) \
 	  -DVERILATOR_BUILD_ENABLED $(VTA_VERIF_DEBUG_FLAG) \
 	  -I$(VERILATOR_INC) -I$(VERILATED_OBJ_DIR)/VVTAShell \
 	  -c $< -o $@
 
 # DPI glue - no DEBUGFLAG, tightly coupled to Verilator internals
 $(VERILATED_OBJ_DIR)/dpi/%.o: src/dpi/%.cc $(VTA_CONFIG_H) | $(VERILATED_OBJ_DIR)/dpi/ $(VVTASHELL_ARCHIVE)
-	$(CC) $(VERILATED_CFLAGS) $(FORCE_INCLUDE) \
+	$(CXX) $(VERILATED_CFLAGS) $(FORCE_INCLUDE) \
 	  -DVERILATOR_BUILD_ENABLED -DVL_USER_FINISH \
 	  $(VERILATOR_INCLUDES) -c $< -o $@
 
 # Verilated device clock loop - also carries the trace-format define
 $(VERILATED_OBJ_DIR)/verilated_device.o: src/verilated_device.cc $(VTA_CONFIG_H) \
     | $(VERILATED_OBJ_DIR)/ $(VVTASHELL_ARCHIVE)
-	$(CC) $(VERILATED_CFLAGS) $(FORCE_INCLUDE) \
+	$(CXX) $(VERILATED_CFLAGS) $(FORCE_INCLUDE) \
 	  -DVERILATOR_BUILD_ENABLED -DVL_USER_FINISH $(TRACE_DEFINE) \
 	  $(VERILATOR_INCLUDES) -c $< -o $@
 
@@ -322,7 +338,7 @@ $(VERILATED_OBJ_DIR)/verilated_device.o: src/verilated_device.cc $(VTA_CONFIG_H)
 # ==============================================================================
 
 build/others/%.o: external_lib/tvm/%.cc $(VTA_CONFIG_H) | build/others/
-	$(CC) $(CFLAGS) $(FORCE_INCLUDE) -c $< -o $@
+	$(CXX) $(CFLAGS) $(FORCE_INCLUDE) -c $< -o $@
 
 lib_tvm: $(OBJ_LIB_TVM)
 

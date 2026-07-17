@@ -17,6 +17,12 @@ openjdk = "17.*"
 verilator = "==5.046"
 
 # --- System Tools and Hardware Compilation Toolchain ---
+# C/C++ toolchain for the functional simulator and the verilated model. Verilator
+# already pulls a compiler in transitively and compiles its archive with it; declaring
+# it here pins that same toolchain for our own objects too, so a single compiler builds
+# the whole binary and the build no longer depends on whatever g++ the host happens to
+# ship. The activation sets CC/CXX, which the functional_simulator Makefile honours.
+cxx-compiler = "*"
 make = "*"
 gawk = "*"   # Ensure we have GNU Awk for Vivado and scripts
 curl = "*"   # Required by Mill to download its jars
@@ -49,4 +55,3 @@ torchao = "==0.17.*"
 
 [pypi-options]
 extra-index-urls = ["https://pypi.ngc.nvidia.com"]
-
