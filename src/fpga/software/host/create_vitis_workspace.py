@@ -37,9 +37,13 @@ Data loaders (--data-loader, not applicable to test_gemm / sd_loader_test)
   tcl  - static model data loaded via XSDB load_nn_static.tcl before the ELF starts
   elf  - static model data embedded in the ELF via .incbin; FSBL loads it
 
-Generated files copied for both data loaders (produced by gen_nn_baremetal.py)
+Generated files copied for every non-standalone app (produced by gen_nn_baremetal.py)
   vta_hw_config.h   - C++ type aliases (vta_inp_t, vta_out_t, ...) derived from the
-                      hardware config; required by vta_cpu_ops.cc at compile time
+                      hardware config; required by vta_cpu_ops.cc at compile time.
+                      Copied unconditionally (test_gemm needs it too, despite
+                      having no data-loader).
+
+Generated files copied for both data loaders
   nn_ddr_map.h      - LayerDesc array with per-layer DDR addresses
   nn_exec_plan.h    - typed execution step array (VTA + CPU ops)
   nn_debug_map.h    - (run_nn_debug only) DebugLayerDesc array with per-layer golden
@@ -131,21 +135,21 @@ RUNNER_DEFINES: dict[str, list[str]] = {
 
 # Generated config files required by each data-loader
 # (placed in config/, must exist before this script runs)
+# vta_hw_config.h is NOT listed here: it is required by every non-standalone
+# app regardless of data-loader (see collect_sources), so it is copied
+# unconditionally instead of being duplicated across these lists.
 DATA_LOADER_GENERATED: dict[str, list[str]] = {
     "tcl": [
-        "vta_hw_config.h",  # type aliases (vta_inp_t etc.) used by vta_cpu_ops.cc
         "nn_ddr_map.h",
         "nn_exec_plan.h",
     ],
     "elf": [
-        "vta_hw_config.h",  # type aliases (vta_inp_t etc.) used by vta_cpu_ops.cc
         "nn_ddr_map.h",
         "nn_exec_plan.h",
         "nn_bin_data.S",
         "nn_vta_sections.ld",
     ],
     "sd": [
-        "vta_hw_config.h",  # type aliases (vta_inp_t etc.) used by vta_cpu_ops.cc
         "nn_ddr_map.h",
         "nn_exec_plan.h",
         "nn_sd_manifest.h",  # file -> DDR map read by driver/src/vta_sd.cc
@@ -198,6 +202,11 @@ def collect_sources(runner: str, data_loader: str | None) -> dict[Path, Path]:
 
     for extra in RUNNER_EXTRAS[runner]:
         files[Path(extra.name)] = extra
+
+    if runner not in STANDALONE_RUNNERS:
+        # Required by vta_cpu_ops.cc (and hence every VTA-driver app) at
+        # compile time, independent of runner or data-loader selection.
+        files[Path("vta_hw_config.h")] = CONFIG_DIR / "vta_hw_config.h"
 
     if data_loader is not None:
         for fname in DATA_LOADER_GENERATED[data_loader]:
