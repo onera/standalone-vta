@@ -53,6 +53,7 @@ object TestBenchLayout {
       ((size + 7) / 8).toInt
     }
   }
+
   // Standard compiler binary for a region, used only to page-align the size of
   // the globally last region (see .loadLayerRegions).
   private def lastBinFor(
@@ -63,9 +64,10 @@ object TestBenchLayout {
         case "INSN" => Some(s"$compilerOutDir/instructions$layer.bin")
         case "UOP"  => Some(s"$compilerOutDir/uop$layer.bin")
         case "WGT"  => Some(s"$compilerOutDir/weight$layer.bin")
-        case "ACC"  => Some(s"$compilerOutDir/accumulator$layer.bin")
-        case "INP"  => Some(s"$compilerOutDir/input$layer.bin")
-        case _      => None // OUT has no backing bin
+        // Block-tiled sibling: that is what actually occupies the ACC region.
+        case "ACC" => Some(s"$compilerOutDir/accumulator${layer}_block.bin")
+        case "INP" => Some(s"$compilerOutDir/input$layer.bin")
+        case _     => None // OUT has no backing bin
       }
 
   private def fileFor(
@@ -80,10 +82,15 @@ object TestBenchLayout {
       case "UOP"  => Some(s"$compilerOutDir/uop$layer.bin")
       // For int32/ALU layers (e.g. MaxPool: an ACC region but no INP) the layer's
       // INPUT lives in ACC, not a static bias - load it from the fsim/vsim dump
-      // (input$layer.bin) too. Conv layers keep ACC = the compiler's bias.
+      // (input$layer.bin) too. Conv layers keep ACC = the compiler's bias, in its
+      // block-tiled form: `accumulator$layer.bin` is the LOGICAL matrix (channel
+      // count, e.g. 6 lanes) while the hardware ACC buffer is block-wide, so the
+      // raw file would be read at the wrong stride. The compiler ships the
+      // block-tiled sibling for exactly this (see data_definition/
+      // accumulator_blocks.py); the baremetal codegen .incbin's the same file.
       case "ACC" =>
         if (accFromDump) Some(s"$inpDir/input$layer.bin")
-        else Some(s"$compilerOutDir/accumulator$layer.bin")
+        else Some(s"$compilerOutDir/accumulator${layer}_block.bin")
       // The compiler's per-op input$layer.bin is a placeholder (all zeros) - the
       // real input only exists at runtime (im2row / previous layer's output).
       // Load the actual GEMM-ready, block-tiled input that fsim/vsim dumps with
