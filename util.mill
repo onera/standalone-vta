@@ -418,4 +418,136 @@ trait ExampleModule extends Cross.Module2[String, String] {
     )
     PathRef(workspace)
   }
+
+  /** End-to-end post-synthesis gate-level check for this example on the active
+    * board (-Dvta.board.name): compile the model, dump the per-layer fsim
+    * goldens, emit the debug-xilinx shell + post-synth TB, OOC-synth the
+    * netlist, run xsim behavioral + netlist, and strb-compare the netlist OUT
+    * to the golden. All artifacts land under this task's dest.
+    *
+    * Requires Vivado + xsim on PATH; slow. A convenience wrapper over the raw
+    * vta.fpga.oocNetlist / runXsim / compareOut tasks.
+    *
+    * @param args
+    *   the layer subset, comma-separated, e.g.
+    *   `QLinearConv1,MaxPool2,QLinearConv3`.
+    */
+  def postSynth(args: Args) = Task.Command {
+    val root = BuildCtx.workspaceRoot
+    val layers = args.value.headOption.getOrElse(
+      sys.error("pass the layer subset, e.g. QLinearConv1,MaxPool2")
+    )
+    val compOut = compile().path
+    val simOut = Task.dest / "sim"
+    val runDir = Task.dest / "postsynth"
+    val shellDir = Task.dest / "vta-debug-xilinx-shell"
+    val tbDir = Task.dest / "vta-postsynth-tb"
+
+    // fsim per-layer dumps into simOut (input/output<layer>.bin).
+    val fsim = build.vta.simulator(configKey).fsimBinary().path
+    build.vta
+      .simulator(configKey)
+      .launchSim(
+        fsim,
+        Seq(
+          "--comp-dir",
+          compOut.toString,
+          "--output",
+          simOut.toString,
+          "--dump-layers"
+        ),
+        root,
+        Task.env
+      )
+
+    // Emit the board-faithful shell and the post-synth TB (hardware runner,
+    // config pinned via forkArgs like runGenNnBaremetal does).
+    val hwRunner = build.vta.hardware.runner()
+    val hwForkArgs = Seq(s"-Dvta.config.file=$configKey.json")
+    hwRunner.run(
+      args = Seq(shellDir.toString),
+      mainClass = "vta.exporters.DebugXilinxConfigEmitter",
+      forkArgs = hwForkArgs,
+      workingDir = root
+    )
+    hwRunner.run(
+      args =
+        Seq(tbDir.toString, s"--compilerOutDir=$compOut", s"--layers=$layers"),
+      mainClass = "vta.exporters.DefaultPynqConfigTbEmitter",
+      forkArgs = hwForkArgs,
+      workingDir = root
+    )
+
+    // OOC-synth the netlist of VTAXilinxShell, then xsim + compare. propagateEnv
+    // so Vivado/xsim see XILINX_* / DISPLAY.
+    val fpgaRunner = build.vta.fpga.runner()
+    val oocDir = runDir / "ooc-netlist"
+    fpgaRunner.run(
+      args = Seq(
+        "--board",
+        fpgaBoard,
+        "--sv-dir",
+        shellDir.toString,
+        "--top",
+        "VTAXilinxShell",
+        "--out",
+        oocDir.toString,
+        "--vivado",
+        build.vta.fpga.vivado()
+      ),
+      mainClass = "fpga.synthesis.OocNetlist",
+      workingDir = root,
+      propagateEnv = true
+    )
+
+    val nLayers = layers.split(",").count(_.trim.nonEmpty)
+    val funcsim = oocDir / "VTAXilinxShell_funcsim.v"
+    fpgaRunner.run(
+      args = Seq(
+        "--behavioral",
+        "--tb",
+        tbDir.toString,
+        "--out",
+        (runDir / "xsim-behav").toString,
+        "--layers",
+        nLayers.toString
+      ),
+      mainClass = "fpga.synthesis.RunXsim",
+      workingDir = root,
+      propagateEnv = true
+    )
+    fpgaRunner.run(
+      args = Seq(
+        "--netlist",
+        funcsim.toString,
+        "--tb",
+        tbDir.toString,
+        "--out",
+        (runDir / "xsim-net").toString,
+        "--layers",
+        nLayers.toString
+      ),
+      mainClass = "fpga.synthesis.RunXsim",
+      workingDir = root,
+      propagateEnv = true
+    )
+
+    // Strb-aware compare of the gate-level leg vs the golden.
+    fpgaRunner.run(
+      args = Seq(
+        "--writes",
+        (runDir / "xsim-net" / "writes.log").toString,
+        "--layers",
+        layers,
+        "--compiler-out",
+        compOut.toString,
+        "--golden-dir",
+        simOut.toString
+      ),
+      mainClass = "fpga.synthesis.CompareOut",
+      workingDir = root
+    )
+    println(s"[INFO] postSynth done -> $runDir")
+    PathRef(runDir)
+  }
 }
