@@ -67,4 +67,8 @@ class RunXsimDryRunTest extends AnyFlatSpec with Matchers {
       c.startsWith("xelab") && c.contains("unisims_ver")
     ) shouldBe true
   }
+
+  "RunXsim.run with no --behavioral/--netlist" should "error and return 1" in {
+    RunXsim.run(Array("--out", os.temp.dir().toString)) shouldBe 1
+  }
 }

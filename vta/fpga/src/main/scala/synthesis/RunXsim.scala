@@ -62,7 +62,121 @@ object RunXsim {
       math.ceil(math.log(math.max(layers, 2).toDouble) / math.log(2.0)).toInt
     )
 
-  /** Build the plan without running anything. */
+  /** Resolve the TB emit dir: --tb if given, else
+    * $VTA_ROOT/build/emitted/vta-postsynth-tb (repo root defaults to cwd).
+    */
+  private def resolveTb(
+    tbOpt: Option[String],
+    env: Map[String, String]
+  ): os.Path = {
+    val repoRoot = env.get("VTA_ROOT").map(os.Path(_)).getOrElse(os.pwd)
+    os.Path(
+      tbOpt.getOrElse(
+        (repoRoot / "build" / "emitted" / "vta-postsynth-tb").toString
+      ),
+      os.pwd
+    )
+  }
+
+  /** The fixed TB wrapper files + sorted memory_*.sv, for the netlist leg
+    * (which must NOT pull in the behavioral VTAShell.sv the netlist replaces).
+    */
+  private def tbFiles(tb: os.Path): Seq[String] = {
+    val fixed =
+      Seq("VTAPostSynthTb.sv", "VtaHostDriver.sv", "MultiMemAxiClient.sv")
+        .map(f => (tb / f).toString)
+    val mems = os
+      .list(tb)
+      .filter(p => p.last.startsWith("memory_") && p.ext == "sv")
+      .map(_.toString)
+      .sorted
+    fixed ++ mems
+  }
+
+  /** Every emitted .sv in the TB dir, for the behavioral leg. */
+  private def allTbSv(tb: os.Path): Seq[String] =
+    os.list(tb).filter(_.ext == "sv").map(_.toString).sorted
+
+  private def dbgFlags(wave: Boolean): Seq[String] =
+    Seq("-debug", if (wave) "all" else "typical")
+
+  private def glblPath(env: Map[String, String]): String =
+    env
+      .get("XILINX_VIVADO")
+      .map(v => s"$v/data/verilog/src/glbl.v")
+      .getOrElse("glbl.v")
+
+  /** xvlog(all emitted SV) + xelab(sim_top), in that order. */
+  private def behavioralCmds(
+    xvlog: String,
+    xelab: String,
+    bits: Int,
+    simTop: String,
+    tb: os.Path,
+    wave: Boolean
+  ): Seq[Seq[String]] = {
+    val xvlogCmd =
+      Seq(
+        xvlog,
+        "-d",
+        "ENABLE_INITIAL_MEM_",
+        "-d",
+        s"LAYERIDX_W=$bits",
+        "-sv",
+        simTop
+      ) ++
+        allTbSv(tb)
+    val xelabCmd =
+      Seq(xelab, "sim_top") ++ dbgFlags(wave) ++
+        Seq("-s", "snap", "--timescale", "1ns/1ps")
+    Seq(xvlogCmd, xelabCmd)
+  }
+
+  /** xvlog(tb wrapper) + xvlog(netlist + glbl) + xelab(sim_top glbl, unisims),
+    * in that order.
+    */
+  private def netlistCmds(
+    xvlog: String,
+    xelab: String,
+    bits: Int,
+    simTop: String,
+    tb: os.Path,
+    netlist: String,
+    glbl: String,
+    wave: Boolean
+  ): Seq[Seq[String]] = {
+    val xvlogTbCmd =
+      Seq(
+        xvlog,
+        "-d",
+        "ENABLE_INITIAL_MEM_",
+        "-d",
+        s"LAYERIDX_W=$bits",
+        "-sv",
+        simTop
+      ) ++
+        tbFiles(tb)
+    val xvlogNlCmd = Seq(xvlog, netlist, glbl)
+    val xelabCmd =
+      Seq(xelab, "sim_top", "glbl") ++ dbgFlags(wave) ++
+        Seq(
+          "-L",
+          "unisims_ver",
+          "-L",
+          "secureip",
+          "-s",
+          "snap",
+          "--timescale",
+          "1ns/1ps"
+        )
+    Seq(xvlogTbCmd, xvlogNlCmd, xelabCmd)
+  }
+
+  /** Build the plan without running anything. Shares the exact command builders
+    * `run` executes, so --dry-run prints exactly what would run (this requires
+    * the tb dir to exist, since the file lists are real `os.list` results, not
+    * placeholders).
+    */
   def planFor(argv: Array[String]): Plan = {
     val o =
       OParser.parse(argParser, argv, Opts()).getOrElse(sys.error("bad args"))
@@ -71,29 +185,23 @@ object RunXsim {
     val xvlog = Vivado.tool(env, "xvlog")
     val xelab = Vivado.tool(env, "xelab")
     val bits = idxWidth(o.layers)
-    val tb = os.Path(
-      o.tb.getOrElse {
-        val repoRoot = env.get("VTA_ROOT").map(os.Path(_)).getOrElse(os.pwd)
-        (repoRoot / "build" / "emitted" / "vta-postsynth-tb").toString
-      },
-      os.pwd
-    )
+    val tb = resolveTb(o.tb, env)
     val simTop = Vivado.extractResource("synthesis/sim_top.sv", "-sim_top.sv")
-    val dbg = if (o.wave) "-debug all" else "-debug typical"
-    val cmds = scala.collection.mutable.ArrayBuffer[String]()
-    if (o.mode == "behavioral") {
-      cmds += s"$xvlog -d ENABLE_INITIAL_MEM_ -d LAYERIDX_W=$bits -sv $simTop ${tb}/*.sv"
-      cmds += s"$xelab sim_top $dbg -s snap --timescale 1ns/1ps"
-    } else {
-      val glbl = env
-        .get("XILINX_VIVADO")
-        .map(v => s"$v/data/verilog/src/glbl.v")
-        .getOrElse("glbl.v")
-      cmds += s"$xvlog -d ENABLE_INITIAL_MEM_ -d LAYERIDX_W=$bits -sv $simTop <tb-files>"
-      cmds += s"$xvlog ${o.netlist} $glbl"
-      cmds += s"$xelab sim_top glbl $dbg -L unisims_ver -L secureip -s snap --timescale 1ns/1ps"
-    }
-    Plan(o.mode, bits, cmds.toSeq)
+    val cmds: Seq[Seq[String]] =
+      if (o.mode == "behavioral")
+        behavioralCmds(xvlog, xelab, bits, simTop, tb, o.wave)
+      else
+        netlistCmds(
+          xvlog,
+          xelab,
+          bits,
+          simTop,
+          tb,
+          o.netlist,
+          glblPath(env),
+          o.wave
+        )
+    Plan(o.mode, bits, cmds.map(_.mkString(" ")))
   }
 
   def run(argv: Array[String]): Int = {
@@ -112,17 +220,11 @@ object RunXsim {
       )
       return 1
     }
-    val repoRoot = env.get("VTA_ROOT").map(os.Path(_)).getOrElse(os.pwd)
     val xvlog = Vivado.tool(env, "xvlog")
     val xelab = Vivado.tool(env, "xelab")
     val xsim = Vivado.tool(env, "xsim")
 
-    val tb = os.Path(
-      o.tb.getOrElse(
-        (repoRoot / "build" / "emitted" / "vta-postsynth-tb").toString
-      ),
-      os.pwd
-    )
+    val tb = resolveTb(o.tb, env)
     if (!o.dryRun) {
       if (!os.exists(tb)) {
         System.err.println(s"ERROR: TB emit dir not found: $tb"); return 1
@@ -134,7 +236,6 @@ object RunXsim {
     val out = os.Path(o.out.get, os.pwd)
     val bits = idxWidth(o.layers)
     val simTop = Vivado.extractResource("synthesis/sim_top.sv", "-sim_top.sv")
-    val dbg = if (o.wave) "-debug all" else "-debug typical"
 
     if (o.dryRun) {
       planFor(argv).commands.foreach(c => println(s"[dry-run] $c")); return 0
@@ -152,65 +253,35 @@ object RunXsim {
       return 1
     }
 
-    val tbFiles: Seq[String] = {
-      val fixed =
-        Seq("VTAPostSynthTb.sv", "VtaHostDriver.sv", "MultiMemAxiClient.sv")
-          .map(f => (tb / f).toString)
-      val mems = os
-        .list(tb)
-        .filter(p => p.last.startsWith("memory_") && p.ext == "sv")
-        .map(_.toString)
-      fixed ++ mems.sorted
-    }
-
     val snapReady = os.exists(out / "xsim.dir" / "snap")
     if (o.reuseElab && snapReady) {
       println(
         "[runXsim] --reuse-elab: skipping xvlog+xelab, running the cached snapshot"
       )
     } else if (o.mode == "behavioral") {
+      val cmds = behavioralCmds(xvlog, xelab, bits, simTop, tb, o.wave)
       Vivado.runCmd(
-        Seq(
-          xvlog,
-          "-d",
-          "ENABLE_INITIAL_MEM_",
-          "-d",
-          s"LAYERIDX_W=$bits",
-          "-sv",
-          simTop
-        )
-          ++ os.list(tb).filter(_.ext == "sv").map(_.toString).sorted,
+        cmds(0),
         cwd = out,
         dryRun = false,
         stage = "xvlog (behavioral)"
       )
-      Vivado.runCmd(
-        Seq(xelab, "sim_top") ++ dbg
-          .split(" ") ++ Seq("-s", "snap", "--timescale", "1ns/1ps"),
-        cwd = out,
-        dryRun = false,
-        stage = "xelab"
-      )
+      Vivado.runCmd(cmds(1), cwd = out, dryRun = false, stage = "xelab")
     } else {
       val netlist = os.Path(o.netlist, os.pwd)
-      val glbl = env
-        .get("XILINX_VIVADO")
-        .map(v => s"$v/data/verilog/src/glbl.v")
-        .getOrElse("glbl.v")
-      Vivado.runCmd(
-        Seq(
+      val glbl = glblPath(env)
+      val cmds =
+        netlistCmds(
           xvlog,
-          "-d",
-          "ENABLE_INITIAL_MEM_",
-          "-d",
-          s"LAYERIDX_W=$bits",
-          "-sv",
-          simTop
-        ) ++ tbFiles,
-        cwd = out,
-        dryRun = false,
-        stage = "xvlog (tb)"
-      )
+          xelab,
+          bits,
+          simTop,
+          tb,
+          netlist.toString,
+          glbl,
+          o.wave
+        )
+      Vivado.runCmd(cmds(0), cwd = out, dryRun = false, stage = "xvlog (tb)")
       val stamp = s"$netlist ${os.mtime(netlist)}"
       val stampFile = out / ".nlxvlog.stamp"
       val cached =
@@ -223,25 +294,18 @@ object RunXsim {
         )
       else {
         Vivado.runCmd(
-          Seq(xvlog, netlist.toString, glbl),
+          cmds(1),
           cwd = out,
           dryRun = false,
           stage = "xvlog (netlist)"
         )
+        // os.mtime is millisecond-resolution; a stamp written by the old shell
+        // script (which used `stat -c %Y`, seconds) will mismatch once here and
+        // re-parse the netlist a single extra time against a pre-existing --out.
         os.write.over(stampFile, stamp)
       }
       Vivado.runCmd(
-        Seq(xelab, "sim_top", "glbl") ++ dbg.split(" ")
-          ++ Seq(
-            "-L",
-            "unisims_ver",
-            "-L",
-            "secureip",
-            "-s",
-            "snap",
-            "--timescale",
-            "1ns/1ps"
-          ),
+        cmds(2),
         cwd = out,
         dryRun = false,
         stage = "xelab (netlist)"
@@ -262,6 +326,9 @@ object RunXsim {
          |""".stripMargin
     os.write.over(out / "wave.tcl", waveTcl)
 
+    // Unlike the shell's `set -e | tee` (which can exit before writing sim.log on a
+    // SIGPIPE/early failure), this always writes sim.log and prints the SIM_TOP
+    // verdict before returning res.exitCode, for better failure diagnostics.
     val simLog = new StringBuffer
     val res = os
       .proc(
@@ -278,12 +345,13 @@ object RunXsim {
       )
       .call(
         cwd = out,
+        env = Vivado.xilinxEnv(xsim),
         check = false,
         stdout = os.ProcessOutput.Readlines { l =>
-          println(l); simLog.append(l).append('\n')
+          println(l); simLog.append(l + "\n")
         },
         stderr = os.ProcessOutput.Readlines { l =>
-          System.err.println(l); simLog.append(l).append('\n')
+          System.err.println(l); simLog.append(l + "\n")
         }
       )
     os.write.over(out / "sim.log", simLog.toString)
