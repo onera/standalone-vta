@@ -539,21 +539,59 @@ trait ExampleModule extends Cross.Module2[String, String] {
       propagateEnv = true
     )
 
-    // Strb-aware compare of the gate-level leg vs the golden.
-    fpgaRunner.run(
-      args = Seq(
-        "--writes",
-        (runDir / "xsim-net" / "writes.log").toString,
-        "--layers",
-        layers,
-        "--compiler-out",
-        compOut.toString,
-        "--golden-dir",
-        simOut.toString
-      ),
-      mainClass = "fpga.synthesis.CompareOut",
-      workingDir = root
-    )
+    // The flow's primary verdict: identical write streams from the two legs mean
+    // the gate-level netlist computes exactly what the behavioral RTL does, so a
+    // later OUT-vs-golden failure cannot be a synthesis problem.
+    val behavWrites = runDir / "xsim-behav" / "writes.log"
+    val netWrites = runDir / "xsim-net" / "writes.log"
+    val gatesMatchRtl = os.exists(behavWrites) && os.exists(netWrites) &&
+      java.util.Arrays
+        .equals(os.read.bytes(behavWrites), os.read.bytes(netWrites))
+    if (gatesMatchRtl)
+      println(
+        "[postSynth] gates == RTL: behavioral and netlist writes.log are byte-identical"
+      )
+    else
+      println(
+        "[postSynth] WARNING: behavioral and netlist writes.log DIFFER - " +
+          "suspect a synthesis-level divergence"
+      )
+
+    // Strb-aware compare of the gate-level leg vs the golden. A non-zero exit
+    // means the OUT diverged; report that legibly (with the gates-vs-RTL verdict
+    // that says whether synthesis is implicated) instead of letting Mill surface
+    // a bare "Subprocess failed" stack trace. Still fails the task.
+    try
+      fpgaRunner.run(
+        args = Seq(
+          "--writes",
+          netWrites.toString,
+          "--layers",
+          layers,
+          "--compiler-out",
+          compOut.toString,
+          "--golden-dir",
+          simOut.toString
+        ),
+        mainClass = "fpga.synthesis.CompareOut",
+        workingDir = root
+      )
+    catch {
+      case _: Exception =>
+        val diagnosis =
+          if (gatesMatchRtl)
+            "the two xsim legs are byte-identical, so this is an RTL-vs-fsim-golden " +
+              "divergence, NOT a synthesis problem"
+          else
+            "the two xsim legs also differ, so synthesis is implicated"
+        sys.error(
+          s"""post-synth OUT compare found mismatches (per-layer verdicts above); $diagnosis.
+             |  netlist writes : $netWrites
+             |  behavioral     : $behavWrites
+             |  fsim goldens   : $simOut
+             |  artifacts      : $runDir""".stripMargin
+        )
+    }
     println(s"[INFO] postSynth done -> $runDir")
     PathRef(runDir)
   }
