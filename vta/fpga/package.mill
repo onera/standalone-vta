@@ -128,6 +128,56 @@ object `package` extends MyModule { m =>
     )
   }
 
+  /** OOC-synthesize an emitted shell to a gate-level netlist for post-synth
+    * sim.
+    *
+    * @param args
+    *   OocNetlist flags: `--board zcu104`, `--sv-dir <dir>`, `--top
+    *   VTAXilinxShell`, `--out <dir>`, `--mode synth|impl`, `--jobs N`,
+    *   `--dry-run`.
+    */
+  def oocNetlist(args: Args) = Task.Command {
+    runner().run(
+      args = args.value ++ Seq("--vivado", vivado()),
+      mainClass = "fpga.synthesis.OocNetlist",
+      workingDir = BuildCtx.workspaceRoot,
+      propagateEnv = true
+    )
+    println("[INFO] oocNetlist done")
+  }
+
+  /** Compile + run VTAPostSynthTb under xsim (behavioral control or
+    * gate-level).
+    *
+    * @param args
+    *   RunXsim flags: `--behavioral` | `--netlist <funcsim.v>`, `--tb <dir>`,
+    *   `--out <dir>`, `--layers N`, `--reuse-elab`, `--wave`, `--dry-run`.
+    */
+  def runXsim(args: Args) = Task.Command {
+    runner().run(
+      args = args.value,
+      mainClass = "fpga.synthesis.RunXsim",
+      workingDir = BuildCtx.workspaceRoot,
+      propagateEnv = true
+    )
+    println("[INFO] runXsim done")
+  }
+
+  /** Strb-aware compare of an xsim post-synth run's OUT writes vs the fsim
+    * golden.
+    *
+    * @param args
+    *   CompareOut flags: `--writes <writes.log>`, `--layers A,B,C`,
+    *   `--compiler-out <dir>`, `--golden-dir <dir>`, `--relo-stride 0x200000`.
+    */
+  def compareOut(args: Args) = Task.Command {
+    runner().run(
+      args = args.value,
+      mainClass = "fpga.synthesis.CompareOut",
+      workingDir = BuildCtx.workspaceRoot
+    )
+  }
+
   /** Print the 32-bit additive checksum of a file, to compare against what the
     * board's sd_loader_test app prints over UART.
     *
