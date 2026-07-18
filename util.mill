@@ -470,9 +470,16 @@ trait ExampleModule extends Cross.Module2[String, String] {
       forkArgs = hwForkArgs,
       workingDir = root
     )
+    // simOutDir is where the TB reads the per-layer input<layer>.bin dumps the
+    // fsim run above just wrote; without it the emitter falls back to a stale
+    // relative default and cannot find them.
     hwRunner.run(
-      args =
-        Seq(tbDir.toString, s"--compilerOutDir=$compOut", s"--layers=$layers"),
+      args = Seq(
+        tbDir.toString,
+        s"--compilerOutDir=$compOut",
+        s"--simOutDir=$simOut",
+        s"--layers=$layers"
+      ),
       mainClass = "vta.exporters.DefaultPynqConfigTbEmitter",
       forkArgs = hwForkArgs,
       workingDir = root

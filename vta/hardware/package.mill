@@ -221,8 +221,10 @@ object `package` extends build.MyModule with PublishModule { m =>
     *
     * Reads a compiler_output dir and writes the TB to
     * build/emitted/vta-postsynth-tb/ by default. Tune it with the JVM
-    * properties -Dvta.compilerOutDir, -Dvta.layers, -Dvta.reloStride and
-    * -Dvta.perLayerTimeout, which are forwarded to the emitter.
+    * properties -Dvta.compilerOutDir, -Dvta.simOutDir, -Dvta.layers,
+    * -Dvta.reloStride and -Dvta.perLayerTimeout, which are forwarded to the
+    * emitter. -Dvta.simOutDir must point at the fsim `--dump-layers` output
+    * (the per-layer input<layer>.bin the TB bakes into its .mem files).
     *
     * @param args
     *   optional absolute destination dir.
@@ -237,9 +239,13 @@ object `package` extends build.MyModule with PublishModule { m =>
     // Forward the optional emit knobs from the Mill JVM's -D props as program
     // args, so they reach the forked run JVM regardless of -D propagation.
     val forwarded =
-      Seq("compilerOutDir", "layers", "reloStride", "perLayerTimeout").flatMap(
-        k => sys.props.get(s"vta.$k").map(v => s"--$k=$v")
-      )
+      Seq(
+        "compilerOutDir",
+        "simOutDir",
+        "layers",
+        "reloStride",
+        "perLayerTimeout"
+      ).flatMap(k => sys.props.get(s"vta.$k").map(v => s"--$k=$v"))
 
     runner().run(
       args = Seq(outDir.toString) ++ forwarded,
