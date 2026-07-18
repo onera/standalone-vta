@@ -485,114 +485,33 @@ trait ExampleModule extends Cross.Module2[String, String] {
       workingDir = root
     )
 
-    // OOC-synth the netlist of VTAXilinxShell, then xsim + compare. propagateEnv
-    // so Vivado/xsim see XILINX_* / DISPLAY.
-    val fpgaRunner = build.vta.fpga.runner()
-    val oocDir = runDir / "ooc-netlist"
-    fpgaRunner.run(
-      args = Seq(
-        "--board",
-        fpgaBoard,
-        "--sv-dir",
-        shellDir.toString,
-        "--top",
-        "VTAXilinxShell",
-        "--out",
-        oocDir.toString,
-        "--vivado",
-        build.vta.fpga.vivado()
-      ),
-      mainClass = "fpga.synthesis.OocNetlist",
-      workingDir = root,
-      propagateEnv = true
-    )
-
-    val nLayers = layers.split(",").count(_.trim.nonEmpty)
-    val funcsim = oocDir / "VTAXilinxShell_funcsim.v"
-    fpgaRunner.run(
-      args = Seq(
-        "--behavioral",
-        "--tb",
-        tbDir.toString,
-        "--out",
-        (runDir / "xsim-behav").toString,
-        "--layers",
-        nLayers.toString
-      ),
-      mainClass = "fpga.synthesis.RunXsim",
-      workingDir = root,
-      propagateEnv = true
-    )
-    fpgaRunner.run(
-      args = Seq(
-        "--netlist",
-        funcsim.toString,
-        "--tb",
-        tbDir.toString,
-        "--out",
-        (runDir / "xsim-net").toString,
-        "--layers",
-        nLayers.toString
-      ),
-      mainClass = "fpga.synthesis.RunXsim",
-      workingDir = root,
-      propagateEnv = true
-    )
-
-    // The flow's primary verdict: identical write streams from the two legs mean
-    // the gate-level netlist computes exactly what the behavioral RTL does, so a
-    // later OUT-vs-golden failure cannot be a synthesis problem.
-    val behavWrites = runDir / "xsim-behav" / "writes.log"
-    val netWrites = runDir / "xsim-net" / "writes.log"
-    val gatesMatchRtl = os.exists(behavWrites) && os.exists(netWrites) &&
-      java.util.Arrays
-        .equals(os.read.bytes(behavWrites), os.read.bytes(netWrites))
-    if (gatesMatchRtl)
-      println(
-        "[postSynth] gates == RTL: behavioral and netlist writes.log are byte-identical"
-      )
-    else
-      println(
-        "[postSynth] WARNING: behavioral and netlist writes.log DIFFER - " +
-          "suspect a synthesis-level divergence"
-      )
-
-    // Strb-aware compare of the gate-level leg vs the golden. A non-zero exit
-    // means the OUT diverged; report that legibly (with the gates-vs-RTL verdict
-    // that says whether synthesis is implicated) instead of letting Mill surface
-    // a bare "Subprocess failed" stack trace. Still fails the task.
-    try
-      fpgaRunner.run(
+    // Hand the emitted inputs to the flow, which owns the stage sequencing and
+    // the verdicts (propagateEnv so Vivado/xsim see XILINX_* / DISPLAY).
+    build.vta.fpga
+      .runner()
+      .run(
         args = Seq(
-          "--writes",
-          netWrites.toString,
-          "--layers",
-          layers,
-          "--compiler-out",
+          "--board",
+          fpgaBoard,
+          "--shell-dir",
+          shellDir.toString,
+          "--tb",
+          tbDir.toString,
+          "--comp-dir",
           compOut.toString,
           "--golden-dir",
-          simOut.toString
+          simOut.toString,
+          "--out",
+          runDir.toString,
+          "--layers",
+          layers,
+          "--vivado",
+          build.vta.fpga.vivado()
         ),
-        mainClass = "fpga.synthesis.CompareOut",
-        workingDir = root
+        mainClass = "fpga.synthesis.PostSynthFlow",
+        workingDir = root,
+        propagateEnv = true
       )
-    catch {
-      case _: Exception =>
-        val diagnosis =
-          if (gatesMatchRtl)
-            "the two xsim legs are byte-identical, so this is an RTL-vs-fsim-golden " +
-              "divergence, NOT a synthesis problem"
-          else
-            "the two xsim legs also differ, so synthesis is implicated"
-        sys.error(
-          s"""post-synth OUT compare found mismatches (per-layer verdicts above); $diagnosis.
-             |  netlist writes : $netWrites
-             |  behavioral     : $behavWrites
-             |  fsim goldens   : $simOut
-             |  artifacts      : $runDir""".stripMargin
-        )
-    }
-    println(s"[INFO] postSynth done -> $runDir")
     PathRef(runDir)
   }
 }
