@@ -4,7 +4,7 @@
 //
 // Drives clock + reset, snoops the DUT's io_dbgW AXI write-channel bundle into writes.log
 // (one line "addr data strb last" per W beat - this is how OUT is captured for the
-// strb-aware compare_out.py), and ends the run on one of:
+// strb-aware CompareOut), and ends the run on one of:
 //   DONE    - io_done  : all layers reached FNSH (success)
 //   WEDGE   - io_error : the VtaHostDriver per-layer cycle watchdog fired (a layer did not
 //             finish within perLayerTimeout); tune it with -Dvta.perLayerTimeout at emit
@@ -13,7 +13,7 @@
 //   TIMEOUT - sim-time backstop (a last resort if the design neither finishes nor errors)
 //
 // The DUT (VTAPostSynthTb) is behavioral SV in both legs; only VTAShell is swapped for its
-// post-synth netlist (VTAShell_funcsim.v) by run_xsim.sh. io_dbgW already surfaces the OUT
+// post-synth netlist (VTAShell_funcsim.v) by RunXsim. io_dbgW already surfaces the OUT
 // writes from inside VTAShell, so no hierarchical snoop into the netlist is needed. A small
 // status set (compute state / done, VCR ctrl) is surfaced for liveness triage and printed
 // on WEDGE/TIMEOUT.
@@ -24,7 +24,7 @@
 //   `define RESET_CYCLES <n>   reset-high clocks         (default 20)
 //   `define CLK_HALF_NS  <n>   half clock period in ns   (default 5  = 100 MHz)
 //   `define LAYERIDX_W   <n>   width of io_layerIdx       (default 2  = up to 4 layers)
-//                              run_xsim.sh sets this exactly from the layer count.
+//                              RunXsim sets this exactly from the layer count.
 //*****************************************************************************************
 module sim_top;
 `ifndef CLK_HALF_NS
