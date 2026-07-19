@@ -19,9 +19,9 @@ The `standalone-vta` ecosystem is designed with a clear separation of concerns, 
 ```text
 +-----------------------+      +---------------------------+      +-------------------------------+
 |      Input Model      |      |   Standalone VTA Compiler |      |         VTA Simulators        |
-|  (ONNX or custom JSON)| ---> |       (src/compiler/)     | ---> |        (src/simulators/)      |
-|                       |      |  Parses, partitions, and  |      | Functional (C++) for fast val |
-|                       |      |  generates instructions.  |      | Cycle-Accurate (Chisel) for HW|
+|  (ONNX or custom JSON)| ---> |       (vta/compiler/)     | ---> |   Functional (C++) for fast   |
+|                       |      |  Parses, partitions, and  |      |   validation (vta/simulator)  |
+|                       |      |  generates instructions.  |      | Cycle-Accurate (vta/hardware) |
 +-----------------------+      +---------------------------+      +-------------------------------+
                                              |                                  ^
                                              v                                  |
@@ -34,23 +34,26 @@ The `standalone-vta` ecosystem is designed with a clear separation of concerns, 
                                 +-------------------------+
 ```
 
-1. **Compiler Phase**: The standalone Python compiler (`src/compiler`) reads a neural network representation (ONNX or a custom JSON VTA IR). It performs matrix partitioning, DRAM allocation, and generates VTA-specific instructions and micro-ops.
-2. **Artifact Generation**: The compiler outputs binary files (`.bin`) and memory initialization files (`.json`) into the `compiler_output/` directory.
-3. **Simulation Phase**: The simulators (`src/simulators`) read these artifacts to simulate the VTA execution, validating the compiler's output either functionally or cycle-accurately.
+1. **Compiler Phase**: The standalone Python compiler (`vta/compiler`) reads a neural network representation (ONNX or a custom JSON VTA IR). It performs matrix partitioning, DRAM allocation, and generates VTA-specific instructions and micro-ops.
+2. **Artifact Generation**: The compiler outputs binary files (`.bin`) and memory initialization files (`.json`) into the `compiler_output/` directory (or, when driven by Mill, into the task's own output directory under `out/`).
+3. **Simulation Phase**: The simulators (`vta/simulator` for the functional and Verilated/DPI backends, `vta/hardware` for the Chisel cycle-accurate one) read these artifacts to simulate the VTA execution, validating the compiler's output either functionally or cycle-accurately.
 
 ## Repository Map
 
-- `src/`: Core source code.
+- `vta/`: Core source code, one directory per module. Each has its own
+  `package.mill` and is addressable as a Mill module (`vta.compiler`,
+  `vta.simulator`, ...).
   - `compiler/`: Python-based VTA compiler (TVM-independent).
-  - `simulators/`: VTA Simulators.
-    - `functional_simulator/`: Fast C++ functional simulator (and the Verilated/DPI backend).
-    - `cycle_accurate_simulator/`: Detailed Chisel-based hardware simulator.
+  - `simulator/`: Fast C++ functional simulator (and the Verilated/DPI backend).
+  - `hardware/`: Chisel hardware sources - the cycle-accurate simulator, and the SystemVerilog emitted for the Verilated and FPGA flows.
   - `fpga/`: FPGA synthesis flow and the PS-side baremetal runtime software.
+- `build.mill`, `util.mill`: Root Mill build - the `examples` cross modules and the shared config plumbing.
 - `config/`: Contains `vta_config.json` defining the VTA hardware parameters, plus alternative configurations. See [Config Documentation](config/README.md).
 - `environment_setup/`: Legacy setup files (Docker/Conda). The project now uses Pixi for package and environment management.
 - `examples/`: Makefiles and sample networks to compile and simulate.
 - `tutorials/`: Jupyter notebooks detailing the compiler components.
-- `compiler_output/`, `simulators_output/`, `log_output/`: Default directories for generated artifacts, simulation results and run logs.
+- `out/`: Mill's output tree - each task writes into its own dest directory here.
+- `compiler_output/`, `simulators_output/`, `log_output/`: Default directories for generated artifacts, simulation results and run logs when driving the flow through the Makefiles rather than Mill.
 
 ## Documentation Index
 
@@ -64,8 +67,8 @@ Explore the detailed documentation for each component of the `standalone-vta` ec
 - **Compiler (`vta/compiler/`)**
   - [Standalone VTA Compiler](vta/compiler/vta_compiler/operations_definition/README.md)
 
-- **Simulators (`vta/simulators/`)**
-    - [Functional Simulator (C++)](vta/simulator/README.md)
+- **Simulator (`vta/simulator/`)**
+  - [Functional Simulator (C++)](vta/simulator/README.md)
 - **Hardware (`vta/hardware/`)**
   - [Hardware (Chisel)](vta/hardware/README.md)
   - [Simulator Test Documentation](vta/hardware/src/test/documentation/test_documentation.md)
