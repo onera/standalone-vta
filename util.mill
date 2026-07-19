@@ -69,7 +69,7 @@ trait BaseVtaModule extends Module {
     sys.props.getOrElse("vta.ddr.base", "0x0")
   }
 }
-trait MyModule extends BaseVtaModule with SbtModule with ScalafixModule {
+trait VtaScalaModule extends BaseVtaModule with SbtModule with ScalafixModule {
 
   def scalaVersion = "2.13.18"
 
@@ -139,37 +139,46 @@ def defaultBoardName = sys.props.getOrElse("vta.board.name", "zcu104")
   */
 def fpgaTargets = configNames.flatMap(c => boardNames.map(b => (c, b)))
 
-/** A single config's identity, derived directly from a Cross value instead of
-  * the global -Dvta.config.file property that BaseVtaModule reads. Mixed into
-  * the `configs` Cross submodule of vta.hardware/vta.simulator/ vta.fpga, so
-  * each config is an independently addressable, independently cached module
-  * instance (vta.simulator[vta_w8b].fsimBinary) - BaseVtaModule and the flat,
-  * global-prop-driven tasks it powers are left untouched for the Makefiles/CI
-  * that still call them directly.
+/** A config carried as an explicit value rather than read from the global
+  * -Dvta.config.file property that BaseVtaModule uses. Implementors supply
+  * `configKey` (in practice a Cross value); the path and the content signature
+  * follow from it.
+  *
+  * This is the axis the per-config caching hangs off: every module mixing this
+  * in is an independently addressable, independently cached instance
+  * (vta.simulator[vta_w8b].fsimBinary), whereas the ambient BaseVtaModule tasks
+  * all share one cache slot that thrashes when -Dvta.config.file changes.
   */
-trait ConfigCrossModule extends Cross.Module[String] {
-  def configKey: String = crossValue
-  def configPath: os.Path = build.configDirPath / s"$configKey.json"
+trait HasVtaConfig extends Module {
 
-  /** Content hash of this cross module's config JSON: depend on it to re-run
-    * when the config file is edited in place.
+  /** Config name without its ".json" suffix, such as vta_w8b. */
+  def configKey: String
+
+  /** Absolute path to this module's config JSON, under config/. */
+  def configPath: os.Path = configDirPath / s"$configKey.json"
+
+  /** Content hash of this module's config JSON: depend on it to re-run when the
+    * config file is edited in place.
     */
   def configSignature = Task { configSig(configPath) }
 }
-trait ExampleModule extends Cross.Module2[String, String] {
+
+/** A single config's identity, derived directly from a Cross value. Mixed into
+  * the `configs` Cross submodule of vta.hardware/vta.simulator/ vta.fpga -
+  * BaseVtaModule and the flat, global-prop-driven tasks it powers are left
+  * untouched for the Makefiles/CI that still call them directly.
+  */
+trait ConfigCrossModule extends Cross.Module[String] with HasVtaConfig {
+  def configKey: String = crossValue
+}
+trait ExampleModule extends Cross.Module2[String, String] with HasVtaConfig {
   // crossValue = model, crossValue2 = config key (e.g. "vta_w8b") - a
   // direct Cross value instead of BaseVtaModule's global -Dvta.config.file.
   def configKey: String = crossValue2
-  def configPath: os.Path = configDirPath / s"$configKey.json"
 
   // Board this example's FPGA tasks target. A plain def, not a Task: it indexes
   // the vta.fpga.targets Cross, whose keys must exist before the task graph.
   def fpgaBoard: String = defaultBoardName
-
-  /** Content hash of this example's config JSON: depend on it to re-run when
-    * the config file is edited in place.
-    */
-  def configSignature = Task { configSig(configPath) }
 
   /** The ONNX model of this example, under examples/onnx. */
   def onnxPath = Task.Source(onnxDir / os.RelPath(s"$crossValue.onnx"))

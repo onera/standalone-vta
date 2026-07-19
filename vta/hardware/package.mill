@@ -14,7 +14,7 @@ import mill.javalib.testrunner.TestResult
   * The emit tasks turn the active config into RTL - for the Verilated simulator
   * (vta.simulator) or for the Xilinx IP flow (vta.fpga).
   */
-object `package` extends build.MyModule with PublishModule { m =>
+object `package` extends build.VtaScalaModule with PublishModule { m =>
 
   def artifactName = "vta-standalone"
 

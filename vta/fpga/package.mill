@@ -3,7 +3,6 @@ import mill.*, mill.scalalib.*
 import mill.javalib.TestModule.ScalaTest
 import mill.api.Task.Simple
 import mill.api.BuildCtx
-import build.MyModule
 
 /** Everything that targets a real board: the Vivado synthesis flow (bitstream +
   * XSA), the baremetal code generator, the Vitis workspace, and the host-side
@@ -13,7 +12,7 @@ import build.MyModule
   * go from a model to a flashable workspace in one step, prefer
   * `examples[<model>,<config>].createVitisProject`.
   */
-object `package` extends MyModule { m =>
+object `package` extends build.VtaScalaModule { m =>
 
   def mvnDeps = Seq(mvn"com.github.scopt::scopt:4.1.0")
   def moduleDeps = Seq(build.vta.hardware)
@@ -394,15 +393,11 @@ object `package` extends MyModule { m =>
     * board does not re-synthesize the other one.
     */
   object targets extends Cross[TargetModule](build.fpgaTargets)
-  trait TargetModule extends Cross.Module2[String, String] {
+  trait TargetModule
+      extends Cross.Module2[String, String]
+      with build.HasVtaConfig {
     def configKey: String = crossValue
     def board: String = crossValue2
-    def configPath: os.Path = build.configDirPath / s"$configKey.json"
-
-    /** Content hash of this target's config JSON: depend on it to re-run when
-      * the config file is edited in place.
-      */
-    def configSignature = Task { build.configSig(configPath) }
 
     /** Create the Vivado project for this (config, board), stopping before
       * synthesis. See vta.fpga.fpgaProject.
