@@ -352,7 +352,7 @@ trait ExampleModule extends Cross.Module2[String, String] with HasVtaConfig {
     val compOut = compile().path
     val fsim = build.vta.simulator(configKey).fsimBinary().path
     funcsimStage(python, root, compOut, Task.dest, fsim, args.value, Task.env)
-    BuildCtx.withFilesystemCheckerDisabled { PathRef(compOut) }
+    PathRef(Task.dest)
   }
 
   /** Run the Verilated RTL (Chisel) simulator on this example and check its
@@ -379,7 +379,7 @@ trait ExampleModule extends Cross.Module2[String, String] with HasVtaConfig {
       args.value,
       Task.env
     )
-    BuildCtx.withFilesystemCheckerDisabled { PathRef(compOut) }
+    PathRef(Task.dest)
   }
 
   /** Run this example end to end: fsim and vsim, each checked against the ONNX
@@ -409,7 +409,7 @@ trait ExampleModule extends Cross.Module2[String, String] with HasVtaConfig {
       "--no-timeout" +: args.value,
       Task.env
     )
-    BuildCtx.withFilesystemCheckerDisabled { PathRef(compOut) }
+    PathRef(Task.dest)
   }
 
   /** Generate the baremetal PS headers (nn_exec_plan.h, nn_ddr_map.h, ...) for
