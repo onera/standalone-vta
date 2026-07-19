@@ -204,6 +204,20 @@ object `package` extends build.VtaScalaModule with PublishModule { m =>
         "vta.exporters.DefaultXilinxConfigEmitter"
       )
     }
+
+    /** Emit the debug Xilinx shell (the board-faithful top with the AXI write
+      * snoop) for this config: the OOC-synthesis input of the post-synth sim
+      * flow (vta.fpga.targets[config,board].oocNetlist).
+      */
+    def vtaDebugShell = Task {
+      configSignature()
+      m.emitConfig(
+        m.runner(),
+        Task.dest,
+        s"$configKey.json",
+        "vta.exporters.DebugXilinxConfigEmitter"
+      )
+    }
   }
 
   /** Export the Xilinx RTL + package_ip.tcl for the active config, ready to
