@@ -18,6 +18,14 @@ object `package` extends build.VtaScalaModule with PublishModule { m =>
 
   def artifactName = "vta-standalone"
 
+  // Unlike VtaScalaModule's default (empty), the hardware module keeps the
+  // global config in its forkArgs: its raw run entry points (run, testWaves,
+  // emitVtaPostSynthTb, ...) resolve their config through -Dvta.config.file.
+  // Consumers that must stay stable across config switches (the emit tasks
+  // below) override forkArgs per call, and their outputs are content-hashed,
+  // so downstream Vivado tasks only see real RTL changes.
+  override def forkArgs = configForkArgs()
+
   def javacOptions = Seq("--release", "8")
 
   def scalacOptions = Seq(
