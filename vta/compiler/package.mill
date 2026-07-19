@@ -6,12 +6,16 @@ import mill.api.BuildCtx
 
 trait CompilerPythonModule extends PythonModule {
 
-  private def onPath(path: String, exe: String): Option[String] =
+  private val pythonNames: Seq[String] =
+    if (scala.util.Properties.isWin) Seq("python3.exe", "python.exe")
+    else Seq("python3", "python")
+
+  private def onPath(path: String, names: Seq[String]): Option[String] =
     path
       .split(java.io.File.pathSeparatorChar)
       .iterator
       .filter(_.nonEmpty)
-      .map(d => java.nio.file.Paths.get(d, exe))
+      .flatMap(d => names.iterator.map(n => java.nio.file.Paths.get(d, n)))
       .find(java.nio.file.Files.isExecutable)
       .map(_.toString)
 
@@ -20,8 +24,10 @@ trait CompilerPythonModule extends PythonModule {
     */
   override def pythonExe = Task.Source {
     val env = Task.env
-    val python = onPath(env.getOrElse("PATH", ""), "python3")
-      .getOrElse(sys.error("python3 not found on PATH"))
+    val python = onPath(env.getOrElse("PATH", ""), pythonNames)
+      .getOrElse(
+        sys.error(s"none of ${pythonNames.mkString(", ")} found on PATH")
+      )
     os.Path(python)
   }
 
