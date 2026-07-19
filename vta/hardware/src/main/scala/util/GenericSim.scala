@@ -89,7 +89,7 @@ trait AnyFlatSpecSim
   // stringified; verilator falls back to its own default timescale, which does
   // not affect the cycle-accurate values these tests check.
   override implicit def commonSettingsModifications
-      : svsim.CommonSettingsModifications =
+    : svsim.CommonSettingsModifications =
     (s: svsim.CommonCompilationSettings) =>
       super.commonSettingsModifications(s).copy(defaultTimescale = None)
 

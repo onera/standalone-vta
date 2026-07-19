@@ -39,12 +39,10 @@ lazy val chiseltestSettings = Seq(
     "com.fasterxml.jackson.core" % "jackson-databind" % "2.17.2", // ADDED FOR PARSING JSON
     "net.java.dev.jna" % "jna" % "5.14.0",
     compilerPlugin(
-      ("org.chipsalliance" % "chisel-plugin" % chiselVersion).cross(
-        CrossVersion.full
-      )
+      ("org.chipsalliance" % "chisel-plugin" % chiselVersion)
+        .cross(CrossVersion.full)
     )
   ),
-
   Test / fork := true,
   Test / javaOptions ++= Seq(
     "-Dvta.config.file=vta_config_test.json",
