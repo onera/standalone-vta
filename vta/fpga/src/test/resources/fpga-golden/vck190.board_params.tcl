@@ -17,6 +17,7 @@ set vta_vlnv {onera:user:VTA:0.2.0}
 set ip_repo {/fixed/ip_repo}
 set out_dir {/fixed/out}
 set proj_dir {/fixed/out/project}
+set export_dir {/fixed/out}
 set jobs {4}
 
 set ps_config {CLOCK_MODE {Custom} PS_PL_CONNECTIVITY_MODE {Custom} PS_PMC_CONFIG {CLOCK_MODE {Custom} PS_PL_CONNECTIVITY_MODE {Custom} PMC_CRP_PL0_REF_CTRL_FREQMHZ {100} PS_USE_PMCPL_CLK0 {1} PS_NUM_FABRIC_RESETS {1} PS_USE_M_AXI_FPD {1} PS_M_AXI_FPD_DATA_WIDTH {32} PS_USE_FPD_CCI_NOC {1} PS_USE_FPD_CCI_NOC0 {1} PS_USE_FPD_CCI_NOC1 {1} PS_USE_FPD_CCI_NOC2 {1} PS_USE_FPD_CCI_NOC3 {1} PS_USE_NOC_LPD_AXI0 {1} PMC_USE_PMC_NOC_AXI0 {1}}}

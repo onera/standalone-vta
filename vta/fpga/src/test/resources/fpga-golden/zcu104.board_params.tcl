@@ -17,6 +17,7 @@ set vta_vlnv {onera:user:VTA:0.2.0}
 set ip_repo {/fixed/ip_repo}
 set out_dir {/fixed/out}
 set proj_dir {/fixed/out/project}
+set export_dir {/fixed/out}
 set jobs {4}
 
 set ps_config {PSU__FPGA_PL0_ENABLE {1} PSU__USE__M_AXI_GP0 {1} PSU__USE__M_AXI_GP1 {0} PSU__USE__M_AXI_GP2 {0} PSU__USE__S_AXI_GP0 {1} PSU__USE__IRQ0 {1}}

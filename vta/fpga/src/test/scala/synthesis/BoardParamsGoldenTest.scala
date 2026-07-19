@@ -33,6 +33,7 @@ class BoardParamsGoldenTest extends AnyFlatSpec with Matchers {
         ipRepo = "/fixed/ip_repo",
         outDir = "/fixed/out",
         projDir = "/fixed/out/project",
+        exportDir = "/fixed/out",
         jobs = 4
       ) + "\n"
       println(actual)

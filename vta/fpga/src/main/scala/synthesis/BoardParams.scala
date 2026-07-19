@@ -10,6 +10,7 @@ object BoardParams {
     ipRepo: String,
     outDir: String,
     projDir: String,
+    exportDir: String,
     jobs: Int
   ): String = {
     def subst(s: String): String =
@@ -82,6 +83,7 @@ object BoardParams {
        |set ip_repo ${br(ipRepo)}
        |set out_dir ${br(outDir)}
        |set proj_dir ${br(projDir)}
+       |set export_dir ${br(exportDir)}
        |set jobs ${br(jobs.toString)}
        |
        |set ps_config {$psCfg}

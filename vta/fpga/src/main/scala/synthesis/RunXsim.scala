@@ -106,6 +106,27 @@ object RunXsim {
       .map(v => s"$v/data/verilog/src/glbl.v")
       .getOrElse("glbl.v")
 
+  /** xvlog of the TB sources: the sim_top wrapper + `files`, with the layer-idx
+    * width define. Shared prefix of both legs.
+    */
+  private def xvlogTbCmd(
+    xvlog: String,
+    bits: Int,
+    simTop: String,
+    files: Seq[String]
+  ): Seq[String] =
+    Seq(
+      xvlog,
+      "-d",
+      "ENABLE_INITIAL_MEM_",
+      "-d",
+      s"LAYERIDX_W=$bits",
+      "-sv",
+      simTop
+    ) ++ files
+
+  private val elabCommon = Seq("-s", "snap", "--timescale", "1ns/1ps")
+
   /** xvlog(all emitted SV) + xelab(sim_top), in that order. */
   private def behavioralCmds(
     xvlog: String,
@@ -114,23 +135,10 @@ object RunXsim {
     simTop: String,
     tb: os.Path,
     wave: Boolean
-  ): Seq[Seq[String]] = {
-    val xvlogCmd =
-      Seq(
-        xvlog,
-        "-d",
-        "ENABLE_INITIAL_MEM_",
-        "-d",
-        s"LAYERIDX_W=$bits",
-        "-sv",
-        simTop
-      ) ++
-        allTbSv(tb)
-    val xelabCmd =
-      Seq(xelab, "sim_top") ++ dbgFlags(wave) ++
-        Seq("-s", "snap", "--timescale", "1ns/1ps")
-    Seq(xvlogCmd, xelabCmd)
-  }
+  ): Seq[Seq[String]] = Seq(
+    xvlogTbCmd(xvlog, bits, simTop, allTbSv(tb)),
+    Seq(xelab, "sim_top") ++ dbgFlags(wave) ++ elabCommon
+  )
 
   /** xvlog(tb wrapper) + xvlog(netlist + glbl) + xelab(sim_top glbl, unisims),
     * in that order.
@@ -144,33 +152,12 @@ object RunXsim {
     netlist: String,
     glbl: String,
     wave: Boolean
-  ): Seq[Seq[String]] = {
-    val xvlogTbCmd =
-      Seq(
-        xvlog,
-        "-d",
-        "ENABLE_INITIAL_MEM_",
-        "-d",
-        s"LAYERIDX_W=$bits",
-        "-sv",
-        simTop
-      ) ++
-        tbFiles(tb)
-    val xvlogNlCmd = Seq(xvlog, netlist, glbl)
-    val xelabCmd =
-      Seq(xelab, "sim_top", "glbl") ++ dbgFlags(wave) ++
-        Seq(
-          "-L",
-          "unisims_ver",
-          "-L",
-          "secureip",
-          "-s",
-          "snap",
-          "--timescale",
-          "1ns/1ps"
-        )
-    Seq(xvlogTbCmd, xvlogNlCmd, xelabCmd)
-  }
+  ): Seq[Seq[String]] = Seq(
+    xvlogTbCmd(xvlog, bits, simTop, tbFiles(tb)),
+    Seq(xvlog, netlist, glbl),
+    Seq(xelab, "sim_top", "glbl") ++ dbgFlags(wave) ++
+      Seq("-L", "unisims_ver", "-L", "secureip") ++ elabCommon
+  )
 
   /** Build the plan without running anything. Shares the exact command builders
     * `run` executes, so --dry-run prints exactly what would run (this requires

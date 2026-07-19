@@ -17,14 +17,22 @@ object `package` extends build.VtaScalaModule { m =>
   def mvnDeps = Seq(mvn"com.github.scopt::scopt:4.1.0")
   def moduleDeps = Seq(build.vta.hardware)
 
-  /** Board of the flat (non-crossed) synthesis tasks, from -Dvta.board.name
-    * (default zcu104). Must name a board JSON under vta/fpga/boards/.
-    *
-    * The board-crossed [[targets]] take theirs from the cross key instead.
+  /** Config key of the global -Dvta.config.file (default vta_config), read
+    * eagerly like build.defaultBoardName: the flat synthesis tasks use it to
+    * select a [[targets]] Cross instance, whose keys must be known before the
+    * task graph exists.
     */
-  def vtaBoardName = Task.Input {
-    sys.props.getOrElse("vta.board.name", "zcu104")
-  }
+  def activeConfigKey: String =
+    sys.props
+      .getOrElse("vta.config.file", build.defaultConfigName)
+      .stripSuffix(".json")
+
+  /** The [[targets]] instance of the active (config, board) pair: the global
+    * -Dvta.config.file and -Dvta.board.name. The flat fpgaProject / fpgaSynth
+    * tasks delegate here, so the flat and crossed forms share one cache.
+    */
+  def activeTarget: TargetModule =
+    targets(activeConfigKey, build.defaultBoardName)
 
   /** Generate the baremetal PS headers (nn_exec_plan.h, nn_ddr_map.h,
     * vta_hw_config.h) from a compiler_output dir, for the active config.
@@ -40,6 +48,7 @@ object `package` extends build.VtaScalaModule { m =>
     runner().run(
       args = args.value,
       mainClass = "fpga.host.GenNnBaremetal",
+      forkArgs = configForkArgs(),
       workingDir = BuildCtx.workspaceRoot
     )
     println(s"[INFO] genNnBaremetal done")
@@ -89,6 +98,7 @@ object `package` extends build.VtaScalaModule { m =>
     runner().run(
       args = args.value,
       mainClass = "fpga.host.GenInitDramTestGemm",
+      forkArgs = configForkArgs(),
       workingDir = BuildCtx.workspaceRoot
     )
   }
@@ -108,6 +118,7 @@ object `package` extends build.VtaScalaModule { m =>
     runner().run(
       args = args.value,
       mainClass = "fpga.host.checkers.AuditDram",
+      forkArgs = configForkArgs(),
       workingDir = BuildCtx.workspaceRoot
     )
   }
@@ -123,6 +134,7 @@ object `package` extends build.VtaScalaModule { m =>
     runner().run(
       args = args.value,
       mainClass = "fpga.host.checkers.CheckOutput",
+      forkArgs = configForkArgs(),
       workingDir = BuildCtx.workspaceRoot
     )
   }
@@ -137,7 +149,7 @@ object `package` extends build.VtaScalaModule { m =>
     */
   def oocNetlist(args: Args) = Task.Command {
     runner().run(
-      args = args.value ++ Seq("--vivado", vivado()),
+      args = args.value,
       mainClass = "fpga.synthesis.OocNetlist",
       workingDir = BuildCtx.workspaceRoot,
       propagateEnv = true
@@ -205,43 +217,31 @@ object `package` extends build.VtaScalaModule { m =>
     runner().run(
       args = Seq(binRoot.toString, goldenRoot.toString),
       mainClass = "fpga.host.RegenHostGolden",
+      forkArgs = configForkArgs(),
       workingDir = BuildCtx.workspaceRoot
     )
     println("[INFO] regenHostGolden done")
   }
-
-  /** Plain (untracked) resolution of the vivado binary from XILINX_VIVADO.
-    * Deliberately NOT a Task.Input read via Task.env inside a cached Task: the
-    * tool's location is an environment/tooling detail, not build content, so it
-    * must not invalidate fpgaProject/fpgaSynth's cache (see below).
-    */
-  def resolveVivado(env: Map[String, String]): String =
-    env
-      .get("XILINX_VIVADO")
-      .map(p => (os.Path(p) / "bin" / "vivado").toString)
-      .getOrElse("vivado")
-
-  /** The vivado executable: $XILINX_VIVADO/bin/vivado, else whatever `vivado`
-    * is on PATH.
-    */
-  def vivado = Task.Input { resolveVivado(Task.env) }
 
   /** Run the Vivado flow by hand: emit RTL, package the IP, create the project,
     * synthesize, implement and export the XSA.
     *
     * Raw CLI pass-through, uncached and unstaged. Prefer
     * `vta.fpga.targets[<config>,<board>].fpgaSynth`, which caches per (config,
-    * board) and reuses Mill's RTL emit.
+    * board) and reuses Mill's RTL emit. The vivado executable is resolved by
+    * the tool itself from $XILINX_VIVADO (override with `--vivado`).
     *
     * @param args
     *   BuildFpga flags: `--board zcu104`, `--config <cfg.json>`, `--out <dir>`,
-    *   `--jobs N`, `--dry-run`, and the `--skip-{emit,package,project,synth}`
-    *   stage switches.
+    *   `--jobs N`, `--dry-run`, and the `--skip-{package,project,synth}` stage
+    *   switches. The RTL must already be emitted (`./mill
+    *   vta.hardware.emitVtaFpgaConfig`, or pass `--emit-dir`).
     */
   def buildFpga(args: Args) = Task.Command {
     runner().run(
-      args = args.value ++ Seq("--vivado", vivado().toString),
+      args = args.value,
       mainClass = "fpga.synthesis.BuildFpga",
+      forkArgs = configForkArgs(),
       workingDir = BuildCtx.workspaceRoot,
       propagateEnv = true
     )
@@ -252,12 +252,14 @@ object `package` extends build.VtaScalaModule { m =>
     * (config, board, out) triple. Shared by fpgaProject (create the project,
     * --skip-synth) and fpgaSynth (reopen it and synth/impl/XSA,
     * --skip-project), for both this module and the per-config Cross submodule
-    * below. Always --skip-emit (hardware.vtaFpgaConfig() owns the RTL emit,
-    * cached by Mill) and propagateEnv (Vivado needs XILINX_* / DISPLAY).
-    * `stageFlags` selects the stage: Seq("--skip-synth") for the project stage,
-    * Seq("--skip-package", "--skip-project") for the synth stage. Takes an
-    * already-resolved Runner and vivado path since Task APIs can't be invoked
-    * outside a Task{} block.
+    * below. hardware.vtaFpgaConfig() owns the RTL emit (cached by Mill) and is
+    * handed over as --emit-dir; propagateEnv because Vivado needs XILINX_* /
+    * DISPLAY. `stageFlags` selects the stage: Seq("--skip-synth") for the
+    * project stage, Seq("--skip-package", "--skip-project") for the synth
+    * stage. Takes an already-resolved Runner (callers pass `runner()`) since
+    * Task APIs can't be invoked outside a Task{} block. The vivado executable
+    * is resolved by BuildFpga itself from $XILINX_VIVADO (propagateEnv makes
+    * the live env visible to the fork).
     */
   def runBuildFpga(
     runner: mill.javalib.RunModule.Runner,
@@ -265,7 +267,6 @@ object `package` extends build.VtaScalaModule { m =>
     configPath: os.Path,
     emitDir: os.Path,
     outDir: os.Path,
-    vivado: String,
     stageFlags: Seq[String]
   )(using ctx: mill.api.TaskCtx): Unit =
     runner.run(
@@ -276,116 +277,33 @@ object `package` extends build.VtaScalaModule { m =>
         configPath.toString,
         "--emit-dir",
         emitDir.toString,
-        "--skip-emit",
         "--out",
-        outDir.toString,
-        "--vivado",
-        vivado
+        outDir.toString
       ) ++ stageFlags,
       mainClass = "fpga.synthesis.BuildFpga",
       workingDir = BuildCtx.workspaceRoot,
       propagateEnv = true
     )
 
-  /** Copy the synth stage's artifacts (XSA, bitstream, reports, manifest) out
-    * of the Vivado project dir and into `dest`, so a synth task's own output
-    * dir is self-contained instead of pointing back into the project.
-    *
-    * Vivado has to run *in* the project dir (that is where the .xpr it reopens
-    * lives), so the artifacts are produced there and copied afterwards. The
-    * manifest's absolute `xsa` path is rewritten to the copy, keeping the
-    * consumers (createVitisProject) pointed at this dir.
-    */
-  def collectSynthOutputs(
-    projectDir: os.Path,
-    dest: os.Path,
-    board: String
-  ): Unit = {
-    val xsa = s"vta_$board.xsa"
-    os.makeDir.all(dest)
-    Seq(
-      xsa,
-      s"vta_$board.bit",
-      s"vta_$board.pdi", // Versal
-      "timing_summary.rpt",
-      "utilization.rpt"
-    )
-      .filter(n => os.exists(projectDir / n))
-      .foreach(n => os.copy.over(projectDir / n, dest / n))
-    val manifest = projectDir / "manifest.json"
-    if (os.exists(manifest))
-      os.write.over(
-        dest / "manifest.json",
-        os.read(manifest)
-          .replace((projectDir / xsa).toString, (dest / xsa).toString)
-      )
-    // BuildFpga's own "Done" banner points at the project dir it wrote into;
-    // these are the copies the Vitis tasks (and the user) should actually use.
-    println(s"\n=== Collected into the task output dir ===")
-    println(s"  XSA      : ${dest / xsa}")
-    println(s"  Manifest : ${dest / "manifest.json"}")
-    println(
-      s"  Next     : ./mill -Dvta.board.name=$board " +
-        "\"examples[<model>,<config>].createVitisProject\"" +
-        " (reads the XSA + CPU from this manifest)"
-    )
-  }
-
   /** Package the IP and create the Vivado project + block design for the active
-    * config and board, stopping before synthesis.
+    * config (-Dvta.config.file) and board (-Dvta.board.name), stopping before
+    * synthesis.
     *
-    * Fast. The project is kept across runs, so you can open it in the Vivado
-    * GUI, edit and save it, and [[fpgaSynth]] will reopen that same project.
-    * Depends on config, board and RTL only, never on a model. Only one board is
-    * cached at a time here; use [[targets]] to keep several.
+    * Fast. A delegate to `targets[<config>,<board>].fpgaProject`, so the flat
+    * and crossed forms share one cache per (config, board) pair.
     */
-  // Resolves vivado via resolveVivado(Task.env), not the vivado() Task.Input,
-  // so how XILINX_VIVADO is set cannot invalidate the cache - only content can.
-  def fpgaProject = Task(persistent = true) {
-    val emitDir = build.vta.hardware.vtaFpgaConfig().path
-    val board = vtaBoardName()
-    val outDir = Task.dest / configKey() / board
-    runBuildFpga(
-      runner(),
-      board,
-      vtaConfigPath(),
-      emitDir,
-      outDir,
-      resolveVivado(Task.env),
-      Seq("--skip-synth")
-    )
-    PathRef(outDir)
-  }
+  def fpgaProject = Task { activeTarget.fpgaProject() }
 
   /** Synthesize, implement and export the bitstream + XSA for the active config
     * and board. The full FPGA build: slow (Vivado).
     *
-    * Creates the project first if needed ([[fpgaProject]]), otherwise reopens
-    * it, GUI edits included. The output dir holds the XSA, the bitstream, the
-    * timing/utilization reports and manifest.json (which the Vitis tasks read
-    * to find the XSA and CPU). Prefer
-    * `vta.fpga.targets[<config>,<board>].fpgaSynth`, which caches each board
-    * separately.
+    * A delegate to `targets[<config>,<board>].fpgaSynth` - see there for the
+    * details and the caching behavior.
     */
-  def fpgaSynth = Task {
-    val projectDir = fpgaProject().path
-    val emitDir = build.vta.hardware.vtaFpgaConfig().path
-    val board = vtaBoardName()
-    runBuildFpga(
-      runner(),
-      board,
-      vtaConfigPath(),
-      emitDir,
-      projectDir,
-      resolveVivado(Task.env),
-      Seq("--skip-package", "--skip-project")
-    )
-    collectSynthOutputs(projectDir, Task.dest, board)
-    PathRef(Task.dest)
-  }
+  def fpgaSynth = Task { activeTarget.fpgaSynth() }
 
-  /** The same Vivado build, one independently cached instance per (config,
-    * board): an FPGA build is identified by both.
+  /** The Vivado build, one independently cached instance per (config, board):
+    * an FPGA build is identified by both.
     *
     * Address it as `vta.fpga.targets[<config>,<board>]`, e.g. `./mill
     * "vta.fpga.targets[vta_w8b,zcu104].fpgaSynth"`. Boards are the JSONs under
@@ -399,13 +317,32 @@ object `package` extends build.VtaScalaModule { m =>
     def configKey: String = crossValue
     def board: String = crossValue2
 
+    /** This target's board definition JSON, content-tracked: editing it (clock,
+      * part, ports) re-runs the Vivado stages.
+      */
+    def boardJson = Task.Source(build.boardsDirPath / s"$board.json")
+
+    // The Vivado tasks below fork from m.runner(): their inputs are all plain
+    // Mill dependencies - boardJson, configSignature, the content-hashed
+    // emitted-SV dir, and the vta.fpga classpath. RTL changes reach them only
+    // through the emit; note that any Scala edit in vta.fpga itself (host
+    // codegen included) also re-runs them, since it is one module.
+
     /** Create the Vivado project for this (config, board), stopping before
-      * synthesis. See vta.fpga.fpgaProject.
+      * synthesis.
+      *
+      * Fast. Persistent: the project is kept across runs, so you can open it in
+      * the Vivado GUI, edit and save it, and [[fpgaSynth]] will reopen that
+      * same project. Re-runs when board JSON, config, emitted RTL or the
+      * synthesis flow change. Returns the build dir path (as a string, not a
+      * PathRef: hashing a Vivado project tree is expensive and its logs churn
+      * on every run).
       */
     // Task.dest is already keyed by (config, board) - out/vta/fpga/targets/
     // <config>/<board>/fpgaProject.dest - so no board subdir here.
     def fpgaProject = Task(persistent = true) {
       val emitDir = build.vta.hardware.configs(configKey).vtaFpgaConfig().path
+      boardJson()
       configSignature()
       m.runBuildFpga(
         m.runner(),
@@ -413,18 +350,24 @@ object `package` extends build.VtaScalaModule { m =>
         configPath,
         emitDir,
         Task.dest,
-        m.resolveVivado(Task.env),
         Seq("--skip-synth")
       )
-      PathRef(Task.dest)
+      Task.dest.toString
     }
 
     /** Synthesize this (config, board): the output dir holds the XSA, the
-      * bitstream, the reports and manifest.json. See vta.fpga.fpgaSynth.
+      * bitstream, the reports and manifest.json (which the Vitis tasks read to
+      * find the XSA and CPU). Slow (Vivado).
+      *
+      * Reopens the project [[fpgaProject]] created, GUI edits included, and
+      * exports the deliverables straight into this task's dest (--export-dir);
+      * the project dir only ever holds the Vivado build itself. Re-runs when
+      * board JSON, config, emitted RTL or the synthesis flow change.
       */
     def fpgaSynth = Task {
-      val projectDir = fpgaProject().path
+      val projectDir = os.Path(fpgaProject())
       val emitDir = build.vta.hardware.configs(configKey).vtaFpgaConfig().path
+      boardJson()
       configSignature()
       m.runBuildFpga(
         m.runner(),
@@ -432,24 +375,57 @@ object `package` extends build.VtaScalaModule { m =>
         configPath,
         emitDir,
         projectDir,
-        m.resolveVivado(Task.env),
-        Seq("--skip-package", "--skip-project")
+        Seq(
+          "--skip-package",
+          "--skip-project",
+          "--export-dir",
+          Task.dest.toString
+        )
       )
-      m.collectSynthOutputs(projectDir, Task.dest, board)
       PathRef(Task.dest)
+    }
+
+    /** OOC-synthesize the debug Xilinx shell of this (config, board) to a
+      * gate-level netlist (VTAXilinxShell_funcsim.v), the DUT of the post-synth
+      * sim flow.
+      *
+      * The netlist depends on the config (via the emitted debug shell), the
+      * board (part, clock) and the synthesis flow only - never on a model or a
+      * layer subset - so every `examples[...].postSynth` run against this
+      * (config, board) reuses it.
+      */
+    def oocNetlist = Task {
+      val shell = build.vta.hardware.configs(configKey).vtaDebugShell()
+      boardJson()
+      m.runner()
+        .run(
+          args = Seq(
+            "--board",
+            board,
+            "--sv-dir",
+            shell.path.toString,
+            "--out",
+            Task.dest.toString
+          ),
+          mainClass = "fpga.synthesis.OocNetlist",
+          workingDir = BuildCtx.workspaceRoot,
+          propagateEnv = true
+        )
+      PathRef(Task.dest / "VTAXilinxShell_funcsim.v")
     }
   }
 
-  /** The vitis executable: $XILINX_VITIS/bin/vitis, else whatever `vitis` is on
-    * PATH.
+  /** Resolve the vitis executable: $XILINX_VITIS/bin/vitis, else whatever
+    * `vitis` is on PATH. A plain function, not a Task.Input: the tool's
+    * location is an environment detail, not build content. (Unlike vivado, Mill
+    * resolves this itself because it execs the workspace script directly rather
+    * than through a Scala entry point.)
     */
-  def vitis = Task.Input {
-    (for {
-      vitisPath <- Task.env.get("XILINX_VITIS")
-    } yield {
-      (os.Path(vitisPath) / "bin" / "vitis").toString
-    }).getOrElse("vitis")
-  }
+  def resolveVitis(env: Map[String, String]): String =
+    env
+      .get("XILINX_VITIS")
+      .map(p => (os.Path(p) / "bin" / "vitis").toString)
+      .getOrElse("vitis")
 
   /** The Python script that builds the Vitis workspace
     * (software/host/create_vitis_workspace.py).
@@ -467,20 +443,21 @@ object `package` extends build.VtaScalaModule { m =>
     *   psu_cortexa53_0`, `--gen-dir <baremetal headers>`, `--runner <app>`.
     */
   def createVitisWorkspace(args: Args) = Task.Command {
-    os.proc(vitis(), "-s", vitisScript(), args.value).call(stdout = os.Inherit)
+    os.proc(resolveVitis(Task.env), "-s", vitisScript(), args.value)
+      .call(stdout = os.Inherit)
     PathRef(Task.dest)
   }
 
   /** Read a string field out of a BuildFpga manifest.json (xsa, cpu, board,
     * ...).
     */
-  def readManifestField(manifestPath: os.Path, key: String): String = {
-    val text = os.read(manifestPath)
-    s""""$key"\\s*:\\s*"([^"]+)"""".r
-      .findFirstMatchIn(text)
+  def readManifestField(manifestPath: os.Path, key: String): String =
+    ujson
+      .read(os.read(manifestPath))
+      .obj
+      .get(key)
+      .map(_.str)
       .getOrElse(sys.error(s"ERROR: '$key' not found in $manifestPath"))
-      .group(1)
-  }
 
   /** Plain function: create/update a Vitis workspace. genDir is optional so the
     * config-only createVitisProject Command below can omit it (the script falls
@@ -523,11 +500,11 @@ object `package` extends build.VtaScalaModule { m =>
     *   <app>`, `--data-loader sd`.
     */
   def createVitisProject(args: Args) = Task.Command {
-    val synthDir = fpgaSynth().path
+    val synthDir = activeTarget.fpgaSynth().path
     val manifest = synthDir / "manifest.json"
-    val outPath = Task.dest / configKey() / vtaBoardName()
+    val outPath = Task.dest / activeConfigKey / build.defaultBoardName
     runCreateVitisWorkspace(
-      vitis(),
+      resolveVitis(Task.env),
       vitisScript().path,
       readManifestField(manifest, "xsa"),
       readManifestField(manifest, "cpu"),

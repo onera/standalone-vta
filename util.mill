@@ -454,7 +454,7 @@ trait ExampleModule extends Cross.Module2[String, String] with HasVtaConfig {
     val manifest = synthDir / "manifest.json"
     val workspace = Task.dest / fpgaBoard
     build.vta.fpga.runCreateVitisWorkspace(
-      build.vta.fpga.vitis(),
+      build.vta.fpga.resolveVitis(Task.env),
       build.vta.fpga.vitisScript().path,
       build.vta.fpga.readManifestField(manifest, "xsa"),
       build.vta.fpga.readManifestField(manifest, "cpu"),
@@ -467,12 +467,14 @@ trait ExampleModule extends Cross.Module2[String, String] with HasVtaConfig {
 
   /** End-to-end post-synthesis gate-level check for this example on the active
     * board (-Dvta.board.name): compile the model, dump the per-layer fsim
-    * goldens, emit the debug-xilinx shell + post-synth TB, OOC-synth the
-    * netlist, run xsim behavioral + netlist, and strb-compare the netlist OUT
-    * to the golden. All artifacts land under this task's dest.
+    * goldens, emit the post-synth TB, run xsim behavioral + netlist against the
+    * cached gate-level netlist, and strb-compare the netlist OUT to the golden.
+    * All artifacts land under this task's dest.
     *
-    * Requires Vivado + xsim on PATH; slow. A convenience wrapper over the raw
-    * vta.fpga.oocNetlist / runXsim / compareOut tasks.
+    * The slow OOC Vivado synthesis is NOT redone per run: the netlist comes
+    * from the cached `vta.fpga.targets[<config>,<board>].oocNetlist`, which
+    * depends on config + board only, so changing the model or the layer subset
+    * re-runs just the xsim legs. Requires Vivado + xsim on PATH.
     *
     * @param args
     *   the layer subset, comma-separated, e.g.
@@ -486,8 +488,10 @@ trait ExampleModule extends Cross.Module2[String, String] with HasVtaConfig {
     val compOut = compile().path
     val simOut = Task.dest / "sim"
     val runDir = Task.dest / "postsynth"
-    val shellDir = Task.dest / "vta-debug-xilinx-shell"
     val tbDir = Task.dest / "vta-postsynth-tb"
+
+    // The cached gate-level netlist for this (config, board).
+    val netlist = build.vta.fpga.targets(configKey, fpgaBoard).oocNetlist().path
 
     // fsim per-layer dumps into simOut (input/output<layer>.bin).
     val fsim = build.vta.simulator(configKey).fsimBinary().path
@@ -506,41 +510,34 @@ trait ExampleModule extends Cross.Module2[String, String] with HasVtaConfig {
         Task.env
       )
 
-    // Emit the board-faithful shell and the post-synth TB (hardware runner,
-    // config pinned via forkArgs like runGenNnBaremetal does).
-    val hwRunner = build.vta.hardware.runner()
-    val hwForkArgs = Seq(s"-Dvta.config.file=$configKey.json")
-    hwRunner.run(
-      args = Seq(shellDir.toString),
-      mainClass = "vta.exporters.DebugXilinxConfigEmitter",
-      forkArgs = hwForkArgs,
-      workingDir = root
-    )
-    // simOutDir is where the TB reads the per-layer input<layer>.bin dumps the
-    // fsim run above just wrote; without it the emitter falls back to a stale
-    // relative default and cannot find them.
-    hwRunner.run(
-      args = Seq(
-        tbDir.toString,
-        s"--compilerOutDir=$compOut",
-        s"--simOutDir=$simOut",
-        s"--layers=$layers"
-      ),
-      mainClass = "vta.exporters.DefaultPynqConfigTbEmitter",
-      forkArgs = hwForkArgs,
-      workingDir = root
-    )
+    // Emit the post-synth TB (hardware runner, config pinned via forkArgs like
+    // runGenNnBaremetal does). simOutDir is where the TB reads the per-layer
+    // input<layer>.bin dumps the fsim run above just wrote; without it the
+    // emitter falls back to a stale relative default and cannot find them.
+    build.vta.hardware
+      .runner()
+      .run(
+        args = Seq(
+          tbDir.toString,
+          s"--compilerOutDir=$compOut",
+          s"--simOutDir=$simOut",
+          s"--layers=$layers"
+        ),
+        mainClass = "vta.exporters.DefaultPynqConfigTbEmitter",
+        forkArgs = Seq(s"-Dvta.config.file=$configKey.json"),
+        workingDir = root
+      )
 
-    // Hand the emitted inputs to the flow, which owns the stage sequencing and
-    // the verdicts (propagateEnv so Vivado/xsim see XILINX_* / DISPLAY).
+    // Hand the inputs to the flow, which owns the stage sequencing and the
+    // verdicts (propagateEnv so xsim sees XILINX_*).
     build.vta.fpga
       .runner()
       .run(
         args = Seq(
           "--board",
           fpgaBoard,
-          "--shell-dir",
-          shellDir.toString,
+          "--netlist",
+          netlist.toString,
           "--tb",
           tbDir.toString,
           "--comp-dir",
@@ -550,9 +547,7 @@ trait ExampleModule extends Cross.Module2[String, String] with HasVtaConfig {
           "--out",
           runDir.toString,
           "--layers",
-          layers,
-          "--vivado",
-          build.vta.fpga.vivado()
+          layers
         ),
         mainClass = "fpga.synthesis.PostSynthFlow",
         workingDir = root,

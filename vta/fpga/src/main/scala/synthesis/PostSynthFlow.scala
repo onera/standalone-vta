@@ -11,7 +11,8 @@ import scopt.OParser
   * launch this). Composes the same OocNetlist / RunXsim / CompareOut entry
   * points the raw Mill tasks expose, called in-process.
   *
-  * Inputs must already exist: the emitted shell (--shell-dir), the post-synth
+  * Inputs must already exist: the emitted shell (--shell-dir) or an
+  * already-synthesized netlist (--netlist, skips the OOC stage), the post-synth
   * TB (--tb), the compiled model (--comp-dir) and the fsim `--dump-layers`
   * goldens (--golden-dir).
   */
@@ -22,13 +23,14 @@ object PostSynthFlow {
   private case class Opts(
     board: String = "zcu104",
     shellDir: String = "",
+    netlist: String = "",
     tb: String = "",
     compDir: String = "",
     goldenDir: String = "",
     out: String = "",
     layers: String = "",
     top: String = "VTAXilinxShell",
-    vivado: String = "vivado"
+    vivado: String = Vivado.tool(sys.env, "vivado")
   )
 
   private val argParser: OParser[_, Opts] = {
@@ -41,9 +43,15 @@ object PostSynthFlow {
         .action((x, c) => c.copy(board = x))
         .text("board name under vta/fpga/boards (default zcu104)"),
       opt[String]("shell-dir")
-        .required()
         .action((x, c) => c.copy(shellDir = x))
-        .text("emitted debug-xilinx shell dir (the OOC synth input)"),
+        .text(
+          "emitted debug-xilinx shell dir (the OOC synth input; unused with --netlist)"
+        ),
+      opt[String]("netlist")
+        .action((x, c) => c.copy(netlist = x))
+        .text(
+          "an already-synthesized <top>_funcsim.v: skip the OOC synth stage and use it as the gate-level DUT"
+        ),
       opt[String]("tb")
         .required()
         .action((x, c) => c.copy(tb = x))
@@ -69,7 +77,13 @@ object PostSynthFlow {
         .text("synthesized top module (default VTAXilinxShell)"),
       opt[String]("vivado")
         .action((x, c) => c.copy(vivado = x))
-        .text("vivado executable")
+        .text(
+          "vivado executable (default $XILINX_VIVADO/bin/vivado, else vivado on PATH)"
+        ),
+      checkConfig(c =>
+        if (c.netlist.nonEmpty || c.shellDir.nonEmpty) success
+        else failure("pass --shell-dir (OOC-synthesize) or --netlist (reuse)")
+      )
     )
   }
 
@@ -92,23 +106,32 @@ object PostSynthFlow {
     val netDir = out / "xsim-net"
     val nLayers = o.layers.split(",").count(_.trim.nonEmpty)
 
-    // 1. OOC-synthesize the gate-level netlist of the board-faithful top.
-    val rcOoc = OocNetlist.run(
-      Array(
-        "--board",
-        o.board,
-        "--sv-dir",
-        o.shellDir,
-        "--top",
-        o.top,
-        "--out",
-        oocDir.toString,
-        "--vivado",
-        o.vivado
-      )
-    )
-    if (rcOoc != 0) return rcOoc
-    val funcsim = oocDir / s"${o.top}_funcsim.v"
+    // 1. OOC-synthesize the gate-level netlist of the board-faithful top, or
+    // reuse an already-synthesized one (--netlist, e.g. the cached
+    // vta.fpga.targets[config,board].oocNetlist output).
+    val funcsim =
+      if (o.netlist.nonEmpty) {
+        val nl = os.Path(o.netlist, os.pwd)
+        println(s"[postSynth] reusing netlist $nl (OOC synth skipped)")
+        nl
+      } else {
+        val rcOoc = OocNetlist.run(
+          Array(
+            "--board",
+            o.board,
+            "--sv-dir",
+            o.shellDir,
+            "--top",
+            o.top,
+            "--out",
+            oocDir.toString,
+            "--vivado",
+            o.vivado
+          )
+        )
+        if (rcOoc != 0) return rcOoc
+        oocDir / s"${o.top}_funcsim.v"
+      }
 
     // 2. Behavioral control leg, then 3. the gate-level DUT leg.
     val rcBehav = RunXsim.run(

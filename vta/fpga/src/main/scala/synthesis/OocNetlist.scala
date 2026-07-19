@@ -22,7 +22,7 @@ object OocNetlist {
     out: Option[String] = None,
     mode: String = "synth",
     jobs: Int = 8,
-    vivado: String = "vivado",
+    vivado: String = Vivado.tool(sys.env, "vivado"),
     dryRun: Boolean = false
   )
 
