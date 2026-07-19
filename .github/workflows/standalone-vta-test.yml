@@ -1,4 +1,10 @@
 # Workflow executing VTA simulator and perform basic tests
+#
+# Everything runs through the root Mill build. A pipeline task such as
+# `examples[<model>,<config>].fsim` compiles the ONNX model, runs the simulator
+# and checks the result against the ONNX reference in one go, so the jobs below
+# are a single Mill invocation each. The (model, config) pair is an explicit
+# Cross key: no -Dvta.config.file, and each pair caches independently.
 
 name: Standalone VTA CI
 
@@ -21,6 +27,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - name: Cache Scala
+        uses: coursier/cache-action@v8
+      - name: Cache Mill
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cache/mill
+            out
+          key: mill-${{ runner.os }}-${{ hashFiles('**/*.mill', 'vta/**/*.scala', 'config/*.json') }}
+          restore-keys: |
+            mill-${{ runner.os }}-
+      # activate-environment puts the pixi env on PATH for the steps below, so
+      # Mill's own JDK/curl and the python3 the compiler tasks resolve off PATH
+      # both come from the lockfile.
       - name: Setup pixi
         uses: prefix-dev/setup-pixi@v0.10.0
         with:
@@ -28,8 +48,10 @@ jobs:
           cache: true
           locked: true
           activate-environment: true
-      - name: Tests VTA compiler and functional simulator
-        run: cd examples && make compile_and_run
+      # Compiles lenet5, runs the C++ functional simulator and checks its output
+      # against the ONNX reference.
+      - name: Test VTA compiler and functional simulator
+        run: ./mill 'examples[lenet5,vta_config].fsim'
 
   chisel-unittests:
     runs-on: ubuntu-latest
@@ -42,8 +64,8 @@ jobs:
         with:
           path: |
             ~/.cache/mill
-            src/simulators/cycle_accurate_simulator/out
-          key: mill-${{ runner.os }}-${{ hashFiles('src/simulators/cycle_accurate_simulator/**/*.scala', 'src/simulators/cycle_accurate_simulator/build.mill', 'src/simulators/cycle_accurate_simulator/src/test/resources/**/*.json') }}
+            out
+          key: mill-${{ runner.os }}-${{ hashFiles('**/*.mill', 'vta/**/*.scala', 'config/*.json') }}
           restore-keys: |
             mill-${{ runner.os }}-
       - name: Setup pixi
@@ -53,46 +75,66 @@ jobs:
           cache: true
           locked: true
           activate-environment: true
-      - name: Run mill tests
-        run: |
-          cd src/simulators/cycle_accurate_simulator
-          ./mill test.unittest
+      # Runs against the in-resources vta_config_test.json (the default when
+      # -Dvta.config.file is unset).
+      - name: Run Chisel unit tests
+        run: ./mill vta.hardware.test.unittest
+
+  fpga-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Cache Scala
+        uses: coursier/cache-action@v8
+      - name: Cache Mill
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cache/mill
+            out
+          key: mill-${{ runner.os }}-${{ hashFiles('**/*.mill', 'vta/**/*.scala', 'config/*.json') }}
+          restore-keys: |
+            mill-${{ runner.os }}-
+      - name: Setup pixi
+        uses: prefix-dev/setup-pixi@v0.10.0
+        with:
+          pixi-version: v0.73.0
+          cache: true
+          locked: true
+          activate-environment: true
+      # Host-side FPGA tooling only: baremetal codegen, exporters and checkers
+      # against golden fixtures, plus dry-run coverage of the Vivado/xsim
+      # invocations. No Vivado or xsim needed. Compiles its four golden models
+      # (lenet5 and qyolo_pattern, each on vta_config and vta_w8b) on the fly,
+      # hence the pixi env for the Python compiler.
+      - name: Run FPGA host tests
+        run: ./mill vta.fpga.test
 
   cycle-accurate-simulator-test:
-      needs: [functional-simulator-test, chisel-unittests]
-      runs-on: ubuntu-latest
-      steps:
-        - uses: actions/checkout@v6
-        - name: Cache Scala
-          uses: coursier/cache-action@v8
-        - name: Cache Mill
-          uses: actions/cache@v6
-          with:
-            path: |
-              ~/.cache/mill
-              src/simulators/cycle_accurate_simulator/out
-            key: mill-${{ runner.os }}-${{ hashFiles('src/simulators/cycle_accurate_simulator/**/*.scala', 'src/simulators/cycle_accurate_simulator/build.mill', 'src/simulators/cycle_accurate_simulator/src/test/resources/**/*.json') }}
-            restore-keys: |
-              mill-${{ runner.os }}-
-        - name: Setup pixi
-          uses: prefix-dev/setup-pixi@v0.10.0
-          with:
-            pixi-version: v0.73.0
-            cache: true
-            locked: true
-            activate-environment: true
-        - name: Compile ONNX and compute reference
-          run: |
-            cd examples
-            ONNX_FILE=onnx/lenet5.onnx make -s cleaner nn_compiler vta_compiler reference
-        - name: Simulate the inference
-          run: |
-            cd src/simulators/cycle_accurate_simulator && ./mill emitVtaSimConfig
-            cd ../functional_simulator
-            make clean
-            SIM_THREADS=2 make vsim
-
-        - name: Check output against reference
-          run: |
-            cd examples
-            make check_vsim
+    needs: [functional-simulator-test, chisel-unittests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Cache Scala
+        uses: coursier/cache-action@v8
+      - name: Cache Mill
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cache/mill
+            out
+          key: mill-${{ runner.os }}-${{ hashFiles('**/*.mill', 'vta/**/*.scala', 'config/*.json') }}
+          restore-keys: |
+            mill-${{ runner.os }}-
+      - name: Setup pixi
+        uses: prefix-dev/setup-pixi@v0.10.0
+        with:
+          pixi-version: v0.73.0
+          cache: true
+          locked: true
+          activate-environment: true
+      # Emits VTAShell.sv for this config, Verilates it, runs the RTL simulator
+      # and checks its output against the ONNX reference. Mill pulls the emit
+      # and the model compile in as dependencies.
+      - name: Simulate the inference and check against reference
+        run: ./mill 'examples[lenet5,vta_config].vsim'
