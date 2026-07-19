@@ -21,6 +21,11 @@
 # per candidate (first sentence, truncated to the terminal width). Tasks without
 # a doc comment complete as a bare name either way.
 #
+# A token starting with `-D` is completed as a JVM system property instead of a
+# task: `-D<Tab>` lists the `-Dvta.*` keys this build reads, and `-Dvta.<key>=<Tab>`
+# lists that key's values where they form a closed set (config JSONs, boards,
+# true/false, directories). These always use the native menu, never fzf.
+#
 # The fzf-vs-native choice auto-detects fzf by default. Set MILL_COMPLETION_FZF
 # before sourcing (or export it in your rc) to force one front-end:
 #     unset / auto            auto-detect (default): fzf when interactive and
@@ -123,8 +128,95 @@ _mill_want_fzf() {
   command -v fzf >/dev/null 2>&1 && [ -x "$_mill_tools_dir/mill-fzf-level" ]
 }
 
+# --- -D system properties ---------------------------------------------------
+#
+# `mill --tab-complete` advertises the -D flag but has no values for it (it
+# resolves tasks, not JVM properties), so the build's own -Dvta.* knobs are
+# completed here. Two levels: the bare key list on `-D<Tab>`, then values on
+# `-Dvta.<key>=<Tab>` for the keys with a closed set.
+
+# Repo root for the *current* directory (walk up for build.mill). Deliberately
+# not $_mill_tools_dir/../..: with git worktrees the checkout you run ./mill in
+# is not the one this file was sourced from, and the value lists must describe
+# the former. Fails outside a Mill repo, which suppresses -D completion rather
+# than offering keys no build reads.
+_mill_repo_root() {
+  local dir="$PWD"
+  while [ -n "$dir" ]; do
+    if [ -f "$dir/build.mill" ]; then printf '%s' "$dir"; return 0; fi
+    [ "$dir" = / ] && break
+    dir="$(dirname -- "$dir")"
+  done
+  return 1
+}
+
+# The -Dvta.* keys the build reads. Keep in sync with the sys.props lookups in
+# util.mill and vta/*/package.mill (and with __mill_vta_keys in the fish file).
+_mill_vta_keys() {
+  cat <<'EOF'
+vta.config.file=
+vta.config.fromResources=
+vta.board.name=
+vta.ddr.base=
+vta.compilerOutDir=
+vta.simOutDir=
+vta.layers=
+vta.reloStride=
+vta.perLayerTimeout=
+EOF
+}
+
+# $1 = the full -D token typed so far. Prints one candidate per line, each
+# carrying the leading -D. Value forms must match how the build reads them:
+# vta.config.file keeps the .json extension (util.mill:41 defaults to the
+# literal "vta_config.json"), vta.board.name drops it (boardNames maps
+# _.baseName over the dir, util.mill:122, so the cross keys are "zcu104" etc.).
+# Keys with a free-form value print nothing.
+_mill_vta_props() {
+  local tok="${1#-D}" root f d key val
+  root=$(_mill_repo_root) || return 0
+  case "$tok" in
+    vta.config.file=*)
+      for f in "$root"/config/*.json; do
+        [ -f "$f" ] && printf -- '-Dvta.config.file=%s\n' "${f##*/}"
+      done ;;
+    vta.board.name=*)
+      for f in "$root"/vta/fpga/boards/*.json; do
+        [ -f "$f" ] || continue
+        f="${f##*/}"; printf -- '-Dvta.board.name=%s\n' "${f%.json}"
+      done ;;
+    vta.config.fromResources=*)
+      printf -- '-Dvta.config.fromResources=%s\n' true false ;;
+    vta.ddr.base=*)
+      printf -- '-Dvta.ddr.base=%s\n' 0x0 0x10000000 ;;
+    vta.compilerOutDir=*|vta.simOutDir=*)
+      key="${tok%%=*}"; val="${tok#*=}"
+      for d in "$val"*/; do
+        [ -d "$d" ] && printf -- '-D%s=%s\n' "$key" "$d"
+      done ;;
+    *=*) ;;   # key with a free-form value: nothing to suggest
+    *) _mill_vta_keys | sed 's/^/-D/' ;;
+  esac
+}
+
 _mill_bash() {
   local IFS=$'\n'
+
+  # `=` is in COMP_WORDBREAKS, so bash splits -Dvta.config.file=vta_c into
+  # several words: rebuild the real token from the line, and strip the part
+  # bash already considers typed off each candidate before handing it back.
+  local tok="${COMP_LINE:0:COMP_POINT}"; tok="${tok##* }"
+  if [[ $tok == -D* ]]; then
+    local cur="${COMP_WORDS[COMP_CWORD]}" prefix cand
+    prefix="${tok%"$cur"}"
+    COMPREPLY=()
+    for cand in $(compgen -W "$(_mill_vta_props "$tok")" -- "$tok"); do
+      COMPREPLY+=( "${cand#"$prefix"}" )
+    done
+    compopt -o nospace 2>/dev/null
+    return
+  fi
+
   shopt -s checkwinsize 2>/dev/null   # keep $COLUMNS current
   local raw=( $("${COMP_WORDS[0]}" --tab-complete "$COMP_CWORD" "${COMP_WORDS[@]}" 2>/dev/null) )
 
@@ -147,6 +239,16 @@ _mill_bash() {
 }
 
 _mill_zsh() {
+  # zsh keeps -Dvta.config.file=vta_c as one word (no COMP_WORDBREAKS split), so
+  # the token is used as-is and candidates are added whole.
+  local tok="$words[CURRENT]"
+  if [[ $tok == -D* ]]; then
+    local -a cands
+    cands=("${(f)$(_mill_vta_props "$tok")}")
+    compadd -S '' -- ${(M)cands:#${tok}*}
+    return
+  fi
+
   local -a raw
   raw=("${(f)$($words[1] --tab-complete "$((CURRENT - 1))" $words 2>/dev/null)}")
 
