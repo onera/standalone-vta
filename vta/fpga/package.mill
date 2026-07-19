@@ -34,6 +34,26 @@ object `package` extends build.VtaScalaModule { m =>
   def activeTarget: TargetModule =
     targets(activeConfigKey, build.defaultBoardName)
 
+  /** Optional shallow root for the heavy Xilinx project trees
+    * (-Dvta.xil.dir=<dir>): the Vivado build, the OOC netlist project and the
+    * Vitis workspaces are created under `<dir>/<config>/<board>/` instead of
+    * the deep Mill task dests, for Windows where Vivado/Vitis fail on long
+    * paths. Exports and hashed outputs (XSA, bitstream, netlist, manifest) stay
+    * in the task dests either way.
+    */
+  def xilDir = Task.Input { sys.props.get("vta.xil.dir") }
+
+  /** The redirected `<xil.dir>/<config>/<board>` root for a (config, board), or
+    * None when -Dvta.xil.dir is unset. `xil` is [[xilDir]]'s value, passed in
+    * so callers evaluate the Task.Input inside their own Task block.
+    */
+  def xilRoot(
+    xil: Option[String],
+    configKey: String,
+    board: String
+  ): Option[os.Path] =
+    xil.map(p => os.Path(p, BuildCtx.workspaceRoot) / configKey / board)
+
   /** Generate the baremetal PS headers (nn_exec_plan.h, nn_ddr_map.h,
     * vta_hw_config.h) from a compiler_output dir, for the active config.
     *
@@ -344,15 +364,17 @@ object `package` extends build.VtaScalaModule { m =>
       val emitDir = build.vta.hardware.configs(configKey).vtaFpgaConfig().path
       boardJson()
       configSignature()
+      val outDir =
+        m.xilRoot(m.xilDir(), configKey, board).getOrElse(Task.dest)
       m.runBuildFpga(
         m.runner(),
         board,
         configPath,
         emitDir,
-        Task.dest,
+        outDir,
         Seq("--skip-synth")
       )
-      Task.dest.toString
+      outDir.toString
     }
 
     /** Synthesize this (config, board): the output dir holds the XSA, the
@@ -397,6 +419,10 @@ object `package` extends build.VtaScalaModule { m =>
     def oocNetlist = Task {
       val shell = build.vta.hardware.configs(configKey).vtaDebugShell()
       boardJson()
+      val projFlags = m
+        .xilRoot(m.xilDir(), configKey, board)
+        .map(p => Seq("--proj-dir", (p / "ooc-proj").toString))
+        .getOrElse(Seq.empty)
       m.runner()
         .run(
           args = Seq(
@@ -406,7 +432,7 @@ object `package` extends build.VtaScalaModule { m =>
             shell.path.toString,
             "--out",
             Task.dest.toString
-          ),
+          ) ++ projFlags,
           mainClass = "fpga.synthesis.OocNetlist",
           workingDir = BuildCtx.workspaceRoot,
           propagateEnv = true
@@ -487,8 +513,8 @@ object `package` extends build.VtaScalaModule { m =>
       extraArgs
     ).call(stdout = os.Inherit)
 
-  /** Create a Vitis workspace in this task's dest for the active config, wired
-    * to the XSA it was synthesized into.
+  /** Create a Vitis workspace for the active config (in this task's dest, or
+    * under -Dvta.xil.dir when set), wired to the XSA it was synthesized into.
     *
     * Synthesizes first if stale ([[fpgaSynth]]) and reads the XSA and CPU out
     * of its manifest, so no paths need copying by hand. Uses the checked-in
@@ -502,7 +528,9 @@ object `package` extends build.VtaScalaModule { m =>
   def createVitisProject(args: Args) = Task.Command {
     val synthDir = activeTarget.fpgaSynth().path
     val manifest = synthDir / "manifest.json"
-    val outPath = Task.dest / activeConfigKey / build.defaultBoardName
+    val outPath = xilRoot(xilDir(), activeConfigKey, build.defaultBoardName)
+      .map(_ / "vitis")
+      .getOrElse(Task.dest / activeConfigKey / build.defaultBoardName)
     runCreateVitisWorkspace(
       resolveVitis(Task.env),
       vitisScript().path,
@@ -512,7 +540,7 @@ object `package` extends build.VtaScalaModule { m =>
       outPath,
       args.value
     )
-    PathRef(outPath)
+    outPath.toString
   }
 
   /** Host-side tests of the FPGA tooling: the baremetal codegen and the

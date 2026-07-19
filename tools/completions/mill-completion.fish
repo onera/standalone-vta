@@ -142,6 +142,7 @@ function __mill_vta_keys
         vta.config.fromResources= 'Load the config from test resources instead of config/' \
         vta.board.name= 'Target FPGA board in vta/fpga/boards/ (default zcu104)' \
         vta.ddr.base= 'DDR base for the baremetal codegen; match the board (default 0x0)' \
+        vta.xil.dir= 'Shallow root for Vivado/Vitis project trees (Windows long-path fix)' \
         vta.compilerOutDir= 'emitVtaPostSynthTb: compiler_output dir to replay' \
         vta.simOutDir= 'emitVtaPostSynthTb: fsim --dump-layers output dir' \
         vta.layers= 'emitVtaPostSynthTb: subset of layers to emit' \

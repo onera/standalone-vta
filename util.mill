@@ -433,8 +433,9 @@ trait ExampleModule extends Cross.Module2[String, String] with HasVtaConfig {
     PathRef(Task.dest)
   }
 
-  /** Create (or refresh) this example's Vitis workspace in this task's dest (a
-    * per-board subdir), ready to build and flash.
+  /** Create (or refresh) this example's Vitis workspace, ready to build and
+    * flash: in this task's dest (a per-board subdir), or under -Dvta.xil.dir
+    * when set.
     *
     * Wires it to this example's generated headers ([[genBaremetal]]) and to the
     * XSA synthesized for this (config, board) - vta.fpga.targets - building
@@ -452,7 +453,10 @@ trait ExampleModule extends Cross.Module2[String, String] with HasVtaConfig {
     val synthDir =
       build.vta.fpga.targets(configKey, fpgaBoard).fpgaSynth().path
     val manifest = synthDir / "manifest.json"
-    val workspace = Task.dest / fpgaBoard
+    val workspace = build.vta.fpga
+      .xilRoot(build.vta.fpga.xilDir(), configKey, fpgaBoard)
+      .map(_ / s"vitis-$crossValue")
+      .getOrElse(Task.dest / fpgaBoard)
     build.vta.fpga.runCreateVitisWorkspace(
       build.vta.fpga.resolveVitis(Task.env),
       build.vta.fpga.vitisScript().path,
@@ -462,7 +466,7 @@ trait ExampleModule extends Cross.Module2[String, String] with HasVtaConfig {
       workspace,
       args.value
     )
-    PathRef(workspace)
+    workspace.toString
   }
 
   /** End-to-end post-synthesis gate-level check for this example on the active

@@ -20,6 +20,7 @@ object OocNetlist {
     top: String = "VTAXilinxShell",
     clkPort: String = "ap_clk",
     out: Option[String] = None,
+    projDir: Option[String] = None,
     mode: String = "synth",
     jobs: Int = 8,
     vivado: String = Vivado.tool(sys.env, "vivado"),
@@ -40,6 +41,9 @@ object OocNetlist {
       opt[String]("top").action((x, c) => c.copy(top = x)),
       opt[String]("clk-port").action((x, c) => c.copy(clkPort = x)),
       opt[String]("out").required().action((x, c) => c.copy(out = Some(x))),
+      opt[String]("proj-dir")
+        .action((x, c) => c.copy(projDir = Some(x)))
+        .text("Vivado OOC project dir (default <out>/proj)"),
       opt[String]("mode")
         .action((x, c) => c.copy(mode = x))
         .validate(m =>
@@ -97,7 +101,7 @@ object OocNetlist {
       os.pwd
     )
     val outDir = os.Path(o.out.get, os.pwd)
-    val projDir = outDir / "proj"
+    val projDir = o.projDir.map(os.Path(_, os.pwd)).getOrElse(outDir / "proj")
 
     if (!o.dryRun && !os.exists(svDir / s"${o.top}.sv")) {
       System.err.println(

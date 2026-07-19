@@ -158,6 +158,7 @@ vta.config.file=
 vta.config.fromResources=
 vta.board.name=
 vta.ddr.base=
+vta.xil.dir=
 vta.compilerOutDir=
 vta.simOutDir=
 vta.layers=
