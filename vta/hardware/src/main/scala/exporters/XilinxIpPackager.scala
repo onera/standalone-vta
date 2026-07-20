@@ -74,10 +74,8 @@ object XilinxIpPackager {
          |set ip_display_name "${displayName}"
       """.stripMargin
 
-    val scriptResource =
-      os.Path(
-        getClass.getClassLoader.getResource("vivado/package_ip.tcl").getFile()
-      )
+    val scriptResource = os.resource / "vivado" / "package_ip.tcl"
+        // getClass.getClassLoader.getResource("vivado/package_ip.tcl").getFile()
 
     val content = os.read(scriptResource)
     val body = header + configurableDefaults + content
