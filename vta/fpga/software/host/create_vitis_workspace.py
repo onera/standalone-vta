@@ -5,10 +5,20 @@ for standalone VTA baremetal applications.
 
 What this script does:
   1. Creates (or reuses) a Vitis workspace directory.
-  2. Creates a hardware platform component from a Vivado XSA file.
+  2. Creates a hardware platform component from a Vivado XSA file (rebuilt via
+     update_hw when the XSA content changed since the platform was built).
   3. Builds the platform.
   4. Creates a bare-metal application component with an empty template.
   5. Copies all VTA driver sources + the chosen runner into the app src directory.
+
+The platform depends only on the XSA (config/board); the applications depend on
+the model too. The two halves can run separately:
+  --platform-only          workspace + platform from --xsa, no apps (xilffs is
+                           enabled so later SD apps need no platform rebuild)
+  (no --xsa)               add apps to an existing, already-built platform
+  --name-prefix <model>    app components named <model>_<runner>[_<loader>]
+                           instead of the default vta_<runner>[_<loader>], so
+                           several models coexist in one workspace
 
 Runners (--runner)
 ------------------
@@ -277,6 +287,12 @@ def _enable_xilffs(platform, cpu: str) -> None:
         )
 
 
+def _xsa_fingerprint(xsa: Path) -> str:
+    import hashlib
+
+    return hashlib.sha256(xsa.read_bytes()).hexdigest()
+
+
 def create_workspace_and_platform(
     client,
     workspace: Path,
@@ -289,13 +305,27 @@ def create_workspace_and_platform(
     client.set_workspace(path=str(workspace))
 
     xpfm = xpfm_path(workspace, platform_name)
+    # Content fingerprint of the XSA the platform was built from: on rerun with
+    # an identical XSA the platform is reused as-is; with a different one it is
+    # refreshed in place via update_hw (no fresh workspace needed).
+    stamp = workspace / f".{platform_name}.xsa.sha256"
+    fingerprint = _xsa_fingerprint(xsa)
     if xpfm.exists():
-        print(f"[vitis] Platform already exists at {xpfm}, skipping creation.")
-        if enable_xilffs:
-            print(
-                "[vitis] NOTE: platform already built; xilffs not (re)enabled.\n"
-                "         For sd_loader_test, build into a fresh --workspace dir."
-            )
+        if stamp.exists() and stamp.read_text().strip() == fingerprint:
+            print(f"[vitis] Platform up to date at {xpfm}, skipping build.")
+            if enable_xilffs:
+                print(
+                    "[vitis] NOTE: platform already built; xilffs not (re)enabled.\n"
+                    "         For sd_loader_test, build into a fresh --workspace dir."
+                )
+            return xpfm
+        print(f"[vitis] XSA changed - updating platform '{platform_name}' from {xsa}")
+        platform = client.get_component(name=platform_name)
+        platform.update_hw(hw_design=str(xsa))
+        print("[vitis] Rebuilding platform...")
+        platform.build()
+        stamp.write_text(fingerprint + "\n")
+        print(f"[vitis] Platform rebuilt -> {xpfm}")
         return xpfm
 
     print(f"[vitis] Creating platform '{platform_name}' from {xsa}")
@@ -311,6 +341,7 @@ def create_workspace_and_platform(
 
     print("[vitis] Building platform...")
     platform.build()
+    stamp.write_text(fingerprint + "\n")
     print(f"[vitis] Platform built -> {xpfm}")
     return xpfm
 
@@ -355,6 +386,10 @@ def _patch_user_config(
     cfg = app_src / "UserConfig.cmake"
     if not cfg.exists():
         print(f"[copy] WARNING: UserConfig.cmake not found at {cfg}.")
+        return
+    marker = "# VTA driver - referenced in-place from the repository"
+    if marker in cfg.read_text():
+        print("[copy] UserConfig.cmake already patched, skipping.")
         return
     include_rel = Path(os.path.relpath(INCLUDE_DIR, app_src)).as_posix()
     src_rel = Path(os.path.relpath(SRC_DIR, app_src)).as_posix()
@@ -469,10 +504,10 @@ def copy_sources(
         _patch_linker_script(app_src, "nn_vta_sections.ld")
 
 
-def _app_name(runner: str, data_loader: str | None) -> str:
+def _app_name(prefix: str, runner: str, data_loader: str | None) -> str:
     if data_loader is None:
-        return f"vta_{runner}"
-    return f"vta_{runner}_{data_loader}"
+        return f"{prefix}_{runner}"
+    return f"{prefix}_{runner}_{data_loader}"
 
 
 def _next_steps(runner: str, data_loader: str | None) -> None:
@@ -543,7 +578,9 @@ def _next_steps(runner: str, data_loader: str | None) -> None:
                 "  5. Read UART: each FORMAT_INPUT / IM2ROW / INT32_CHAIN step"
                 " prints PASS or 'k/N mismatches'."
             )
-            print("     The first mismatching step is the CPU-op-introduced corruption.")
+            print(
+                "     The first mismatching step is the CPU-op-introduced corruption."
+            )
             return
         if dl != "elf":
             print(
@@ -570,7 +607,9 @@ def _next_steps(runner: str, data_loader: str | None) -> None:
         print("  4. In XSDB: program the bitstream, then run ps7_init/psu_init so the")
         print("     SD MIO + clocks are configured, then: dow application.elf")
         if runner == "run_nn":
-            print("  5. con  - board reads model+input from SD, runs once, prints result.")
+            print(
+                "  5. con  - board reads model+input from SD, runs once, prints result."
+            )
         else:
             print("  5. con  - board reads model from SD, then waits for UART input.")
             print(
@@ -606,6 +645,46 @@ def _next_steps(runner: str, data_loader: str | None) -> None:
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
+
+def _import_vitis():
+    try:
+        import vitis  # type: ignore[import]
+
+        return vitis
+    except ModuleNotFoundError:
+        sys.exit(
+            "ERROR: 'vitis' Python module not found.\n"
+            "       Source the Vitis settings script first:\n"
+            "         source /opt/Xilinx/2025.2/Vitis/settings64.sh\n"
+            "       or run this script with the Vitis Python interpreter:\n"
+            "         $VITIS_INSTALL/bin/python3 create_vitis_workspace.py ..."
+        )
+
+
+def _clear_stale_workspace_lock(workspace: Path) -> None:
+    """Drop the workspace lock left behind by a previous Vitis run.
+
+    Vitis never removes _ide/.wsdata/.lock when its server exits, so the next
+    set_workspace() on a persistent workspace fails with "is already in use".
+    The file is only removed when no live process holds it.
+    """
+    lock = workspace / "_ide" / ".wsdata" / ".lock"
+    if not lock.exists():
+        return
+    try:
+        import fcntl
+    except ModuleNotFoundError:
+        lock.unlink()
+        return
+    with open(lock, "a") as handle:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            return
+        fcntl.flock(handle, fcntl.LOCK_UN)
+    lock.unlink()
+    print(f"[vitis] Removed stale workspace lock: {lock}")
 
 
 def main() -> None:
@@ -670,6 +749,26 @@ def main() -> None:
         help="BSP processor instance name (from xparameters.h).",
     )
     parser.add_argument(
+        "--platform-only",
+        action="store_true",
+        help=(
+            "Create/refresh the workspace and platform from --xsa and stop: "
+            "no application components. xilffs (FatFs) is enabled on the "
+            "platform so SD-loader apps added later need no platform rebuild. "
+            "--runner / --data-loader are ignored."
+        ),
+    )
+    parser.add_argument(
+        "--name-prefix",
+        default="vta",
+        metavar="PREFIX",
+        help=(
+            "Prefix of the application component names "
+            "(<prefix>_<runner>[_<loader>]). Pass the model name to keep the "
+            "apps of several models apart in a shared workspace."
+        ),
+    )
+    parser.add_argument(
         "--app-name",
         metavar="NAME",
         help=(
@@ -712,6 +811,44 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    if args.platform_only:
+        if args.xsa is None:
+            sys.exit("ERROR: --platform-only requires --xsa")
+        xsa = Path(args.xsa).resolve()
+        workspace = Path(args.workspace).resolve()
+        if args.dry_run:
+            print("=== DRY RUN ===")
+            print("  Mode:        platform-only (workspace + platform, no apps)")
+            print(f"  XSA:         {xsa}")
+            print(f"  Workspace:   {workspace}")
+            print(f"  Platform:    {args.platform_name}")
+            print(f"  CPU:         {args.cpu}")
+            print("  BSP library: xilffs (FatFs) + LFN enabled")
+            return
+        if not xsa.exists():
+            sys.exit(f"ERROR: XSA file not found: {xsa}")
+        vitis = _import_vitis()
+        workspace.mkdir(parents=True, exist_ok=True)
+        _clear_stale_workspace_lock(workspace)
+        client = vitis.create_client()
+        try:
+            xpfm = create_workspace_and_platform(
+                client,
+                workspace,
+                xsa,
+                args.platform_name,
+                args.cpu,
+                enable_xilffs=True,
+            )
+        finally:
+            client.close()
+            vitis.dispose()
+        print()
+        print("=== Done ===")
+        print(f"  Workspace : {workspace}")
+        print(f"  Platform  : {xpfm}")
+        return
+
     runners: list[str] = list(dict.fromkeys(args.runner))
     data_loaders: list[str] | None = (
         list(dict.fromkeys(args.data_loader)) if args.data_loader else None
@@ -744,7 +881,9 @@ def main() -> None:
     xpfm = xpfm_path(workspace, args.platform_name)
 
     app_names = {
-        (r, dl): (args.app_name if args.app_name else _app_name(r, dl))
+        (r, dl): (
+            args.app_name if args.app_name else _app_name(args.name_prefix, r, dl)
+        )
         for r, dl in combos
     }
 
@@ -781,9 +920,13 @@ def main() -> None:
             if dl == "sd":
                 print("  Define: NN_SD_LOADER")
             if runner in STANDALONE_RUNNERS:
-                print("  Standalone: no VTA driver sources; UserConfig.cmake left as-is.")
+                print(
+                    "  Standalone: no VTA driver sources; UserConfig.cmake left as-is."
+                )
             if runner in XILFFS_RUNNERS or dl == "sd":
-                print("  BSP library: xilffs (FatFs) + LFN enabled on the platform domain.")
+                print(
+                    "  BSP library: xilffs (FatFs) + LFN enabled on the platform domain."
+                )
             if dl == "elf":
                 print(
                     "  Linker script: lscript.ld <- INCLUDE nn_vta_sections.ld (appended)"
@@ -800,18 +943,10 @@ def main() -> None:
             f"       Provide --xsa to create the platform first, or check --platform-name."
         )
 
-    try:
-        import vitis  # type: ignore[import]
-    except ModuleNotFoundError:
-        sys.exit(
-            "ERROR: 'vitis' Python module not found.\n"
-            "       Source the Vitis settings script first:\n"
-            "         source /opt/Xilinx/2025.2/Vitis/settings64.sh\n"
-            "       or run this script with the Vitis Python interpreter:\n"
-            "         $VITIS_INSTALL/bin/python3 create_vitis_workspace.py ..."
-        )
+    vitis = _import_vitis()
 
     workspace.mkdir(parents=True, exist_ok=True)
+    _clear_stale_workspace_lock(workspace)
     client = vitis.create_client()
     try:
         if xsa is not None:
@@ -838,9 +973,12 @@ def main() -> None:
             )
     finally:
         client.close()
+        vitis.dispose()
 
     for (runner, dl), app_src in app_srcs.items():
-        copy_sources(app_src, runner, dl, gen_dir, args.baud, _extra_defines_for(runner))
+        copy_sources(
+            app_src, runner, dl, gen_dir, args.baud, _extra_defines_for(runner)
+        )
 
     print()
     print("=== Done ===")

@@ -433,16 +433,18 @@ trait ExampleModule extends Cross.Module2[String, String] with HasVtaConfig {
     PathRef(Task.dest)
   }
 
-  /** Create (or refresh) this example's Vitis workspace, ready to build and
-    * flash: in this task's dest (a per-board subdir), or under -Dvta.xil.dir
-    * when set.
+  /** Add this example's app components to the shared Vitis workspace of its
+    * (config, board), ready to build and flash.
     *
-    * Wires it to this example's generated headers ([[genBaremetal]]) and to the
-    * XSA synthesized for this (config, board) - vta.fpga.targets - building
-    * both first if stale. Requires Vivado and Vitis.
+    * The workspace and its hardware platform are per (config, board) only -
+    * `vta.fpga.targets[<config>,<board>].vitisPlatform`, built first if stale
+    * (which synthesizes the XSA if needed). This task adds the model-dependent
+    * part on top: app components named `<model>_<runner>[_<loader>]`, wired to
+    * this example's generated headers ([[genBaremetal]]). Several models
+    * therefore coexist in one workspace per platform. Requires Vivado and
+    * Vitis.
     *
-    * The board comes from -Dvta.board.name (default zcu104); each board gets
-    * its own workspace, so they do not overwrite each other.
+    * The board comes from -Dvta.board.name (default zcu104).
     *
     * @param args
     *   extra flags forwarded to create_vitis_workspace.py, e.g. `--runner
@@ -450,23 +452,22 @@ trait ExampleModule extends Cross.Module2[String, String] with HasVtaConfig {
     */
   def createVitisProject(args: Args) = Task.Command {
     val genDir = genBaremetal().path
-    val synthDir =
-      build.vta.fpga.targets(configKey, fpgaBoard).fpgaSynth().path
-    val manifest = synthDir / "manifest.json"
-    val workspace = build.vta.fpga
-      .xilRoot(build.vta.fpga.xilDir(), configKey, fpgaBoard)
-      .map(_ / s"vitis-$crossValue")
-      .getOrElse(Task.dest / fpgaBoard)
-    build.vta.fpga.runCreateVitisWorkspace(
+    val ws =
+      os.Path(build.vta.fpga.targets(configKey, fpgaBoard).vitisPlatform())
+    val manifest = build.vta.fpga
+      .targets(configKey, fpgaBoard)
+      .fpgaSynth()
+      .path / "manifest.json"
+    build.vta.fpga.runCreateVitisApps(
       build.vta.fpga.resolveVitis(Task.env),
       build.vta.fpga.vitisScript().path,
-      build.vta.fpga.readManifestField(manifest, "xsa"),
       build.vta.fpga.readManifestField(manifest, "cpu"),
       Some(genDir),
-      workspace,
+      ws,
+      crossValue,
       args.value
     )
-    workspace.toString
+    ws.toString
   }
 
   /** End-to-end post-synthesis gate-level check for this example on the active

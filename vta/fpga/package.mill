@@ -75,15 +75,7 @@ object `package` extends build.VtaScalaModule { m =>
   }
 
   /** Plain function: run GenNnBaremetal for a specific (compiler-output,
-    * config) pair. Takes an already-resolved Runner (callers pass `runner()`
-    * from within their own Task{} block) since Task APIs can't be invoked
-    * outside one. `configKey` is passed as an explicit forkArgs override
-    * (replaces, not appends to, the module's default forkArgs - see
-    * RunModule.Runner.run) so this works for any config, not just whatever
-    * -Dvta.config.file the enclosing module was invoked with. Used by
-    * build.mill's per-example `genBaremetal` pipeline task; the
-    * `genNnBaremetal` Command above stays a raw CLI passthrough (using the
-    * global config) for the software Makefile's `make gen*` targets.
+    * config) pair.
     */
   def runGenNnBaremetal(
     runner: mill.javalib.RunModule.Runner,
@@ -439,6 +431,38 @@ object `package` extends build.VtaScalaModule { m =>
         )
       PathRef(Task.dest / "VTAXilinxShell_funcsim.v")
     }
+
+    /** Create (or refresh) the Vitis workspace + hardware platform of this
+      * (config, board), from its synthesized XSA ([[fpgaSynth]]'s manifest).
+      *
+      * The platform is model-independent: per-model app components are added on
+      * top by `examples[<model>,<config>].createVitisProject` (or the flat
+      * [[m.createVitisProject]]), all sharing this one workspace. xilffs is
+      * enabled at build time so SD-loader apps never need a platform rebuild; a
+      * changed XSA refreshes the platform in place (update_hw). Persistent;
+      * returns the workspace dir (as a String: a Vitis workspace is not worth
+      * content-hashing). Honors -Dvta.xil.dir.
+      */
+    def vitisPlatform = Task(persistent = true) {
+      val manifest = fpgaSynth().path / "manifest.json"
+      val ws = m
+        .xilRoot(m.xilDir(), configKey, board)
+        .map(_ / "vitis")
+        .getOrElse(Task.dest)
+      os.proc(
+        m.resolveVitis(Task.env),
+        "-s",
+        m.vitisScript().path,
+        "--platform-only",
+        "--xsa",
+        m.readManifestField(manifest, "xsa"),
+        "--cpu",
+        m.readManifestField(manifest, "cpu"),
+        "--workspace",
+        ws.toString
+      ).call(stdout = os.Inherit)
+      ws.toString
+    }
   }
 
   /** Resolve the vitis executable: $XILINX_VITIS/bin/vitis, else whatever
@@ -485,62 +509,62 @@ object `package` extends build.VtaScalaModule { m =>
       .map(_.str)
       .getOrElse(sys.error(s"ERROR: '$key' not found in $manifestPath"))
 
-  /** Plain function: create/update a Vitis workspace. genDir is optional so the
-    * config-only createVitisProject Command below can omit it (the script falls
-    * back to its own software/gen default) while build.mill's per-example task
-    * passes a specific model's genBaremetal() output.
+  /** Plain function: add app component(s) to an existing workspace whose
+    * platform is already built (script add-app mode, no --xsa). genDir is
+    * optional so the config-only createVitisProject Command below can omit it
+    * (the script falls back to its own software/gen default) while build.mill's
+    * per-example task passes a specific model's genBaremetal() output.
+    * namePrefix keeps the apps of several models apart in the shared workspace
+    * (<prefix>_<runner>[_<loader>]).
     */
-  def runCreateVitisWorkspace(
+  def runCreateVitisApps(
     vitisExe: String,
     script: os.Path,
-    xsa: String,
     cpu: String,
     genDir: Option[os.Path],
     workspace: os.Path,
+    namePrefix: String,
     extraArgs: Seq[String]
   ): Unit =
     os.proc(
       vitisExe,
       "-s",
       script,
-      "--xsa",
-      xsa,
       "--cpu",
       cpu,
       "--workspace",
       workspace.toString,
+      "--name-prefix",
+      namePrefix,
       genDir.toSeq.flatMap(d => Seq("--gen-dir", d.toString)),
       extraArgs
     ).call(stdout = os.Inherit)
 
-  /** Create a Vitis workspace for the active config (in this task's dest, or
-    * under -Dvta.xil.dir when set), wired to the XSA it was synthesized into.
+  /** Add app components for the active config to its shared Vitis workspace,
+    * building the platform first if stale ([[TargetModule.vitisPlatform]]).
     *
-    * Synthesizes first if stale ([[fpgaSynth]]) and reads the XSA and CPU out
-    * of its manifest, so no paths need copying by hand. Uses the checked-in
-    * software/gen/ headers; for a specific model, use
-    * `examples[<model>,<config>].createVitisProject` instead.
+    * Uses the checked-in software/gen/ headers and the default `vta` app-name
+    * prefix; for a specific model, use
+    * `examples[<model>,<config>].createVitisProject` instead (per-model gen
+    * headers and app names).
     *
     * @param args
     *   extra flags forwarded to create_vitis_workspace.py, e.g. `--runner
     *   <app>`, `--data-loader sd`.
     */
   def createVitisProject(args: Args) = Task.Command {
-    val synthDir = activeTarget.fpgaSynth().path
-    val manifest = synthDir / "manifest.json"
-    val outPath = xilRoot(xilDir(), activeConfigKey, build.defaultBoardName)
-      .map(_ / "vitis")
-      .getOrElse(Task.dest / activeConfigKey / build.defaultBoardName)
-    runCreateVitisWorkspace(
+    val ws = os.Path(activeTarget.vitisPlatform())
+    val manifest = activeTarget.fpgaSynth().path / "manifest.json"
+    runCreateVitisApps(
       resolveVitis(Task.env),
       vitisScript().path,
-      readManifestField(manifest, "xsa"),
       readManifestField(manifest, "cpu"),
       None,
-      outPath,
+      ws,
+      "vta",
       args.value
     )
-    outPath.toString
+    PathRef(ws)
   }
 
   /** Host-side tests of the FPGA tooling: the baremetal codegen and the
@@ -580,8 +604,7 @@ object `package` extends build.VtaScalaModule { m =>
       *
       * Each stage's output dir is pinned with VTA_COMPILER_OUT, so the whole
       * pipeline stays inside `dest` and never touches the repo-root
-      * `compiler_output` (a Make/user scratch dir - clobbering it is what made
-      * that directory vanish under the Metals BSP server). Mill caches the
+      * `compiler_output`. Mill caches the
       * result and only re-runs when compilerSources() changes.
       */
     object goldenCase extends Cross[GoldenCaseModule](goldenCases.map(_._1))
@@ -605,8 +628,7 @@ object `package` extends build.VtaScalaModule { m =>
     }
 
     /** Assemble every golden case into the layout GoldenSupport expects
-      * (`Task.dest/host-golden-bin/<case>/compiler_output`). It is NOT wired
-      * into `resources` (which BSP evaluates eagerly); it is pulled in through
+      * (`Task.dest/host-golden-bin/<case>/compiler_output`). It is pulled in through
       * the test JVM's `forkEnv` below, so it runs only when tests actually run.
       */
     def goldenCaseOutputs =
