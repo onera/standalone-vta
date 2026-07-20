@@ -42,3 +42,7 @@
 /**/.bloop/
 /**/out/
 /**/chisel-outputs/
+
+# Do not consider the generated Mill options file (see ./mill configure)
+# ---------------------------------------------------------------------
+/.mill-jvm-opts
