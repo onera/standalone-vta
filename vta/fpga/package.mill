@@ -469,13 +469,20 @@ object `package` extends build.VtaScalaModule { m =>
     * `vitis` is on PATH. A plain function, not a Task.Input: the tool's
     * location is an environment detail, not build content. (Unlike vivado, Mill
     * resolves this itself because it execs the workspace script directly rather
-    * than through a Scala entry point.)
+    * than through a Scala entry point.) On Windows the bin/ dir only ships
+    * `vitis.bat` (no `vitis.exe`, and the extensionless `vitis` is a Linux/WSL
+    * script), so the name gets a `.bat` suffix there in both cases - needed
+    * because this is launched via java.lang.ProcessBuilder directly (no
+    * shell), which only auto-wraps a command in `cmd /c` when it already ends
+    * in `.bat`/`.cmd`.
     */
-  def resolveVitis(env: Map[String, String]): String =
+  def resolveVitis(env: Map[String, String]): String = {
+    val exeName = "vitis" + (if (scala.util.Properties.isWin) ".bat" else "")
     env
       .get("XILINX_VITIS")
-      .map(p => (os.Path(p) / "bin" / "vitis").toString)
-      .getOrElse("vitis")
+      .map(p => (os.Path(p) / "bin" / exeName).toString)
+      .getOrElse(exeName)
+  }
 
   /** The Python script that builds the Vitis workspace
     * (software/host/create_vitis_workspace.py).

@@ -64,12 +64,26 @@ object Vivado {
     else Map.empty
   }
 
-  /** Resolve a Xilinx tool (vivado, xvlog, xelab, xsim): prefer
-    * $XILINX_VIVADO/bin/<name>, else the bare name on PATH.
+  /** Windows Xilinx tools ship only as `<name>.bat` launchers in `bin/` (the
+    * extensionless `<name>` there is a Linux/WSL script, not a native Windows
+    * executable, and there is no `<name>.exe`). `cmd.exe` resolves the bare
+    * name fine via PATHEXT, but these tools are launched directly through
+    * java.lang.ProcessBuilder (no shell), which only auto-wraps a command in
+    * `cmd /c` when the path it's given already ends in `.bat`/`.cmd` - so the
+    * suffix must be added explicitly here rather than left to PATH search.
     */
-  def tool(env: Map[String, String], name: String): String =
+  private val exeSuffix: String =
+    if (scala.util.Properties.isWin) ".bat" else ""
+
+  /** Resolve a Xilinx tool (vivado, xvlog, xelab, xsim): prefer
+    * $XILINX_VIVADO/bin/<name>, else the bare name on PATH. On Windows the
+    * name gets a `.bat` suffix in both cases (see [[exeSuffix]]).
+    */
+  def tool(env: Map[String, String], name: String): String = {
+    val exeName = name + exeSuffix
     env
       .get("XILINX_VIVADO")
-      .map(p => (os.Path(p) / "bin" / name).toString)
-      .getOrElse(name)
+      .map(p => (os.Path(p) / "bin" / exeName).toString)
+      .getOrElse(exeName)
+  }
 }
