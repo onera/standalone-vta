@@ -186,6 +186,32 @@ property still selects the config for the flat, non-crossed tasks
 `vta/fpga/software/Makefile`, which remain available for standalone use
 outside Mill.
 
+#### Pinning options between runs
+
+Rather than repeating `-Dvta.*` flags on every invocation, persist them:
+
+```bash
+./mill configure vta.board.name=te0803 vta.ddr.base=0x10000000
+```
+
+This writes a generated, git-ignored `.mill-jvm-opts` at the repo root, which
+applies from the next `./mill` invocation onwards. Later calls merge into it,
+so options not mentioned are kept:
+
+```bash
+./mill configure                 # show the options in effect
+./mill configure vta.ddr.base=   # drop one option, back to its default
+./mill configure --reset         # drop all of them
+```
+
+A flag still wins for a single run: `./mill -Dvta.ddr.base=0xBEEF <task>`.
+
+Do not hand-edit `.mill-jvm-opts`. It replaces (rather than adds to) the
+`//| mill-jvm-opts` header of `build.mill`, so it has to carry
+`-Dchisel.project.root`, which `configure` emits for you. Any other line you
+put there, such as an `-Xmx` setting for the build JVM, is preserved across
+`configure` runs, but `--reset` deletes the file and everything in it.
+
 ### 4. Tab Completion
 
 `./mill <Tab>` can complete task names and show each task's description (its
