@@ -151,6 +151,10 @@ def sync(
         text = buf.decode(errors="replace").strip()
         if text:
             print(f"[board] {text}")
+        if "VTA NN runner" in text:
+            # Board has just booted/rebooted; the trigger we sent at the beginning was lost.
+            # Send another trigger now that the board is ready to receive it.
+            ser.write(TRIGGER)
         m = re.search(r"input=(\d+)\s+out=(\d+)", text)
         if m:
             in_b, out_b = int(m.group(1)), int(m.group(2))
