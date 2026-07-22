@@ -23,12 +23,16 @@
 # Tab only diverts to fzf when the command line is a mill command; every other
 # command falls through to fish's normal completion untouched.
 #
-# A token starting with `-D` is completed as a JVM system property instead of a
-# task: `-D<Tab>` lists the `-Dvta.*` keys this build reads, and `-Dvta.<key>=<Tab>`
-# lists that key's values where they form a closed set (config JSONs, boards,
-# true/false, directories). These always use the native menu, never fzf. Doing
-# this requires shadowing the stock mill.fish - see the sibling fish/mill.fish
-# and the comment above the $fish_complete_path line below.
+# A token starting with `-` is completed as a flag rather than a task, always
+# through the native menu and never fzf:
+#   * mill's own options come from `mill --tab-complete` like everything else, so
+#     they track the installed mill version. A bare `-` lists the short flags and
+#     the long ones together; `--<Tab>` lists the long ones.
+#   * `-D` is completed as a JVM system property: `-D<Tab>` lists the `-Dvta.*`
+#     keys this build reads, and `-Dvta.<key>=<Tab>` lists that key's values where
+#     they form a closed set (config JSONs, boards, true/false, directories).
+#     This requires shadowing the stock mill.fish - see the sibling fish/mill.fish
+#     and the comment above the $fish_complete_path line below.
 #
 # The fzf-vs-native choice auto-detects fzf by default. Set MILL_COMPLETION_FZF
 # before sourcing (or in your config) to force one front-end:
@@ -68,23 +72,38 @@ function __mill_short --argument-names clean
     string replace -r '\. .*$' '.' -- $clean
 end
 
-# Emit one "name<TAB>short<TAB>full" row per completion candidate for the
-# current command line.
-function __mill_rows
+# Emit one "name<TAB>short<TAB>full" row per candidate mill offers for $token,
+# with the rest of the command line taken from the current buffer.
+#
+# `mill --tab-complete` has two output shapes: with several candidates each line
+# is "name<pad>description", but when exactly one candidate matches it prints the
+# bare name and then "name: description" on a second line. Stripping a trailing
+# `:` off the parsed name merges the two into one candidate - `:` cannot appear
+# in a mill task segment or flag, so no real name is truncated - and the caller's
+# dedup then keeps the copy carrying the description.
+function __mill_query --argument-names token
     set -l tokens (commandline -opc)
     test (count $tokens) -ge 1; or return
-    set -l current (commandline -ct)
     set -l cword (count $tokens)
     set -l exe $tokens[1]
-    # Quote "$current" so an empty current token is still passed as one word.
-    command $exe --tab-complete $cword $tokens "$current" 2>/dev/null | while read -l line
+    # Quote "$token" so an empty current token is still passed as one word.
+    command $exe --tab-complete $cword $tokens "$token" 2>/dev/null | while read -l line
         test -n "$line"; or continue
-        set -l name (string replace -r '^(\S+).*$' '$1' -- $line)
+        set -l name (string replace -r '^(\S+).*$' '$1' -- $line | string replace -r ':$' '')
         set -l raw (string replace -r '^\S+\s*' '' -- $line)
         set -l full (__mill_clean "$raw")
         set -l short (__mill_short "$full")
         printf '%s\t%s\t%s\n' $name $short $full
     end
+end
+
+# Rows for the token being completed. Mill answers a bare `-` with its short
+# flags only, so that one token also queries `--` and shows the long flags in the
+# same menu (one extra ~50ms mill call, on that keystroke alone).
+function __mill_rows
+    set -l current (commandline -ct)
+    __mill_query "$current"
+    test "$current" = -; and __mill_query '--'
 end
 
 # --- native completion ------------------------------------------------------
@@ -218,10 +237,12 @@ end
 # autoload ours *instead* (first match in the path wins), which sidesteps the
 # ordering entirely.
 #
-# Note this shadows the stock mill.fish completely, so its flag list stops being
-# offered. That list is Ammonite-era (--repl, --predef, --thin, --no-default-predef)
-# and no longer matches Mill 1.x; its task completion (`mill resolve __`) is
-# superseded by __mill_complete_native above.
+# Note this shadows the stock mill.fish completely, so neither its flag list nor
+# its task completion (`mill resolve __`) is offered any more. Nothing is lost:
+# that flag list is a static Ammonite-era one (--repl, --predef, --thin,
+# --no-default-predef) that no longer matches Mill 1.x, whereas __mill_rows above
+# gets the real flags out of `mill --tab-complete`, which answers for whichever
+# mill is actually installed.
 if not contains $__mill_tools_dir/fish $fish_complete_path
     set -p fish_complete_path $__mill_tools_dir/fish
 end
@@ -278,10 +299,11 @@ end
 
 function __mill_tab
     set -l buf (commandline -pc)
-    # A -D<key>=<value> token is a flag argument, not a task path. The fzf picker
-    # navigates the task dot-hierarchy and would read the dots in a property name
-    # as module nesting, so hand these to the native menu regardless of fzf.
-    if string match -q -- '-D*' (commandline -ct)
+    # Any token starting with `-` is a flag, not a task path: neither mill's own
+    # options nor the -D properties live in the task dot-hierarchy the fzf picker
+    # navigates (it would read the dots in `-Dvta.config.file` as module nesting),
+    # so hand all of them to the native menu regardless of fzf.
+    if string match -q -- '-*' (commandline -ct)
         commandline -f complete
         return
     end

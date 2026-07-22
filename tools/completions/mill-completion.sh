@@ -21,10 +21,14 @@
 # per candidate (first sentence, truncated to the terminal width). Tasks without
 # a doc comment complete as a bare name either way.
 #
-# A token starting with `-D` is completed as a JVM system property instead of a
-# task: `-D<Tab>` lists the `-Dvta.*` keys this build reads, and `-Dvta.<key>=<Tab>`
-# lists that key's values where they form a closed set (config JSONs, boards,
-# true/false, directories). These always use the native menu, never fzf.
+# A token starting with `-` is completed as a flag rather than a task, always
+# through the native menu and never fzf:
+#     * mill's own options come from `mill --tab-complete` like everything else,
+#       so they track the installed mill version. A bare `-` lists the short flags
+#       and the long ones together; `--<Tab>` lists the long ones.
+#     * `-D` is completed as a JVM system property: `-D<Tab>` lists the `-Dvta.*`
+#       keys this build reads, and `-Dvta.<key>=<Tab>` lists that key's values
+#       where they form a closed set (config JSONs, boards, true/false, dirs).
 #
 # The fzf-vs-native choice auto-detects fzf by default. Set MILL_COMPLETION_FZF
 # before sourcing (or export it in your rc) to force one front-end:
@@ -56,16 +60,20 @@ unset _mill_src
 #   full  = description with javadoc tags dropped, [[Foo]] unwrapped, ws collapsed
 #   short = full up to the first ". " (sentence boundary)
 # `mill --tab-complete` emits flattened Cross modules, so the same name can appear
-# twice - once with its description and once bare (e.g. `examples`). Collapse to
-# one row per name, keeping the row that carries a description, so the native menu
-# does not list a task twice. A single awk pass so large candidate sets don't fork
-# a process per line.
+# twice - once with its description and once bare (e.g. `examples`). The same goes
+# for its single-match output shape, which is the bare name followed by
+# "name: description" on a second line; a trailing `:` is stripped off the parsed
+# name so those two merge (`:` cannot appear in a mill task segment or flag, so no
+# real name is truncated). Collapse to one row per name, keeping the row that
+# carries a description, so the native menu does not list a task twice. A single
+# awk pass so large candidate sets don't fork a process per line.
 _mill_awk_rows() {
   awk '
   {
     line = $0
     if (match(line, /^[^ \t]+/)) { name = substr(line, 1, RLENGTH); rest = substr(line, RLENGTH + 1) }
     else { name = line; rest = "" }
+    sub(/:$/, "", name)                              # "name: desc" -> "name"
     sub(/^[ \t]+/, "", rest)
     full = rest
     # drop everything from the first javadoc tag (longest alternatives first)
@@ -221,7 +229,16 @@ _mill_bash() {
   shopt -s checkwinsize 2>/dev/null   # keep $COLUMNS current
   local raw=( $("${COMP_WORDS[0]}" --tab-complete "$COMP_CWORD" "${COMP_WORDS[@]}" 2>/dev/null) )
 
-  if [[ $- == *i* ]] && _mill_want_fzf && (( ${#raw[@]} > 0 )); then
+  # Mill answers a bare `-` with its short flags only, so ask again with `--` to
+  # show the long flags in the same menu.
+  if [[ $tok == - ]]; then
+    local dd=( "${COMP_WORDS[@]}" ); dd[COMP_CWORD]='--'
+    raw+=( $("${COMP_WORDS[0]}" --tab-complete "$COMP_CWORD" "${dd[@]}" 2>/dev/null) )
+  fi
+
+  # Flags are not task paths, and the fzf picker only navigates the task
+  # dot-hierarchy, so a `-` token always uses the native menu below.
+  if [[ $- == *i* ]] && [[ $tok != -* ]] && _mill_want_fzf && (( ${#raw[@]} > 0 )); then
     local chosen
     chosen=$(_mill_fzf "${COMP_WORDS[0]}" "${COMP_WORDS[COMP_CWORD]}")
     if [ -n "$chosen" ]; then COMPREPLY=( "$chosen" ); else COMPREPLY=(); fi
@@ -230,13 +247,22 @@ _mill_bash() {
 
   compopt -o nospace 2>/dev/null
   local cols="${COLUMNS:-80}" name short full line
-  local trimmed=()
+  local names=() trimmed=()
   while IFS=$'\t' read -r name short full; do
+    names+=( "$name" )
     [ -n "$short" ] && line="$name  $short" || line="$name"
-    (( ${#line} > cols )) && line="${line:0:cols-3}..."
+    # $(( )) around the length is load-bearing for zsh: it reads the `cols` in a
+    # bare ${line:0:cols-3} as a history modifier and aborts with "unrecognized
+    # modifier". Bash accepts either form.
+    (( ${#line} > cols )) && line="${line:0:$((cols - 3))}..."
     trimmed+=( "$line" )
   done < <(printf '%s\n' "${raw[@]}" | _mill_awk_rows)
-  COMPREPLY=( "${trimmed[@]}" )
+  # bash has no display-vs-value split (zsh's `compadd -d`), so the descriptions
+  # ride along in COMPREPLY and are only ever *shown* - with two or more entries
+  # bash inserts their common prefix, which is the shared part of the names. A
+  # lone entry would be inserted whole, description and all, so hand back the
+  # bare name in that case.
+  if (( ${#trimmed[@]} == 1 )); then COMPREPLY=( "${names[0]}" ); else COMPREPLY=( "${trimmed[@]}" ); fi
 }
 
 _mill_zsh() {
@@ -253,7 +279,16 @@ _mill_zsh() {
   local -a raw
   raw=("${(f)$($words[1] --tab-complete "$((CURRENT - 1))" $words 2>/dev/null)}")
 
-  if [[ -o interactive ]] && _mill_want_fzf && (( ${#raw} > 0 )); then
+  # Mill answers a bare `-` with its short flags only, so ask again with `--` to
+  # show the long flags in the same menu.
+  if [[ $tok == - ]]; then
+    local -a dd; dd=($words); dd[CURRENT]='--'
+    raw+=("${(f)$($words[1] --tab-complete "$((CURRENT - 1))" $dd 2>/dev/null)}")
+  fi
+
+  # Flags are not task paths, and the fzf picker only navigates the task
+  # dot-hierarchy, so a `-` token always uses the native menu below.
+  if [[ -o interactive ]] && [[ $tok != -* ]] && _mill_want_fzf && (( ${#raw} > 0 )); then
     local chosen
     chosen=$(_mill_fzf "$words[1]" "$words[CURRENT]")
     [ -n "$chosen" ] && compadd -- "$chosen"
@@ -265,7 +300,10 @@ _mill_zsh() {
   while IFS=$'\t' read -r name short full; do
     opts+=( "$name" )
     [ -n "$short" ] && line="$name  $short" || line="$name"
-    (( ${#line} > cols )) && line="${line:0:cols-3}..."
+    # $(( )) around the length is load-bearing for zsh: it reads the `cols` in a
+    # bare ${line:0:cols-3} as a history modifier and aborts with "unrecognized
+    # modifier". Bash accepts either form.
+    (( ${#line} > cols )) && line="${line:0:$((cols - 3))}..."
     trimmed+=( "$line" )
   done < <(printf '%s\n' $raw | _mill_awk_rows)
   compadd -S '' -d trimmed -- $opts
