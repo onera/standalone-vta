@@ -84,7 +84,6 @@ Note on the vitis Python module
 """
 
 import argparse
-import os
 import shutil
 import sys
 from pathlib import Path
@@ -391,15 +390,17 @@ def _patch_user_config(
     if marker in cfg.read_text():
         print("[copy] UserConfig.cmake already patched, skipping.")
         return
-    include_rel = Path(os.path.relpath(INCLUDE_DIR, app_src)).as_posix()
-    src_rel = Path(os.path.relpath(SRC_DIR, app_src)).as_posix()
+    # Absolute paths work fine here; only the separator style matters, since
+    # CMake wants forward slashes even on Windows.
+    include_dir = INCLUDE_DIR.as_posix()
+    src_dir = SRC_DIR.as_posix()
     defines = [f"VTA_UART_BAUD={baud}"] + list(extra_defines or [])
     defines_str = ";".join(defines)
     with cfg.open("a") as f:
         f.write(
             "\n# VTA driver - referenced in-place from the repository\n"
-            f'set(USER_INCLUDE_DIRECTORIES "{include_rel}")\n'
-            f'file(GLOB _drv_sources "{src_rel}/*.cc")\n'
+            f'set(USER_INCLUDE_DIRECTORIES "{include_dir}")\n'
+            f'file(GLOB _drv_sources "{src_dir}/*.cc")\n'
             # Also glob *.S at the app root: picks up nn_bin_data.S for the ELF
             # data-loader; empty glob is harmless for the TCL loader.
             'file(GLOB _asm_sources "${CMAKE_CURRENT_SOURCE_DIR}/*.S")\n'
@@ -432,31 +433,6 @@ def _patch_linker_script(app_src: Path, ld_fragment: str) -> None:
     with lscript.open("a") as f:
         f.write(f"\n{include_line}\n")
     print(f"[ld] Added '{include_line}' to lscript.ld.")
-
-
-def _patch_asm_incbin(app_src: Path) -> None:
-    """Rewrite .incbin paths in nn_bin_data.S to be relative to app_src.
-
-    gen_nn_baremetal.py embeds absolute POSIX paths so the file is portable
-    across copy destinations; this function relativizes them once the file
-    lands in its final location.
-    """
-    import re
-
-    asm = app_src / "nn_bin_data.S"
-    if not asm.exists():
-        return
-    pattern = re.compile(r'^(\s*\.incbin\s+")([^"]+)(")')
-    lines = asm.read_text(encoding="utf-8").splitlines(keepends=True)
-    patched = []
-    for line in lines:
-        m = pattern.match(line)
-        if m:
-            rel = Path(os.path.relpath(m.group(2), app_src)).as_posix()
-            line = m.group(1) + rel + m.group(3) + line[m.end() :]
-        patched.append(line)
-    asm.write_text("".join(patched), encoding="utf-8")
-    print(f"[asm] Patched .incbin paths in nn_bin_data.S relative to {app_src}")
 
 
 def copy_sources(
@@ -500,7 +476,8 @@ def copy_sources(
         defines.append("NN_SD_LOADER")
     _patch_user_config(app_src, baud, defines)
     if data_loader == "elf":
-        _patch_asm_incbin(app_src)
+        # nn_bin_data.S already carries absolute POSIX .incbin paths from the
+        # codegen, so it is copied in as-is.
         _patch_linker_script(app_src, "nn_vta_sections.ld")
 
 

@@ -166,9 +166,14 @@ object Model {
   def refOutputPath(refDir: String, suffix: String): String =
     s"$refDir/output$suffix.bin"
 
-  /** Return a POSIX-style relative path from baseDir to absPath. */
-  def relpathPosix(absPath: String, baseDir: String): String =
-    os.Path(absPath).relativeTo(os.Path(baseDir)).toString
+  /** Absolute path with POSIX separators, for embedding in generated sources.
+    *
+    * Consumers resolve absolute paths fine from any directory, but a Windows
+    * `\` inside a generated string literal (e.g. an assembler `.incbin`) is an
+    * escape character, so the separator must be `/` on every platform.
+    */
+  def posixPath(p: String): String =
+    os.Path(p, os.pwd).toString.replace('\\', '/')
 
   /** True when a buffer must NOT be statically pre-loaded into the ELF.
     *

@@ -143,7 +143,9 @@ private[exporters] object LoaderRender {
   }
 
   private def emitSection(secName: String, absPath: String): Seq[String] = {
-    val binPath = os.Path(absPath, os.pwd).toString
+    // Emitted with POSIX separators: a backslash inside the .incbin string
+    // literal would be read as an assembler escape on Windows.
+    val binPath = Model.posixPath(absPath)
     Seq(
       s"""    .section $secName, "a", %progbits""",
       s"    .align ${Model.incbinAlignLog2}"
