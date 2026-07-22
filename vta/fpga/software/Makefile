@@ -51,7 +51,7 @@ gen-nn: $(COMPILER_OUTPUTS) $(CONFIG)
 # copy to a FAT32 card). Set SD_DIR=<name> to read from a card subfolder (lets
 # several models share one card). Used with `make workspace DATA_LOADER=sd`.
 gen-sd: $(COMPILER_OUTPUTS) $(CONFIG)
-	$(MILL) -Dvta.config.file=$(CONFIG_NAME) vta.fpga.genNnBaremetal \
+	$(MILL) -Dvta.config.file=$(CONFIG_NAME) vta.fpga.software.genNnBaremetal \
 		$(abspath $(COMPILER_OUTPUT)) \
 		--ddr-base $(DDR_BASE)        \
 		$(SD_DIR_FLAG)                \
@@ -65,7 +65,7 @@ gen-sd: $(COMPILER_OUTPUTS) $(CONFIG)
 # read their references from the card. Used with
 # `make workspace RUNNER=run_nn_debug DATA_LOADER=sd`.
 gen-sd-debug: $(COMPILER_OUTPUTS) $(CONFIG)
-	$(MILL) -Dvta.config.file=$(CONFIG_NAME) vta.fpga.genNnBaremetal \
+	$(MILL) -Dvta.config.file=$(CONFIG_NAME) vta.fpga.software.genNnBaremetal \
 		$(abspath $(COMPILER_OUTPUT)) \
 		--ddr-base $(DDR_BASE)        \
 		$(SD_DIR_FLAG)                \

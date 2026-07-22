@@ -2,7 +2,7 @@ package fpga.synthesis
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import fpga.host.models.GoldenSupport
+import fpga.synthesis.models.GoldenSupport
 
 class EmitXilinxTest extends AnyFlatSpec with Matchers {
   "emitXilinx" should "write package_ip.tcl and return the matching VLNV" in {

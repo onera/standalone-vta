@@ -422,8 +422,8 @@ trait ExampleModule extends Cross.Module2[String, String] with HasVtaConfig {
   // that a Vitis build reads from: a cached task must not silently overwrite it.
   def genBaremetal = Task {
     val compOut = compile().path
-    build.vta.fpga.runGenNnBaremetal(
-      build.vta.fpga.runner(),
+    build.vta.fpga.software.runGenNnBaremetal(
+      build.vta.fpga.software.runner(),
       compOut,
       Task.dest,
       configKey,
@@ -458,9 +458,9 @@ trait ExampleModule extends Cross.Module2[String, String] with HasVtaConfig {
       .targets(configKey, fpgaBoard)
       .fpgaSynth()
       .path / "manifest.json"
-    build.vta.fpga.runCreateVitisApps(
+    build.vta.fpga.software.runCreateVitisApps(
       build.vta.fpga.resolveVitis(Task.env),
-      build.vta.fpga.vitisScript().path,
+      build.vta.fpga.software.vitisScript().path,
       build.vta.fpga.readManifestField(manifest, "cpu"),
       Some(genDir),
       ws,
@@ -535,7 +535,7 @@ trait ExampleModule extends Cross.Module2[String, String] with HasVtaConfig {
 
     // Hand the inputs to the flow, which owns the stage sequencing and the
     // verdicts (propagateEnv so xsim sees XILINX_*).
-    build.vta.fpga
+    build.vta.fpga.synthesis
       .runner()
       .run(
         args = Seq(

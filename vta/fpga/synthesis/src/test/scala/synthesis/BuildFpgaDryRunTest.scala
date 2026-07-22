@@ -2,7 +2,7 @@ package fpga.synthesis
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import fpga.host.models.GoldenSupport
+import fpga.synthesis.models.GoldenSupport
 
 class BuildFpgaDryRunTest extends AnyFlatSpec with Matchers {
   "BuildFpga dry-run" should "render board_params + manifest preview without running tools" in {

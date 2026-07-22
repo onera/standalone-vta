@@ -17,7 +17,7 @@ OUT     ?= build
 # RTL emit's vta.config.file there). Mill injects --vivado from XILINX_VIVADO.
 REPO_ROOT := $(abspath ../../..)
 MILL      := cd $(REPO_ROOT) && ./mill
-BUILD_FPGA = $(MILL) vta.fpga.buildFpga --board $(BOARD) \
+BUILD_FPGA = $(MILL) vta.fpga.synthesis.buildFpga --board $(BOARD) \
              --config $(abspath $(CONFIG)) --out $(abspath $(OUT))
 
 # Optional flags: `make bitstream SKIP_EMIT=1`, `make bitstream JOBS=8`
