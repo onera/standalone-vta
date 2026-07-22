@@ -75,7 +75,7 @@ object XilinxIpPackager {
       """.stripMargin
 
     val scriptResource = os.resource / "vivado" / "package_ip.tcl"
-        // getClass.getClassLoader.getResource("vivado/package_ip.tcl").getFile()
+    // getClass.getClassLoader.getResource("vivado/package_ip.tcl").getFile()
 
     val content = os.read(scriptResource)
     val body = header + configurableDefaults + content

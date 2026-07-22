@@ -472,9 +472,9 @@ object `package` extends build.VtaScalaModule { m =>
     * than through a Scala entry point.) On Windows the bin/ dir only ships
     * `vitis.bat` (no `vitis.exe`, and the extensionless `vitis` is a Linux/WSL
     * script), so the name gets a `.bat` suffix there in both cases - needed
-    * because this is launched via java.lang.ProcessBuilder directly (no
-    * shell), which only auto-wraps a command in `cmd /c` when it already ends
-    * in `.bat`/`.cmd`.
+    * because this is launched via java.lang.ProcessBuilder directly (no shell),
+    * which only auto-wraps a command in `cmd /c` when it already ends in
+    * `.bat`/`.cmd`.
     */
   def resolveVitis(env: Map[String, String]): String = {
     val exeName = "vitis" + (if (scala.util.Properties.isWin) ".bat" else "")
@@ -611,8 +611,8 @@ object `package` extends build.VtaScalaModule { m =>
       *
       * Each stage's output dir is pinned with VTA_COMPILER_OUT, so the whole
       * pipeline stays inside `dest` and never touches the repo-root
-      * `compiler_output`. Mill caches the
-      * result and only re-runs when compilerSources() changes.
+      * `compiler_output`. Mill caches the result and only re-runs when
+      * compilerSources() changes.
       */
     object goldenCase extends Cross[GoldenCaseModule](goldenCases.map(_._1))
     trait GoldenCaseModule extends Cross.Module[String] {
@@ -635,8 +635,9 @@ object `package` extends build.VtaScalaModule { m =>
     }
 
     /** Assemble every golden case into the layout GoldenSupport expects
-      * (`Task.dest/host-golden-bin/<case>/compiler_output`). It is pulled in through
-      * the test JVM's `forkEnv` below, so it runs only when tests actually run.
+      * (`Task.dest/host-golden-bin/<case>/compiler_output`). It is pulled in
+      * through the test JVM's `forkEnv` below, so it runs only when tests
+      * actually run.
       */
     def goldenCaseOutputs =
       Task.traverse(goldenCases.map(_._1))(name =>

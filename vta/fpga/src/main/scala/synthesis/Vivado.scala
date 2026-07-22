@@ -76,8 +76,8 @@ object Vivado {
     if (scala.util.Properties.isWin) ".bat" else ""
 
   /** Resolve a Xilinx tool (vivado, xvlog, xelab, xsim): prefer
-    * $XILINX_VIVADO/bin/<name>, else the bare name on PATH. On Windows the
-    * name gets a `.bat` suffix in both cases (see [[exeSuffix]]).
+    * $XILINX_VIVADO/bin/<name>, else the bare name on PATH. On Windows the name
+    * gets a `.bat` suffix in both cases (see [[exeSuffix]]).
     */
   def tool(env: Map[String, String], name: String): String = {
     val exeName = name + exeSuffix
