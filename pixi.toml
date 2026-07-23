@@ -8,6 +8,7 @@ platforms = ["linux-64"]
 
 [activation.env]
 MILL_VERSION = "1.1.7-jvm"
+PYTHONPATH = "$PIXI_PROJECT_ROOT"
 
 [dependencies]
 # --- Base Languages and Runtimes ---
