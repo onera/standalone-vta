@@ -32,24 +32,24 @@ object `package` extends build.BaseVtaModule {
     targets(activeConfigKey, build.defaultBoardName)
 
   /** Optional shallow root for the heavy Xilinx project trees
-    * (-Dvta.xil.dir=<dir>): the Vivado build, the OOC netlist project and the
+    * (-Dvta.xil.out=<dir>): the Vivado build, the OOC netlist project and the
     * Vitis workspaces are created under `<dir>/<config>/<board>/` instead of
     * the deep Mill task dests, for Windows where Vivado/Vitis fail on long
     * paths. Exports and hashed outputs (XSA, bitstream, netlist, manifest) stay
     * in the task dests either way.
     */
-  def xilDir = Task.Input { sys.props.get("vta.xil.dir") }
+  def xilOutDir = Task.Input { sys.props.get("vta.xil.out") }
 
-  /** The redirected `<xil.dir>/<config>/<board>` root for a (config, board), or
-    * None when -Dvta.xil.dir is unset. `xil` is [[xilDir]]'s value, passed in
+  /** The redirected `<xilOut>/<config>/<board>` root for a (config, board), or
+    * None when -Dvta.xil.out is unset. `xilOut` is [[xilOutDir]]'s value, passed in
     * so callers evaluate the Task.Input inside their own Task block.
     */
-  def xilRoot(
-    xil: Option[String],
+  def xilOutRoot(
+    xilOut: Option[String],
     configKey: String,
     board: String
   ): Option[os.Path] =
-    xil.map(p => os.Path(p, BuildCtx.workspaceRoot) / configKey / board)
+    xilOut.map(p => os.Path(p, BuildCtx.workspaceRoot) / configKey / board)
 
   /** Resolve the vitis executable: $XILINX_VITIS/bin/vitis, else whatever
     * `vitis` is on PATH. A plain function, not a Task.Input: the tool's
@@ -124,7 +124,7 @@ object `package` extends build.BaseVtaModule {
       boardJson()
       configSignature()
       val outDir =
-        xilRoot(xilDir(), configKey, board).getOrElse(Task.dest)
+        xilOutRoot(xilOutDir(), configKey, board).getOrElse(Task.dest)
       synthesis.runBuildFpga(
         synthesis.runner(),
         board,
@@ -178,7 +178,7 @@ object `package` extends build.BaseVtaModule {
     def oocNetlist = Task {
       val shell = build.vta.hardware.configs(configKey).vtaDebugShell()
       boardJson()
-      val projFlags = xilRoot(xilDir(), configKey, board)
+      val projFlags = xilOutRoot(xilOutDir(), configKey, board)
         .map(p => Seq("--proj-dir", (p / "ooc-proj").toString))
         .getOrElse(Seq.empty)
       synthesis
@@ -204,15 +204,15 @@ object `package` extends build.BaseVtaModule {
       *
       * The platform is model-independent: per-model app components are added on
       * top by `examples[<model>,<config>].createVitisProject` (or the flat
-      * [[createVitisProject]]), all sharing this one workspace. xilffs is
+      * [[createVitisProject]]), all sharing this one workspace. xilOutffs is
       * enabled at build time so SD-loader apps never need a platform rebuild; a
       * changed XSA refreshes the platform in place (update_hw). Persistent;
       * returns the workspace dir (as a String: a Vitis workspace is not worth
-      * content-hashing). Honors -Dvta.xil.dir.
+      * content-hashing). Honors -Dvta.xil.out.
       */
     def vitisPlatform = Task(persistent = true) {
       val manifest = fpgaSynth().path / "manifest.json"
-      val ws = xilRoot(xilDir(), configKey, board)
+      val ws = xilOutRoot(xilOutDir(), configKey, board)
         .map(_ / "vitis")
         .getOrElse(Task.dest)
       os.proc(
