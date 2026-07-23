@@ -501,6 +501,40 @@ trait ExampleModule extends Cross.Module2[String, String] with HasVtaConfig {
     ws.toString
   }
 
+  /** Create a Vitis workspace for this example from an XSA you already have,
+    * with no Vivado run at all.
+    *
+    * The synthesis-driven path is [[createVitisProject]]; this command shares
+    * only the generated headers ([[genBaremetal]]) with it. Mill fills in just
+    * what it knows - the workspace dir, this model's headers and the app-name
+    * prefix - and each can be overridden by repeating the flag in `args`, since
+    * the script keeps the last occurrence. The workspace defaults to
+    * `build/vitis/<model>_<config>` so a rerun reuses the platform it built.
+    *
+    * @param args
+    *   create_vitis_workspace.py flags. `--xsa <file>` is required; typically
+    *   also `--runner run_nn`, `--data-loader elf`, and `--cpu <name>` for a
+    *   non-ZynqMP board (default psu_cortexa53_0).
+    */
+  def createVitisProjectFromXsa(args: Args) = Task.Command {
+    val genDir = genBaremetal().path
+    val ws = BuildCtx.workspaceRoot / "build" / "vitis" /
+      s"${crossValue}_$configKey"
+    os.proc(
+      build.vta.fpga.resolveVitis(Task.env),
+      "-s",
+      build.vta.fpga.software.vitisScript().path,
+      "--workspace",
+      ws.toString,
+      "--gen-dir",
+      genDir.toString,
+      "--name-prefix",
+      crossValue,
+      args.value
+    ).call(stdout = os.Inherit)
+    ws.toString
+  }
+
   /** End-to-end post-synthesis gate-level check for this example on the active
     * board (-Dvta.board.name): compile the model, dump the per-layer fsim
     * goldens, emit the post-synth TB, run xsim behavioral + netlist against the
