@@ -412,11 +412,19 @@ trait ExampleModule extends Cross.Module2[String, String] with HasVtaConfig {
     PathRef(Task.dest)
   }
 
+  /** SD-card subfolder this model's files live in: the model name, so several
+    * models can share one card (`0:/<model>/instructions_L0.bin`). Emitted into
+    * nn_sd_manifest.h as NN_SD_DIR.
+    */
+  def sdDir: String = crossValue
+
   /** Generate the baremetal PS headers (nn_exec_plan.h, nn_ddr_map.h, ...) for
     * this example into this task's dest.
     *
     * Compiles the model first if stale. No Vivado needed. Cached: re-runs when
-    * the compile inputs, the config or -Dvta.ddr.base change.
+    * the compile inputs, the config or -Dvta.ddr.base change. The SD manifest
+    * is always emitted (so `--data-loader sd` builds) but nothing is staged -
+    * use [[sdCard]] for the copy-to-card file set.
     */
   // Writes into this task's dest, never the tracked vta/fpga/software/gen/ dir
   // that a Vitis build reads from: a cached task must not silently overwrite it.
@@ -428,9 +436,32 @@ trait ExampleModule extends Cross.Module2[String, String] with HasVtaConfig {
       Task.dest,
       configKey,
       build.examples.vtaDdrBase(),
-      Seq()
+      Seq("--emit-sd-manifest", "--no-stage-sd-files", "--sd-dir", sdDir)
     )
     PathRef(Task.dest)
+  }
+
+  /** Stage this example's SD-card file set: the .bin streams the runtime `sd`
+    * loader reads, under `<dest>/sd_card/<model>/`.
+    *
+    * Re-runs the codegen with staging enabled into its own dest; the layout is
+    * deterministic, so the addresses match the app built from [[genBaremetal]].
+    * Not used by the Vitis tasks - it only produces files to copy to a FAT32
+    * card. For the isolation runners use [[sdCardDebug]], which also stages the
+    * goldens.
+    */
+  def sdCard() = Task.Command {
+    val compOut = compile().path
+    build.vta.fpga.software.runGenNnBaremetal(
+      build.vta.fpga.software.runner(),
+      compOut,
+      Task.dest,
+      configKey,
+      build.examples.vtaDdrBase(),
+      Seq("--emit-sd-manifest", "--sd-dir", sdDir)
+    )
+    println(s"[INFO] copy ${Task.dest / "sd_card" / sdDir} to the SD card root")
+    PathRef(Task.dest / "sd_card")
   }
 
   /** Add this example's app components to the shared Vitis workspace of its
