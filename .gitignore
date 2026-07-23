@@ -1,44 +1,47 @@
-#####################
-# The files to ignore
-#####################
+# ==========================================
+# Standalone VTA - Main .gitignore
+# ==========================================
 
-# Do not consider __pycache__ & its content
-# -----------------------------------------
-/**/__pycache__/
-/**/__pycache__/*
+# Python
+# ------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
 
-# Do not consider build repository
-# --------------------------------
+# Build and Outputs
+# ------------------------------------------
 /**/build/
-/**/build/*
+out/
+compiler_output/
+simulators_output/
+training_output/
+log_output/
 
-# Do not consider OUTPUTS repositories
-# ------------------------------------
-/**/compiler_output/
-/**/compiler_output/*
-/**/simulators_output/
-/**/simulators_output/*
-/**/src/fpga/software/gen/*
-/**/src/fpga/software/vitis_workspace/*
-/**/log_output/
-/**/log_output/*
+# Vitis Generated Files
+# (We ignore contents but keep the folder structures)
+src/fpga/software/gen/*
+src/fpga/software/vitis_workspace/*
 
-# Do not consider binary files (nor executable)
-# ----------------------------
-/**/*.o
-/**/*.bin
-/**/*.exe
-/**/*.out
+# Datasets
+# ------------------------------------------
+datasets/
 
-# Do not consider prompt.txt files (nor tempo.txt): information about execution
-# ------------------------------------------------
-/**/prompt*.txt
-/**/tempo*.txt
+# Binaries & Executables
+# ------------------------------------------
+*.o
+*.bin
+*.exe
+*.out
 
-# Do not consider IDEs dots dirs
-/**/.idea/
-/**/.vscode/
-/**/.metals/
-/**/.bloop/
-/**/out/
-/**/chisel-outputs/
+# Execution info and temp files
+# ------------------------------------------
+prompt*.txt
+tempo*.txt
+
+# IDEs & Package Managers
+# ------------------------------------------
+.idea/
+.vscode/
+.metals/
+.bloop/
+.pixi/
