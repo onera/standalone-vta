@@ -30,4 +30,24 @@ class GenSdModeGoldenTest extends AnyFlatSpec with Matchers {
         .toList
     }
   }
+
+  for (name <- GoldenSupport.cases) {
+    s"GenNnBaremetal --no-stage-sd-files [$name]" should
+      "emit the manifest without staging any binaries" in {
+        val c = GoldenSupport.loadCase(name)
+        val outDir = GoldenSupport.sandbox("gen-sd-nostage", name)
+        GenNnBaremetal.generate(
+          compDir = c.comp.toString,
+          outdir = outDir.toString,
+          ddrBase = c.ddrBase,
+          cfg = ConfigParser.load(c.cfg.toString),
+          emitSdManifest = true,
+          stageSdFiles = false
+        )
+        os.read(outDir / "nn_sd_manifest.h") shouldBe os.read(
+          c.dir / "gen-sd" / "nn_sd_manifest.h"
+        )
+        os.exists(outDir / "sd_card") shouldBe false
+      }
+  }
 }

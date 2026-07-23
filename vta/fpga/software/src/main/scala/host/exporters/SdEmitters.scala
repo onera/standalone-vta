@@ -169,25 +169,32 @@ trait SdEmitters {
         val sub = t.sdDir.stripPrefix("/").stripSuffix("/")
         println(s"[gen] SD manifest written to $path")
 
-        // Stage the referenced binaries into sdCardDir/<sdDir>/
-        if (os.exists(stageRoot)) os.remove.all(stageRoot)
-        os.makeDir.all(stageRoot)
-        for (src <- staged) {
-          val srcPath = os.Path(src, os.pwd)
-          os.copy(
-            srcPath,
-            stageRoot / srcPath.last,
-            replaceExisting = true,
-            createFolders = true
+        if (!t.stageFiles) {
+          println(
+            "[gen] staging skipped (--no-stage-sd-files) - the manifest is" +
+              " emitted, the .bin set is not copied"
+          )
+        } else {
+          // Stage the referenced binaries into sdCardDir/<sdDir>/
+          if (os.exists(stageRoot)) os.remove.all(stageRoot)
+          os.makeDir.all(stageRoot)
+          for (src <- staged) {
+            val srcPath = os.Path(src, os.pwd)
+            os.copy(
+              srcPath,
+              stageRoot / srcPath.last,
+              replaceExisting = true,
+              createFolders = true
+            )
+          }
+          val dstHint =
+            if (sub.nonEmpty) s"the SD card's $sub/ folder"
+            else "the SD card root"
+          println(
+            s"[gen] staged ${staged.size} file(s) into $stageRoot" +
+              s" - copy its contents to $dstHint"
           )
         }
-        val dstHint =
-          if (sub.nonEmpty) s"the SD card's $sub/ folder"
-          else "the SD card root"
-        println(
-          s"[gen] staged ${staged.size} file(s) into $stageRoot" +
-            s" - copy its contents to $dstHint"
-        )
       }
     }
 }

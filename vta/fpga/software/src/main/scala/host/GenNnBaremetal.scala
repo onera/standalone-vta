@@ -35,6 +35,7 @@ object GenNnBaremetal {
     emitLayerCheck: Boolean = false,
     emitCpuCheck: Boolean = false,
     emitSdManifest: Boolean = false,
+    stageSdFiles: Boolean = true,
     refDir: Option[String] = None,
     sdDir: String = "",
     maxAddr: Option[Long] = None,
@@ -164,7 +165,8 @@ object GenNnBaremetal {
         sdCardDir = out("sd_card").toString,
         sdDir = sdDir,
         emitRefs = emitCheck,
-        extraBlobs = ctBlobs
+        extraBlobs = ctBlobs,
+        stageFiles = stageSdFiles
       ).export(out("nn_sd_manifest.h"))
 
     AsmIncbin(activeL, emitCheck = emitCheck, extraBlobs = ctBlobs).export(
@@ -211,6 +213,7 @@ object GenNnBaremetal {
     emitLayerCheck: Boolean = false,
     emitCpuCheck: Boolean = false,
     emitSdManifest: Boolean = false,
+    stageSdFiles: Boolean = true,
     refDir: Option[String] = None,
     sdDir: String = ""
   )
@@ -266,6 +269,12 @@ object GenNnBaremetal {
       opt[Unit]("emit-sd-manifest")
         .action((_, c) => c.copy(emitSdManifest = true))
         .text("emit the SD-card manifest and stage the .bin set"),
+      opt[Unit]("no-stage-sd-files")
+        .action((_, c) => c.copy(stageSdFiles = false))
+        .text(
+          "with --emit-sd-manifest: emit the header only, do not copy the" +
+            " .bin set into <outdir>/sd_card"
+        ),
       opt[String]("ref-dir")
         .action((x, c) => c.copy(refDir = Some(x)))
         .text("fsim golden dump directory (required with the check flags)")
@@ -293,6 +302,7 @@ object GenNnBaremetal {
             emitLayerCheck = o.emitLayerCheck || o.emitCpuCheck,
             emitCpuCheck = o.emitCpuCheck,
             emitSdManifest = o.emitSdManifest,
+            stageSdFiles = o.stageSdFiles,
             refDir = o.refDir.map(rd => new java.io.File(rd).getAbsolutePath),
             sdDir = o.sdDir,
             maxAddr = o.maxAddr.map(parseAddr),

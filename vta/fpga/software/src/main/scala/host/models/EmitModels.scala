@@ -69,10 +69,13 @@ final case class LinkerFragment(
   extraBlobs: Seq[ExtraBlob] = Nil
 )
 
-/** `nn_sd_manifest.h` plus the staged `.bin` set under `sdCardDir`.
+/** `nn_sd_manifest.h` plus, when `stageFiles` is set, the staged `.bin` set
+  * under `sdCardDir`.
   *
-  * Unlike the header-only artifacts this also copies the referenced binaries,
+  * Unlike the header-only artifacts this can also copy the referenced binaries,
   * so its `Exportable` instance is bespoke (it does more than write `path`).
+  * `stageFiles = false` emits the header alone - the manifest only reads the
+  * binaries' sizes, never their contents.
   */
 final case class SdManifest(
   layers: Seq[Model.LayerInfo],
@@ -81,7 +84,8 @@ final case class SdManifest(
   sdCardDir: String,
   sdDir: String = "",
   emitRefs: Boolean = false,
-  extraBlobs: Seq[ExtraBlob] = Nil
+  extraBlobs: Seq[ExtraBlob] = Nil,
+  stageFiles: Boolean = true
 )
 
 /** `nn_debug_map.h` - the per-layer `DebugLayerDesc nn_debug[]` table. */
