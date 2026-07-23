@@ -153,34 +153,4 @@ object `package` extends Module with SpotlessModule {
       println(s"${k.padTo(width, ' ')} = $v ($origin)")
     }
   }
-
-  /** End-to-end pipelines for every (model, config) pair: compile, simulate,
-    * check, generate baremetal.
-    *
-    * One cross instance per ONNX model in examples/onnx and config in config/;
-    * address it as `examples[<model>,<config>]`, e.g. `./mill
-    * "examples[lenet5,vta_w8b].run"`.
-    */
-  object examples
-      extends Cross[ExampleModule](examplePairs)
-      with BaseVtaModule {
-
-    /** The `outputs` (compile + fsim + vsim + check) of every (model, config)
-      * pair, as a list of run dirs. Used by [[runAll]].
-      */
-    def allOutputs =
-      Task.traverse(examplePairs) { case (m, c) => examples(m, c).outputs }
-
-    /** Validate every (model, config) pair and print the run dir of each.
-      *
-      * Pairs are cached and hermetic, so they run in parallel and only stale
-      * ones re-execute. Add Mill's --keep-going to see all failures at once.
-      */
-    def runAll = Task.Uncached {
-      examplePairs.zip(allOutputs()).foreach { case ((m, c), out) =>
-        println(s"$m/$c -> ${out.path}")
-      }
-    }
-  }
-
 }
