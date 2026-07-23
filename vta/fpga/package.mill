@@ -374,7 +374,7 @@ object `package` extends build.BaseVtaModule {
       * (software/host/create_vitis_workspace.py).
       */
     def vitisScript =
-      Task.Source(moduleDir / "software" / "host" / "create_vitis_workspace.py")
+      Task.Source(moduleDir / "host" / "create_vitis_workspace.py")
 
     /** Create a Vitis workspace by hand, passing every option yourself.
       *
