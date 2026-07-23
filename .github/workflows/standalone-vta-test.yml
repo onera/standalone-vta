@@ -108,7 +108,9 @@ jobs:
       # (lenet5 and qyolo_pattern, each on vta_config and vta_w8b) on the fly,
       # hence the pixi env for the Python compiler.
       - name: Run FPGA host tests
-        run: ./mill vta.fpga.test
+        run: ./mill vta.fpga.software.test
+      - name: Run FPGA synth tests
+        run: ./mill vta.fpga.synthesis.test
 
   cycle-accurate-simulator-test:
     needs: [functional-simulator-test, chisel-unittests]
