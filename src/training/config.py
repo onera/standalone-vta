@@ -106,11 +106,15 @@ def parse_args() -> TrainingConfig:
 
     args = parser.parse_args()
 
-    # Load base config from YAML if provided, else default dataclass instance
-    if args.config:
-        cfg = TrainingConfig.from_yaml(args.config)
+    # Load base config from YAML if provided or if default preset exists, else default dataclass instance
+    default_preset = "src/training/configs/lenet5.yaml"
+    config_path = args.config if args.config else (default_preset if os.path.exists(default_preset) else None)
+
+    if config_path:
+        cfg = TrainingConfig.from_yaml(config_path)
     else:
         cfg = TrainingConfig()
+
 
     # Apply CLI overrides for any explicitly passed parameters
     if args.dataset is not None:
