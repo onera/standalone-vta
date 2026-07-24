@@ -13,7 +13,6 @@ import mill.api.ModuleCtx
 trait ExampleModule
     extends Cross.Module2[String, String]
     with HasVtaConfig
-    with BaremetalTasks
     with VitisTasks
     with PostSynthTasks {
   // crossValue = model, crossValue2 = config key (e.g. "vta_w8b") - a

@@ -9,12 +9,18 @@ import mill.api.BuildCtx
   *
   * Traits only: Mill rejects a module or task defined outside a `build.mill` or
   * `package.mill` file, so the Cross objects stay in package.mill and this file
-  * holds what they mix in. Each trait declares the tasks it *consumes* as
-  * abstract members rather than extending the trait that provides them, so the
-  * parts stay independently readable; linearization satisfies them at
-  * composition.
+  * holds what they mix in. When a trait consumes a task that another trait in
+  * this file provides concretely, it must EXTEND that trait rather than
+  * abstractly re-declare the task. Mill's task macro treats a later abstract
+  * declaration of an already-concrete task as an *override*: it emits
+  * `<task>.super.<Trait>` entries in `mill plan` and relocates the task's real
+  * output to a `.super/<Trait>.dest` directory, leaving the documented
+  * `<task>.dest` behind as a stale copy. Abstract declarations are fine only
+  * when nothing in the composition provides them concretely yet - satisfied
+  * later by the leaf module (`ExampleModule`).
   *
-  * Every trait here extends HasVtaConfig and only that. BaseVtaModule defines
+  * Every trait here extends HasVtaConfig and only that (directly, or
+  * transitively through another trait in this file). BaseVtaModule defines
   * configKey and configSignature too, as Tasks off the global
   * -Dvta.config.file, and mixing both into one module is an override conflict.
   */
@@ -161,16 +167,7 @@ trait BaremetalTasks extends Module with HasVtaConfig {
 }
 
 /** Vitis workspace and application creation. */
-trait VitisTasks extends Module with HasVtaConfig with HasFpgaBoard {
-
-  /** This model's name, used as the app-name prefix. */
-  def modelKey: String
-
-  /** The generated PS headers a plain app is built against. */
-  def genBaremetal: Task.Simple[PathRef]
-
-  /** The generated PS headers an isolation-runner app is built against. */
-  def genBaremetalDebug: Task.Simple[PathRef]
+trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
 
   /** Add this example's app components to the shared Vitis workspace of its
     * (config, board), ready to build and flash.
