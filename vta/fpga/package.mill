@@ -41,8 +41,8 @@ object `package` extends build.BaseVtaModule {
   def xilOutDir = Task.Input { sys.props.get("vta.xil.out") }
 
   /** The redirected `<xilOut>/<config>/<board>` root for a (config, board), or
-    * None when -Dvta.xil.out is unset. `xilOut` is [[xilOutDir]]'s value, passed in
-    * so callers evaluate the Task.Input inside their own Task block.
+    * None when -Dvta.xil.out is unset. `xilOut` is [[xilOutDir]]'s value,
+    * passed in so callers evaluate the Task.Input inside their own Task block.
     */
   def xilOutRoot(
     xilOut: Option[String],
@@ -80,10 +80,12 @@ object `package` extends build.BaseVtaModule {
         val argStrings = args.mkString(" ")
         if (scala.util.Properties.isWin) {
           val winRoot = vitisRoot.replace('/', '\\')
-          val fullCmd = s"call ${winRoot}\\settings64.bat && ${vitisExe} ${argStrings}"
+          val fullCmd =
+            s"call ${winRoot}\\settings64.bat && ${vitisExe} ${argStrings}"
           os.proc("cmd", "/c", fullCmd).call(stdout = os.Inherit)
         } else {
-          val fullCmd = s"source ${vitisRoot}/settings64.sh && ${vitisExe} ${argStrings}"
+          val fullCmd =
+            s"source ${vitisRoot}/settings64.sh && ${vitisExe} ${argStrings}"
           os.proc("sh", "-c", fullCmd).call(stdout = os.Inherit)
         }
       case None =>
@@ -441,7 +443,9 @@ object `package` extends build.BaseVtaModule {
           workspace.toString,
           "--name-prefix",
           namePrefix
-        ) ++ genDir.toSeq.flatMap(d => Seq("--gen-dir", d.toString)) ++ extraArgs
+        ) ++ genDir.toSeq.flatMap(d =>
+          Seq("--gen-dir", d.toString)
+        ) ++ extraArgs
       )
 
     /** Add app components for the active config to its shared Vitis workspace,
