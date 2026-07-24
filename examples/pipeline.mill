@@ -1,0 +1,367 @@
+package build.examples
+
+import mill._
+import build.HasVtaConfig
+import mill.api.BuildCtx
+
+/** The per-(model, config) pipeline, split by domain so a module can compose
+  * the parts it needs instead of inheriting all of them.
+  *
+  * Traits only: Mill rejects a module or task defined outside a `build.mill` or
+  * `package.mill` file, so the Cross objects stay in package.mill and this file
+  * holds what they mix in. Each trait declares the tasks it *consumes* as
+  * abstract members rather than extending the trait that provides them, so the
+  * parts stay independently readable; linearization satisfies them at
+  * composition.
+  *
+  * Every trait here extends HasVtaConfig and only that. BaseVtaModule defines
+  * configKey and configSignature too, as Tasks off the global
+  * -Dvta.config.file, and mixing both into one module is an override conflict.
+  */
+
+/** The FPGA board the board-dependent tasks target. */
+trait HasFpgaBoard extends Module {
+
+  // A plain def, not a Task: it indexes the vta.fpga.targets Cross, whose keys
+  // must exist before the task graph.
+  def fpgaBoard: String = build.defaultBoardName
+}
+
+/** Baremetal PS codegen and the SD-card file sets. */
+trait BaremetalTasks extends Module with HasVtaConfig {
+
+  /** This model's name, used as the SD subfolder. */
+  def modelKey: String
+
+  /** The compiled .bin / .csv streams. */
+  def compile: Task.Simple[PathRef]
+
+  /** The per-layer fsim goldens the isolation runners check against. */
+  def layerDumps: Task.Simple[PathRef]
+
+  /** Default DDR base when -Dvta.ddr.base is unset. */
+  val defaultDdrBase = "0x0"
+
+  /** DDR base address used by the baremetal codegen, from -Dvta.ddr.base
+    * (default 0x0). Must match the board's DDR base, e.g. 0x10000000.
+    */
+  def vtaDdrBase = Task.Input {
+    sys.props.getOrElse("vta.ddr.base", defaultDdrBase)
+  }
+
+  /** SD-card subfolder this model's files live in: the model name, so several
+    * models can share one card (`0:/<model>/instructions_L0.bin`). Emitted into
+    * nn_sd_manifest.h as NN_SD_DIR.
+    */
+  def sdDir: String = modelKey
+
+  /** Generate the baremetal PS headers (nn_exec_plan.h, nn_ddr_map.h, ...) for
+    * this example into this task's dest.
+    *
+    * Compiles the model first if stale. No Vivado needed. Cached: re-runs when
+    * the compile inputs, the config or -Dvta.ddr.base change. The SD manifest
+    * is always emitted (so `--data-loader sd` builds) but nothing is staged -
+    * use [[sdCard]] for the copy-to-card file set.
+    */
+  // Writes into this task's dest, never the tracked vta/fpga/software/gen/ dir
+  // that a Vitis build reads from: a cached task must not silently overwrite it.
+  def genBaremetal = Task {
+    val compOut = compile().path
+    build.vta.fpga.software.runGenNnBaremetal(
+      build.vta.fpga.software.runner(),
+      compOut,
+      Task.dest,
+      configKey,
+      vtaDdrBase(),
+      Seq("--emit-sd-manifest", "--no-stage-sd-files", "--sd-dir", sdDir)
+    )
+    PathRef(Task.dest)
+  }
+
+  /** Stage this example's SD-card file set: the .bin streams the runtime `sd`
+    * loader reads, under `<dest>/sd_card/<model>/`.
+    *
+    * Re-runs the codegen with staging enabled into its own dest; the layout is
+    * deterministic, so the addresses match the app built from [[genBaremetal]].
+    * Not used by the Vitis tasks - it only produces files to copy to a FAT32
+    * card. For the isolation runners use [[sdCardDebug]], which also stages the
+    * goldens.
+    */
+  def sdCard() = Task.Command {
+    val compOut = compile().path
+    build.vta.fpga.software.runGenNnBaremetal(
+      build.vta.fpga.software.runner(),
+      compOut,
+      Task.dest,
+      configKey,
+      vtaDdrBase(),
+      Seq("--emit-sd-manifest", "--sd-dir", sdDir)
+    )
+    println(s"[INFO] copy ${Task.dest / "sd_card" / sdDir} to the SD card root")
+    PathRef(Task.dest / "sd_card")
+  }
+
+  /** Baremetal PS headers for the on-board isolation runners: [[genBaremetal]]
+    * plus nn_debug_map.h and nn_cpu_debug_map.h, wired to this example's fsim
+    * goldens ([[layerDumps]]).
+    *
+    * Cached like [[genBaremetal]], with the golden dump as an extra input. One
+    * gen dir serves both run_nn_debug and run_nn_cpu_debug: --emit-cpu-check
+    * only adds a header, it changes no DDR layout.
+    */
+  def genBaremetalDebug = Task {
+    val compOut = compile().path
+    build.vta.fpga.software.runGenNnBaremetal(
+      build.vta.fpga.software.runner(),
+      compOut,
+      Task.dest,
+      configKey,
+      vtaDdrBase(),
+      Seq(
+        "--emit-sd-manifest",
+        "--no-stage-sd-files",
+        "--sd-dir",
+        sdDir,
+        "--emit-layer-check",
+        "--emit-cpu-check",
+        "--ref-dir",
+        layerDumps().path.toString
+      )
+    )
+    PathRef(Task.dest)
+  }
+
+  /** Stage the SD-card file set for the isolation runners: the model .bin
+    * streams *and* the per-layer goldens, under `<dest>/sd_card/<model>/`.
+    *
+    * What `createVitisDebugProject --data-loader sd` needs on the card; the
+    * plain [[sdCard]] set has no references and cannot drive a debug run.
+    */
+  def sdCardDebug() = Task.Command {
+    val compOut = compile().path
+    build.vta.fpga.software.runGenNnBaremetal(
+      build.vta.fpga.software.runner(),
+      compOut,
+      Task.dest,
+      configKey,
+      vtaDdrBase(),
+      Seq(
+        "--emit-sd-manifest",
+        "--sd-dir",
+        sdDir,
+        "--emit-layer-check",
+        "--emit-cpu-check",
+        "--ref-dir",
+        layerDumps().path.toString
+      )
+    )
+    println(s"[INFO] copy ${Task.dest / "sd_card" / sdDir} to the SD card root")
+    PathRef(Task.dest / "sd_card")
+  }
+}
+
+/** Vitis workspace and application creation. */
+trait VitisTasks extends Module with HasVtaConfig with HasFpgaBoard {
+
+  /** This model's name, used as the app-name prefix. */
+  def modelKey: String
+
+  /** The generated PS headers a plain app is built against. */
+  def genBaremetal: Task.Simple[PathRef]
+
+  /** The generated PS headers an isolation-runner app is built against. */
+  def genBaremetalDebug: Task.Simple[PathRef]
+
+  /** Add this example's app components to the shared Vitis workspace of its
+    * (config, board), ready to build and flash.
+    *
+    * The workspace and its hardware platform are per (config, board) only -
+    * `vta.fpga.targets[<config>,<board>].vitisPlatform`, built first if stale
+    * (which synthesizes the XSA if needed). This task adds the model-dependent
+    * part on top: app components named `<model>_<runner>[_<loader>]`, wired to
+    * this example's generated headers ([[genBaremetal]]). Several models
+    * therefore coexist in one workspace per platform. Requires Vivado and
+    * Vitis.
+    *
+    * The board comes from -Dvta.board.name (default zcu104).
+    *
+    * @param args
+    *   extra flags forwarded to create_vitis_workspace.py, e.g. `--runner
+    *   <app>`, `--data-loader sd`.
+    */
+  def createVitisProject(args: Args) = Task.Command {
+    val genDir = genBaremetal().path
+    val ws =
+      os.Path(build.vta.fpga.targets(configKey, fpgaBoard).vitisPlatform())
+    val manifest = build.vta.fpga
+      .targets(configKey, fpgaBoard)
+      .fpgaSynth()
+      .path / "manifest.json"
+    build.vta.fpga.software.runCreateVitisApps(
+      Task.env,
+      build.vta.fpga.software.vitisScript().path,
+      build.vta.fpga.readManifestField(manifest, "cpu"),
+      Some(genDir),
+      ws,
+      modelKey,
+      args.value
+    )
+    ws.toString
+  }
+
+  /** Create a Vitis workspace for this example from an XSA you already have,
+    * with no Vivado run at all.
+    *
+    * The synthesis-driven path is [[createVitisProject]]; this command shares
+    * only the generated headers ([[genBaremetal]]) with it. Mill fills in just
+    * what it knows - the workspace dir, this model's headers and the app-name
+    * prefix - and each can be overridden by repeating the flag in `args`, since
+    * the script keeps the last occurrence. The workspace defaults to
+    * `build/vitis/<model>_<config>` so a rerun reuses the platform it built.
+    *
+    * @param args
+    *   create_vitis_workspace.py flags. `--xsa <file>` is required; typically
+    *   also `--runner run_nn`, `--data-loader elf`, and `--cpu <name>` for a
+    *   non-ZynqMP board (default psu_cortexa53_0).
+    */
+  def createVitisProjectFromXsa(args: Args) = Task.Command {
+    val genDir = genBaremetal().path
+    val ws = BuildCtx.workspaceRoot / "build" / "vitis" /
+      s"${modelKey}_$configKey"
+    build.vta.fpga.execVitis(
+      Task.env,
+      Seq(
+        "-s",
+        build.vta.fpga.software.vitisScript().path.toString,
+        "--workspace",
+        ws.toString,
+        "--gen-dir",
+        genDir.toString,
+        "--name-prefix",
+        modelKey
+      ) ++ args.value
+    )
+    ws.toString
+  }
+
+  /** Add this example's on-board isolation app to the shared Vitis workspace of
+    * its (config, board): fsim goldens, debug headers and app in one step.
+    *
+    * Same workspace and platform as [[createVitisProject]] (so it synthesizes
+    * if stale), but the app is wired to [[genBaremetalDebug]]. Defaults to
+    * `--runner run_nn_debug --data-loader elf`, emitted *before* the forwarded
+    * args so a later value overrides them (argparse keeps the last occurrence).
+    *
+    * @param args
+    *   extra flags for create_vitis_workspace.py, e.g. `--runner
+    *   run_nn_cpu_debug`, `--data-loader sd` (stage the card with
+    *   [[sdCardDebug]] first), `--pl-reset-between-layers`.
+    */
+  def createVitisDebugProject(args: Args) = Task.Command {
+    val genDir = genBaremetalDebug().path
+    val ws =
+      os.Path(build.vta.fpga.targets(configKey, fpgaBoard).vitisPlatform())
+    val manifest = build.vta.fpga
+      .targets(configKey, fpgaBoard)
+      .fpgaSynth()
+      .path / "manifest.json"
+    build.vta.fpga.software.runCreateVitisApps(
+      Task.env,
+      build.vta.fpga.software.vitisScript().path,
+      build.vta.fpga.readManifestField(manifest, "cpu"),
+      Some(genDir),
+      ws,
+      modelKey,
+      Seq("--runner", "run_nn_debug", "--data-loader", "elf") ++ args.value
+    )
+    ws.toString
+  }
+}
+
+/** Post-synthesis gate-level checking. */
+trait PostSynthTasks extends Module with HasVtaConfig with HasFpgaBoard {
+
+  /** The compiled .bin / .csv streams. */
+  def compile: Task.Simple[PathRef]
+
+  /** The per-layer fsim goldens the netlist output is compared against. */
+  def layerDumps: Task.Simple[PathRef]
+
+  /** End-to-end post-synthesis gate-level check for this example on the active
+    * board (-Dvta.board.name): compile the model, dump the per-layer fsim
+    * goldens, emit the post-synth TB, run xsim behavioral + netlist against the
+    * cached gate-level netlist, and strb-compare the netlist OUT to the golden.
+    * All artifacts land under this task's dest.
+    *
+    * The slow OOC Vivado synthesis is NOT redone per run: the netlist comes
+    * from the cached `vta.fpga.targets[<config>,<board>].oocNetlist`, which
+    * depends on config + board only, so changing the model or the layer subset
+    * re-runs just the xsim legs. Requires Vivado + xsim on PATH.
+    *
+    * @param args
+    *   the layer subset, comma-separated, e.g.
+    *   `QLinearConv1,MaxPool2,QLinearConv3`.
+    */
+  def postSynth(args: Args) = Task.Command {
+    val root = BuildCtx.workspaceRoot
+    val layers = args.value.headOption.getOrElse(
+      sys.error("pass the layer subset, e.g. QLinearConv1,MaxPool2")
+    )
+    val compOut = compile().path
+    val runDir = Task.dest / "postsynth"
+    val tbDir = Task.dest / "vta-postsynth-tb"
+
+    // The cached gate-level netlist for this (config, board).
+    val netlist = build.vta.fpga.targets(configKey, fpgaBoard).oocNetlist().path
+
+    // The cached fsim per-layer dumps (input/output<layer>.bin). Read-only
+    // here: the TB emitter reads input<layer>.bin, the compare stage reads
+    // output<layer>.bin.
+    val simOut = layerDumps().path
+
+    // Emit the post-synth TB (hardware runner, config pinned via forkArgs like
+    // runGenNnBaremetal does). simOutDir is where the TB reads the per-layer
+    // input<layer>.bin dumps the fsim run above just wrote; without it the
+    // emitter falls back to a stale relative default and cannot find them.
+    build.vta.hardware
+      .runner()
+      .run(
+        args = Seq(
+          tbDir.toString,
+          s"--compilerOutDir=$compOut",
+          s"--simOutDir=$simOut",
+          s"--layers=$layers"
+        ),
+        mainClass = "vta.exporters.DefaultPynqConfigTbEmitter",
+        forkArgs = Seq(s"-Dvta.config.file=$configKey.json"),
+        workingDir = root
+      )
+
+    // Hand the inputs to the flow, which owns the stage sequencing and the
+    // verdicts (propagateEnv so xsim sees XILINX_*).
+    build.vta.fpga.synthesis
+      .runner()
+      .run(
+        args = Seq(
+          "--board",
+          fpgaBoard,
+          "--netlist",
+          netlist.toString,
+          "--tb",
+          tbDir.toString,
+          "--comp-dir",
+          compOut.toString,
+          "--golden-dir",
+          simOut.toString,
+          "--out",
+          runDir.toString,
+          "--layers",
+          layers
+        ),
+        mainClass = "fpga.synthesis.PostSynthFlow",
+        workingDir = root,
+        propagateEnv = true
+      )
+    PathRef(runDir)
+  }
+}
