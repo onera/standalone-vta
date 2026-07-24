@@ -1,6 +1,6 @@
 import argparse
 from dataclasses import dataclass, asdict, fields
-from typing import Optional, Dict, Any
+from typing import Optional, Tuple, Union, List, Dict, Any
 import os
 import yaml
 
@@ -12,13 +12,26 @@ class TrainingConfig:
     batch_size: int = 64
     n_epochs: int = 1
     max_steps_per_epoch: Optional[int] = 3
-    input_res: int = 28
+    image_size: Tuple[int, int] = (28, 28)
     learning_rate: float = 0.001
     seed: int = 42
     device: Optional[str] = None
     output_dir: Optional[str] = None
     skip_vta: bool = False
     skip_onnx_verify: bool = False
+
+    def __post_init__(self) -> None:
+        """Ensures image_size is formatted as a (Height, Width) tuple."""
+        if isinstance(self.image_size, int):
+            self.image_size = (self.image_size, self.image_size)
+        elif isinstance(self.image_size, (list, tuple)):
+            if len(self.image_size) == 1:
+                self.image_size = (int(self.image_size[0]), int(self.image_size[0]))
+            elif len(self.image_size) >= 2:
+                self.image_size = (int(self.image_size[0]), int(self.image_size[1]))
+        # Convert list to tuple for consistent typing
+        if isinstance(self.image_size, list):
+            self.image_size = tuple(self.image_size)
 
     def get_output_dir(self) -> str:
         """Returns default or configured output directory path."""
@@ -30,6 +43,9 @@ class TrainingConfig:
         """Saves current configuration to a YAML file for experiment traceability."""
         os.makedirs(os.path.dirname(os.path.abspath(filepath)), exist_ok=True)
         data = asdict(self)
+        # Convert tuple to list for clean YAML formatting [H, W]
+        if isinstance(data.get("image_size"), tuple):
+            data["image_size"] = list(data["image_size"])
         with open(filepath, 'w', encoding='utf-8') as f:
             yaml.dump(data, f, default_flow_style=False, sort_keys=False)
         print(f"📄 Saved configuration YAML to: {filepath}")
@@ -52,7 +68,7 @@ def parse_args() -> TrainingConfig:
     )
     parser.add_argument(
         "--config", type=str, default=None,
-        help="Path to input YAML configuration file (e.g. configs/lenet.yaml)"
+        help="Path to input YAML configuration file (e.g. configs/lenet5.yaml)"
     )
     parser.add_argument(
         "--dataset", type=str, default=None,
@@ -76,8 +92,8 @@ def parse_args() -> TrainingConfig:
         help="Maximum steps per epoch for fast debugging/testing (default: 3, set to 0 or negative for full epoch)"
     )
     parser.add_argument(
-        "--input-res", type=int, default=None,
-        help="Input resolution for images (default: 28)"
+        "--image-size", type=int, nargs="+", default=None,
+        help="Image size as height and width (e.g. --image-size 28 or --image-size 128 256)"
     )
     parser.add_argument(
         "--lr", type=float, default=None,
@@ -115,7 +131,6 @@ def parse_args() -> TrainingConfig:
     else:
         cfg = TrainingConfig()
 
-
     # Apply CLI overrides for any explicitly passed parameters
     if args.dataset is not None:
         cfg.dataset_name = args.dataset
@@ -127,8 +142,11 @@ def parse_args() -> TrainingConfig:
         cfg.n_epochs = args.epochs
     if args.max_steps_per_epoch is not None:
         cfg.max_steps_per_epoch = args.max_steps_per_epoch if args.max_steps_per_epoch > 0 else None
-    if args.input_res is not None:
-        cfg.input_res = args.input_res
+    if args.image_size is not None:
+        if len(args.image_size) == 1:
+            cfg.image_size = (args.image_size[0], args.image_size[0])
+        else:
+            cfg.image_size = (args.image_size[0], args.image_size[1])
     if args.lr is not None:
         cfg.learning_rate = args.lr
     if args.seed is not None:

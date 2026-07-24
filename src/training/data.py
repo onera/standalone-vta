@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple, Union
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, random_split, Dataset
 
@@ -7,7 +7,7 @@ def get_data_loaders(
     dataset_name: str = "FashionMNIST",
     batch_size: int = 32,
     val_split: float = 0.2,
-    resize: Optional[int] = None
+    image_size: Optional[Union[int, Tuple[int, int]]] = None
 ) -> Dict[str, DataLoader]:
     """Prepares training, validation, and test DataLoaders for the selected dataset.
 
@@ -15,7 +15,7 @@ def get_data_loaders(
         dataset_name: The name of the dataset to load ("FashionMNIST", "MNIST", or "ImageNet").
         batch_size: The batch size for DataLoader.
         val_split: Fraction of training dataset to use as validation set.
-        resize: Optional image size to resize inputs (width/height).
+        image_size: Optional (height, width) tuple or single integer to resize inputs.
 
     Returns:
         A dictionary containing "train", "valid", and "test" DataLoaders.
@@ -25,10 +25,15 @@ def get_data_loaders(
     """
     # Define transforms
     transform_list = []
-    if resize is not None:
-        transform_list.append(transforms.Resize((resize, resize)))
+    if image_size is not None:
+        if isinstance(image_size, int):
+            resize_dim = (image_size, image_size)
+        else:
+            resize_dim = tuple(image_size)
+        transform_list.append(transforms.Resize(resize_dim))
     transform_list.append(transforms.ToTensor())
     transform = transforms.Compose(transform_list)
+
 
     if dataset_name == "FashionMNIST":
         full_train_data: Dataset = datasets.FashionMNIST(

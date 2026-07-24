@@ -1,21 +1,27 @@
+from typing import Tuple, Union
 import torch
 import torch.nn as nn
 from src.training.modeling.common import ConvBnAct
 
 class BasicBlock(nn.Module):
     """Basic residual block used in ResNet-18 and ResNet-34 architectures.
+
     This block implements a two-layer residual function using 3x3 convolutions 
     interspersed with Batch Normalization and ReLU activations. 
+
     Dimensionality adjustment follows Option B as described in the original paper:
     "Deep Residual Learning for Image Recognition" (He et al., 2015).
     Ref: https://arxiv.org/pdf/1512.03385 (Section 3.3, "Residual Network" paragraph).
+
     If the spatial dimensions or channel counts between input and output mismatch, 
     the identity shortcut is replaced by a projection shortcut consisting of a 
     1x1 convolution followed by a Batch Normalization layer.
+
     Structural Topology:
         x ---> Conv3x3 ---> BN ---> ReLU ---> Conv3x3 ---> BN ---> (+) ---> ReLU ---> out
         |                                                           ^
         +--------> [ Optional: Conv1x1 (stride=2) ---> BN ] --------+
+
     Args:
         in_channels (int): Number of channels in the input tensor.
         out_channels (int): Number of channels produced by the block.
@@ -54,10 +60,13 @@ class BasicBlock(nn.Module):
                 nn.BatchNorm2d(out_channels)
             )
         self.relu = nn.ReLU()
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Performs the forward pass of the BasicBlock.
+
         Args:
             x (torch.Tensor): Input feature map of shape (N, C_in, H, W).
+
         Returns:
             torch.Tensor: Output feature map of shape (N, C_out, H/stride, W/stride).
         """
@@ -81,17 +90,27 @@ class ResNet18(nn.Module):
         2. VTA-Compliant Downsampling: Shortcut projections (1x1 convolutions) are 
            used in residual paths when downsampling or changing channel dimensions.
     """
-    def __init__(self, in_channels: int = 3, num_classes: int = 1000, input_res: int = 224) -> None:
+    def __init__(
+        self, 
+        in_channels: int = 3, 
+        num_classes: int = 1000, 
+        image_size: Union[int, Tuple[int, int]] = (224, 224)
+    ) -> None:
         """Initializes the ResNet18 model.
 
         Args:
             in_channels: Number of input channels.
             num_classes: The number of classification categories.
-            input_res: The spatial resolution of input images (e.g. 28 or 224).
+            image_size: Spatial resolution of input images as a single integer or (H, W) tuple.
+                Defaults to (224, 224).
         """
         super().__init__()
         
-        current_res = input_res
+        if isinstance(image_size, int):
+            image_size = (image_size, image_size)
+        self.image_size = image_size
+        
+        current_h, current_w = image_size
         
         # Initial layer
         self.conv1 = ConvBnAct(
@@ -103,10 +122,12 @@ class ResNet18(nn.Module):
             batchnorm=True, 
             activation=True
         )
-        current_res = (current_res - 7 + 2 * 3) // 2 + 1
+        current_h = (current_h - 7 + 2 * 3) // 2 + 1
+        current_w = (current_w - 7 + 2 * 3) // 2 + 1
         
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        current_res = (current_res - 3 + 2 * 1) // 2 + 1
+        current_h = (current_h - 3 + 2 * 1) // 2 + 1
+        current_w = (current_w - 3 + 2 * 1) // 2 + 1
         
         # Group 1 (layer 1)
         self.layer1 = nn.Sequential(
@@ -119,30 +140,34 @@ class ResNet18(nn.Module):
             BasicBlock(64, 128, stride=2),
             BasicBlock(128, 128, stride=1)
         )
-        current_res = (current_res - 3 + 2 * 1) // 2 + 1
+        current_h = (current_h - 3 + 2 * 1) // 2 + 1
+        current_w = (current_w - 3 + 2 * 1) // 2 + 1
         
         # Group 3 (layer 3)
         self.layer3 = nn.Sequential(
             BasicBlock(128, 256, stride=2),
             BasicBlock(256, 256, stride=1)
         )
-        current_res = (current_res - 3 + 2 * 1) // 2 + 1
+        current_h = (current_h - 3 + 2 * 1) // 2 + 1
+        current_w = (current_w - 3 + 2 * 1) // 2 + 1
         
         # Group 4 (layer 4)
         self.layer4 = nn.Sequential(
             BasicBlock(256, 512, stride=2),
             BasicBlock(512, 512, stride=1)
         )
-        current_res = (current_res - 3 + 2 * 1) // 2 + 1
+        current_h = (current_h - 3 + 2 * 1) // 2 + 1
+        current_w = (current_w - 3 + 2 * 1) // 2 + 1
         
         # Fully Convolutional Head
-        self.classifier = nn.Conv2d(512, num_classes, kernel_size=current_res, stride=1, padding=0)
+        self.classifier = nn.Conv2d(512, num_classes, kernel_size=(current_h, current_w), stride=1, padding=0)
+
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Performs the forward pass of the ResNet18 model.
 
         Args:
-            x: Input image tensor of shape [Batch, in_channels, input_res, input_res].
+            x: Input image tensor of shape [Batch, in_channels, height, width].
 
         Returns:
             Output logits tensor of shape [Batch, num_classes, 1, 1].

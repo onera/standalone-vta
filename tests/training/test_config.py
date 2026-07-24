@@ -27,3 +27,11 @@ def test_config_yaml_save_and_load():
         assert loaded_cfg.model_name == "ResNet18"
         assert loaded_cfg.batch_size == 32
         assert loaded_cfg.seed == 100
+
+def test_image_size_formatting():
+    cfg_int = TrainingConfig(image_size=28)
+    assert cfg_int.image_size == (28, 28)
+
+    cfg_tuple = TrainingConfig(image_size=(128, 256))
+    assert cfg_tuple.image_size == (128, 256)
+

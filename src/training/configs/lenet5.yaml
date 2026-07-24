@@ -3,7 +3,7 @@ model_name: LeNet5
 batch_size: 64
 n_epochs: 1
 max_steps_per_epoch: 3
-input_res: 28
+image_size: [28, 28]
 learning_rate: 0.001
 seed: 42
 device: null

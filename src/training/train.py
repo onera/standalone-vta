@@ -31,7 +31,7 @@ def main() -> None:
     loaders = get_data_loaders(
         dataset_name=cfg.dataset_name, 
         batch_size=cfg.batch_size, 
-        resize=cfg.input_res
+        image_size=cfg.image_size
     )
 
     # 2. Determine Channels and Class Count
@@ -47,8 +47,9 @@ def main() -> None:
         model_name=cfg.model_name, 
         num_classes=num_classes, 
         in_channels=in_channels, 
-        input_res=cfg.input_res
+        image_size=cfg.image_size
     )
+
     criterion = FlattenCrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=cfg.learning_rate)
 

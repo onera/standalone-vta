@@ -1,3 +1,4 @@
+from typing import Tuple, Union
 import torch
 import torch.nn as nn
 
@@ -23,14 +24,34 @@ class LeNet5(nn.Module):
         Designed for 28x28 single-channel grayscale image datasets, such as MNIST 
         and FashionMNIST.
     """
-    def __init__(self, num_classes: int = 10) -> None:
-        """Initializes the LeNet5 model layers.
+    def __init__(
+        self, 
+        num_classes: int = 10, 
+        image_size: Union[int, Tuple[int, int]] = (28, 28)
+    ) -> None:
+        """Initializes the LeNet5 model layers and validates input spatial resolution.
 
         Args:
             num_classes: The number of target classification categories. 
                 Defaults to 10.
+            image_size: Spatial resolution of input images as a single integer or (H, W) tuple.
+                Defaults to (28, 28).
+
+        Raises:
+            ValueError: If image_size is not (28, 28).
         """
         super().__init__()
+
+        if isinstance(image_size, int):
+            image_size = (image_size, image_size)
+            
+        if image_size != (28, 28):
+            raise ValueError(
+                f"LeNet5 requires an input image_size of (28, 28), but got {image_size}. "
+                "The fully convolutional head kernel sizes are fixed for 28x28 inputs."
+            )
+        
+        self.image_size = image_size
         
         self.features = nn.Sequential(
             nn.Conv2d(1, 6, kernel_size=5, stride=1, padding=2),  # Output shape: [Batch, 6, 28, 28]

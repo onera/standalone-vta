@@ -1,3 +1,4 @@
+from typing import Tuple, Union
 import torch
 import torch.nn as nn
 from src.training.modeling.common import ConvBnAct
@@ -27,35 +28,47 @@ class VGG16(nn.Module):
         - Block 5: 2x Conv3-512, Conv1-512
         - Classifier: Conv (512 -> 4096), Conv (4096 -> 4096), Conv (4096 -> num_classes)
     """
-    def __init__(self, in_channels: int = 3, num_classes: int = 1000, input_res: int = 224) -> None:
+    def __init__(
+        self, 
+        in_channels: int = 3, 
+        num_classes: int = 1000, 
+        image_size: Union[int, Tuple[int, int]] = (224, 224)
+    ) -> None:
         """Initializes the VGG16 model.
 
         Args:
             in_channels: Number of input channels.
             num_classes: The number of classification categories.
-            input_res: The spatial resolution of input images (e.g. 28 or 224).
+            image_size: Spatial resolution of input images as a single integer or (H, W) tuple.
+                Defaults to (224, 224).
         """
         super().__init__()
         
-        current_res = input_res
+        if isinstance(image_size, int):
+            image_size = (image_size, image_size)
+        self.image_size = image_size
+        
+        current_h, current_w = image_size
         
         # Block 1
         self.block1 = nn.Sequential(
             ConvBnAct(in_channels=in_channels, out_channels=64, kernel_size=3, padding=1),
             ConvBnAct(in_channels=64, out_channels=64, kernel_size=3, padding=1),
         )
-        if current_res >= 2:
+        if current_h >= 2 and current_w >= 2:
             self.block1.add_module("pool", nn.MaxPool2d(kernel_size=2, stride=2))
-            current_res //= 2
+            current_h //= 2
+            current_w //= 2
         
         # Block 2
         self.block2 = nn.Sequential(
             ConvBnAct(in_channels=64, out_channels=128, kernel_size=3, padding=1),
             ConvBnAct(in_channels=128, out_channels=128, kernel_size=3, padding=1),
         )
-        if current_res >= 2:
+        if current_h >= 2 and current_w >= 2:
             self.block2.add_module("pool", nn.MaxPool2d(kernel_size=2, stride=2))
-            current_res //= 2
+            current_h //= 2
+            current_w //= 2
         
         # Block 3
         self.block3 = nn.Sequential(
@@ -63,9 +76,10 @@ class VGG16(nn.Module):
             ConvBnAct(in_channels=256, out_channels=256, kernel_size=3, padding=1),
             ConvBnAct(in_channels=256, out_channels=256, kernel_size=1, padding=0),
         )
-        if current_res >= 2:
+        if current_h >= 2 and current_w >= 2:
             self.block3.add_module("pool", nn.MaxPool2d(kernel_size=2, stride=2))
-            current_res //= 2
+            current_h //= 2
+            current_w //= 2
         
         # Block 4
         self.block4 = nn.Sequential(
@@ -73,9 +87,10 @@ class VGG16(nn.Module):
             ConvBnAct(in_channels=512, out_channels=512, kernel_size=3, padding=1),
             ConvBnAct(in_channels=512, out_channels=512, kernel_size=1, padding=0),
         )
-        if current_res >= 2:
+        if current_h >= 2 and current_w >= 2:
             self.block4.add_module("pool", nn.MaxPool2d(kernel_size=2, stride=2))
-            current_res //= 2
+            current_h //= 2
+            current_w //= 2
         
         # Block 5
         self.block5 = nn.Sequential(
@@ -83,25 +98,27 @@ class VGG16(nn.Module):
             ConvBnAct(in_channels=512, out_channels=512, kernel_size=3, padding=1),
             ConvBnAct(in_channels=512, out_channels=512, kernel_size=1, padding=0),
         )
-        if current_res >= 2:
+        if current_h >= 2 and current_w >= 2:
             self.block5.add_module("pool", nn.MaxPool2d(kernel_size=2, stride=2))
-            current_res //= 2
+            current_h //= 2
+            current_w //= 2
         
         # Fully Convolutional Head (replacing Linear layers)
-        # We use a kernel size equal to the remaining feature map spatial dimension (current_res) to reduce to 1x1
+        # We use a 2D kernel size (current_h, current_w) matching spatial feature map dimensions to reduce to 1x1
         self.classifier = nn.Sequential(
-            nn.Conv2d(512, 4096, kernel_size=current_res, stride=1, padding=0),
+            nn.Conv2d(512, 4096, kernel_size=(current_h, current_w), stride=1, padding=0),
             nn.ReLU(),
             nn.Conv2d(4096, 4096, kernel_size=1, stride=1, padding=0),
             nn.ReLU(),
             nn.Conv2d(4096, num_classes, kernel_size=1, stride=1, padding=0)
         )
 
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Performs the forward pass of the VGG16 model.
 
         Args:
-            x: Input image tensor of shape [Batch, in_channels, input_res, input_res].
+            x: Input image tensor of shape [Batch, in_channels, height, width].
 
         Returns:
             Output logits tensor of shape [Batch, num_classes, 1, 1].
