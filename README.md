@@ -186,6 +186,67 @@ property still selects the config for the flat, non-crossed tasks
 `vta/fpga/software/Makefile`, which remain available for standalone use
 outside Mill.
 
+#### Vitis workspace from an existing XSA
+
+`createVitisProject` always goes through Vivado. When a suitable XSA already
+exists (a colleague's build, a GUI-made design, an archived handoff), the
+separate `createVitisProjectFromXsa` command skips synthesis entirely and hands
+the file straight to `create_vitis_workspace.py`:
+
+```bash
+./mill "examples[lenet5,vta_config].createVitisProjectFromXsa" \
+    --xsa vta_zcu104.xsa --runner run_nn --data-loader elf
+```
+
+The two commands share only the generated headers; nothing in this one's task
+graph reaches Vivado. Mill fills in the workspace directory
+(`build/vitis/<model>_<config>`, kept across runs so the platform is not
+rebuilt), this model's `genBaremetal` output and the app-name prefix - repeat
+any of those flags to override them, since the script keeps the last
+occurrence. Everything else is yours, including `--cpu` for a non-ZynqMP board
+(the script defaults to `psu_cortexa53_0`).
+
+The XSA is *not* checked against the active config: a bitstream synthesized for
+a different block size than the compiled binaries will run and produce garbage.
+
+#### SD-card file set
+
+`genBaremetal` always emits `nn_sd_manifest.h`, so `--data-loader sd` builds
+with no extra step. It does not copy the `.bin` streams themselves, which would
+bloat every cached gen dir - `sdCard` stages those:
+
+```bash
+./mill "examples[lenet5,vta_config].sdCard"
+```
+
+It prints the folder to copy to the root of a FAT32 card. Files land in a
+per-model subfolder (`0:/lenet5/instructions_L0.bin`), so one card can hold
+several models, and the codegen is deterministic, so the staged addresses match
+the app built from `genBaremetal`.
+
+`xilffs` (FatFs) is enabled when the platform is *created*, so a workspace built
+before any SD app was requested cannot build one - point `--workspace` at a
+fresh directory.
+
+#### On-board isolation debugging
+
+`run_nn_debug` and `run_nn_cpu_debug` check every layer on the board against the
+fsim goldens instead of only the final output. That needs an fsim
+`--dump-layers` run, a codegen wired to those dumps, and an app built with the
+debug runner; `createVitisDebugProject` chains all three:
+
+```bash
+./mill "examples[lenet5,vta_config].createVitisDebugProject"
+./mill "examples[lenet5,vta_config].createVitisDebugProject" --runner run_nn_cpu_debug
+```
+
+It defaults to `--runner run_nn_debug --data-loader elf` and shares the
+workspace and platform of `createVitisProject`, so it synthesizes if the
+bitstream is stale. The goldens (`layerDumps`) are cached and shared with
+`postSynth`. For `--data-loader sd`, stage the card with `sdCardDebug` rather
+than `sdCard`: the plain set carries no goldens, and a debug run without them
+has nothing to compare against.
+
 #### Pinning options between runs
 
 Rather than repeating `-Dvta.*` flags on every invocation, persist them:
