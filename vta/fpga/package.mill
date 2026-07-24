@@ -70,6 +70,27 @@ object `package` extends build.BaseVtaModule {
       .getOrElse(exeName)
   }
 
+  /** Execute Vitis with its environment properly set up by sourcing
+    * $XILINX_VITIS/settings64.sh (Linux) or settings64.bat (Windows).
+    */
+  def execVitis(env: Map[String, String], args: Seq[String]): Unit = {
+    env.get("XILINX_VITIS") match {
+      case Some(vitisRoot) =>
+        val vitisExe = resolveVitis(env)
+        val argStrings = args.mkString(" ")
+        if (scala.util.Properties.isWin) {
+          val winRoot = vitisRoot.replace('/', '\\')
+          val fullCmd = s"call ${winRoot}\\settings64.bat && ${vitisExe} ${argStrings}"
+          os.proc("cmd", "/c", fullCmd).call(stdout = os.Inherit)
+        } else {
+          val fullCmd = s"source ${vitisRoot}/settings64.sh && ${vitisExe} ${argStrings}"
+          os.proc("sh", "-c", fullCmd).call(stdout = os.Inherit)
+        }
+      case None =>
+        os.proc(resolveVitis(env) +: args).call(stdout = os.Inherit)
+    }
+  }
+
   /** Read a string field out of a BuildFpga manifest.json (xsa, cpu, board,
     * ...).
     */
@@ -215,18 +236,20 @@ object `package` extends build.BaseVtaModule {
       val ws = xilOutRoot(xilOutDir(), configKey, board)
         .map(_ / "vitis")
         .getOrElse(Task.dest)
-      os.proc(
-        resolveVitis(Task.env),
-        "-s",
-        software.vitisScript().path,
-        "--platform-only",
-        "--xsa",
-        readManifestField(manifest, "xsa"),
-        "--cpu",
-        readManifestField(manifest, "cpu"),
-        "--workspace",
-        ws.toString
-      ).call(stdout = os.Inherit)
+      execVitis(
+        Task.env,
+        Seq(
+          "-s",
+          software.vitisScript().path.toString,
+          "--platform-only",
+          "--xsa",
+          readManifestField(manifest, "xsa"),
+          "--cpu",
+          readManifestField(manifest, "cpu"),
+          "--workspace",
+          ws.toString
+        )
+      )
       ws.toString
     }
   }
@@ -386,8 +409,7 @@ object `package` extends build.BaseVtaModule {
       *   psu_cortexa53_0`, `--gen-dir <baremetal headers>`, `--runner <app>`.
       */
     def createVitisWorkspace(args: Args) = Task.Command {
-      os.proc(resolveVitis(Task.env), "-s", vitisScript(), args.value)
-        .call(stdout = os.Inherit)
+      execVitis(Task.env, Seq("-s", vitisScript().path.toString) ++ args.value)
       PathRef(Task.dest)
     }
 
@@ -400,7 +422,7 @@ object `package` extends build.BaseVtaModule {
       * workspace (<prefix>_<runner>[_<loader>]).
       */
     def runCreateVitisApps(
-      vitisExe: String,
+      env: Map[String, String],
       script: os.Path,
       cpu: String,
       genDir: Option[os.Path],
@@ -408,19 +430,19 @@ object `package` extends build.BaseVtaModule {
       namePrefix: String,
       extraArgs: Seq[String]
     ): Unit =
-      os.proc(
-        vitisExe,
-        "-s",
-        script,
-        "--cpu",
-        cpu,
-        "--workspace",
-        workspace.toString,
-        "--name-prefix",
-        namePrefix,
-        genDir.toSeq.flatMap(d => Seq("--gen-dir", d.toString)),
-        extraArgs
-      ).call(stdout = os.Inherit)
+      execVitis(
+        env,
+        Seq(
+          "-s",
+          script.toString,
+          "--cpu",
+          cpu,
+          "--workspace",
+          workspace.toString,
+          "--name-prefix",
+          namePrefix
+        ) ++ genDir.toSeq.flatMap(d => Seq("--gen-dir", d.toString)) ++ extraArgs
+      )
 
     /** Add app components for the active config to its shared Vitis workspace,
       * building the platform first if stale ([[TargetModule.vitisPlatform]]).
@@ -438,7 +460,7 @@ object `package` extends build.BaseVtaModule {
       val ws = os.Path(activeTarget.vitisPlatform())
       val manifest = activeTarget.fpgaSynth().path / "manifest.json"
       runCreateVitisApps(
-        resolveVitis(Task.env),
+        Task.env,
         vitisScript().path,
         readManifestField(manifest, "cpu"),
         None,

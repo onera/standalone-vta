@@ -304,7 +304,7 @@ trait ExampleModule extends Cross.Module2[String, String] with HasVtaConfig {
       .fpgaSynth()
       .path / "manifest.json"
     build.vta.fpga.software.runCreateVitisApps(
-      build.vta.fpga.resolveVitis(Task.env),
+      Task.env,
       build.vta.fpga.software.vitisScript().path,
       build.vta.fpga.readManifestField(manifest, "cpu"),
       Some(genDir),
@@ -334,18 +334,19 @@ trait ExampleModule extends Cross.Module2[String, String] with HasVtaConfig {
     val genDir = genBaremetal().path
     val ws = BuildCtx.workspaceRoot / "build" / "vitis" /
       s"${crossValue}_$configKey"
-    os.proc(
-      build.vta.fpga.resolveVitis(Task.env),
-      "-s",
-      build.vta.fpga.software.vitisScript().path,
-      "--workspace",
-      ws.toString,
-      "--gen-dir",
-      genDir.toString,
-      "--name-prefix",
-      crossValue,
-      args.value
-    ).call(stdout = os.Inherit)
+    build.vta.fpga.execVitis(
+      Task.env,
+      Seq(
+        "-s",
+        build.vta.fpga.software.vitisScript().path.toString,
+        "--workspace",
+        ws.toString,
+        "--gen-dir",
+        genDir.toString,
+        "--name-prefix",
+        crossValue
+      ) ++ args.value
+    )
     ws.toString
   }
 
