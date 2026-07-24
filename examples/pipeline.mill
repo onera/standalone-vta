@@ -19,10 +19,12 @@ import mill.api.BuildCtx
   * when nothing in the composition provides them concretely yet - satisfied
   * later by the leaf module (`ExampleModule`).
   *
-  * Every trait here extends HasVtaConfig and only that (directly, or
-  * transitively through another trait in this file). BaseVtaModule defines
-  * configKey and configSignature too, as Tasks off the global
-  * -Dvta.config.file, and mixing both into one module is an override conflict.
+  * Every trait here that needs the config reaches it through HasVtaConfig alone
+  * (directly, or transitively through another trait in this file); HasFpgaBoard
+  * is the one exception, needing only Module. None of them mix in
+  * BaseVtaModule: it defines configKey and configSignature too, as Tasks off
+  * the global -Dvta.config.file, and mixing both into one module is an override
+  * conflict.
   */
 
 /** The FPGA board the board-dependent tasks target. */
@@ -33,17 +35,246 @@ trait HasFpgaBoard extends Module {
   def fpgaBoard: String = build.defaultBoardName
 }
 
-/** Baremetal PS codegen and the SD-card file sets. */
-trait BaremetalTasks extends Module with HasVtaConfig {
+/** An ONNX model and its compilation to VTA binaries. */
+trait HasOnnxModel extends Module with HasVtaConfig {
 
-  /** This model's name, used as the SD subfolder. */
+  /** Directory the model files live in. */
+  def onnxRoot: os.Path
+
+  /** This model's name: `<onnxRoot>/<modelKey>.onnx`. */
   def modelKey: String
 
-  /** The compiled .bin / .csv streams. */
-  def compile: Task.Simple[PathRef]
+  def onnxDir = onnxRoot
 
-  /** The per-layer fsim goldens the isolation runners check against. */
-  def layerDumps: Task.Simple[PathRef]
+  /** The ONNX model of this example, under examples/onnx. */
+  def onnxPath = Task.Source(onnxDir / os.RelPath(s"$modelKey.onnx"))
+
+  /** Compile this model for this config: nn_compiler, vta_compiler and the ONNX
+    * reference.
+    *
+    * Writes the .bin / .csv streams to this task's dest. Cached: re-runs only
+    * when the model, the config content or the compiler sources change.
+    */
+  def compile = Task {
+    val root = BuildCtx.workspaceRoot
+    val python = build.vta.compiler.pythonExe().path
+    build.vta.compiler.sources() // invalidate on compiler-code change
+    configSignature() // invalidate on config-content change
+    val compOut = Task.dest
+    build.vta.compiler
+      .compileModel(
+        python,
+        root,
+        onnxPath().path,
+        configPath,
+        compOut,
+        Task.env
+      )
+    build.vta.compiler
+      .runReference(python, root, onnxPath().path, compOut, Task.env)
+    PathRef(compOut)
+  }
+}
+
+/** Functional and Verilated RTL simulation of a compiled model. */
+trait SimTasks extends HasOnnxModel {
+
+  private def funcsimStage(
+    python: os.Path,
+    root: os.Path,
+    compOut: os.Path,
+    simOut: os.Path,
+    fsim: os.Path,
+    fsimFlags: Seq[String],
+    env: Map[String, String]
+  ): Unit = {
+    build.vta
+      .simulator(configKey)
+      .launchSim(
+        fsim,
+        Seq("--comp-dir", compOut.toString, "--output", simOut.toString)
+          ++ fsimFlags,
+        root,
+        env
+      )
+    build.vta.compiler.runCheck(python, root, compOut, simOut, env)
+  }
+
+  private def verilatorSimStage(
+    python: os.Path,
+    root: os.Path,
+    compOut: os.Path,
+    simOut: os.Path,
+    vsim: os.Path,
+    vsimFlags: Seq[String],
+    env: Map[String, String]
+  ): Unit = {
+    build.vta
+      .simulator(configKey)
+      .launchSim(
+        vsim,
+        Seq("--comp-dir", compOut.toString, "--output", simOut.toString)
+          ++ vsimFlags,
+        root,
+        env
+      )
+    build.vta.compiler.runCheck(python, root, compOut, simOut, env, rtl = true)
+  }
+
+  /** fsim -> check -> vsim -> check against an already-compiled compiler_output
+    * dir, writing the simulator results to simOut. Never invokes the Python
+    * compiler.
+    */
+  private def simStage(
+    python: os.Path,
+    root: os.Path,
+    compOut: os.Path,
+    simOut: os.Path,
+    fsim: os.Path,
+    fsimFlags: Seq[String],
+    vsim: os.Path,
+    vsimFlags: Seq[String],
+    env: Map[String, String]
+  ): Unit = {
+    funcsimStage(python, root, compOut, simOut, fsim, fsimFlags, env)
+    verilatorSimStage(python, root, compOut, simOut, vsim, vsimFlags, env)
+  }
+
+  /** Full cached validation of this example: compile, then functional (fsim)
+    * and Verilated RTL (vsim) simulation, each checked against the ONNX
+    * reference.
+    *
+    * Re-runs only when the compile inputs or the simulator binaries change; use
+    * [[run]] to force a fresh simulation.
+    */
+  def outputs = Task {
+    val root = BuildCtx.workspaceRoot
+    val python = build.vta.compiler.pythonExe().path
+    val compOut = compile().path
+    val fsim = build.vta.simulator(configKey).fsimBinary().path
+    val vsim = build.vta.simulator(configKey).vsimBinary().path
+    BuildCtx.withFilesystemCheckerDisabled {
+      simStage(
+        python,
+        root,
+        compOut,
+        Task.dest,
+        fsim,
+        Seq(),
+        vsim,
+        Seq(),
+        Task.env
+      )
+      PathRef(compOut)
+    }
+  }
+
+  /** Run the functional (C++) simulator on this example and check its output
+    * against the ONNX reference.
+    *
+    * Compiles the model first if stale. Always simulates, so it is the task to
+    * use when passing flags.
+    *
+    * @param args
+    *   extra flags forwarded to the fsim binary, e.g. `--layer 3 --verbose` to
+    *   run and print a single VTA layer.
+    */
+  def fsim(args: Args) = Task.Command {
+    val root = BuildCtx.workspaceRoot
+    val python = build.vta.compiler.pythonExe().path
+    val compOut = compile().path
+    val fsim = build.vta.simulator(configKey).fsimBinary().path
+    funcsimStage(python, root, compOut, Task.dest, fsim, args.value, Task.env)
+    PathRef(Task.dest)
+  }
+
+  /** Run the Verilated RTL (Chisel) simulator on this example and check its
+    * output against the ONNX reference.
+    *
+    * Compiles the model first if stale, and rebuilds the RTL/vsim binary if the
+    * hardware changed. Always simulates.
+    *
+    * @param args
+    *   extra flags forwarded to the vsim binary, e.g. `--no-timeout`, `--trace`
+    *   (waveform per layer), `--layer 3`, `--dump-layers`.
+    */
+  def vsim(args: Args) = Task.Command {
+    val root = BuildCtx.workspaceRoot
+    val python = build.vta.compiler.pythonExe().path
+    val compOut = compile().path
+    val vsim = build.vta.simulator(configKey).vsimBinary().path
+    verilatorSimStage(
+      python,
+      root,
+      compOut,
+      Task.dest,
+      vsim,
+      args.value,
+      Task.env
+    )
+    PathRef(Task.dest)
+  }
+
+  /** Run this example end to end: fsim and vsim, each checked against the ONNX
+    * reference.
+    *
+    * Same coverage as [[outputs]] but always simulates (compilation is still
+    * cached). vsim is given --no-timeout.
+    *
+    * @param args
+    *   extra flags forwarded to both simulator binaries, e.g. `--layer 3
+    *   --verbose`.
+    */
+  def run(args: Args) = Task.Command {
+    val root = BuildCtx.workspaceRoot
+    val python = build.vta.compiler.pythonExe().path
+    val compOut = compile().path
+    val fsim = build.vta.simulator(configKey).fsimBinary().path
+    val vsim = build.vta.simulator(configKey).vsimBinary().path
+    simStage(
+      python,
+      root,
+      compOut,
+      Task.dest,
+      fsim,
+      args.value,
+      vsim,
+      "--no-timeout" +: args.value,
+      Task.env
+    )
+    PathRef(Task.dest)
+  }
+
+  /** Per-layer fsim golden dumps for this example: input<suffix>.bin and
+    * output<suffix>.bin in this task's dest.
+    *
+    * The reference set the on-board isolation runners and the post-synth
+    * compare check against. Compiles the model first if stale; cached, so the
+    * dump is shared by [[genBaremetalDebug]] and [[postSynth]].
+    */
+  def layerDumps = Task {
+    val compOut = compile().path
+    val fsim = build.vta.simulator(configKey).fsimBinary().path
+    build.vta
+      .simulator(configKey)
+      .launchSim(
+        fsim,
+        Seq(
+          "--comp-dir",
+          compOut.toString,
+          "--output",
+          Task.dest.toString,
+          "--dump-layers"
+        ),
+        BuildCtx.workspaceRoot,
+        Task.env
+      )
+    PathRef(Task.dest)
+  }
+}
+
+/** Baremetal PS codegen and the SD-card file sets. */
+trait BaremetalTasks extends SimTasks {
 
   /** Default DDR base when -Dvta.ddr.base is unset. */
   val defaultDdrBase = "0x0"
@@ -276,13 +507,7 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
 }
 
 /** Post-synthesis gate-level checking. */
-trait PostSynthTasks extends Module with HasVtaConfig with HasFpgaBoard {
-
-  /** The compiled .bin / .csv streams. */
-  def compile: Task.Simple[PathRef]
-
-  /** The per-layer fsim goldens the netlist output is compared against. */
-  def layerDumps: Task.Simple[PathRef]
+trait PostSynthTasks extends SimTasks with HasFpgaBoard {
 
   /** End-to-end post-synthesis gate-level check for this example on the active
     * board (-Dvta.board.name): compile the model, dump the per-layer fsim
@@ -362,3 +587,12 @@ trait PostSynthTasks extends Module with HasVtaConfig with HasFpgaBoard {
     PathRef(runDir)
   }
 }
+
+/** The whole per-(model, config) pipeline: compile, simulate, generate the
+  * baremetal headers, create a Vitis workspace, check the gate-level netlist.
+  *
+  * Mix this in and supply `configKey`, `modelKey` and `onnxRoot`; everything
+  * else follows. `VitisTasks` and `PostSynthTasks` between them already extend
+  * the rest of the chain, so naming those two composes all six.
+  */
+trait VtaPipelineModule extends VitisTasks with PostSynthTasks
