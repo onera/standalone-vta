@@ -10,6 +10,13 @@ This directory contains the resources required for implementing the Versatile Te
 > make -C examples/ cleaner
 > ```
 
+> [!NOTE]
+> This guide covers the standalone `make` / GUI route. The Mill build drives the
+> same ground from the repo root - synthesis, baremetal codegen and Vitis
+> workspace creation, plus a workspace from an existing XSA (no Vivado), the
+> SD-card file set, and the on-board isolation debug chain. See *Run an Example*
+> in the [root README](../../README.md).
+
 ---
 
 ## Automated Flow (Recommended)
