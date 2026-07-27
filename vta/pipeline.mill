@@ -1,39 +1,44 @@
-package build.examples
+package build.vta
 
 import mill._
+import build.HasFpgaBoard
 import build.HasVtaConfig
 import mill.api.BuildCtx
 
 /** The per-(model, config) pipeline, split by domain so a module can compose
   * the parts it needs instead of inheriting all of them.
   *
-  * Traits only: Mill rejects a module or task defined outside a `build.mill` or
-  * `package.mill` file, so the Cross objects stay in package.mill and this file
-  * holds what they mix in. When a trait consumes a task that another trait in
-  * this file provides concretely, it must EXTEND that trait rather than
-  * abstractly re-declare the task. Mill's task macro treats a later abstract
-  * declaration of an already-concrete task as an *override*: it emits
-  * `<task>.super.<Trait>` entries in `mill plan` and relocates the task's real
-  * output to a `.super/<Trait>.dest` directory, leaving the documented
-  * `<task>.dest` behind as a stale copy. Abstract declarations are fine only
-  * when nothing in the composition provides them concretely yet - satisfied
-  * later by the leaf module (`ExampleModule`).
+  * It lives in build.vta, above the four component packages it drives, because
+  * nothing here is example-specific: any module supplying configKey, modelKey
+  * and onnxRoot gets the pipeline, wherever its models live. examples/ is the
+  * first consumer, not the owner. Being `vta/pipeline.mill` rather than a
+  * `vta/pipeline/package.mill` is what keeps it out of the task graph: Mill
+  * wraps a package.mill into a Module (so `vta.pipeline` would resolve as an
+  * empty module) and every other .mill file into a plain object, which the
+  * enclosing package then re-exports - hence `build.vta.VtaPipelineModule`.
+  *
+  * Traits only: Mill rejects a module or task defined outside a build.mill or
+  * package.mill file, so the Cross objects stay in package.mill and this file
+  * holds what they mix in.
+  *
+  * When a trait consumes a task that another trait here provides concretely, it
+  * must EXTEND that trait rather than abstractly re-declare the task. Mill's
+  * task macro reads a later abstract declaration of an already-concrete task as
+  * an *override*: it emits `<task>.super.<Trait>` entries in `mill plan` and
+  * relocates the task's real output to a `.super/<Trait>.dest` directory,
+  * leaving the documented `<task>.dest` behind as a stale copy. The chain
+  * HasOnnxModel <- SimTasks <- BaremetalTasks <- VitisTasks, and SimTasks <-
+  * PostSynthTasks, is therefore load-bearing rather than stylistic. Abstract
+  * declarations are fine only for what nothing here provides concretely
+  * (configKey, modelKey, onnxRoot), satisfied by the leaf module.
   *
   * Every trait here that needs the config reaches it through HasVtaConfig alone
-  * (directly, or transitively through another trait in this file); HasFpgaBoard
-  * is the one exception, needing only Module. None of them mix in
-  * BaseVtaModule: it defines configKey and configSignature too, as Tasks off
-  * the global -Dvta.config.file, and mixing both into one module is an override
-  * conflict.
+  * (directly, or transitively through another trait in this file), and the
+  * board-dependent ones through HasFpgaBoard; both come from util.mill. None of
+  * them mix in BaseVtaModule: it defines configKey and configSignature too, as
+  * Tasks off the global -Dvta.config.file, and mixing both into one module is
+  * an override conflict.
   */
-
-/** The FPGA board the board-dependent tasks target. */
-trait HasFpgaBoard extends Module {
-
-  // A plain def, not a Task: it indexes the vta.fpga.targets Cross, whose keys
-  // must exist before the task graph.
-  def fpgaBoard: String = build.defaultBoardName
-}
 
 /** An ONNX model and its compilation to VTA binaries. */
 trait HasOnnxModel extends Module with HasVtaConfig {
@@ -276,14 +281,14 @@ trait SimTasks extends HasOnnxModel {
 /** Baremetal PS codegen and the SD-card file sets. */
 trait BaremetalTasks extends SimTasks {
 
-  /** Default DDR base when -Dvta.ddr.base is unset. */
-  val defaultDdrBase = "0x0"
-
   /** DDR base address used by the baremetal codegen, from -Dvta.ddr.base
     * (default 0x0). Must match the board's DDR base, e.g. 0x10000000.
+    *
+    * Duplicates BaseVtaModule's task of the same name, which this trait cannot
+    * mix in (see the file header); the default itself is shared.
     */
   def vtaDdrBase = Task.Input {
-    sys.props.getOrElse("vta.ddr.base", defaultDdrBase)
+    sys.props.getOrElse("vta.ddr.base", build.defaultDdrBase)
   }
 
   /** SD-card subfolder this model's files live in: the model name, so several

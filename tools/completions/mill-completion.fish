@@ -154,7 +154,8 @@ function __mill_repo_root
 end
 
 # The -Dvta.* keys the build reads, as "key=<TAB>description" rows. Keep in sync
-# with the sys.props lookups in util.mill and vta/*/package.mill.
+# with the sys.props lookups in util.mill, vta/pipeline.mill and
+# vta/*/package.mill.
 function __mill_vta_keys
     printf '%s\t%s\n' \
         vta.config.file= 'Active hardware config JSON in config/ (default vta_config.json)' \

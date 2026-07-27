@@ -2,12 +2,14 @@ package build.examples
 
 import mill._
 import build.BaseVtaModule
+import build.vta.VtaPipelineModule
 
 /** One example model built for one config: the full pipeline, keyed by both.
   *
-  * The tasks all come from [[VtaPipelineModule]]; this supplies only the three
-  * values that identify the instance. `configKey` is a direct Cross value
-  * rather than BaseVtaModule's global -Dvta.config.file.
+  * The tasks all come from [[build.vta.VtaPipelineModule]] (vta/pipeline.mill);
+  * this supplies only the three values that identify the instance. `configKey`
+  * is a direct Cross value rather than BaseVtaModule's global
+  * -Dvta.config.file.
   */
 trait ExampleModule
     extends Cross.Module2[String, String]

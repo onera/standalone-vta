@@ -206,6 +206,16 @@ trait HasVtaConfig extends Module {
   def configSignature = Task { configSig(configPath) }
 }
 
+/** The FPGA board a board-dependent module targets: the other identity axis
+  * next to HasVtaConfig, defaulting to -Dvta.board.name.
+  */
+trait HasFpgaBoard extends Module {
+
+  // A plain def, not a Task: it indexes the vta.fpga.targets Cross, whose keys
+  // must exist before the task graph.
+  def fpgaBoard: String = defaultBoardName
+}
+
 /** A single config's identity, derived directly from a Cross value. Mixed into
   * the `configs` Cross submodule of vta.hardware/vta.simulator/ vta.fpga -
   * BaseVtaModule and the flat, global-prop-driven tasks it powers are left
