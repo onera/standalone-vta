@@ -47,7 +47,6 @@ The `standalone-vta` ecosystem is designed with a clear separation of concerns, 
     - `cycle_accurate_simulator/`: Detailed Chisel-based hardware simulator.
   - `fpga/`: FPGA synthesis flow and the PS-side baremetal runtime software.
 - `config/`: Contains `vta_config.json` defining the VTA hardware parameters, plus alternative configurations. See [Config Documentation](config/README.md).
-- `environment_setup/`: Legacy setup files (Docker/Conda). The project now uses Pixi for package and environment management.
 - `examples/`: Makefiles and sample networks to compile and simulate.
 - `tutorials/`: Jupyter notebooks detailing the compiler components.
 - `compiler_output/`, `simulators_output/`, `log_output/`: Default directories for generated artifacts, simulation results and run logs.
@@ -59,7 +58,6 @@ Explore the detailed documentation for each component of the `standalone-vta` ec
 - **Root Documentation**
   - [Project Overview & Quickstart](README.md)
   - [Configuration (`vta_config.json`)](config/README.md)
-  - [Environment Setup (Legacy Docker/Conda)](environment_setup/README.md)
 
 - **Compiler (`src/compiler/`)**
   - [Standalone VTA Compiler](src/compiler/README.md)
