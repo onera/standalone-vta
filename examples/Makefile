@@ -301,6 +301,7 @@ clean_hw: ## Clean Chisel/Mill build outputs
 clean_fpga: ## Clean Vitis and Vivado workspaces
 	-rm -r $(FPGA_HW_DIR)/build
 	-rm -r $(FPGA_SW_DIR)/build
+	-rm -r $(FPGA_SW_DIR)/gen
 
 # ==============================================================================
 # OUTPUT DIRECTORIES
