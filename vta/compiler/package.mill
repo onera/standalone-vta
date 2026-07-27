@@ -62,7 +62,7 @@ object `package` extends CompilerPythonModule { m =>
   private def envFor(env: Map[String, String], dest: os.Path) =
     env + ("VTA_COMPILER_OUT" -> dest.toString)
 
-  def runNn(
+  def nnCompile(
     python: os.Path,
     root: os.Path,
     onnx: os.Path,
@@ -78,7 +78,7 @@ object `package` extends CompilerPythonModule { m =>
         stderr = os.Inherit
       )
 
-  def runVta(
+  def vtaCompile(
     python: os.Path,
     root: os.Path,
     config: os.Path,
@@ -144,8 +144,8 @@ object `package` extends CompilerPythonModule { m =>
     env: Map[String, String]
   ): os.Path = {
     os.makeDir.all(dest)
-    runNn(python, root, onnx, config, dest, env)
-    runVta(python, root, config, dest, env)
+    nnCompile(python, root, onnx, config, dest, env)
+    vtaCompile(python, root, config, dest, env)
     dest
   }
 
@@ -155,13 +155,13 @@ object `package` extends CompilerPythonModule { m =>
     * Runs nn_compiler then vta_compiler. Writes to $VTA_COMPILER_OUT, or to
     * compiler_output/ at the repo root when that is unset. Uncached.
     *
-    * @param args
-    *   two positional paths (relative to the repo root or absolute): the config
-    *   JSON, then the ONNX model.
+    * @param config
+    *   the config JSON path (relative to the repo root or absolute)
+    * @param onnx
+    *   the ONNX model path.
     */
-  def compile(args: Args) = Task.Command {
+  def compile(config: String, onnx: String) = Task.Command {
     val root = BuildCtx.workspaceRoot
-    val cfg :: onnx :: Nil = args.value.take(2).toList: @unchecked
     val dest = os.Path(
       Task.env
         .getOrElse("VTA_COMPILER_OUT", (root / "compiler_output").toString)
@@ -170,7 +170,7 @@ object `package` extends CompilerPythonModule { m =>
       pythonExe().path,
       root,
       os.Path(onnx, root),
-      os.Path(cfg, root),
+      os.Path(config, root),
       dest,
       Task.env
     )

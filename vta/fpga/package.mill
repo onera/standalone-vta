@@ -140,8 +140,6 @@ object `package` extends build.BaseVtaModule {
       * PathRef: hashing a Vivado project tree is expensive and its logs churn
       * on every run).
       */
-    // Task.dest is already keyed by (config, board) - out/vta/fpga/targets/
-    // <config>/<board>/fpgaProject.dest - so no board subdir here.
     def fpgaProject = Task(persistent = true) {
       val emitDir = build.vta.hardware.configs(configKey).vtaFpgaConfig().path
       boardJson()
@@ -256,7 +254,7 @@ object `package` extends build.BaseVtaModule {
     }
   }
 
-  /** FPGA software genrator and tools module, contains everything needed to run
+  /** FPGA software generator and tools module, contains everything needed to run
     * models on heterogenous Xilinx SoC.
     */
   object software extends build.VtaScalaModule { m =>

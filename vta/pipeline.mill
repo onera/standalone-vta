@@ -8,30 +8,6 @@ import mill.api.BuildCtx
 /** The per-(model, config) pipeline, split by domain so a module can compose
   * the parts it needs instead of inheriting all of them.
   *
-  * It lives in build.vta, above the four component packages it drives, because
-  * nothing here is example-specific: any module supplying configKey, modelKey
-  * and onnxRoot gets the pipeline, wherever its models live. examples/ is the
-  * first consumer, not the owner. Being `vta/pipeline.mill` rather than a
-  * `vta/pipeline/package.mill` is what keeps it out of the task graph: Mill
-  * wraps a package.mill into a Module (so `vta.pipeline` would resolve as an
-  * empty module) and every other .mill file into a plain object, which the
-  * enclosing package then re-exports - hence `build.vta.VtaPipelineModule`.
-  *
-  * Traits only: Mill rejects a module or task defined outside a build.mill or
-  * package.mill file, so the Cross objects stay in package.mill and this file
-  * holds what they mix in.
-  *
-  * When a trait consumes a task that another trait here provides concretely, it
-  * must EXTEND that trait rather than abstractly re-declare the task. Mill's
-  * task macro reads a later abstract declaration of an already-concrete task as
-  * an *override*: it emits `<task>.super.<Trait>` entries in `mill plan` and
-  * relocates the task's real output to a `.super/<Trait>.dest` directory,
-  * leaving the documented `<task>.dest` behind as a stale copy. The chain
-  * HasOnnxModel <- SimTasks <- BaremetalTasks <- VitisTasks, and SimTasks <-
-  * PostSynthTasks, is therefore load-bearing rather than stylistic. Abstract
-  * declarations are fine only for what nothing here provides concretely
-  * (configKey, modelKey, onnxRoot), satisfied by the leaf module.
-  *
   * Every trait here that needs the config reaches it through HasVtaConfig alone
   * (directly, or transitively through another trait in this file), and the
   * board-dependent ones through HasFpgaBoard; both come from util.mill. None of
@@ -84,94 +60,26 @@ trait HasOnnxModel extends Module with HasVtaConfig {
 /** Functional and Verilated RTL simulation of a compiled model. */
 trait SimTasks extends HasOnnxModel {
 
-  private def funcsimStage(
-    python: os.Path,
-    root: os.Path,
-    compOut: os.Path,
-    simOut: os.Path,
-    fsim: os.Path,
-    fsimFlags: Seq[String],
-    env: Map[String, String]
-  ): Unit = {
-    build.vta
-      .simulator(configKey)
-      .launchSim(
-        fsim,
-        Seq("--comp-dir", compOut.toString, "--output", simOut.toString)
-          ++ fsimFlags,
-        root,
-        env
-      )
-    build.vta.compiler.runCheck(python, root, compOut, simOut, env)
-  }
-
-  private def verilatorSimStage(
-    python: os.Path,
-    root: os.Path,
-    compOut: os.Path,
-    simOut: os.Path,
-    vsim: os.Path,
-    vsimFlags: Seq[String],
-    env: Map[String, String]
-  ): Unit = {
-    build.vta
-      .simulator(configKey)
-      .launchSim(
-        vsim,
-        Seq("--comp-dir", compOut.toString, "--output", simOut.toString)
-          ++ vsimFlags,
-        root,
-        env
-      )
-    build.vta.compiler.runCheck(python, root, compOut, simOut, env, rtl = true)
-  }
-
-  /** fsim -> check -> vsim -> check against an already-compiled compiler_output
-    * dir, writing the simulator results to simOut. Never invokes the Python
-    * compiler.
-    */
   private def simStage(
     python: os.Path,
     root: os.Path,
     compOut: os.Path,
     simOut: os.Path,
-    fsim: os.Path,
-    fsimFlags: Seq[String],
-    vsim: os.Path,
-    vsimFlags: Seq[String],
-    env: Map[String, String]
+    binary: os.Path,
+    flags: Seq[String],
+    env: Map[String, String],
+    isRtl: Boolean = false
   ): Unit = {
-    funcsimStage(python, root, compOut, simOut, fsim, fsimFlags, env)
-    verilatorSimStage(python, root, compOut, simOut, vsim, vsimFlags, env)
-  }
-
-  /** Full cached validation of this example: compile, then functional (fsim)
-    * and Verilated RTL (vsim) simulation, each checked against the ONNX
-    * reference.
-    *
-    * Re-runs only when the compile inputs or the simulator binaries change; use
-    * [[run]] to force a fresh simulation.
-    */
-  def outputs = Task {
-    val root = BuildCtx.workspaceRoot
-    val python = build.vta.compiler.pythonExe().path
-    val compOut = compile().path
-    val fsim = build.vta.simulator(configKey).fsimBinary().path
-    val vsim = build.vta.simulator(configKey).vsimBinary().path
-    BuildCtx.withFilesystemCheckerDisabled {
-      simStage(
-        python,
+    build.vta
+      .simulator(configKey)
+      .launchSim(
+        binary,
+        Seq("--comp-dir", compOut.toString, "--output", simOut.toString)
+          ++ flags,
         root,
-        compOut,
-        Task.dest,
-        fsim,
-        Seq(),
-        vsim,
-        Seq(),
-        Task.env
+        env
       )
-      PathRef(compOut)
-    }
+    build.vta.compiler.runCheck(python, root, compOut, simOut, env, isRtl)
   }
 
   /** Run the functional (C++) simulator on this example and check its output
@@ -189,7 +97,15 @@ trait SimTasks extends HasOnnxModel {
     val python = build.vta.compiler.pythonExe().path
     val compOut = compile().path
     val fsim = build.vta.simulator(configKey).fsimBinary().path
-    funcsimStage(python, root, compOut, Task.dest, fsim, args.value, Task.env)
+    simStage(
+      python = python,
+      root = root,
+      compOut = compOut,
+      simOut = Task.dest,
+      binary = fsim,
+      flags = args.value,
+      env = Task.env
+    )
     PathRef(Task.dest)
   }
 
@@ -208,44 +124,15 @@ trait SimTasks extends HasOnnxModel {
     val python = build.vta.compiler.pythonExe().path
     val compOut = compile().path
     val vsim = build.vta.simulator(configKey).vsimBinary().path
-    verilatorSimStage(
-      python,
-      root,
-      compOut,
-      Task.dest,
-      vsim,
-      args.value,
-      Task.env
-    )
-    PathRef(Task.dest)
-  }
-
-  /** Run this example end to end: fsim and vsim, each checked against the ONNX
-    * reference.
-    *
-    * Same coverage as [[outputs]] but always simulates (compilation is still
-    * cached). vsim is given --no-timeout.
-    *
-    * @param args
-    *   extra flags forwarded to both simulator binaries, e.g. `--layer 3
-    *   --verbose`.
-    */
-  def run(args: Args) = Task.Command {
-    val root = BuildCtx.workspaceRoot
-    val python = build.vta.compiler.pythonExe().path
-    val compOut = compile().path
-    val fsim = build.vta.simulator(configKey).fsimBinary().path
-    val vsim = build.vta.simulator(configKey).vsimBinary().path
     simStage(
-      python,
-      root,
-      compOut,
-      Task.dest,
-      fsim,
-      args.value,
-      vsim,
-      "--no-timeout" +: args.value,
-      Task.env
+      python = python,
+      root = root,
+      compOut = compOut,
+      simOut = Task.dest,
+      binary = vsim,
+      flags = args.value,
+      env = Task.env,
+      isRtl = true
     )
     PathRef(Task.dest)
   }
@@ -262,17 +149,14 @@ trait SimTasks extends HasOnnxModel {
     val fsim = build.vta.simulator(configKey).fsimBinary().path
     build.vta
       .simulator(configKey)
-      .launchSim(
-        fsim,
-        Seq(
+      .launchFSim(
+        Args(Seq(
           "--comp-dir",
           compOut.toString,
           "--output",
           Task.dest.toString,
           "--dump-layers"
-        ),
-        BuildCtx.workspaceRoot,
-        Task.env
+        )),
       )
     PathRef(Task.dest)
   }

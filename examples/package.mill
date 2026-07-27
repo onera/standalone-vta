@@ -33,22 +33,4 @@ trait ExampleModule
   */
 object `package`
     extends Cross[ExampleModule](build.examplePairs)
-    with BaseVtaModule {
-
-  /** The `outputs` (compile + fsim + vsim + check) of every (model, config)
-    * pair, as a list of run dirs. Used by [[runAll]].
-    */
-  def allOutputs =
-    Task.traverse(build.examplePairs) { case (m, c) => this(m, c).outputs }
-
-  /** Validate every (model, config) pair and print the run dir of each.
-    *
-    * Pairs are cached and hermetic, so they run in parallel and only stale ones
-    * re-execute. Add Mill's --keep-going to see all failures at once.
-    */
-  def runAll = Task.Uncached {
-    build.examplePairs.zip(allOutputs()).foreach { case ((m, c), out) =>
-      println(s"$m/$c -> ${out.path}")
-    }
-  }
-}
+    with BaseVtaModule {}
