@@ -1,0 +1,12 @@
+dataset_name: FashionMNIST
+model_name: VGG16
+batch_size: 64
+n_epochs: 1
+max_steps_per_epoch: 3
+image_size: [28, 28]
+learning_rate: 0.001
+seed: 42
+device: null
+output_dir: null
+skip_vta: true
+skip_onnx_verify: true
