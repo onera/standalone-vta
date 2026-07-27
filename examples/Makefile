@@ -11,6 +11,7 @@ PROJECT_DIR  := $(abspath $(MAKEFILE_DIR)/..)
 
 COMPILER_OUTPUT_DIR  := $(PROJECT_DIR)/compiler_output
 SIMULATOR_OUTPUT_DIR := $(PROJECT_DIR)/simulators_output
+TRAINING_OUTPUT_DIR  := $(PROJECT_DIR)/training_output
 
 SRC_DIR          := $(PROJECT_DIR)/src
 COMPILER_DIR     := $(SRC_DIR)/compiler
@@ -23,6 +24,7 @@ TSIM_DIR         := $(SRC_DIR)/simulators/cycle_accurate_simulator
 CONFIG_DIR       := $(PROJECT_DIR)/config
 FPGA_HW_DIR	     := $(SRC_DIR)/fpga/synthesis
 FPGA_SW_DIR	     := $(SRC_DIR)/fpga/software
+
 
 # ==============================================================================
 # CONFIGURATION
@@ -285,7 +287,7 @@ clean: | $(COMPILER_OUTPUT_DIR) $(SIMULATOR_OUTPUT_DIR) $(LOG_OUTPUT_DIR) ## Del
 	-rm $(LOG_OUTPUT_DIR)/*.*
 	-rm $(SIMULATOR_OUTPUT_DIR)/*.*
 
-cleaner: clean fsim_clean clean_hw clean_fpga ## Delete generated files and the FSIM build directory
+cleaner: clean fsim_clean clean_hw clean_fpga clean_training ## Delete generated files and the FSIM build directory
 
 force_clean: cleaner ## backward compatible clean
 
@@ -301,6 +303,9 @@ clean_hw: ## Clean Chisel/Mill build outputs
 clean_fpga: ## Clean Vitis and Vivado workspaces
 	-rm -r $(FPGA_HW_DIR)/build
 	-rm -r $(FPGA_SW_DIR)/build
+
+clean_training: ## Clean training outputs
+	-rm -r $(TRAINING_OUTPUT_DIR)/*
 
 # ==============================================================================
 # OUTPUT DIRECTORIES
