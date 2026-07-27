@@ -33,12 +33,12 @@ trait ConfigModule extends build.ConfigCrossModule {
     os.proc(
       "make",
       s"CONFIG=$configPath",
-      s"BUILD_DIR=$dest/$configKey",
+      s"BUILD_DIR=$dest",
       extraMakeArgs,
       s"compile-$binaryName"
     ).call(cwd = moduleDir, env = env, stdout = os.Inherit, stderr = os.Inherit)
     BuildCtx.withFilesystemCheckerDisabled {
-      PathRef(dest / configKey / binaryName)
+      PathRef(dest / binaryName)
     }
   }
 
