@@ -20,197 +20,127 @@
 package unittest
 
 import chisel3._
+import chisel3.simulator.PeekPokeAPI
 import chisel3.util._
-import chiseltest._
-import chiseltest.iotesters._
-import scala.util.Random
-import unittest.util._
-import vta.util._
-import vta.util.config._
+import vta.tags
+import vta.util.{AnyFlatSpecSim, _}
 
-class TestOnePortMem(c: OnePortMem[UInt], debug: Boolean = false) extends PeekPokeTester(c) {
+class Checker(c: SyncQueueTestWrapper[UInt]) extends PeekPokeAPI {
 
-  // write a:0 d:24
-  if (debug) {
-    println("-----------------------------")
-    println("Cycle 0 write 24 to address 0")
-  }
-  poke (c.io.wr_en, 1)
-  poke (c.io.wr_data, 24)
-  poke (c.io.ch_en, 1)
-  poke (c.io.addr, 0)
-  step(1)
-  // read a:0
-  if (debug) {
-    println("-----------------------------")
-    println("Cycle 1 read address 0")
-  }
-  poke (c.io.wr_en, 0)
-  poke (c.io.addr, 0)
-  poke (c.io.ch_en, 1)
-  step(1)
-  // write a:1 d:99
-  if (debug) {
-    println("-----------------------------")
-    println("Cycle 2 write 99 to address 1")
-  }
-  poke (c.io.wr_en, 1)
-  poke (c.io.wr_data, 99)
-  poke (c.io.ch_en, 1)
-  poke (c.io.addr, 1)
-  // read d:24
-  if (debug) {
-    println("Cycle 2 read expect data 24")
-  }
-  expect (c.io.rd_data, 24)
-  step(1)
-  if (debug) {
-    println("-----------------------------")
-    println("Cycle 3 should still read data 24")
-  }
-  poke (c.io.ch_en, 0)
-  // read d:24
-  expect (c.io.rd_data, 24)
-  step(1)
-  if (debug) {
-    println("-----------------------------")
-    println("Cycle 4 read address 0")
-  }
-  poke (c.io.wr_en, 0)
-  poke (c.io.addr, 0)
-  poke (c.io.ch_en, 1)
-  step(1)
-  if (debug) {
-    println("-----------------------------")
-  }
-  // write a:1 d:99
-  poke (c.io.wr_en, 0)
-  poke (c.io.wr_data, 99)
-  poke (c.io.ch_en, 0)
-  poke (c.io.addr, 1)
-  // read d:24
-  if (debug) {
-    println("Cycle 5 read expect data 24")
-  }
-  expect (c.io.rd_data, 24)
-  step(1)
-}
-class Checker(c: SyncQueueTestWrapper[UInt], t: PeekPokeTester[SyncQueueTestWrapper[UInt]]) {
-
-  def bits (bits: Int) = {
-    t.expect(c.io.tq.deq.bits, bits)
-    t.expect(c.io.rq.deq.bits, bits)
+  def bits(bits: Int) = {
+    c.io.tq.deq.bits.expect(bits)
+    c.io.rq.deq.bits.expect(bits)
 
   }
-  def ready (bits: Int) = {
-    t.expect(c.io.tq.enq.ready, bits)
-    t.expect(c.io.rq.enq.ready, bits)
+  def ready(bits: Int) = {
+    c.io.tq.enq.ready.expect(bits)
+    c.io.rq.enq.ready.expect(bits)
 
   }
-  def valid (bits: Int) = {
-    t.expect(c.io.tq.deq.valid, bits)
-    t.expect(c.io.rq.deq.valid, bits)
+  def valid(bits: Int) = {
+    c.io.tq.deq.valid.expect(bits)
+    c.io.rq.deq.valid.expect(bits)
 
   }
-  def status () = {
-    val rv = t.peek(c.io.rq.enq.ready)
-    t.expect(c.io.tq.enq.ready, rv)
-    val rc = t.peek(c.io.rq.count)
-    t.expect(c.io.tq.count, rc)
-    val vv = t.peek(c.io.rq.deq.valid)
-    t.expect(c.io.tq.deq.valid, vv)
-    if (vv != 0) {
-      val bv = t.peek(c.io.rq.deq.bits)
-      t.expect(c.io.tq.deq.bits, bv)
+  def status() = {
+    val rv = c.io.rq.enq.ready.peek()
+    c.io.tq.enq.ready.expect(rv)
+    val rc = c.io.rq.count.peek()
+    c.io.tq.count.expect(rc)
+    val vv = c.io.rq.deq.valid.peek()
+    c.io.tq.deq.valid.expect(vv)
+    if (vv.litValue != 0) {
+      val bv = c.io.rq.deq.bits.peek()
+      c.io.tq.deq.bits.expect(bv)
     }
-    t.peek(c.io.rq.count)
-    t.peek(c.io.tq.count)
+    c.io.rq.count.peek()
+    c.io.tq.count.peek()
   }
 }
-class TestSyncQueueLongRead(c: SyncQueueTestWrapper[UInt]) extends PeekPokeTester(c) {
+class TestSyncQueueLongRead(c: SyncQueueTestWrapper[UInt]) extends PeekPokeAPI {
 
-  val chr = new Checker (c, this)
+  val chr = new Checker(c)
 
   def testFillRW(depth: Int) = {
-    val qsize = peek(c.io.tq.count)
-    require(qsize == 0, s"-F- An empty queue is expected ${qsize}")
+    val qsize = c.io.tq.count.peek()
+    require(qsize.litValue == 0, s"-F- An empty queue is expected ${qsize}")
 
-    poke (c.io.tq.deq.ready, 0)
-    poke (c.io.tq.enq.valid, 0)
+    c.io.tq.deq.ready.poke(0)
+    c.io.tq.enq.valid.poke(0)
     chr.ready(1)
-    step(1)
+    c.clock.step()
 
     // fill up to depth
     for (i <- 10 until 10 + depth) {
-      poke (c.io.tq.enq.bits, i)
-      poke (c.io.tq.enq.valid, 1)
+      c.io.tq.enq.bits.poke(i)
+      c.io.tq.enq.valid.poke(1)
       chr.status()
-      step(1)
+      c.clock.step()
 
     }
     // read and write same cycle
     for (i <- 30 + depth until 30 + depth * 2) {
-      poke (c.io.tq.enq.valid, 1)
-      poke (c.io.tq.deq.ready, 1)
-      poke (c.io.tq.enq.bits, i)
+      c.io.tq.enq.valid.poke(1)
+      c.io.tq.deq.ready.poke(1)
+      c.io.tq.enq.bits.poke(i)
       chr.status()
-      step(1)
+      c.clock.step()
     }
     // read out
     for (i <- 0 until depth + 1) {
-      poke (c.io.tq.enq.valid, 0)
-      poke (c.io.tq.deq.ready, 1)
-      poke (c.io.tq.enq.bits, 99)
+      c.io.tq.enq.valid.poke(0)
+      c.io.tq.deq.ready.poke(1)
+      c.io.tq.enq.bits.poke(99)
       chr.status()
-      step(1)
+      c.clock.step()
     }
   }
   for (i <- 1 until 28) {
     testFillRW(i)
   }
 }
-class TestSyncQueueWaveRead(c: SyncQueueTestWrapper[UInt]) extends PeekPokeTester(c) {
+class TestSyncQueueWaveRead(c: SyncQueueTestWrapper[UInt]) extends PeekPokeAPI {
 
-  val chr = new Checker (c, this)
+  val chr = new Checker(c)
 
   def testFillRW(depth: Int) = {
-    val qsize = peek(c.io.tq.count)
-    require(qsize == 0, s"-F- An empty queue is expected ${qsize}")
+    val qsize = c.io.tq.count.peek()
+    require(qsize.litValue == 0, s"-F- An empty queue is expected ${qsize}")
 
-    poke (c.io.tq.deq.ready, 0)
-    poke (c.io.tq.enq.valid, 0)
+    c.io.tq.deq.ready.poke(0)
+    c.io.tq.enq.valid.poke(0)
     chr.ready(1)
-    step(1)
+    c.clock.step()
 
     // fill up to depth
     for (i <- 10 until 10 + depth) {
-      poke (c.io.tq.enq.bits, i)
-      poke (c.io.tq.enq.valid, 1)
+      c.io.tq.enq.bits.poke(i)
+      c.io.tq.enq.valid.poke(1)
       chr.status()
-      step(1)
+      c.clock.step()
 
     }
     // read out, no write
-    poke (c.io.tq.enq.valid, 0)
-    poke (c.io.tq.deq.ready, 1)
+    c.io.tq.enq.valid.poke(0)
+    c.io.tq.deq.ready.poke(1)
     for (i <- 0 until 7) {
       chr.status()
-      step(1)
+      c.clock.step()
     }
     // fill more
-    poke (c.io.tq.deq.ready, 0)
-    poke (c.io.tq.enq.valid, 1)
+    c.io.tq.deq.ready.poke(0)
+    c.io.tq.enq.valid.poke(1)
     for (i <- 0 until 13) {
-      poke (c.io.tq.enq.bits, 99 + i)
+      c.io.tq.enq.bits.poke(99 + i)
       chr.status()
-      step(1)
+      c.clock.step()
     }
     // read out, no write
-    poke (c.io.tq.enq.valid, 0)
-    poke (c.io.tq.deq.ready, 1)
+    c.io.tq.enq.valid.poke(0)
+    c.io.tq.deq.ready.poke(1)
     for (i <- 1 until 14 + depth) {
       chr.status()
-      step(1)
+      c.clock.step()
     }
   }
   // read
@@ -219,11 +149,8 @@ class TestSyncQueueWaveRead(c: SyncQueueTestWrapper[UInt]) extends PeekPokeTeste
   }
 }
 
-class SyncQueueTestWrapper[T <: Data](
-    gen: T,
-    val entries: Int)
+class SyncQueueTestWrapper[T <: Data](gen: T, val entries: Int)
     extends Module() {
-
 
   val genType = gen
 
@@ -231,9 +158,9 @@ class SyncQueueTestWrapper[T <: Data](
     val tq = new QueueIO(genType, entries)
     val rq = new QueueIO(genType, entries)
 
-    })
+  })
 
-  val tq = Module(new SyncQueue1PortMem(genType.asUInt, entries))
+  val tq = Module(SyncQueue(genType.asUInt, entries))
   val rq = Module(new Queue(genType.asUInt, entries))
   io.tq <> tq.io
   io.rq <> rq.io
@@ -246,35 +173,20 @@ class SyncQueueTestWrapper[T <: Data](
   rq.io.deq.ready := RegNext(io.tq.deq.ready)
 }
 
-class SyncQueueTestLongRead24 extends GenericTest(
-  "Queue",
-  (p:Parameters) => new SyncQueueTestWrapper(UInt(16.W), 24),
-  (c:SyncQueueTestWrapper[UInt]) => new TestSyncQueueLongRead(c))
-class SyncQueueTestLongRead13 extends GenericTest(
-  "Queue",
-  (p:Parameters) => new SyncQueueTestWrapper(UInt(16.W), 13),
-  (c:SyncQueueTestWrapper[UInt]) => new TestSyncQueueLongRead(c))
-class SyncQueueTestWaveRead24 extends GenericTest(
-  "Queue",
-  (p:Parameters) => new SyncQueueTestWrapper(UInt(16.W), 24),
-  (c:SyncQueueTestWrapper[UInt]) => new TestSyncQueueWaveRead(c))
-class OnePorMemTest extends GenericTest(
-  "Queue",
-  (p:Parameters) => new OnePortMem(UInt(16.W), 16, ""),
-  (c:OnePortMem[UInt]) => new TestOnePortMem(c))
-class SyncQueueTestWaveRead1 extends GenericTest(
-  "Queue",
-  (p:Parameters) => new SyncQueueTestWrapper(UInt(16.W), 1),
-  (c:SyncQueueTestWrapper[UInt]) => new TestSyncQueueWaveRead(c))
-class SyncQueueTestWaveRead2 extends GenericTest(
-  "Queue",
-  (p:Parameters) => new SyncQueueTestWrapper(UInt(16.W), 2),
-  (c:SyncQueueTestWrapper[UInt]) => new TestSyncQueueWaveRead(c))
-class SyncQueueTestWaveRead3 extends GenericTest(
-  "Queue",
-  (p:Parameters) => new SyncQueueTestWrapper(UInt(16.W), 3),
-  (c:SyncQueueTestWrapper[UInt]) => new TestSyncQueueWaveRead(c))
-class SyncQueueTestWaveRead4 extends GenericTest(
-  "Queue",
-  (p:Parameters) => new SyncQueueTestWrapper(UInt(16.W), 4),
-  (c:SyncQueueTestWrapper[UInt]) => new TestSyncQueueWaveRead(c))
+@tags.UnitTests
+class SyncQueueTest extends AnyFlatSpecSim {
+  behavior of "SyncQueue"
+
+  import chisel3.simulator.stimulus.ResetProcedure
+  for (i <- Seq(1, 2, 3, 4, 13, 24)) {
+
+    s"of depth ${i}" should "run correctly in long and wave read tests" in {
+      simulate(new SyncQueueTestWrapper(UInt(16.W), i)) { c =>
+        new TestSyncQueueLongRead(c)
+        ResetProcedure.module()(c)
+        new TestSyncQueueWaveRead(c)
+      }
+    }
+  }
+
+}

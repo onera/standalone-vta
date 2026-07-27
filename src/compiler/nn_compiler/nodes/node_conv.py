@@ -426,7 +426,7 @@ def node_mulconstant(node, param={}, node_mapping={}, node_info={}, filename='',
                     if (shape != 1):
                         raise Exception(f"ERROR (in {filename}): Wrong shape ({shape} when 1 is expected)! \n")
                 isScalarGet = j
-                scalar = param[inp['name']][0]
+                scalar = np.asarray(param[inp['name']]).reshape(-1)[0]
 
             # Error on the shape
             else:

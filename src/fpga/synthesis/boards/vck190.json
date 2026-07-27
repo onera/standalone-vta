@@ -1,0 +1,67 @@
+{
+  "name": "vck190",
+  "description": "Xilinx Versal AI Core Series VCK190 evaluation board (xcvc1902-vsva2197-2MP-e-S)",
+  "is_versal": true,
+
+  "part": "xcvc1902-vsva2197-2MP-e-S",
+  "board_part": "xilinx.com:vck190:part0:3.2",
+
+  "ps_ip": "xilinx.com:ip:versal_cips:3.4",
+  "ps_cell": "versal_cips_0",
+  "ps_preset_rule": "xilinx.com:bd_rule:cips",
+  "ps_preset_config": "board_preset {Yes} boot_config {JTAG} configure_noc {None} debug_config {Custom} design_flow {Full System} mc_type {None} num_mc {1} pl_clocks {None} pl_resets {None}",
+
+  "cpu": "psv_cortexa72_0",
+  "pl_clock_mhz": 100,
+  "pl_clock_property": "",
+
+  "comment_ps_config": "CIPS configuration for VCK190, leveraging the board preset and enabling PL-connectivity options.",
+  "ps_config": {
+    "CLOCK_MODE": "Custom",
+    "PS_PL_CONNECTIVITY_MODE": "Custom",
+    "PS_PMC_CONFIG": "CLOCK_MODE {Custom} PS_PL_CONNECTIVITY_MODE {Custom} PMC_CRP_PL0_REF_CTRL_FREQMHZ {100} PS_USE_PMCPL_CLK0 {1} PS_NUM_FABRIC_RESETS {1} PS_USE_M_AXI_FPD {1} PS_M_AXI_FPD_DATA_WIDTH {32} PS_USE_FPD_CCI_NOC {1} PS_USE_FPD_CCI_NOC0 {1} PS_USE_FPD_CCI_NOC1 {1} PS_USE_FPD_CCI_NOC2 {1} PS_USE_FPD_CCI_NOC3 {1} PS_USE_NOC_LPD_AXI0 {1} PMC_USE_PMC_NOC_AXI0 {1}"
+  },
+  "noc_config": {
+    "MC_SYSTEM_CLOCK": "Differential",
+    "MC_CHAN_REGION1": "DDR_LOW1"
+  },
+
+  "comment_ports": "Stable interface/port names wired by the generic recipe for Versal. Control master is M_AXI_FPD on CIPS, connecting to VTA ctrl via SmartConnect. DRAM master connects to S06_AXI on the AXI NoC, which connects to DDR memory controller ports on the board.",
+  "ports": {
+    "vta_dram_master": "m_axi_gmem",
+    "vta_ctrl_slave": "s_axi_control",
+    "vta_clk": "ap_clk",
+    "vta_resetn": "ap_rst_n",
+    "ps_dram_slave": "axi_noc_0/S06_AXI",
+    "ps_ctrl_master": "M_AXI_FPD",
+    "ps_clk": "pl0_ref_clk",
+    "ps_clk_aclks": [
+      "m_axi_fpd_aclk"
+    ],
+    "ps_resetn": "pl0_resetn",
+    "versal_ch0": "ch0_lpddr4_c0",
+    "versal_ch1": "ch1_lpddr4_c0",
+    "versal_clk": "lpddr4_sma_clk1"
+  },
+
+  "comment_addresses": "Address space mapping including CIPS internal mappings to DDR via NoC, and VTA memory/control segments.",
+  "addresses": [
+    {"space": "{ps_cell}/M_AXI_FPD",      "seg": "{vta_cell}/s_axi_control/reg0",       "offset": "0xA4000000", "range": "0x00010000"},
+    {"space": "{vta_cell}/m_axi_gmem",    "seg": "axi_noc_0/S06_AXI/C0_DDR_LOW0",       "offset": "0x00000000", "range": "0x80000000"},
+    {"space": "{ps_cell}/FPD_CCI_NOC_0",  "seg": "axi_noc_0/S00_AXI/C3_DDR_LOW0",       "offset": "0x00000000", "range": "0x80000000"},
+    {"space": "{ps_cell}/FPD_CCI_NOC_0",  "seg": "axi_noc_0/S00_AXI/C3_DDR_LOW1",       "offset": "0x000800000000", "range": "0x80000000"},
+    {"space": "{ps_cell}/FPD_CCI_NOC_1",  "seg": "axi_noc_0/S01_AXI/C2_DDR_LOW0",       "offset": "0x00000000", "range": "0x80000000"},
+    {"space": "{ps_cell}/FPD_CCI_NOC_1",  "seg": "axi_noc_0/S01_AXI/C2_DDR_LOW1",       "offset": "0x000800000000", "range": "0x80000000"},
+    {"space": "{ps_cell}/FPD_CCI_NOC_2",  "seg": "axi_noc_0/S02_AXI/C0_DDR_LOW0",       "offset": "0x00000000", "range": "0x80000000"},
+    {"space": "{ps_cell}/FPD_CCI_NOC_2",  "seg": "axi_noc_0/S02_AXI/C0_DDR_LOW1",       "offset": "0x000800000000", "range": "0x80000000"},
+    {"space": "{ps_cell}/FPD_CCI_NOC_3",  "seg": "axi_noc_0/S03_AXI/C1_DDR_LOW0",       "offset": "0x00000000", "range": "0x80000000"},
+    {"space": "{ps_cell}/FPD_CCI_NOC_3",  "seg": "axi_noc_0/S03_AXI/C1_DDR_LOW1",       "offset": "0x000800000000", "range": "0x80000000"},
+    {"space": "{ps_cell}/LPD_AXI_NOC_0",  "seg": "axi_noc_0/S04_AXI/C3_DDR_LOW0",       "offset": "0x00000000", "range": "0x80000000"},
+    {"space": "{ps_cell}/LPD_AXI_NOC_0",  "seg": "axi_noc_0/S04_AXI/C3_DDR_LOW1",       "offset": "0x000800000000", "range": "0x80000000"},
+    {"space": "{ps_cell}/PMC_NOC_AXI_0",  "seg": "axi_noc_0/S05_AXI/C2_DDR_LOW0",       "offset": "0x00000000", "range": "0x80000000"},
+    {"space": "{ps_cell}/PMC_NOC_AXI_0",  "seg": "axi_noc_0/S05_AXI/C2_DDR_LOW1",       "offset": "0x000800000000", "range": "0x80000000"}
+  ],
+  "address_excludes": [
+    {"space": "{vta_cell}/m_axi_gmem",    "seg": "axi_noc_0/S06_AXI/C0_DDR_LOW1"}
+  ]
+}

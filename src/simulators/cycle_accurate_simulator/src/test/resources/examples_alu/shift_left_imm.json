@@ -1,4 +1,5 @@
 {
+  "_comment": "TODO(JSON typo): same lane-15 issue as shift_left.json - see that file's _comment for the full explanation. Expected[15] should be 80000000, not 00000000. The Alu module computes `a << m` where m=31 for imm=1; with use_imm=1 the operand is acc[u1=0][i], so lane 15's input (7, odd) yields 0x80000000 in hardware, matching the other odd-input lanes. Ignored in TensorAluJsonTester. See docs/tensoralu_bypass_and_test_harness.md §6.",
   "inst": {
     "reset": "0",
     "uop_begin": "0000",

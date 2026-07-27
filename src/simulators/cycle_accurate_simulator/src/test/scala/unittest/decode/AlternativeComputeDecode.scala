@@ -2,8 +2,6 @@ package unittest.decode
 
 import chisel3._
 import vta.core._
-import chisel3.util._
-
 
 class AlternativeComputeMemDecode extends Module {
   val io = IO(new Bundle {
@@ -32,7 +30,7 @@ class AlternativeComputeMemDecode extends Module {
   io.push_prev := dec.push_prev
   io.push_next := dec.push_next
   io.id := dec.id
-  io.sram_offset := dec.sram_offset
+  io.sram_offset := dec.sramOffset
   io.dram_offset := dec.dram_offset
   io.empty_0 := dec.empty_0
   io.ysize := dec.ysize
@@ -43,7 +41,6 @@ class AlternativeComputeMemDecode extends Module {
   io.xpad_0 := dec.xpad_0
   io.xpad_1 := dec.xpad_1
 }
-
 
 class AlternativeComputeGemmDecode extends Module {
   val io = IO(new Bundle {
@@ -68,20 +65,20 @@ class AlternativeComputeGemmDecode extends Module {
   })
   val dec = io.inst.asTypeOf(new GemmDecode)
   io.op := dec.op
-  io.pop_prev := dec.pop_prev
-  io.pop_next := dec.pop_next
-  io.push_prev := dec.push_prev
-  io.push_next := dec.push_next
+  io.pop_prev := dec.popPrev
+  io.pop_next := dec.popNext
+  io.push_prev := dec.pushPrev
+  io.push_next := dec.pushNext
   io.reset := dec.reset
-  io.uop_begin := dec.uop_begin
-  io.uop_end := dec.uop_end
-  io.lp_0 := dec.lp_0
-  io.lp_1 := dec.lp_1
-  io.empty_0 := dec.empty_0
-  io.acc_0 := dec.acc_0
-  io.acc_1 := dec.acc_1
-  io.inp_0 := dec.inp_0
-  io.inp_1 := dec.inp_1
-  io.wgt_0 := dec.wgt_0
-  io.wgt_1 := dec.wgt_1
+  io.uop_begin := dec.uopBegin
+  io.uop_end := dec.uopEnd
+  io.lp_0 := dec.lp0
+  io.lp_1 := dec.lp1
+  io.empty_0 := dec.empty0
+  io.acc_0 := dec.acc0
+  io.acc_1 := dec.acc1
+  io.inp_0 := dec.inp0
+  io.inp_1 := dec.inp1
+  io.wgt_0 := dec.wgt0
+  io.wgt_1 := dec.wgt1
 }

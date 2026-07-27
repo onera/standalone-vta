@@ -20,18 +20,20 @@
 package vta.core
 
 import chisel3._
+import chisel3.layer.block
 import chisel3.util._
-import vta.util.config._
 import vta.shell._
+import vta.util.UserDefined.DebugLayer
+import vta.util.config._
 
 /** Load.
- *
- * Load inputs and weights from memory (DRAM) into scratchpads (SRAMs).
- * This module instantiate the TensorLoad unit which is in charge of
- * loading 1D and 2D tensors to scratchpads, so it can be used by
- * other modules such as Compute.
- */
-class Load(debug: Boolean = false)(implicit p: Parameters) extends Module {
+  *
+  * Load inputs and weights from memory (DRAM) into scratchpads (SRAMs). This
+  * module instantiate the TensorLoad unit which is in charge of loading 1D and
+  * 2D tensors to scratchpads, so it can be used by other modules such as
+  * Compute.
+  */
+class Load(implicit p: Parameters) extends Module {
   val mp = p(ShellKey).memParams
   val io = IO(new Bundle {
     val i_post = Input(Bool())
@@ -46,7 +48,15 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val sIdle :: sSync :: sExe :: Nil = Enum(3)
   val state = RegInit(sIdle)
 
-  val s = Module(new Semaphore(counterBits = 8, counterInitValue = 0))
+  // Dependency counter sized for the worst-case outstanding posts (a producer
+  // can run up to instQueueEntries ahead); a saturating counter would drop
+  // posts and stall the consumer.
+  val s = Module(
+    new Semaphore(
+      counterBits = log2Ceil(p(CoreKey).instQueueEntries) + 1,
+      counterInitValue = 0
+    )
+  )
   val inst_q = Module(new Queue(UInt(INST_BITS.W), p(CoreKey).instQueueEntries))
 
   val dec = Module(new LoadDecode)
@@ -55,7 +65,7 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val tensorType = Seq("inp", "wgt")
   val tensorDec = Seq(dec.io.isInput, dec.io.isWeight)
   val tensorLoad =
-    Seq.tabulate(2)(i => Module(new TensorLoad(tensorType = tensorType(i))))
+    Seq.tabulate(2)(i => Module(TensorLoad(tensorType = tensorType(i))))
 
   val start = inst_q.io.deq.valid & Mux(dec.io.pop_next, s.io.sready, true.B)
   val done = Mux(dec.io.isInput, tensorLoad(0).io.done, tensorLoad(1).io.done)
@@ -104,15 +114,17 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module {
   io.o_post := dec.io.push_next & ((state === sExe & done) | (state === sSync))
 
   // debug
-  if (debug) {
+  block(DebugLayer) {
     // start
     when(state === sIdle && start) {
       when(dec.io.isSync) {
         printf("[Load] start sync\n")
       }.elsewhen(dec.io.isInput) {
         printf("[Load] start input\n")
+        printf(cf"[Load] decoded: ${dec.io.inst.asTypeOf(new MemDecode)}")
       }.elsewhen(dec.io.isWeight) {
         printf("[Load] start weight\n")
+        printf(cf"[Load] decoded: ${dec.io.inst.asTypeOf(new MemDecode)}")
       }
     }
     // done

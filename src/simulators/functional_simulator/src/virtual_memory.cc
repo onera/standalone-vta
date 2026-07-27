@@ -105,6 +105,22 @@ void* VirtualMemoryManager::Alloc(size_t size) {
 }
 
 /*!
+ * \brief Reserve a page-aligned base offset before any allocation.
+ *  Models a non-zero DRAM base: the reserved page-table slots stay null (no
+ *  backing memory) and are never accessed, so the first real Alloc starts at
+ *  physical address (bytes + kPageSize), i.e. all buffers shift up by `bytes`.
+ */
+void VirtualMemoryManager::ReserveBase(uint64_t bytes) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  CHECK_EQ(bytes % kPageSize, 0u)
+      << "DRAM base must be page-aligned (" << kPageSize << " bytes)";
+  CHECK_EQ(ptable_.size(), 0u)
+      << "ReserveBase must be called before any allocation";
+  size_t npage = static_cast<size_t>(bytes / kPageSize);
+  ptable_.resize(npage, nullptr);
+}
+
+/*!
  * \brief Free the memory.
  * \param size The size of memory
  * \return The virtual address

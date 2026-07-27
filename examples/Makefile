@@ -1,35 +1,62 @@
-# MAKEFILE TO EXECUTE EXAMPLES (compile data and operation, then execute the functional simulator on it)
-##############################
+# Makefile to run examples: compile data and operations, then execute the simulator.
+#
+# Usage: make [CONFIG_FILE=vta_config.json] <target>
+
+# ==============================================================================
 # DIRECTORIES
-#############
+# ==============================================================================
+
 MAKEFILE_DIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 PROJECT_DIR  := $(abspath $(MAKEFILE_DIR)/..)
-COMPILER_OUTPUT_DIR := $(PROJECT_DIR)/compiler_output
-#SIMULATOR_OUTPUT_DIR := $(PROJECT_DIR)/simulator_output
-LOG_OUTPUT_DIR := $(PROJECT_DIR)/log_output
-SRC_DIR := $(PROJECT_DIR)/src
-COMPILER_DIR := $(SRC_DIR)/compiler
+
+COMPILER_OUTPUT_DIR  := $(PROJECT_DIR)/compiler_output
+SIMULATOR_OUTPUT_DIR := $(PROJECT_DIR)/simulators_output
+
+SRC_DIR          := $(PROJECT_DIR)/src
+COMPILER_DIR     := $(SRC_DIR)/compiler
+LOG_OUTPUT_DIR   := $(PROJECT_DIR)/log_output
+
 VTA_COMPILER_DIR := $(COMPILER_DIR)/vta_compiler
-NN_COMPILER_DIR := $(COMPILER_DIR)/nn_compiler
-FSIM_DIR := $(SRC_DIR)/simulators/functional_simulator
-TSIM_DIR := $(SRC_DIR)/simulators/cycle_accurate_simulator
-CONFIG := $(PROJECT_DIR)/config
+NN_COMPILER_DIR  := $(COMPILER_DIR)/nn_compiler
+FSIM_DIR         := $(SRC_DIR)/simulators/functional_simulator
+TSIM_DIR         := $(SRC_DIR)/simulators/cycle_accurate_simulator
+CONFIG_DIR       := $(PROJECT_DIR)/config
+FPGA_HW_DIR	     := $(SRC_DIR)/fpga/synthesis
+FPGA_SW_DIR	     := $(SRC_DIR)/fpga/software
 
+# ==============================================================================
+# CONFIGURATION
+# ==============================================================================
 
+CONFIG_FILE ?= vta_config.json
+CONFIG       = $(CONFIG_DIR)/$(CONFIG_FILE)
+
+# Helper: read a LOG_*_WIDTH key from the config JSON and map to a C dtype name.
+# Usage: $(call dtype,LOG_INP_WIDTH)  →  int8 | int16 | int32
+dtype = $(shell python3 -c \
+  "import json,sys; w=json.load(open('$(CONFIG)'))['$(1)']; \
+   sys.stdout.write('int8' if w==3 else ('int16' if w==4 else 'int32'))")
+
+INP_DTYPE := $(call dtype,LOG_INP_WIDTH)
+WGT_DTYPE := $(call dtype,LOG_WGT_WIDTH)
+ACC_DTYPE  := $(call dtype,LOG_ACC_WIDTH)
+
+# ==============================================================================
 # VARIABLES
-###########
-PYTHON_CMD := python 
+# ==============================================================================
+
+PYTHON_CMD ?= python
 # PYTHON_CMD := python -m cProfile -o $(COMPILER_OUTPUT_DIR)/vta_compiler.prof
 
-JSON_FILES := $(COMPILER_OUTPUT_DIR)/*.json
+# Lazy expansion: glob is resolved after the compiler has produced JSON files.
+JSON_FILES = $(COMPILER_OUTPUT_DIR)/*.json
 
-DEBUG ?= False
-DEBUG_PARSE ?= True
+DEBUG           ?= False
+DEBUG_PARSE     ?= True
 COMPILE_SUMMARY ?= True
-DRAM_JSON ?= False
+DRAM_JSON       ?= False
 EXPANDBIAS_AT_COMPILATION ?= True
-# ort, numpy, compare
-REF_MODE ?= numpy
+REF_MODE        ?= numpy   # ort | numpy | compare
 
 ONNX_FILE ?= onnx/qyolo_pattern.onnx
 # onnx/qlinearconv_debug.onnx
@@ -38,245 +65,267 @@ ONNX_FILE ?= onnx/qyolo_pattern.onnx
 # onnx/qyolo_pattern.onnx
 # onnx/qyolo.onnx # -> around 30% of the value with +/-3
 
-# ../../onnx_zoo/qyolo_debug.onnx # -> Bit-accurate result
+# ==============================================================================
+# PHONY TARGETS
+# ==============================================================================
 
+.PHONY: all view_profiler \
+        nn_compiler vta_compiler \
+        fsim_clean fsim_compile fsim_compile_single_layer \
+        exported_sv vsim_compile vsim_compile_single_layer \
+        reference check check_vsim \
+        fsim_inference fsim_single_layer vsim_single_layer vsim_inference tsim \
+        run execute compile_and_run compile_all run_all \
+        test_gemm test_alu custom_insn \
+        clean force_clean cleaner clean_bin clean_csv clean_hw \
+        debug help FORCE
 
-############################################################
-############################################################
+# ==============================================================================
+# TOP-LEVEL
+# ==============================================================================
 
-# Default
 all: help
 
-view_profiler:
+view_profiler: ## Open profiler output in snakeviz
 	@snakeviz $(COMPILER_OUTPUT_DIR)/vta_compiler.prof
 
-# NN COMPILER (1st stage compilation)
-#############
-nn_compiler: ## NN compilation: qONNX -> CPU parameters + VTA IRs
-	make clean
-	@echo ""
-	@echo "PARSE ONNX..."
+# ==============================================================================
+# COMPILATION
+# ==============================================================================
+
+nn_compiler: ## Stage 1 - qONNX -> CPU parameters + VTA IRs
+	$(MAKE) clean
+	@echo "Parsing ONNX..."
 	@date
 	python $(NN_COMPILER_DIR)/vta_backend.py \
 	$(DEBUG_PARSE) \
 	$(EXPANDBIAS_AT_COMPILATION) \
-	$(CONFIG)/vta_config.json \
+	$(CONFIG) \
 	$(ONNX_FILE) > $(LOG_OUTPUT_DIR)/prompt_vta_backend.txt
 	@date
 
-
-# VTA COMPILER (2nd stage compilation) 
-##############
-vta_compiler: ## VTA compilation: VTA IRs -> VTA code
-	@echo ""
-	@echo "COMPILE tests..."
+vta_compiler: ## Stage 2 - VTA IRs → VTA binary
+	@echo "Compiling VTA IRs..."
 	@date
 	$(PYTHON_CMD) \
 	$(VTA_COMPILER_DIR)/main_vta_compiler.py \
 	$(DEBUG) \
 	$(COMPILE_SUMMARY) \
 	$(DRAM_JSON) \
-	$(CONFIG)/vta_config.json \
+	$(CONFIG) \
 	$(JSON_FILES) > $(LOG_OUTPUT_DIR)/prompt_vta_compiler.txt
 	@date
 
+# ==============================================================================
+# FSIM BUILD
+# ==============================================================================
 
-# COMPILE FSIM
-##############
-fsim_clean: ## Clean FSIM repository
-	cd $(FSIM_DIR) && make clean
+fsim_clean: ## Clean the FSIM build directory
+	$(MAKE) -C $(FSIM_DIR) clean
 
-fsim_compile: ## Compile FSIM
-	cd $(FSIM_DIR) && make build/fsim_nn
+fsim_compile: ## Build fsim_nn
+	$(MAKE) -C $(FSIM_DIR) CONFIG=$(CONFIG) build/fsim
 
-fsim_compile_single_layer:
-	cd $(FSIM_DIR) && make build/fsim_single_layer
+fsim_compile_single_layer: ## Build fsim_single_layer
+	$(MAKE) -C $(FSIM_DIR) CONFIG=$(CONFIG) build/fsim
+
+# ==============================================================================
+# VSIM BUILD (RTL)
+# ==============================================================================
 
 
-# REFERENCE EXECUTION
-#####################
-reference:
-	@echo ""
-	@echo "PROVIDE ONNX reference..."
+exported_sv:
+	cd $(TSIM_DIR) && ./mill -Dvta.config.file=$(CONFIG_FILE) emitVtaSimConfig
+
+
+vsim_compile: exported_sv ## Generate Verilated C++ model and build fsim_nn_rtl
+	$(MAKE) -C $(FSIM_DIR) CONFIG=$(CONFIG) build/vsim
+
+vsim_compile_single_layer: exported_sv ## Generate Verilated C++ model and build fsim_single_layer_rtl
+	$(MAKE) -C $(FSIM_DIR) CONFIG=$(CONFIG) build/vsim
+
+# ==============================================================================
+# REFERENCE
+# ==============================================================================
+
+reference: ## Compute ONNX reference output
+	@echo "Computing reference..."
 	python $(COMPILER_DIR)/reference_computation/reference_onnx.py \
 	$(DEBUG) \
 	$(REF_MODE) \
 	$(ONNX_FILE) > $(LOG_OUTPUT_DIR)/prompt_reference.txt
 
-check:
+check: ## Check FSIM output against reference
 	python $(COMPILER_DIR)/reference_computation/check_bin.py \
 	$(DEBUG) > $(LOG_OUTPUT_DIR)/prompt_checker.txt
 	@echo ""
 	@echo "SUCCESS!"
 
+check_vsim: ## Check RTL simulation output against reference
+	python $(COMPILER_DIR)/reference_computation/check_bin.py \
+	  $(DEBUG) True > $(LOG_OUTPUT_DIR)/prompt_checker_rtl.txt
+	@echo "SUCCESS!"
 
-# FSIM EXECUTION
-################
-fsim_inference: ## Infer FSIM with random values
-	@echo ""
-	@echo "RUN functional simulation (for NN)..."
+# ==============================================================================
+# SIMULATION
+# ==============================================================================
+
+fsim_inference: ## Build (if needed) and run fsim_nn, capture output
+	@echo "Running functional simulation (NN)..."
 	@date
-	cd $(FSIM_DIR) && make -s nn_execute > $(LOG_OUTPUT_DIR)/fsim_report.txt
+	$(MAKE) -s -C $(FSIM_DIR) CONFIG=$(CONFIG) fsim > $(LOG_OUTPUT_DIR)/fsim_report.txt
 	@date
-	@echo ""
 	@echo "FINAL_OUTPUT.BIN generated!"
 
-fsim_single_layer:
-	@echo ""
-	@echo "RUN functional simulation (for single layer)..."
+fsim_single_layer: ## Build (if needed) and run fsim_single_layer, capture output
+	@echo "Running functional simulation (single layer)..."
 	@date
-	cd $(FSIM_DIR) && make -s execute > $(LOG_OUTPUT_DIR)/fsim_report.txt
+	$(MAKE) -s -C $(FSIM_DIR) CONFIG=$(CONFIG) RUNTIME_FLAGS=--verbose fsim_single_layer > $(LOG_OUTPUT_DIR)/fsim_report.txt
 	@date
-	@echo ""
 	@echo "FSIM DONE!"
 
+vsim_single_layer: exported_sv ## Build (if needed) and run fsim_single_layer_rtl, capture output
+	$(MAKE) -s -C $(FSIM_DIR) CONFIG=$(CONFIG) vsim_single_layer > $(LOG_OUTPUT_DIR)/tsim_report.txt
 
-# EXECUTION
-###########
-# Do "make compile_nn_fsim"
-run: ## Run: NN compiler + VTA compiler + inference and check
-	@make nn_compiler
-	@make vta_compiler
-	@make reference
-	@make fsim_inference
-	@make check
-
-execute: ## Execute: only inference and check
-	@make reference
-	@make fsim_inference
-	@make check
-
-
-compile_and_run: ## Compile FSIM and run
-	@make fsim_clean
-	@make fsim_compile
-	@make run
-
-# CYCLE ACCURATE TSIM
-#####################
-tsim: # Work only with unamed files (e.g., test_gemm)
-	@echo ""
-	@echo "RUN TSIM..."
+vsim_inference: exported_sv ## Build (if needed) and run fsim_nn_rtl, capture output
+	@echo "Running RTL simulation (NN)..."
 	@date
-	cd $(TSIM_DIR) && sbt "runMain org.scalatest.run cli.ComputeApp" > $(LOG_OUTPUT_DIR)/tsim_report.txt
+	$(MAKE) -s -C $(FSIM_DIR) CONFIG=$(CONFIG) RUNTIME_FLAGS=--no-timeout vsim > $(LOG_OUTPUT_DIR)/tsim_report.txt
 	@date
-	@echo ""
+	@echo "FINAL_OUTPUT_RTL.BIN generated!"
+
+tsim: ## Run cycle-accurate TSIM via Mill/ScalaTest
+	@echo "Running TSIM..."
+	@date
+	cd $(TSIM_DIR) && ./mill -Dvta.config.file=$(CONFIG_FILE) \
+	  runMain org.scalatest.run cli.ComputeApp \
+	  > $(LOG_OUTPUT_DIR)/tsim_report.txt
+	@date
 	@echo "TSIM DONE!"
-	
 
-############################################################
-############################################################
+# ==============================================================================
+# ORCHESTRATION
+# ==============================================================================
 
-test_gemm:
-	@make clean
-	@echo "Copy VTA IR in compiler/output"
+run: nn_compiler vta_compiler reference fsim_inference check ## Full pipeline: compile → simulate → check
+
+execute: reference fsim_inference check ## Simulate and check (skip compilation)
+
+compile_and_run: fsim_clean fsim_compile run ## Recompile FSIM then run full pipeline
+
+compile_all: fsim_clean clean_hw fsim_compile vsim_compile ## Rebuild all simulators from scratch
+
+run_all: run vsim_inference check_vsim ## Run both functional and RTL simulation
+
+# ==============================================================================
+# TESTS
+# ==============================================================================
+
+test_gemm: ## Test a 16×16 GEMM with random data
+	$(MAKE) clean
+	@echo "Copying VTA IR..."
 	@cp ./vta_ir/matmul_16x16.json $(COMPILER_OUTPUT_DIR)
-	@echo "Generate random data"
-	@python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 input int32
-	@python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 weight int32
+	@echo "Generating random input/weight data..."
+	@python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 input  $(INP_DTYPE)
+	@python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 weight $(WGT_DTYPE)
 	@echo ""
 	@echo "Compile VTA IR"
-	@make vta_compiler
-	@echo ""
-	@echo "Compile FSIM"
-	@make fsim_compile_single_layer
+	$(MAKE) vta_compiler
 	@echo ""
 	@echo "Execute FSIM"
-	@make fsim_single_layer
+	$(MAKE) fsim_single_layer
 	@echo ""
 	@echo "Execute TSIM"
-	@make tsim
+	$(MAKE) tsim
 
-test_alu:
-	@make clean
-	@echo "Copy VTA IR in compiler/output"
+test_alu: ## Test a 16×16 ALU op with random data
+	$(MAKE) clean
+	@echo "Copying VTA IR..."
 	@cp ./vta_ir/alu_16x16.json $(COMPILER_OUTPUT_DIR)
-	@echo "Generate random data"
-	@python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 accumulator int32
+	@echo "Generating random accumulator data..."
+	@python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 16 16 accumulator $(ACC_DTYPE)
 	@echo ""
 	@echo "Compile VTA IR"
-	@make vta_compiler
-	@echo ""
-	@echo "Compile FSIM"
-	@make fsim_compile_single_layer
+	$(MAKE) vta_compiler
 	@echo ""
 	@echo "Execute FSIM"
-	@make fsim_single_layer
+	$(MAKE) fsim_single_layer
 	@echo ""
 	@echo "Execute TSIM"
-	@make tsim
+	$(MAKE) tsim
 
 test_bias_expansion:
-	@make clean
+	$(MAKE) clean
 	@echo "Copy VTA IR in compiler/output"
 	@cp ./vta_ir/matmul_bias_expansion.json $(COMPILER_OUTPUT_DIR)
 	@echo "Generate random data"
-	@python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 32 32 input int32
-	@python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 32 32 weight int32
-	@python $(COMPILER_DIR)/utils/random_raw_binary_generator.py 1 32 accumulator int32
+	$(PYTHON_CMD) $(COMPILER_DIR)/utils/random_raw_binary_generator.py 32 32 input $(INP_DTYPE)
+	$(PYTHON_CMD) $(COMPILER_DIR)/utils/random_raw_binary_generator.py 32 32 weight $(WGT_DTYPE)
+	$(PYTHON_CMD) $(COMPILER_DIR)/utils/random_raw_binary_generator.py 1 32 accumulator $(ACC_DTYPE)
 	@echo ""
 	@echo "Compile VTA IR"
-	@make vta_compiler
-	@echo ""
-	@echo "Compile FSIM"
-	@make fsim_compile_single_layer
+	$(MAKE) vta_compiler
 	@echo ""
 	@echo "Execute FSIM"
-	@make fsim_single_layer
+	$(MAKE) fsim_single_layer
 	@echo ""
 	@echo "Execute TSIM"
-	@make tsim
-
-custom_insn:
-	@python $(COMPILER_DIR)/utils/tests_instructions.py > $(LOG_OUTPUT_DIR)/prompt_vta_compiler.txt
+	$(MAKE) tsim
 
 
-############################################################
-############################################################
+custom_insn: ## Generate custom instruction test
+	@python $(COMPILER_DIR)/utils/tests_instructions.py \
+	  > $(LOG_OUTPUT_DIR)/prompt_vta_compiler.txt
 
-
-# CREATE OUTPUTS DIRECTORIES
-############################
-$(COMPILER_OUTPUT_DIR):
-	mkdir $(COMPILER_OUTPUT_DIR)
-#$(SIMULATOR_OUTPUT_DIR):
-#	mkdir $(SIMULATOR_OUTPUT_DIR)
-$(LOG_OUTPUT_DIR):
-	mkdir $(LOG_OUTPUT_DIR)
-
-
+# ==============================================================================
 # CLEAN
-#######
-.PHONY: debug help clean force_clean
-clean: | $(COMPILER_OUTPUT_DIR) $(LOG_OUTPUT_DIR) ## Clean the project generated files (standalone/compiler_output/ and standalone/log_output/)
+# ==============================================================================
+clean: | $(COMPILER_OUTPUT_DIR) $(SIMULATOR_OUTPUT_DIR) $(LOG_OUTPUT_DIR) ## Delete generated compiler and simulator output files
 	-rm $(COMPILER_OUTPUT_DIR)/*.*
 	-rm $(LOG_OUTPUT_DIR)/*.*
-#	-rm $(SIMULATOR_OUTPUT_DIR)/*.*
+	-rm $(SIMULATOR_OUTPUT_DIR)/*.*
 
-force_clean: ## Clean the FSIM directory
-	make clean
-	cd $(FSIM_DIR) && make clean
+cleaner: clean fsim_clean clean_hw clean_fpga ## Delete generated files and the FSIM build directory
 
-clean_bin: | $(COMPILER_OUTPUT_DIR) 
+force_clean: cleaner ## backward compatible clean
+
+clean_bin: | $(COMPILER_OUTPUT_DIR) ## Delete binary output files only
 	-rm $(COMPILER_OUTPUT_DIR)/*.bin
-clean_csv: | $(COMPILER_OUTPUT_DIR) 
+
+clean_csv: | $(COMPILER_OUTPUT_DIR) ## Delete CSV output files only
 	-rm $(COMPILER_OUTPUT_DIR)/*.csv
 
+clean_hw: ## Clean Chisel/Mill build outputs
+	cd $(TSIM_DIR) && ./mill cleanOutputs
 
-# DEBUG
-#######
-debug: 
-	@echo "--- PATHS ---"
-	@echo "PROJECT_DIR: $(PROJECT_DIR)"
-	@echo "COMPILER_OUTPUT_DIR: $(COMPILER_OUTPUT_DIR)"
-	@echo "LOG_OUTPUT_DIR: $(LOG_OUTPUT_DIR)"
-	@echo "SRC_DIR: $(SRC_DIR)"
-	@echo "COMPILER_DIR: $(COMPILER_DIR)"
-	@echo "VTA_COMPILER_DIR: $(VTA_COMPILER_DIR)"
+clean_fpga: ## Clean Vitis and Vivado workspaces
+	-rm -r $(FPGA_HW_DIR)/build
+	-rm -r $(FPGA_SW_DIR)/build
+	-rm -r $(FPGA_SW_DIR)/gen
 
+# ==============================================================================
+# OUTPUT DIRECTORIES
+# ==============================================================================
 
-# HELP
-######
-# Return all the possible option for the makefile (must be referenced with ##)
-help:
-	@grep -E '^[a-zA-Z0-9_-]+:.*?##' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":[ \t]*##[ \t]*"}; {printf "\033[36m%-24s\033[0m %s\n", $$1, $$2}'
+$(COMPILER_OUTPUT_DIR) $(SIMULATOR_OUTPUT_DIR) $(LOG_OUTPUT_DIR):
+	mkdir -p $@
+
+# ==============================================================================
+# UTILITIES
+# ==============================================================================
+
+debug: ## Print all resolved paths and active configuration
+	@echo "PROJECT_DIR:          $(PROJECT_DIR)"
+	@echo "COMPILER_OUTPUT_DIR:  $(COMPILER_OUTPUT_DIR)"
+	@echo "SIMULATOR_OUTPUT_DIR: $(SIMULATOR_OUTPUT_DIR)"
+	@echo "LOG_OUTPUT_DIR:       $(LOG_OUTPUT_DIR)"
+	@echo "SRC_DIR:              $(SRC_DIR)"
+	@echo "COMPILER_DIR:         $(COMPILER_DIR)"
+	@echo "CONFIG:               $(CONFIG)"
+	@echo "INP_DTYPE:            $(INP_DTYPE)"
+	@echo "WGT_DTYPE:            $(WGT_DTYPE)"
+	@echo "ACC_DTYPE:            $(ACC_DTYPE)"
+
+help: ## Show this help
+	@grep -E '^[a-zA-Z0-9_-]+:.*?##' $(MAKEFILE_LIST) \
+	  | awk 'BEGIN {FS = ":[^#]*##[ \t]*"}; {printf "\033[36m%-28s\033[0m %s\n", $$1, $$2}'

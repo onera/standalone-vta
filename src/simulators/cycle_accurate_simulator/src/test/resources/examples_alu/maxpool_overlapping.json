@@ -1,0 +1,72 @@
+{
+  "_comment": "Same-index running-max: dst and src both anchored at acc[0] every iteration. This exercises the RAW pipeline hazard that TensorAluPipelined currently asserts on (bypass_src: srcValidR3 && validR4 && src_idx_r3 == dst_idx_r4). The arithmetic itself is trivial - max(acc[0], acc[0]) every iteration - so the expected output equals the input; the value of this fixture is that it makes the assertion fire, which the existing naive_maxpool.json (dst_offset=0x100, src_offset=0x000) does not because its dst and src ranges are disjoint by construction.",
+  "inst": {
+    "reset": "0",
+    "uop_begin": "0000",
+    "uop_end": "0001",
+    "lp_0": "0003",
+    "lp_1": "0001",
+    "dst_0": "000",
+    "dst_1": "000",
+    "src_0": "000",
+    "src_1": "000",
+    "alu_op": "1",
+    "use_imm": "0",
+    "imm": "0000"
+  },
+  "acc": [
+    {
+      "idx": "00000000",
+      "vec": [
+        "00000000",
+        "00000001",
+        "00000002",
+        "00000003",
+        "00000004",
+        "00000005",
+        "00000006",
+        "00000007",
+        "00000008",
+        "00000009",
+        "0000000a",
+        "0000000b",
+        "0000000c",
+        "0000000d",
+        "0000000e",
+        "0000000f"
+      ]
+    }
+  ],
+  "acc_expect": [
+    {
+      "idx": "00000000",
+      "vec": [
+        "00000000",
+        "00000001",
+        "00000002",
+        "00000003",
+        "00000004",
+        "00000005",
+        "00000006",
+        "00000007",
+        "00000008",
+        "00000009",
+        "0000000a",
+        "0000000b",
+        "0000000c",
+        "0000000d",
+        "0000000e",
+        "0000000f"
+      ]
+    }
+  ],
+  "uop": [
+    {
+      "idx": "00000000",
+      "vec": [
+        "00000000",
+        "00000000"
+      ]
+    }
+  ]
+}

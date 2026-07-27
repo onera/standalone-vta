@@ -21,9 +21,9 @@ package vta.dpi
 
 import chisel3._
 import chisel3.util._
-import vta.util.config._
 import vta.interface.axi._
 import vta.shell._
+import vta.util.config._
 
 /** Host DPI parameters */
 trait VTAHostDPIParams {
@@ -32,9 +32,9 @@ trait VTAHostDPIParams {
 }
 
 /** Host master interface.
- *
- * This interface is tipically used by the Host
- */
+  *
+  * This interface is tipically used by the Host
+  */
 class VTAHostDPIMaster extends Bundle with VTAHostDPIParams {
   val req = new Bundle {
     val valid = Output(Bool())
@@ -47,9 +47,9 @@ class VTAHostDPIMaster extends Bundle with VTAHostDPIParams {
 }
 
 /** Host client interface.
- *
- * This interface is tipically used by the Accelerator
- */
+  *
+  * This interface is tipically used by the Accelerator
+  */
 class VTAHostDPIClient extends Bundle with VTAHostDPIParams {
   val req = new Bundle {
     val valid = Input(Bool())
@@ -62,11 +62,11 @@ class VTAHostDPIClient extends Bundle with VTAHostDPIParams {
 }
 
 /** Host DPI module.
- *
- * Wrapper for Host Verilog DPI module.
- */
-class VTAHostDPI extends BlackBox with HasBlackBoxResource {
-  val io = IO(new Bundle {
+  *
+  * Wrapper for Host Verilog DPI module.
+  */
+class VTAHostDPI extends ExtModule {
+  val io = FlatIO(new Bundle {
     val clock = Input(Clock())
     val reset = Input(Reset())
     val dpi = new VTAHostDPIMaster
@@ -75,10 +75,11 @@ class VTAHostDPI extends BlackBox with HasBlackBoxResource {
 }
 
 /** Host DPI to AXI Converter.
- *
- * Convert Host DPI to AXI for VTAShell
- */
-class VTAHostDPIToAXI(debug: Boolean = false)(implicit p: Parameters) extends Module {
+  *
+  * Convert Host DPI to AXI for VTAShell
+  */
+class VTAHostDPIToAXI(debug: Boolean = false)(implicit p: Parameters)
+    extends Module {
   val io = IO(new Bundle {
     val dpi = new VTAHostDPIClient
     val axi = new AXILiteMaster(p(ShellKey).hostParams)

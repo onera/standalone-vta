@@ -19,70 +19,73 @@
 
 package unittest
 
-import chiseltest.iotesters._
 import vta.core._
-import vta.util.config._
+import vta.tags.UnitTests
+import vta.util.AnyFlatSpecSim
 
-class MACTester(c: MAC) extends PeekPokeTester(c) {
-  poke(c.io.a, -1)
-  poke(c.io.b,  7)
-  poke(c.io.c, 10)
-  step(1)
-  expect(c.io.y, 3)
-  poke(c.io.a, -2)
-  poke(c.io.b,  7)
-  poke(c.io.c, 11)
-  step(1)
-  expect(c.io.y, -3)
-}
+@UnitTests
+class GemmTest extends AnyFlatSpecSim {
 
-class MACTest extends GenericTest("MACTest", (p:Parameters) => new MAC(),
-  (c:MAC) => new MACTester(c))
-
-class PipeAdderTester(c: PipeAdder) extends PeekPokeTester(c) {
-  poke(c.io.a, -1)
-  poke(c.io.b,  7)
-  step(1)
-  expect(c.io.y, 6)
-  poke(c.io.a, -2)
-  poke(c.io.b,  7)
-  step(1)
-  expect(c.io.y, 5)
-}
-
-class PipeAdderTest extends GenericTest("PipeAdderTest", (p:Parameters) => new PipeAdder(),
-  (c:PipeAdder) => new PipeAdderTester(c))
-
-class AdderTester(c: Adder) extends PeekPokeTester(c) {
-  poke(c.io.a, -1)
-  poke(c.io.b,  7)
-  expect(c.io.y, 6)
-  step(1)
-
-  poke(c.io.a, -2)
-  poke(c.io.b,  7)
-  expect(c.io.y, 5)
-  step(1)
-}
-
-class AdderTest extends GenericTest("AdderTest", (p:Parameters) => new Adder(),
-  (c:Adder) => new AdderTester(c))
-
-class DotProductTester(c: DotProduct) extends PeekPokeTester(c) {
-  for {i<- 0 until 16} {
-    poke(c.io.a(i), if (i %2 == 0) 1 else -1)
-    poke(c.io.b(i), i)
+  "MAC" should "compute a multiplication accumulation" in {
+    simulate(new MAC) { c =>
+      c.io.a.poke(-1)
+      c.io.b.poke(7)
+      c.io.c.poke(10)
+      c.clock.step()
+      c.io.y.expect(3)
+      c.io.a.poke(-2)
+      c.io.b.poke(7)
+      c.io.c.poke(11)
+      c.clock.step()
+      c.io.y.expect(-3)
+    }
   }
-  step(1)
-  for {i<- 0 until 16} {
-    poke(c.io.a(i), if (i %2 == 1) 1 else -1)
-    poke(c.io.b(i), i)
-  }
-  step(1)
-  expect(c.io.y, -8)
-  step(1)
-  expect(c.io.y,  8)
-}
 
-class DotProductTest extends GenericTest("DotProductTest", (p:Parameters) => new DotProduct(),
-  (c:DotProduct) => new DotProductTester(c))
+  "PipeAdder" should "compute an addition" in {
+
+    simulate(new PipeAdder()) { c =>
+      c.io.a.poke(-1)
+      c.io.b.poke(7)
+      c.clock.step()
+      c.io.y.expect(6)
+      c.io.a.poke(-2)
+      c.io.b.poke(7)
+      c.clock.step()
+      c.io.y.expect(5)
+    }
+  }
+
+  "Adder" should "compute additions" in {
+
+    simulate(new Adder()) { c =>
+      c.io.a.poke(-1)
+      c.io.b.poke(7)
+      c.io.y.expect(6)
+      c.clock.step()
+
+      c.io.a.poke(-2)
+      c.io.b.poke(7)
+      c.io.y.expect(5)
+      c.clock.step()
+    }
+  }
+
+  "DotProduct" should "compute a dot product" in {
+
+    simulate(new DotProduct()) { c =>
+      for { i <- 0 until 16 } {
+        c.io.a(i).poke(if (i % 2 == 0) 1 else -1)
+        c.io.b(i).poke(i)
+      }
+      c.clock.step()
+      for { i <- 0 until 16 } {
+        c.io.a(i).poke(if (i % 2 == 1) 1 else -1)
+        c.io.b(i).poke(i)
+      }
+      c.clock.step()
+      c.io.y.expect(-8)
+      c.clock.step()
+      c.io.y.expect(8)
+    }
+  }
+}

@@ -21,12 +21,13 @@ package vta.core
 
 import chisel3._
 import chisel3.util._
+
 import scala.collection.mutable.HashMap
 
 /** ISAConstants.
- *
- * These constants are used for decoding (parsing) fields on instructions.
- */
+  *
+  * These constants are used for decoding (parsing) fields on instructions.
+  */
 trait ISAConstants {
   val INST_BITS = 128
 
@@ -71,13 +72,12 @@ trait ISAConstants {
 }
 
 /** ISA.
- *
- * This is the VTA task ISA
- *
- * TODO: Add VXOR to clear accumulator
- * TODO: Use ISA object for decoding as well
- * TODO: Eventually deprecate ISAConstants
- */
+  *
+  * This is the VTA task ISA
+  *
+  * TODO: Add VXOR to clear accumulator TODO: Use ISA object for decoding as
+  * well TODO: Eventually deprecate ISAConstants
+  */
 object ISA {
   private val xLen = 128
   private val depBits = 4
@@ -86,20 +86,30 @@ object ISA {
     HashMap(("task", 3), ("mem", 3), ("alu", 3))
 
   private val taskId: HashMap[String, String] =
-    HashMap(("load", "000"),
+    HashMap(
+      ("load", "000"),
       ("store", "001"),
       ("gemm", "010"),
       ("finish", "011"),
-      ("alu", "100"))
+      ("alu", "100")
+    )
 
   private val memId: HashMap[String, String] =
-    HashMap(("uop", "000"), ("wgt", "001"), ("inp", "010"), ("acc", "011"), ("out", "100"))
+    HashMap(
+      ("uop", "000"),
+      ("wgt", "001"),
+      ("inp", "010"),
+      ("acc", "011"),
+      ("out", "100")
+    )
 
   private val aluId: HashMap[String, String] =
-    HashMap(("minpool", "000"),
+    HashMap(
+      ("minpool", "000"),
       ("maxpool", "001"),
       ("add", "010"),
-      ("shift", "011"))
+      ("shift", "011")
+    )
 
   private def dontCare(bits: Int): String = "?" * bits
 

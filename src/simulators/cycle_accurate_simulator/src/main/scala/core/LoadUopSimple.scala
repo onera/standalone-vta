@@ -20,11 +20,14 @@
 package vta.core
 
 import chisel3._
+import chisel3.layer.block
 import chisel3.util._
-import vta.util.config._
 import vta.shell._
+import vta.util.UserDefined.DebugLayer
+import vta.util.config._
 
-class LoadUopSimple(debug: Boolean = false)(implicit val p: Parameters) extends Module {
+class LoadUopSimple(debug: Boolean = false)(implicit val p: Parameters)
+    extends Module {
   val mp = p(ShellKey).memParams
   val io = IO(new Bundle {
     val start = Input(Bool())
@@ -55,9 +58,11 @@ class LoadUopSimple(debug: Boolean = false)(implicit val p: Parameters) extends 
   val xfer_bytes = Reg(chiselTypeOf(xmax_bytes))
   // DRAM address width must be the same as AXI araddr since anything above will
   // be silently truncated, enforce this here.
-  val dram_byte_addr = WireInit(UInt(raddr.getWidth.W), dec.dram_offset << log2Ceil(uopBytes))
+  val dram_byte_addr =
+    WireInit(UInt(raddr.getWidth.W), dec.dram_offset << log2Ceil(uopBytes))
   // Here we are assuming io.baddr | dram_byte_addr === io.baddr + dram_byte_addr.
-  val unaligned_addr = io.baddr | dram_byte_addr
+  // Modified to support larger offsets
+  val unaligned_addr = io.baddr + dram_byte_addr
   val xfer_init_addr = unaligned_addr & ~data_align_bits
   val xfer_next_addr = raddr + xfer_bytes
   val xfer_init_bytes = xmax_bytes - xfer_init_addr % xmax_bytes
@@ -66,12 +71,12 @@ class LoadUopSimple(debug: Boolean = false)(implicit val p: Parameters) extends 
   val xfer_next_beats = xfer_next_bytes >> beat_bytes_bits
 
   val dram_even = (dec.dram_offset % 2.U) === 0.U
-  val sram_even = (dec.sram_offset % 2.U) === 0.U
+  val sram_even = (dec.sramOffset % 2.U) === 0.U
   val sizeIsEven = (dec.xsize % 2.U) === 0.U
 
   val sIdle :: sReadCmd :: sReadData :: Nil = Enum(3)
   val state = RegInit(sIdle)
-  val first = RegInit(init=false.B)
+  val first = RegInit(init = false.B)
 
   // control
   switch(state) {
@@ -128,7 +133,7 @@ class LoadUopSimple(debug: Boolean = false)(implicit val p: Parameters) extends 
   io.vme_rd.cmd.valid := state === sReadCmd
   io.vme_rd.cmd.bits.addr := raddr
   io.vme_rd.cmd.bits.len := xlen
-  io.vme_rd.cmd.bits.tag := dec.sram_offset
+  io.vme_rd.cmd.bits.tag := dec.sramOffset
 
   io.vme_rd.data.ready := state === sReadData
 
@@ -138,16 +143,18 @@ class LoadUopSimple(debug: Boolean = false)(implicit val p: Parameters) extends 
     xcnt := xcnt + 1.U
   }
 
-  val waddr = IndexedSeq.fill(uopsPerMemXfer) { Reg(UInt(log2Ceil(uopDepth).W))}
+  val waddr = IndexedSeq.fill(uopsPerMemXfer) {
+    Reg(UInt(log2Ceil(uopDepth).W))
+  }
   when(state === sIdle) {
-    val so = dec.sram_offset >> log2Ceil(uopsPerMemXfer)
+    val so = dec.sramOffset >> log2Ceil(uopsPerMemXfer)
     if (uopsPerMemXfer == 1) {
       waddr(0) := so
     } else {
-      when (!sram_even &&  dram_even) { // 10
+      when(!sram_even && dram_even) { // 10
         waddr(0) := so + 1.U
         waddr(1) := so
-      }.elsewhen (sram_even && !dram_even) { // 01
+      }.elsewhen(sram_even && !dram_even) { // 01
         waddr(0) := so
         waddr(1) := so - 1.U
       }.otherwise {
@@ -161,7 +168,9 @@ class LoadUopSimple(debug: Boolean = false)(implicit val p: Parameters) extends 
     }
   }
 
-  val mems = IndexedSeq.fill(uopsPerMemXfer) { SyncReadMem(uopDepth, UInt(uopBits.W))}
+  val mems = IndexedSeq.fill(uopsPerMemXfer) {
+    SyncReadMem(uopDepth, UInt(uopBits.W))
+  }
   val last = (xcnt === xlen) && (xrem === 0.U)
 
   val wmask = Wire(Vec(uopsPerMemXfer, Bool()))
@@ -169,8 +178,8 @@ class LoadUopSimple(debug: Boolean = false)(implicit val p: Parameters) extends 
     wmask(i) := true.B
   }
 
-  when (io.vme_rd.data.fire) {
-    when (first) {
+  when(io.vme_rd.data.fire) {
+    when(first) {
       first := false.B
 
       if (uopsPerMemXfer == 2) {
@@ -182,9 +191,9 @@ class LoadUopSimple(debug: Boolean = false)(implicit val p: Parameters) extends 
     when(last) {
       if (uopsPerMemXfer == 2) {
         when(dram_even ^ sizeIsEven) {
-          when (sram_even ^ sizeIsEven) {
+          when(sram_even ^ sizeIsEven) {
             wmask(1) := false.B
-          }.otherwise{
+          }.otherwise {
             wmask(0) := false.B
           }
         }
@@ -202,8 +211,8 @@ class LoadUopSimple(debug: Boolean = false)(implicit val p: Parameters) extends 
   }
 
   when(io.vme_rd.data.fire) {
-    for { i <- 0 until mems.size} {
-      when (wmask(i)) {
+    for { i <- 0 until mems.size } {
+      when(wmask(i)) {
         mems(i).write(waddr(i), wdata(i))
       }
     }
@@ -227,24 +236,25 @@ class LoadUopSimple(debug: Boolean = false)(implicit val p: Parameters) extends 
     io.uop.data.bits <> m0.asTypeOf(io.uop.data.bits)
   }
 
-  if (false) {
-    // Report initial part of the uop state after
-    //   the clock transition where io.done is high
-    val memDumpGuard = RegNext(io.done,init=false.B)
-    when (memDumpGuard) {
-      for {
-        idx <- 0 until scala.math.min(8,uopDepth)
-        i <- 0 until uopsPerMemXfer} {
-        val s = mems(i)(idx).asTypeOf(io.uop.data.bits)
-        printf(cf"uop: $idx $i u0: ${s.u0} u1: ${s.u1} u2: ${s.u2}\n")
-      }
-    }
-  }
-
   // debug
-  if (debug) {
+  block(DebugLayer) {
     when(io.vme_rd.cmd.fire) {
       printf(cf"[LoadUop] cmd addr: ${raddr} len: ${xlen} rem: ${xrem}\n")
+    }
+
+    if (false) {
+      // Report initial part of the uop state after
+      //   the clock transition where io.done is high
+      val memDumpGuard = RegNext(io.done, init = false.B)
+      when(memDumpGuard) {
+        for {
+          idx <- 0 until scala.math.min(8, uopDepth)
+          i <- 0 until uopsPerMemXfer
+        } {
+          val s = mems(i)(idx).asTypeOf(io.uop.data.bits)
+          printf(cf"uop: $idx $i u0: ${s.u0} u1: ${s.u1} u2: ${s.u2}\n")
+        }
+      }
     }
   }
 }

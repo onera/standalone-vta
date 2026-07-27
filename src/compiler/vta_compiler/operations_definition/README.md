@@ -5,8 +5,8 @@ This directory contains information and tools for defining and generating VTA in
 ## Overview
 
 This directory contains:
-* `structures_insn_uop.py`: the definition of the instructions and UOP format. 
-* The instruction example files.
+* `structures.py`: the definition of the instructions and UOP format.
+* `examples/`: the instruction example files.
 
 ## Operation Format
 
@@ -22,11 +22,13 @@ The following schematic illustrates the difference between the UOP and the instr
 
 ![Instruction vs UOP](./documentation/images/insn_uop.jpg)
 
-VTA's Instruction Set Architecture (ISA) is composed of 4 CISC (Complex Instruction Set Computer) with variable latency:
+VTA's Instruction Set Architecture (ISA) is composed of 4 CISC (Complex Instruction Set Computer) instructions with variable latency:
 * LOAD
 * GEMM
 * ALU
 * STORE
+
+plus FINISH, a control opcode that terminates the instruction stream.
 
 | OPCODE | Value      |
 |:------:|:----------:|
@@ -157,22 +159,26 @@ The second 64-bit subfield is different depending on GEMM or ALU.
 
 #### <u>**GEMM**</u>
 
-Second 64-bit subfield:
-* ACC_IDX_FACTOR_IN / X0 (11-bit): incrementation on the accumulator index at each inner loop
-* ACC_IDX_FACTOR_OUT / X1 (11-bit): incrementation on the accumulator index at each outer loop
-* INP_IDX_FACTOR_IN / Y0 (11-bit)
-* INP_IDX_FACTOR_OUT / Y1 (11-bit)
-* WGT_IDX_FACTOR_IN / Z0 (10-bit)
-* WGT_IDX_FACTOR_OUT / Z1 (10-bit)
-* unused (0-bit)
+Second 64-bit subfield, listed from the least significant bit up (the same order as
+the `_fields_` declaration in `structures.py`):
+* ACC_IDX_FACTOR_OUT / X0 (11-bit): incrementation on the accumulator index at each outer loop
+* ACC_IDX_FACTOR_IN / X1 (11-bit): incrementation on the accumulator index at each inner loop
+* INP_IDX_FACTOR_OUT / Y0 (11-bit)
+* INP_IDX_FACTOR_IN / Y1 (11-bit)
+* WGT_IDX_FACTOR_OUT / Z0 (10-bit)
+* WGT_IDX_FACTOR_IN / Z1 (10-bit)
+
+The `_OUT` / `_IN` suffixes refer to the **outer** and **inner** loop, not to a data
+direction. The outer-loop factors occupy the lower bits. The RTL decoder names the
+same fields `acc0`/`acc1`, `inp0`/`inp1`, `wgt0`/`wgt1` (`core/Decode.scala`), where
+the `0` suffix is the outer loop.
 
 ![GeMM instruction](./documentation/images/GemmInsn.jpg)
 
 Micro-Operations (UOP) 32-bit field:
-* ACC_IDX / X (11-bit): base index for the accumulator
-* INP_IDX / Y (11-bit): base index for the input
-* WGT_IDX / Z (10-bit): base index for the weight
-* unused (0-bit)
+* ACC_IDX / X (11-bit): base index for the accumulator (`dst_idx` in `structures.py`)
+* INP_IDX / Y (11-bit): base index for the input (`src_idx`)
+* WGT_IDX / Z (10-bit): base index for the weight (`wgt_idx`)
 
 ![UOP Gemm](./documentation/images/UOP_gemm.jpg)
 
@@ -190,22 +196,26 @@ for i0 in range (0, END0):
 
 #### <u>**ALU**</u>
 
-Second 64-bit subfield:
-* DST_IDX_FACTOR_IN / X0 (11-bit)
-* DST_IDX_FACTOR_OUT / X1 (11-bit)
-* SRC_IDX_FACTOR_IN / Y0 (11-bit)
-* SRC_IDX_FACTOR_OUT / Y1 (11-bit)
+Second 64-bit subfield, listed from the least significant bit up:
+* DST_IDX_FACTOR_OUT / X0 (11-bit): outer-loop increment
+* DST_IDX_FACTOR_IN / X1 (11-bit): inner-loop increment
+* SRC_IDX_FACTOR_OUT / Y0 (11-bit)
+* SRC_IDX_FACTOR_IN / Y1 (11-bit)
 * ALU_OPCODE / OP (3-bit): sets the operation to perform
-* USE_IMM (1-bit): if raised: tensor-scalar operations 
+* USE_IMM (1-bit): if raised: tensor-scalar operations
 * IMMEDIATE / IMM (16-bit): scalar operator
-* unused (0-bit)
+
+As for GEMM, `_OUT` / `_IN` denote the outer and inner loop, and the outer-loop
+factors sit in the lower bits.
 
 ![ALU instruction](./documentation/images/AluInsn.jpg)
 
-Micro-Operations (UOP) 32-bit field:
+Micro-Operations (UOP) 32-bit field. The UOP layout is shared with GEMM (there is a
+single `VTAUop` struct), so the third field is `wgt_idx` and is simply left unused by
+ALU operations:
 * DST_IDX / X (11-bit)
 * SRC_IDX / Y (11-bit)
-* unused (10-bit)
+* WGT_IDX / Z (10-bit): unused by ALU
 
 ![UOP Gemm](./documentation/images/UOP_alu.jpg)
 
@@ -248,7 +258,7 @@ The execution is generally as follow:
 
 ## Example: `insn_matrix_16x16.py`
 
-Execute the code with: `python insn_matrix_16x16.py`.
+Execute the code with: `python examples/insn_matrix_16x16.py`.
 
 The instructions enable the multiplication of a matrix 16x16 elements, A, with another 16x16 matrix, B.
 
@@ -264,7 +274,7 @@ A single GeMM instruction is necessary to perform this multiplication (in additi
 
 ## Example: `insn_average_pooling.py`
 
-Execute the code with: `python insn_average_pooling.py`.
+Execute the code with: `python examples/insn_average_pooling.py`.
 
 The instructions enable an average pooling operation usually after a GeMM operation. 
 In the example, we consider a 4x4 tensor with two channels on which a average pooling of 2x2 with a stride of 2 is applied. It results then in a 4x4 tensor with 2 channels.
@@ -287,9 +297,9 @@ It results in 3 ALU instructions: 2 adds and 1 shift right to divide.
 ![Average Pooling instructions](./documentation/images/AvgPool_insn.jpg)
 
 
-## Example: `insn_lenet5_conv1_relu_average_pooling.py`
+## Example: `examples/insn_lenet5_layer1.py`
 
-Execute the code with: `python insn_lenet5_conv1_relu_average_pooling.py`.
+Execute the code with: `python examples/insn_lenet5_layer1.py`.
 
 This example consists of executing the first part of the LeNet-5 network.
 

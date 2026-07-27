@@ -22,8 +22,9 @@ package unittest.util
 import scala.math.pow
 
 object Helper {
-  def getMask(bits: Int) : Long = {
-    if (bits <= 0) throw new IllegalArgumentException ("bits should be greater than 0")
+  def getMask(bits: Int): Long = {
+    if (bits <= 0)
+      throw new IllegalArgumentException("bits should be greater than 0")
     (pow(2, bits) - 1).toLong
   }
 }

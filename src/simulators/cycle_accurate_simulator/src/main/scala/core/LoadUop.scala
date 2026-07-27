@@ -21,15 +21,15 @@ package vta.core
 
 import chisel3._
 import chisel3.util._
-import vta.util.config._
 import vta.shell._
+import vta.util.config._
 
 /** UopMaster.
- *
- * Uop interface used by a master module, i.e. TensorAlu or TensorGemm,
- * to request a micro-op (uop) from the uop-scratchpad. The index (idx) is
- * used as an address to find the uop in the uop-scratchpad.
- */
+  *
+  * Uop interface used by a master module, i.e. TensorAlu or TensorGemm, to
+  * request a micro-op (uop) from the uop-scratchpad. The index (idx) is used as
+  * an address to find the uop in the uop-scratchpad.
+  */
 class UopMaster(implicit p: Parameters) extends Bundle {
   val addrBits = log2Ceil(p(CoreKey).uopMemDepth)
   val idx = ValidIO(UInt(addrBits.W))
@@ -37,11 +37,11 @@ class UopMaster(implicit p: Parameters) extends Bundle {
 }
 
 /** UopClient.
- *
- * Uop interface used by a client module, i.e. LoadUop, to receive
- * a request from a master module, i.e. TensorAlu or TensorGemm.
- * The index (idx) is used as an address to find the uop in the uop-scratchpad.
- */
+  *
+  * Uop interface used by a client module, i.e. LoadUop, to receive a request
+  * from a master module, i.e. TensorAlu or TensorGemm. The index (idx) is used
+  * as an address to find the uop in the uop-scratchpad.
+  */
 class UopClient(implicit p: Parameters) extends Bundle {
   val addrBits = log2Ceil(p(CoreKey).uopMemDepth)
   val idx = Flipped(ValidIO(UInt(addrBits.W)))
@@ -49,10 +49,11 @@ class UopClient(implicit p: Parameters) extends Bundle {
 }
 
 /** LoadUopTop.
- *
- * Top wrapper of load uop implementations.
- */
-class LoadUopTop(debug: Boolean = false)(implicit val p: Parameters) extends Module {
+  *
+  * Top wrapper of load uop implementations.
+  */
+class LoadUopTop(debug: Boolean = false)(implicit val p: Parameters)
+    extends Module {
   val mp = p(ShellKey).memParams
   val io = IO(new Bundle {
     val start = Input(Bool())
@@ -67,8 +68,17 @@ class LoadUopTop(debug: Boolean = false)(implicit val p: Parameters) extends Mod
   // define simple tensor load
   val forceSimpleLoadUop = false;
 
+  // Debug handle to the active wide-VME uop loader (None when the simple loader
+  // is forced). Exposed so XilinxDebugShell can bore its commandsDone /
+  // clInFlight for the FPGA uop-load hang investigation. Not synthesized unless
+  // a probe reads it.
+  var loadUopWide: Option[TensorLoadWideVME] = None
+
   if (forceSimpleLoadUop) {
-    require(mp.dataBits == 64, "-F- Original LoadUop supports only 64 bit memory data transfer")
+    require(
+      mp.dataBits == 64,
+      "-F- Original LoadUop supports only 64 bit memory data transfer"
+    )
 
     val loadUop = Module(new LoadUopSimple(debug))
 
@@ -82,7 +92,11 @@ class LoadUopTop(debug: Boolean = false)(implicit val p: Parameters) extends Mod
     io.uop <> loadUop.io.uop
 
   } else {
-    val loadUop = Module(new TensorLoad(tensorType = "uop"))
+    val loadUop = Module(TensorLoad(tensorType = "uop", debug))
+    loadUopWide = loadUop match {
+      case w: TensorLoadWideVME => Some(w)
+      case _                    => None
+    }
     loadUop.io.tensor.tieoffWrite()
 
     loadUop.io.start := io.start
@@ -91,11 +105,32 @@ class LoadUopTop(debug: Boolean = false)(implicit val p: Parameters) extends Mod
     loadUop.io.vme_rd <> io.vme_rd
 
     loadUop.io.inst := io.inst
-    require(loadUop.tp.splitWidth == 1 && loadUop.tp.splitLength == 1, "-F- UOP tensor split read is not expected")
+    require(
+      loadUop.tp.splitWidth == 1 && loadUop.tp.splitLength == 1,
+      "-F- UOP tensor split read is not expected"
+    )
     loadUop.io.tensor.rd(0).idx <> io.uop.idx
     io.uop.data.valid := loadUop.io.tensor.rd(0).data.valid
-    io.uop.data.bits <> loadUop.io.tensor.rd(0).data.bits.asTypeOf(new UopDecode)
+
+    // block(Debug) {
+    //   if (debug) {
+    //     withDisable(Disable.BeforeReset) {
+    //       when(loadUop.io.tensor.rd(0).data.valid) {
+    //         printf(
+    //           cf"[Load uop] UOP ${loadUop.io.tensor.rd(0).data.bits}\n"
+    //         )
+    //         printf(
+    //           cf"[Load uop] Decoded ${loadUop.io.tensor.rd(0).data.bits.asTypeOf(new UopDecode)}\n"
+    //         )
+    //       }
+    //     }
+    //   }
+    // }
+    io.uop.data.bits <> loadUop.io.tensor
+      .rd(0)
+      .data
+      .bits
+      .asTypeOf(new UopDecode)
 
   }
 }
-

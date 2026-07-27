@@ -35,24 +35,24 @@ extern "C" {
 /*! GEMM Micro-op start position of the acc_idx field */
 #define VTA_UOP_GEM_0_0 0
 /*! GEMM Micro-op end position of the acc_idx field */
-#define VTA_UOP_GEM_0_1 (VTA_UOP_GEM_0_0 + VTA_LOG_ACC_BUFF_DEPTH - 1)
+#define VTA_UOP_GEM_0_1 (VTA_UOP_GEM_0_0 + VTA_ACC_IDX_BIT_WIDTH - 1)
 /*! GEMM Micro-op start position of the inp_idx field */
 #define VTA_UOP_GEM_1_0 (VTA_UOP_GEM_0_1 + 1)
 /*! GEMM Micro-op end position of the inp_idx field */
-#define VTA_UOP_GEM_1_1 (VTA_UOP_GEM_1_0 + VTA_LOG_INP_BUFF_DEPTH - 1)
+#define VTA_UOP_GEM_1_1 (VTA_UOP_GEM_1_0 + VTA_INP_IDX_BIT_WIDTH - 1)
 /*! GEMM Micro-op start position of the wgt_idx field */
 #define VTA_UOP_GEM_2_0 (VTA_UOP_GEM_1_1 + 1)
 /*! GEMM Micro-op end position of the wgt_idx field */
-#define VTA_UOP_GEM_2_1 (VTA_UOP_GEM_2_0 + VTA_LOG_WGT_BUFF_DEPTH - 1)
+#define VTA_UOP_GEM_2_1 (VTA_UOP_GEM_2_0 + VTA_WGT_IDX_BIT_WIDTH - 1)
 
 /*! GEMM Micro-op start position of the acc_idx field */
 #define VTA_UOP_ALU_0_0 0
 /*! GEMM Micro-op end position of the acc_idx field */
-#define VTA_UOP_ALU_0_1 (VTA_UOP_ALU_0_0 + VTA_LOG_ACC_BUFF_DEPTH - 1)
+#define VTA_UOP_ALU_0_1 (VTA_UOP_ALU_0_0 + VTA_ACC_IDX_BIT_WIDTH - 1)
 /*! GEMM Micro-op start position of the inp_idx field */
 #define VTA_UOP_ALU_1_0 (VTA_UOP_ALU_0_1 + 1)
 /*! GEMM Micro-op end position of the inp_idx field */
-#define VTA_UOP_ALU_1_1 (VTA_UOP_ALU_1_0 + VTA_LOG_INP_BUFF_DEPTH - 1)
+#define VTA_UOP_ALU_1_1 (VTA_UOP_ALU_1_0 + VTA_ACC_IDX_BIT_WIDTH - 1)
 
 /*! \brief VTA generic instruction */
 typedef struct {
@@ -155,25 +155,25 @@ typedef struct {
   /*! \brief Reset register */
   uint64_t reset_reg      : 1;
   /*! \brief Micro-op begin address */
-  uint64_t uop_bgn        : VTA_LOG_UOP_BUFF_DEPTH;
+  uint64_t uop_bgn        : VTA_UOP_BGN_BIT_WIDTH;
   /*! \brief Micro-op end address */
-  uint64_t uop_end        : VTA_LOG_UOP_BUFF_DEPTH + 1;
+  uint64_t uop_end        : VTA_UOP_END_BIT_WIDTH;
   /*! \brief Iterations in the outer uop execution loop */
   uint64_t iter_out       : VTA_LOOP_ITER_WIDTH;
   /*! \brief Iterations in the inner uop execution loop */
   uint64_t iter_in        : VTA_LOOP_ITER_WIDTH;
   /*! \brief Outer loop accumulator memory index factor */
-  uint64_t dst_factor_out : VTA_LOG_ACC_BUFF_DEPTH;
+  uint64_t dst_factor_out : VTA_ACC_IDX_BIT_WIDTH;
   /*! \brief Inner loop accumulator memory index factor */
-  uint64_t dst_factor_in  : VTA_LOG_ACC_BUFF_DEPTH;
+  uint64_t dst_factor_in  : VTA_ACC_IDX_BIT_WIDTH;
   /*! \brief Outer loop input memory index factor */
-  uint64_t src_factor_out : VTA_LOG_INP_BUFF_DEPTH;
+  uint64_t src_factor_out : VTA_INP_IDX_BIT_WIDTH;
   /*! \brief Inner loop input memory index factor */
-  uint64_t src_factor_in  : VTA_LOG_INP_BUFF_DEPTH;
+  uint64_t src_factor_in  : VTA_INP_IDX_BIT_WIDTH;
   /*! \brief Outer loop weight memory index factor */
-  uint64_t wgt_factor_out : VTA_LOG_WGT_BUFF_DEPTH;
+  uint64_t wgt_factor_out : VTA_WGT_IDX_BIT_WIDTH;
   /*! \brief Inner loop weight memory index factor */
-  uint64_t wgt_factor_in  : VTA_LOG_WGT_BUFF_DEPTH;
+  uint64_t wgt_factor_in  : VTA_WGT_IDX_BIT_WIDTH;
 } VTAGemInsn;
 
 /*! \brief VTA ALU instruction
@@ -219,21 +219,21 @@ typedef struct {
   /*! \brief Reset register */
   uint64_t reset_reg      : 1;
   /*! \brief Micro-op begin address */
-  uint64_t uop_bgn        : VTA_LOG_UOP_BUFF_DEPTH;
+  uint64_t uop_bgn        : VTA_UOP_BGN_BIT_WIDTH;
   /*! \brief Micro-op end address */
-  uint64_t uop_end        : VTA_LOG_UOP_BUFF_DEPTH + 1;
+  uint64_t uop_end        : VTA_UOP_END_BIT_WIDTH;
   /*! \brief Iterations in the outer uop execution loop */
   uint64_t iter_out       : VTA_LOOP_ITER_WIDTH;
   /*! \brief Iterations in the inner uop execution loop */
   uint64_t iter_in        : VTA_LOOP_ITER_WIDTH;
   /*! \brief Outer loop accumulator memory destination index factor */
-  uint64_t dst_factor_out : VTA_LOG_ACC_BUFF_DEPTH;
+  uint64_t dst_factor_out : VTA_ACC_IDX_BIT_WIDTH;
   /*! \brief Inner loop accumulator memory destination index factor */
-  uint64_t dst_factor_in  : VTA_LOG_ACC_BUFF_DEPTH;
+  uint64_t dst_factor_in  : VTA_ACC_IDX_BIT_WIDTH;
   /*! \brief Outer loop accumulator memory source index factor */
-  uint64_t src_factor_out : VTA_LOG_ACC_BUFF_DEPTH;
+  uint64_t src_factor_out : VTA_ACC_IDX_BIT_WIDTH;
   /*! \brief Inner loop accumulator memory source index factor */
-  uint64_t src_factor_in  : VTA_LOG_ACC_BUFF_DEPTH;
+  uint64_t src_factor_in  : VTA_ACC_IDX_BIT_WIDTH;
   /*! \brief ALU opcode */
   uint64_t alu_opcode     : VTA_ALU_OPCODE_BIT_WIDTH;
   /*! \brief Use immediate is true */
@@ -261,11 +261,11 @@ union VTAInsn {
 /*! \brief VTA micro-op for GEMM/ALU instruction */
 typedef struct {
   /*! \brief Destination index (indexes accum buffer) */
-  uint32_t dst_idx    : VTA_LOG_ACC_BUFF_DEPTH;
+  uint32_t dst_idx    : VTA_ACC_IDX_BIT_WIDTH;
   /*! \brief Source index (indexes input buffer for GEMM or accum buffer for ALU) */
-  uint32_t src_idx    : MAX(VTA_LOG_ACC_BUFF_DEPTH, VTA_LOG_INP_BUFF_DEPTH);
+  uint32_t src_idx    : VTA_INP_IDX_BIT_WIDTH;
   /*! \brief Weight index (indexes weight buffer) */
-  uint32_t wgt_idx    : VTA_LOG_WGT_BUFF_DEPTH;
+  uint32_t wgt_idx    : VTA_WGT_IDX_BIT_WIDTH;
 } VTAUop;
 
 #ifdef __cplusplus

@@ -1,0 +1,187 @@
+//| mill-version: 1.1.7
+//| mill-jvm-version: 17
+//| mill-jvm-opts: ["-Dchisel.project.root=${PWD}"]
+//| mvnDeps: ["com.goyeau::mill-scalafix_mill1:0.6.0"]
+package build
+
+import mill._
+import mill.javalib._
+import mill.javalib.publish._
+import mill.scalalib.SbtModule
+import mill.javalib.TestModule.ScalaTest
+import mill.api.Task.Simple
+import mill.api.BuildCtx
+import com.goyeau.mill.scalafix.ScalafixModule
+import mill.javalib.testrunner.TestResult
+import mill.javalib.Assembly.Rule
+
+object `package` extends SbtModule with PublishModule with ScalafixModule { m =>
+
+  def artifactName = "vta-standalone"
+
+  def javacOptions = Seq("--release", "8")
+
+  def scalaVersion = "2.13.18"
+  def forkEnv = Task{Task.env}
+
+  def scalacOptions = Seq(
+    "-deprecation",
+    "-feature",
+    "-Xcheckinit",
+    "-language:reflectiveCalls",
+    "-Ymacro-annotations",
+    "-Wunused:imports",
+    "-release:8"
+  )
+
+  override def mainClass: Simple[Option[String]] = Some("cli.VTAShellSimulator")
+
+  // def repositories = Seq(
+  //   "https://oss.sonatype.org/content/repositories/snapshots",
+  //   "https://s01.oss.sonatype.org/content/repositories/snapshots",
+  //   "https://oss.sonatype.org/service/local/repositories/releases/content/",
+  //   "https://s01.oss.sonatype.org/content/repositories/releases"
+  // )
+  def chiselVersion = "7.11.0"
+
+  def mvnDeps = Seq(
+    mvn"com.fasterxml.jackson.core:jackson-databind:2.21.0",
+    mvn"com.fasterxml.jackson.module::jackson-module-scala:2.21.0",
+    mvn"net.java.dev.jna:jna:5.18.0",
+    mvn"org.chipsalliance::chisel:${chiselVersion}",
+    mvn"edu.berkeley.cs::chiseltest:6.0.0",
+    // mvn"edu.berkeley.cs::firrtl2:6.0-SNAPSHOT",
+    mvn"org.scalatest::scalatest:3.2.19"
+  )
+  override def scalacPluginMvnDeps: Simple[Seq[Dep]] = Seq(
+    mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}"
+  )
+
+  def pomSettings = PomSettings(
+    "vta-standalone",
+    "edu.berkeley.cs",
+    "",
+    Seq(),
+    VersionControl(
+      Some("https://github.com/onera/standalone-vta"),
+        Some("scm:git:https://github.com/onera/standalone-vta.git"),
+          Some("scm:git:git@github.com:onera/standalone-vta.git"),
+          None
+        ),
+      Seq()
+    )
+
+  def publishVersion = "6.0-SNAPSHOT"
+
+  def forkArgs = Seq(s"-Dvta.config.file=${vtaConfigFile()}")
+  def vtaConfigFile = Task.Input{
+    sys.props.getOrElse("vta.config.file","vta_config.json")
+  }
+
+  def vtaSimConfig = Task {
+    runner().run(
+      args = Seq(Task.dest.toString),
+      mainClass = "vta.exporters.TestDefaultPynqConfigEmitter",
+      workingDir = BuildCtx.workspaceRoot
+    )
+    PathRef(Task.dest)
+  }
+
+  /**
+   * Emit VTA for DPI simulation using `vta.StandaloneSimConfig` main class.
+   *
+   * Usage: ./mill emitVtaSimConfig
+   * @param args optional path string for the target dir  
+   */
+  def emitVtaSimConfig(args: Args) = Task.Command {
+    val outDir = BuildCtx.workspaceRoot / "build" / "emitted" / "vta-sim-shell"
+    val taskPath = vtaSimConfig()
+    os.remove.all(target = outDir,ignoreErrors = true)
+    println(s"[INFO] copying sim config from ${taskPath.path} to ${outDir}")
+    os.copy(taskPath.path,outDir,replaceExisting = true,createFolders = true)
+  }
+
+  /**
+  * Emit the default FPGA Xilinx config 
+  *
+  * @param args optional path string for the target dir
+  */
+  def emitVtaFpgaConfig(args: Args) = Task.Command {
+    val outDir = if (args.value.isEmpty) BuildCtx.workspaceRoot / "build" / "emitted" / "vta-xilinx-shell" else os.Path(args.value.head)
+    os.makeDir.all(outDir)
+
+    runner().run(
+      args = Seq(outDir.toString),
+      mainClass = "vta.exporters.DefaultXilinxConfigEmitter",
+      workingDir = BuildCtx.workspaceRoot
+    )
+    println(s"[INFO] VTA FPGA config emitted in ${outDir}")
+  }
+
+  def emitVtaPostSynthTb(args: Args) = Task.Command {
+    val outDir =
+      if (args.value.isEmpty)
+        BuildCtx.workspaceRoot / "build" / "emitted" / "vta-postsynth-tb"
+      else os.Path(args.value.head)
+    os.makeDir.all(outDir)
+
+    // Forward the optional emit knobs from the Mill JVM's -D props as program
+    // args, so they reach the forked run JVM regardless of -D propagation.
+    val forwarded = Seq(
+      "compilerOutDir",
+      "layers",
+      "reloStride",
+      "perLayerTimeout"
+    ).flatMap(k => sys.props.get(s"vta.$k").map(v => s"--$k=$v"))
+
+    runner().run(
+      args = Seq(outDir.toString) ++ forwarded,
+      mainClass = "vta.exporters.DefaultPynqConfigTbEmitter",
+      workingDir = BuildCtx.workspaceRoot
+    )
+    println(s"[INFO] VTA post-synth TB emitted in ${outDir}")
+  }
+
+  def cleanOutputs() = Task.Command {
+    val outputDir = BuildCtx.workspaceRoot / "build"
+    println(s"[Clean] removing all outputs")
+    os.remove.all(target = outputDir)
+    println(s"[Clean] removed ${outputDir} directory")
+
+  }
+  object test extends SbtTests with ScalaTest with ScalafixModule {
+    def forkEnv = m.forkEnv
+    override def scalaTestVersion: Simple[String] = "3.2.19"
+
+    // override def testArgsDefault: Simple[Seq[String]] =
+    //   Seq("-n", "vta.tags.UnitTests")
+    def testSandboxWorkingDir = true
+    def testParallelism = true
+    def vtaConfigFile = Task.Input{
+      sys.props.get("vta.config.file")
+    }
+  
+    def getConfigArgs = Task {
+      (for {
+        file <- vtaConfigFile()
+      } yield {
+        Seq(s"-Dvta.config.file=${file}")
+      }).getOrElse{
+        Seq(
+      "-Dvta.config.file=vta_config_test.json",
+      "-Dvta.config.fromResources=true"
+    )
+      }
+    }
+    override def forkArgs: Simple[Seq[String]] = super.forkArgs() ++ getConfigArgs() 
+    def unittest : Simple[(msg: String, results: Seq[TestResult])] = {
+        testForked("-n","vta.tags.UnitTests")()
+    }
+
+    def testWaves(args: String*) = Task.Command{
+      testOnly(args ++ Seq("--","-DemitFst=1")*)()
+    }
+
+  }
+
+}

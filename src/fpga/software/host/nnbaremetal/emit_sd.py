@@ -1,0 +1,188 @@
+"""Emitter for the runtime SD-card loader: the compiled-in manifest header and
+the staged file set the user copies to the FAT32 card.
+
+The board reads nn_sd_static_files[] (and nn_sd_input_file) from the SD card into
+their DDR addresses at boot - a third data-loader alongside the XSDB Tcl and the
+.incbin/FSBL paths. File enumeration reuses iter_static_buffers() (the single
+source of truth shared with the Tcl/incbin emitters); the input uses the same
+scratch_addr() as gen_tcl/gen_input_tcl.
+"""
+
+import os
+import shutil
+from typing import List, Optional, Tuple
+
+from .model import LayerInfo, hex32, iter_static_buffers
+from .layout import scratch_addr
+
+
+def _file_size(bin_path: str, fallback: int) -> int:
+    """Actual byte count the board will read; CSV region size as fallback."""
+    if os.path.isfile(bin_path):
+        return os.path.getsize(bin_path)
+    print(f"WARNING: {bin_path} not found - using CSV size {fallback}")
+    return fallback
+
+
+def gen_sd_manifest(
+    layers: List[LayerInfo],
+    ddr_base: int,
+    comp_dir: str,
+    out_path: str,
+    sd_card_dir: str,
+    sd_dir: str = "",
+    emit_refs: bool = False,
+    extra_blobs: Optional[List[Tuple[str, str, int, int]]] = None,
+) -> None:
+    """Emit nn_sd_manifest.h and stage the referenced .bin files into sd_card_dir.
+
+    Static buffers (INSN/UOP/WGT/ACC, runtime ACC skipped) are always listed.
+    input_nn.bin is listed separately so run_nn can load it while run_nn_uart
+    (input over UART) ignores it.
+
+    When emit_refs is set, a second array nn_sd_ref_files[] is emitted with the
+    per-layer fsim golden input<suffix>.bin / output<suffix>.bin, mapped to the
+    same reserved-DRAM addresses assign_layer_check_regions() already assigned
+    (LayerInfo.in_ref_*/out_ref_*).  This lets the isolation-debug apps
+    (run_nn_debug / run_nn_cpu_debug) load their golden references from the SD
+    card instead of embedding them via .incbin.  Requires --emit-layer-check to
+    have populated those fields first; otherwise the array is empty.
+
+    sd_dir is an optional subfolder on the SD card the board reads from (e.g.
+    "qyolo_pattern"), so several models can coexist on one card. It is baked into
+    the manifest as NN_SD_DIR (the app opens "0:/" NN_SD_DIR <name>) and the files
+    are staged into sd_card_dir/<sd_dir>/. Empty = card root.
+    """
+    sub = sd_dir.strip("/")
+    nn_sd_dir = (sub + "/") if sub else ""  # path prefix with trailing slash
+    static: List[Tuple[str, int, int]] = []  # (basename, addr, size)
+    staged: List[str] = []  # absolute source paths to copy to the card
+
+    for _, layer, buf_type, m in iter_static_buffers(layers):
+        bin_path = os.path.abspath(layer.bin_files[buf_type])
+        name = os.path.basename(bin_path)
+        addr = ddr_base + m.offset
+        static.append((name, addr, _file_size(bin_path, m.size)))
+        staged.append(bin_path)
+
+    # CPU-op parameter blobs (convtranspose float weights/bias): listed as static
+    # files so the SD loader places them at their allocated DDR addresses, exactly
+    # like the .incbin/Tcl paths. Basenames (weight{suffix}.bin /
+    # accumulator{suffix}.bin, suffix = the CPU op's name) are unique vs the VTA
+    # buffers' names.
+    for _label, path, addr, size in extra_blobs or []:
+        bin_path = os.path.abspath(path)
+        name = os.path.basename(bin_path)
+        static.append((name, addr, _file_size(bin_path, size)))
+        staged.append(bin_path)
+
+    # Raw network input (optional): same scratch address as the Tcl loaders.
+    input_path = os.path.abspath(os.path.join(comp_dir, "input_nn.bin"))
+    has_input = os.path.isfile(input_path)
+    input_entry: Optional[Tuple[str, int, int]] = None
+    if has_input:
+        input_entry = (
+            "input_nn.bin",
+            scratch_addr(layers, ddr_base),
+            os.path.getsize(input_path),
+        )
+        staged.append(input_path)
+
+    # Isolation-debug golden references (--emit-layer-check): the per-layer fsim
+    # golden input/output bins go to the reserved-DRAM addresses already assigned
+    # by assign_layer_check_regions() (== the in_ref_phys/out_ref_phys baked into
+    # nn_debug_map.h). Loading them from SD is equivalent to the .incbin path.
+    refs: List[Tuple[str, int, int]] = []  # (basename, addr, size)
+    if emit_refs:
+        for layer in layers:
+            if layer.out_ref_size > 0 and layer.out_ref_file:
+                out_abs = os.path.abspath(layer.out_ref_file)
+                refs.append(
+                    (
+                        os.path.basename(out_abs),
+                        layer.out_ref_addr,
+                        _file_size(out_abs, layer.out_ref_size),
+                    )
+                )
+                staged.append(out_abs)
+            if layer.in_ref_size > 0 and layer.in_ref_file:
+                in_abs = os.path.abspath(layer.in_ref_file)
+                refs.append(
+                    (
+                        os.path.basename(in_abs),
+                        layer.in_ref_addr,
+                        _file_size(in_abs, layer.in_ref_size),
+                    )
+                )
+                staged.append(in_abs)
+
+    L: List[str] = []
+    L.append("/* Auto-generated by gen_nn_baremetal.py - DO NOT EDIT */")
+    L.append("/*")
+    L.append(" * SD-card manifest: file -> DDR address map for the runtime sd loader")
+    L.append(" * (driver/src/vta_sd.cc). Copy the staged files in gen/sd_card/ to the")
+    L.append(" * root of a FAT32 SD card, then run a DATA_LOADER=sd build.")
+    L.append(" */")
+    L.append("#ifndef NN_SD_MANIFEST_H")
+    L.append("#define NN_SD_MANIFEST_H")
+    L.append('#include "vta_sd.h"')
+    L.append("")
+    L.append("/* SD subfolder the files live in (path prefix, trailing slash); empty")
+    L.append(' * = card root. The app opens "0:/" NN_SD_DIR <filename>. */')
+    L.append(f'#define NN_SD_DIR "{nn_sd_dir}"')
+    L.append("")
+    L.append("static const vta::SdFile nn_sd_static_files[] = {")
+    for name, addr, size in static:
+        L.append(f'    {{"{name}", {hex32(addr)}, {size}u}},')
+    L.append("};")
+    L.append(f"#define NN_SD_NUM_STATIC {len(static)}u")
+    L.append("")
+    if input_entry is not None:
+        name, addr, size = input_entry
+        L.append("#define NN_SD_HAS_INPUT 1")
+        L.append(
+            f"static const vta::SdFile nn_sd_input_file = "
+            f'{{"{name}", {hex32(addr)}, {size}u}};'
+        )
+    else:
+        L.append("#define NN_SD_HAS_INPUT 0")
+    L.append("")
+
+    # Golden references for the isolation-debug apps (optional).
+    if refs:
+        L.append("/* fsim golden input/output per VTA layer, loaded to the same")
+        L.append(" * reserved-DRAM addresses as nn_debug_map.h's in/out_ref_phys.")
+        L.append(" * Used by run_nn_debug / run_nn_cpu_debug under DATA_LOADER=sd. */")
+        L.append("#define NN_SD_HAS_REFS 1")
+        L.append("static const vta::SdFile nn_sd_ref_files[] = {")
+        for name, addr, size in refs:
+            L.append(f'    {{"{name}", {hex32(addr)}, {size}u}},')
+        L.append("};")
+        L.append(f"#define NN_SD_NUM_REF {len(refs)}u")
+    else:
+        L.append("#define NN_SD_HAS_REFS 0")
+    L.append("")
+    L.append("#endif /* NN_SD_MANIFEST_H */")
+
+    with open(out_path, "w") as f:
+        f.write("\n".join(L) + "\n")
+    ref_note = f" + {len(refs)} golden ref(s)" if refs else ""
+    print(
+        f"[gen] SD manifest written to {out_path} ({len(static)} static files"
+        f"{ref_note})"
+    )
+
+    # Stage the referenced binaries (basenames are unique per buffer/layer) into
+    # sd_card_dir/<sd_dir>. Clear only that subfolder first so this model's files
+    # don't linger across regens while a sibling model's folder is preserved.
+    stage_root = os.path.join(sd_card_dir, sub) if sub else sd_card_dir
+    if os.path.isdir(stage_root):
+        shutil.rmtree(stage_root)
+    os.makedirs(stage_root, exist_ok=True)
+    for src in staged:
+        shutil.copy2(src, os.path.join(stage_root, os.path.basename(src)))
+    dst_hint = f"the SD card's {sub}/ folder" if sub else "the SD card root"
+    print(
+        f"[gen] staged {len(staged)} file(s) into {stage_root}"
+        f" - copy its contents to {dst_hint}"
+    )

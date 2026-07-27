@@ -7,16 +7,26 @@ import numpy as np
 
 ###############################################
 
+
 # MAIN FUNCTION
 # -------------
-def data_definition(matrices_dict, flag_dict, block_size=16,
-                    input_name='', inp_dtype=np.int8, 
-                    weight_name='', wgt_dtype=np.int8,  
-                    mulConstant=0,
-                    acc_name='', acc_dtype=np.int32,
-                    acc_bis_name='', # dtype = acc_dtype
-                    output_name='', flat_store_list=[], # dtype = inp_dtype
-                    debug=True):
+def data_definition(
+    matrices_dict,
+    flag_dict,
+    block_size=16,
+    input_name="",
+    inp_dtype=np.int8,
+    out_dtype=np.int8,
+    weight_name="",
+    wgt_dtype=np.int8,
+    mulConstant=0,
+    acc_name="",
+    acc_dtype=np.int32,
+    acc_bis_name="",  # dtype = acc_dtype
+    output_name="",
+    flat_store_list=[],  # dtype = inp_dtype
+    debug=True,
+):
     """
     Pad and split the matrix to create block matrix composed of square block_size*block_size blocks.
 
@@ -25,11 +35,11 @@ def data_definition(matrices_dict, flag_dict, block_size=16,
         - flag_dict (dict): Dictionary of flag (bool) to propagate metadata
         - block_size (int): hardware constraint
         - input_name, weight_name, acc_name, acc_bis_name, output_name (str)
-        - inp_dtype, wgt_dtype, acc_dtype (np.dtype)
+        - inp_dtype, wgt_dtype, acc_dtype, out_dtype (np.dtype)
         - mulConstant (int): the scalar value for GEMM
         - flat_store_list (list of int): list of matrix vectors to store
         - debug (bool): to print some information / partial results
-    
+
     Outputs:
         - A_blocks (list of matrices): input block matrix
         - A_blocks_col (int): number of columns in number of blocks
@@ -41,7 +51,7 @@ def data_definition(matrices_dict, flag_dict, block_size=16,
         - flag_dict (dict): updated dictionary of flag (bool) to propagate metadata
     ]
     """
-    # INIT
+    # INIT
     # ----
     A_row = 0
     A_col = 0
@@ -58,147 +68,211 @@ def data_definition(matrices_dict, flag_dict, block_size=16,
     C_row = 0
     C_col = 0
 
-
-    # GET MATRICES
+    # GET MATRICES
     # ------------
-    # A - Check if the matrix is specified
-    if (flag_dict["doLoadInp"] == True):
+    # A - Check if the matrix is specified
+    if flag_dict["doLoadInp"] == True:
         A_row = matrices_dict[input_name][0]
         A_col = matrices_dict[input_name][1]
-        # If binary file is given
-        if ( matrices_dict[input_name][2].endswith(".bin") ):
+        # If binary file is given
+        if matrices_dict[input_name][2].endswith(".bin"):
             A_file = matrices_dict[input_name][2]
-    # Create the matrix
+    # Create the matrix
     A_matrix = matrix_creation(m_row=A_row, n_col=A_col, file=A_file, dtype=inp_dtype)
 
-    # B - Check if the matrix is specified
-    if (flag_dict["doLoadWgt"] == True):
+    # B - Check if the matrix is specified
+    if flag_dict["doLoadWgt"] == True:
         B_row = matrices_dict[weight_name][0]
         B_col = matrices_dict[weight_name][1]
-        # If binary file is given
-        if ( matrices_dict[weight_name][2].endswith(".bin") ):
+        # If binary file is given
+        if matrices_dict[weight_name][2].endswith(".bin"):
             B_file = matrices_dict[weight_name][2]
-    # Create the matrix
-    if (flag_dict["doMulConstant"] == True):
-        B_matrix = matrix_diagonal(diag_value=mulConstant, block_size=block_size, dtype=wgt_dtype)
+    # Create the matrix
+    if flag_dict["doMulConstant"] == True:
+        B_matrix = matrix_diagonal(
+            diag_value=mulConstant, block_size=block_size, dtype=wgt_dtype
+        )
     else:
-        B_matrix = matrix_creation(m_row=B_row, n_col=B_col, file=B_file, dtype=wgt_dtype)
+        B_matrix = matrix_creation(
+            m_row=B_row, n_col=B_col, file=B_file, dtype=wgt_dtype
+        )
 
-    # X - Check if the matrix is specified
-    if (flag_dict["doLoadAcc"] == True):
+    # X - Check if the matrix is specified
+    if flag_dict["doLoadAcc"] == True:
         X_row = matrices_dict[acc_name][0]
         X_col = matrices_dict[acc_name][1]
-        # If binary file is given
-        if ( matrices_dict[acc_name][2].endswith(".bin") ):
+        # If binary file is given
+        if matrices_dict[acc_name][2].endswith(".bin"):
             X_file = matrices_dict[acc_name][2]
-    else: # Give default size
-        if (flag_dict["doLoadInp"] == True and flag_dict["doLoadWgt"] == False): # A * scalar
+    else:  # Give default size
+        if (
+            flag_dict["doLoadInp"] == True and flag_dict["doLoadWgt"] == False
+        ):  # A * scalar
             X_row, X_col = (A_row, A_col)
-        elif (flag_dict["doLoadInp"] == True and flag_dict["doLoadWgt"] == True): # A * B
+        elif flag_dict["doLoadInp"] == True and flag_dict["doLoadWgt"] == True:  # A * B
             X_row, X_col = (A_row, B_col)
-    # Create the matrix
+    # Create the matrix
     X_matrix = matrix_creation(m_row=X_row, n_col=X_col, file=X_file, dtype=acc_dtype)
 
-    # Y - Check if the matrix is specified
-    if (flag_dict["doLoadAccBis"] == True):
-        Y_row = matrices_dict[acc_bis_name][0] 
+    # Y - Check if the matrix is specified
+    if flag_dict["doLoadAccBis"] == True:
+        Y_row = matrices_dict[acc_bis_name][0]
         Y_col = matrices_dict[acc_bis_name][1]
-        # If binary file is given
-        if ( matrices_dict[acc_bis_name][2].endswith(".bin") ):
+        # If binary file is given
+        if matrices_dict[acc_bis_name][2].endswith(".bin"):
             Y_file = matrices_dict[acc_bis_name][2]
-    # Create the matrix
+    # Create the matrix
     Y_matrix = matrix_creation(m_row=Y_row, n_col=Y_col, file=Y_file, dtype=acc_dtype)
 
-    # C - Check if the matrix is fully stored
+    # C - Check if the matrix is fully stored
     C_col = matrices_dict[output_name][1]
-    if (flag_dict["doStoreFullMatrix"] == True):
-        C_row = matrices_dict[output_name][0] 
-    else: # Not full matrix
-        C_row = len( flat_store_list )
-    # Create the matrix
-    C_matrix = matrix_creation(m_row=C_row, n_col=C_col, file=None, dtype=inp_dtype)
+    if flag_dict["doStoreFullMatrix"] == True:
+        C_row = matrices_dict[output_name][0]
+    else:  # Not full matrix
+        C_row = len(flat_store_list)
+    # Create the matrix
+    C_matrix = matrix_creation(m_row=C_row, n_col=C_col, file=None, dtype=out_dtype)
 
     # # DEBUG
     # print(f"\n\nDEBUG: \n A= \n{A_matrix} \n\n B= \n{B_matrix} \n\n X= \n{X_matrix} \n\n C= \n{C_matrix} \n\n Expected C= \n{np.add(np.matmul(A_matrix, B_matrix), X_matrix)} \n\n")
-    
 
     # -------
-    # PADDING
+    # PADDING
     # -------
-    isSquare = True # TODO: For now, always square
+    isSquare = True  # TODO: For now, always square
 
-    # Pad
-    A_padded = matrix_padding(matrix=A_matrix, block_size=block_size, isWeight=False, isSquare=isSquare)
-    B_padded = matrix_padding(matrix=B_matrix, block_size=block_size, isWeight=True, isSquare=isSquare)
-    if (flag_dict["doExpandBias"] == True): # Not square!
-        X_padded = matrix_padding(matrix=X_matrix, block_size=block_size, isWeight=False, isSquare=False)
+    # Pad
+    A_padded = matrix_padding(
+        matrix=A_matrix, block_size=block_size, isWeight=False, isSquare=isSquare
+    )
+    B_padded = matrix_padding(
+        matrix=B_matrix, block_size=block_size, isWeight=True, isSquare=isSquare
+    )
+    if flag_dict["doExpandBias"] == True:  # Not square!
+        X_padded = matrix_padding(
+            matrix=X_matrix, block_size=block_size, isWeight=False, isSquare=False
+        )
     else:
-        X_padded = matrix_padding(matrix=X_matrix, block_size=block_size, isWeight=False, isSquare=isSquare)
-    Y_padded = matrix_padding(matrix=Y_matrix, block_size=block_size, isWeight=False, isSquare=isSquare)
-    # Square only if (doStoreFullMatrix == True)
-    C_padded = matrix_padding(matrix=C_matrix, block_size=block_size, isWeight=False, isSquare=flag_dict["doStoreFullMatrix"])
-
+        X_padded = matrix_padding(
+            matrix=X_matrix, block_size=block_size, isWeight=False, isSquare=isSquare
+        )
+    Y_padded = matrix_padding(
+        matrix=Y_matrix, block_size=block_size, isWeight=False, isSquare=isSquare
+    )
+    # Square only if (doStoreFullMatrix == True)
+    C_padded = matrix_padding(
+        matrix=C_matrix,
+        block_size=block_size,
+        isWeight=False,
+        isSquare=flag_dict["doStoreFullMatrix"],
+    )
 
     # --------
-    #SPLITTING
+    # SPLITTING
     # --------
-    A_blocks, A_blocks_col, A_blocks_row = matrix_splitting(matrix=A_padded, block_size=block_size, isWeight=False, isSquare=isSquare)
-    B_blocks, B_blocks_col, B_blocks_row = matrix_splitting(matrix=B_padded, block_size=block_size, isWeight=True, isSquare=isSquare)
-    if (flag_dict["doExpandBias"] == True): # Not square!
-        X_blocks, X_blocks_col, X_blocks_row = matrix_splitting(matrix=X_padded, block_size=block_size, isWeight=False, isSquare=False)
+    A_blocks, A_blocks_col, A_blocks_row = matrix_splitting(
+        matrix=A_padded, block_size=block_size, isWeight=False, isSquare=isSquare
+    )
+    B_blocks, B_blocks_col, B_blocks_row = matrix_splitting(
+        matrix=B_padded, block_size=block_size, isWeight=True, isSquare=isSquare
+    )
+    if flag_dict["doExpandBias"] == True:  # Not square!
+        X_blocks, X_blocks_col, X_blocks_row = matrix_splitting(
+            matrix=X_padded, block_size=block_size, isWeight=False, isSquare=False
+        )
     else:
-        X_blocks, X_blocks_col, X_blocks_row = matrix_splitting(matrix=X_padded, block_size=block_size, isWeight=False, isSquare=isSquare)
-    Y_blocks, _, _                       = matrix_splitting(matrix=Y_padded, block_size=block_size, isWeight=False, isSquare=isSquare)
-    C_blocks, C_blocks_col, C_blocks_row = matrix_splitting(matrix=C_padded, block_size=block_size, isWeight=False, isSquare=flag_dict["doStoreFullMatrix"])
+        X_blocks, X_blocks_col, X_blocks_row = matrix_splitting(
+            matrix=X_padded, block_size=block_size, isWeight=False, isSquare=isSquare
+        )
+    Y_blocks, _, _ = matrix_splitting(
+        matrix=Y_padded, block_size=block_size, isWeight=False, isSquare=isSquare
+    )
+    C_blocks, C_blocks_col, C_blocks_row = matrix_splitting(
+        matrix=C_padded,
+        block_size=block_size,
+        isWeight=False,
+        isSquare=flag_dict["doStoreFullMatrix"],
+    )
 
-    # Check if X_blocks_col == C_blocks_col
-    if (X_blocks_col != C_blocks_col):
-        if (flag_dict["doExpandBias"] == True and C_blocks_col%X_blocks_col == 0):
+    # Check if X_blocks_col == C_blocks_col
+    if X_blocks_col != C_blocks_col:
+        if flag_dict["doExpandBias"] == True and C_blocks_col % X_blocks_col == 0:
             pass
         else:
             raise Exception(f"ERROR: X_blocks_col must be equal to C_blocks_col! \n")
-
 
     # META INFORMATION
     # ----------------
     outIsSquare = True if (flag_dict["doStoreFullMatrix"] == True) else False
     metadata = [
-        {"type": "Matrix (or Block Size)", "rows": "Nb rows", "columns": "Nb columns", "square": "Is it square?"}, 
+        {
+            "type": "Matrix (or Block Size)",
+            "rows": "Nb rows",
+            "columns": "Nb columns",
+            "square": "Is it square?",
+        },
         {"type": "BS", "rows": block_size, "columns": block_size, "square": True},
         {"type": "A", "rows": A_row, "columns": A_col, "square": True},
-        {"type": "X", "rows": X_row, "columns": X_col, "square": flag_dict["doExpandBias"]},
+        {
+            "type": "X",
+            "rows": X_row,
+            "columns": X_col,
+            # Must match the isSquare actually used to pad/split X above:
+            # non-square when expanding the bias, otherwise the layer default.
+            "square": (False if flag_dict["doExpandBias"] else isSquare),
+        },
         {"type": "Y", "rows": Y_row, "columns": Y_col, "square": True},
-        {"type": "C", "rows": C_row, "columns": C_col, "square": outIsSquare}
+        {"type": "C", "rows": C_row, "columns": C_col, "square": outIsSquare},
     ]
 
     # DEBUG
     # -----
-    if (debug):
+    if debug:
         print(f"DATA DEFINITION:")
-        print(f" INP - {input_name}: {A_row}x{A_col} elements ({A_row*A_col})  \t-> {A_blocks_row}x{A_blocks_col} blocks ({len(A_blocks)})")
-        print(f"\n WGT - {weight_name}: {B_row}x{B_col} elements ({B_row*B_col})  \t-> {B_blocks_row}x{B_blocks_col} blocks ({len(B_blocks)})")
-        print(f"\n ACC - {acc_name}/{acc_bis_name}: {X_row}x{X_col} elements ({X_row*X_col})  \t-> {X_blocks_row}x{X_blocks_col} blocks ({len(X_blocks)})")
-        print(f"\n OUT - {output_name}: {C_row}x{C_col} elements ({C_row*C_col})  \t-> {C_blocks_row}x{C_blocks_col} blocks ({len(C_blocks)})")
-
+        print(
+            f" INP - {input_name}: {A_row}x{A_col} elements ({A_row * A_col})  \t-> {A_blocks_row}x{A_blocks_col} blocks ({len(A_blocks)})"
+        )
+        print(
+            f"\n WGT - {weight_name}: {B_row}x{B_col} elements ({B_row * B_col})  \t-> {B_blocks_row}x{B_blocks_col} blocks ({len(B_blocks)})"
+        )
+        print(
+            f"\n ACC - {acc_name}/{acc_bis_name}: {X_row}x{X_col} elements ({X_row * X_col})  \t-> {X_blocks_row}x{X_blocks_col} blocks ({len(X_blocks)})"
+        )
+        print(
+            f"\n OUT - {output_name}: {C_row}x{C_col} elements ({C_row * C_col})  \t-> {C_blocks_row}x{C_blocks_col} blocks ({len(C_blocks)})"
+        )
 
     # RETURN
     # ------
-    return A_blocks, A_blocks_col, B_blocks, B_blocks_col, \
-           X_blocks, Y_blocks, C_blocks, C_blocks_col, \
-           A_matrix, X_matrix, Y_matrix, metadata, flag_dict
+    return (
+        A_blocks,
+        A_blocks_col,
+        B_blocks,
+        B_blocks_col,
+        X_blocks,
+        Y_blocks,
+        C_blocks,
+        C_blocks_col,
+        A_matrix,
+        X_matrix,
+        Y_matrix,
+        metadata,
+        flag_dict,
+    )
 
 
 ###############################################
+
 
 # MATRIX CREATION
 # ---------------
 def matrix_creation(m_row=16, n_col=16, file=None, dtype=np.int8):
     """Create a matrix with dtype values (e.g., int8 or int32)."""
 
-    if (file == None): # No values -> full of zeros
+    if file == None:  # No values -> full of zeros
         matrix = np.zeros((m_row, n_col), dtype=dtype)
 
-    else: # Raw binary file
+    else:  # Raw binary file
         # Read the data (1D)
         flat_array = np.fromfile(file, dtype=dtype)
         # Reshaphe the data in 2D (h, w)
@@ -210,42 +284,47 @@ def matrix_creation(m_row=16, n_col=16, file=None, dtype=np.int8):
 
 ###############################################
 
+
 # MATRIX DIAGONAL
 # ---------------
 def matrix_diagonal(diag_value=0, block_size=16, dtype=np.int8):
     """Create a diagonal matrix with dtype values (e.g., int8 or int32)."""
-    matrix = diag_value * np.eye(block_size, dtype=dtype) 
+    matrix = diag_value * np.eye(block_size, dtype=dtype)
     # Return the matrix
     return matrix
 
 
 ###############################################
 
+
 # MATRIX PADDING
 # --------------
 def matrix_padding(matrix, block_size=16, isWeight=False, isSquare=True):
     """Pad the matrix such that its shape is a multiple of block_size.
-       If it is input, then only the number of column is padded."""
+    If it is input, then only the number of column is padded."""
     # Get the matrix size
     m_row, n_col = matrix.shape
 
     # Define the target dimensions (block_size or upper multiple of block_size)
-    if (isWeight or isSquare):  # Pad only the lines for the weight matrices
+    if isWeight or isSquare:  # Pad only the lines for the weight matrices
         target_rows = ((m_row - 1) // block_size + 1) * block_size
-    else: # Else, only the column are padded
-        target_rows = m_row 
+    else:  # Else, only the column are padded
+        target_rows = m_row
 
     # Pad the column
     target_cols = ((n_col - 1) // block_size + 1) * block_size
 
     # Pad the matrix with 0 (pad = target - n)
-    padded_matrix = np.pad(matrix, ((0, target_rows-m_row), (0, target_cols-n_col)), mode='constant')
+    padded_matrix = np.pad(
+        matrix, ((0, target_rows - m_row), (0, target_cols - n_col)), mode="constant"
+    )
 
     # Return the padded matrix
     return padded_matrix
 
 
 ###############################################
+
 
 # MATRIX CREATION
 # ---------------
@@ -254,7 +333,7 @@ def matrix_splitting(matrix, block_size=16, isWeight=False, isSquare=True):
     For weight matrices (isWeight=True), it splits into square blocks of size block_size x block_size.
     For other matrices (isWeight=False), it splits into blocks of size up to block_size x block_size,
     splitting only along rows if the number of rows exceeds block_size."""
-    
+
     # Get the matrix dimensions
     m_row, n_col = matrix.shape
 
@@ -265,7 +344,7 @@ def matrix_splitting(matrix, block_size=16, isWeight=False, isSquare=True):
     blocks_col = n_col // block_size  # Number of blocks in each column
     blocks = []  # List to store the blocks
 
-    if (isWeight or isSquare):
+    if isWeight or isSquare:
         # Ensure the matrix height is a multiple of block_size
         if m_row % block_size != 0:
             raise ValueError("Matrix height must be a multiple of block_size")
@@ -273,18 +352,24 @@ def matrix_splitting(matrix, block_size=16, isWeight=False, isSquare=True):
         blocks_row = m_row // block_size  # Number of blocks in each row
         for i in range(blocks_row):
             for j in range(blocks_col):
-                block = matrix[i * block_size:(i + 1) * block_size, j * block_size:(j + 1) * block_size]
+                block = matrix[
+                    i * block_size : (i + 1) * block_size,
+                    j * block_size : (j + 1) * block_size,
+                ]
                 blocks.append(block)
     else:
         # Calculate the number of blocks in each column
-        blocks_row = (m_row + block_size - 1) // block_size # Ensure that all rows are processed
+        blocks_row = (
+            m_row + block_size - 1
+        ) // block_size  # Ensure that all rows are processed
         for i in range(blocks_row):
             for j in range(blocks_col):
                 row_start = i * block_size
-                row_end = min((i + 1) * block_size, m_row)  # Ensure not to exceed the number of rows
-                block = matrix[row_start:row_end, j * block_size:(j + 1) * block_size]
+                row_end = min(
+                    (i + 1) * block_size, m_row
+                )  # Ensure not to exceed the number of rows
+                block = matrix[row_start:row_end, j * block_size : (j + 1) * block_size]
                 blocks.append(block)
 
     # Return the list of blocks
     return blocks, blocks_col, blocks_row
-

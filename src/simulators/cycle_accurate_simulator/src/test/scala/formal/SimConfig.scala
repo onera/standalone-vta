@@ -5,52 +5,51 @@ import vta.interface.axi.AXIParams
 import vta.shell.{ShellKey, ShellParams, VCRParams, VMEParams}
 import vta.util.config.Config
 
-import org.scalatest.Tag
-
-object UnitTests extends Tag("UnitTests")
-object FormalTests extends Tag("FormalTests")
-object LongTests extends Tag("LongTests")
-
-/**
- * VTA HARDWARE CONFIGURATION
- */
+/** VTA HARDWARE CONFIGURATION
+  */
 class SimConfig {
   // Hard-define the VTA parameters
-  val config = new Config((site, here, up) => {
+  val config = new Config((_,_,_) => {
     // Default configuration //TODO: confirm configuration
-    case CoreKey => CoreParams(
-      batch = 1,
-      blockOut = 16,
-      blockOutFactor = 1,
-      blockIn = 16,
-      inpBits = 8,
-      wgtBits = 8,
-      uopBits = 32,
-      accBits = 32,
-      outBits = 8,
-      uopMemDepth = 2048,
-      inpMemDepth = 2048,
-      wgtMemDepth = 1024,
-      accMemDepth = 2048,
-      outMemDepth = 2048,
-      instQueueEntries = 512
-    )
+    case CoreKey =>
+      CoreParams(
+        target = "sim",
+        batch = 1,
+        blockOut = 16,
+        blockOutFactor = 1,
+        blockIn = 16,
+        inpBits = 8,
+        wgtBits = 8,
+        uopBits = 32,
+        accBits = 32,
+        outBits = 8,
+        uopMemDepth = 2048,
+        inpMemDepth = 2048,
+        wgtMemDepth = 1024,
+        accMemDepth = 2048,
+        outMemDepth = 2048,
+        instQueueEntries = 512
+      )
     // Copy of PynqConfig in vta.shell.Configs.PynqConfig
     case ShellKey =>
       ShellParams(
-        hostParams = AXIParams(coherent = false,
+        hostParams = AXIParams(
+          coherent = false,
           addrBits = 16,
           dataBits = 32,
           lenBits = 8,
-          userBits = 1),
-        memParams = AXIParams(coherent = true,
+          userBits = 0
+        ),
+        memParams = AXIParams(
+          coherent = true,
           addrBits = 32,
           dataBits = 64,
           lenBits = 8,
-          userBits = 1),
+          userBits = 0
+        ),
         vcrParams = VCRParams(),
         vmeParams = VMEParams()
       )
   })
-  //implicit val p: Parameters = config
+  // implicit val p: Parameters = config
 }

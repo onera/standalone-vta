@@ -1,0 +1,57 @@
+{
+  "name": "zcu104",
+  "description": "Xilinx Zynq UltraScale+ MPSoC ZCU104 evaluation board",
+
+  "part": "xczu7ev-ffvc1156-2-e",
+  "board_part": "xilinx.com:zcu104:part0:1.1",
+
+  "ps_ip": "xilinx.com:ip:zynq_ultra_ps_e",
+  "ps_cell": "zynq_ultra_ps_e_0",
+  "ps_preset_rule": "xilinx.com:bd_rule:zynq_ultra_ps_e",
+  "comment_ps_preset_config": "apply_bd_automation -config arg for the PS preset rule. ZynqMP needs only the board preset; Zynq-7000 boards (processing_system7) would use e.g. {make_external \"FIXED_IO, DDR\" apply_board_preset 1 Master Disable Slave Disable}.",
+  "ps_preset_config": "apply_board_preset 1",
+
+  "cpu": "psu_cortexa53_0",
+  "pl_clock_mhz": 100,
+  "pl_clock_property": "PSU__CRL_APB__PL0_REF_CTRL__FREQMHZ",
+
+  "comment_ps_config": "Deltas applied on top of the board preset. The board preset (apply_bd_automation, requires the ZCU104 board files shipped with Vivado) configures DDR, UART, SD, USB, GEM etc. as wired on the physical board; we only enable the PL clock and the two AXI ports the VTA datapath needs (M_AXI_HPM0_FPD master + S_AXI_HPC0_FPD coherent slave). This replaces the ~270-line CONFIG.PSU__* dump in the legacy script.",
+  "ps_config": {
+    "PSU__FPGA_PL0_ENABLE": "1",
+    "PSU__USE__M_AXI_GP0": "1",
+    "PSU__USE__M_AXI_GP1": "0",
+    "PSU__USE__M_AXI_GP2": "0",
+    "PSU__USE__S_AXI_GP0": "1",
+    "PSU__USE__IRQ0": "1"
+  },
+
+  "comment_ports": "Stable interface/port names wired by the generic recipe. Topology: VTA DRAM master -> SmartConnect -> PS coherent slave (HPC0); PS control master (HPM0) -> SmartConnect -> VTA control slave. One PL clock + one synchronized reset fan out to all three cells.",
+  "ports": {
+    "vta_dram_master": "m_axi_gmem",
+    "vta_ctrl_slave": "s_axi_control",
+    "vta_clk": "ap_clk",
+    "vta_resetn": "ap_rst_n",
+    "ps_dram_slave": "S_AXI_HPC0_FPD",
+    "ps_ctrl_master": "M_AXI_HPM0_FPD",
+    "ps_clk": "pl_clk0",
+    "ps_clk_aclks": [
+      "maxihpm0_fpd_aclk",
+      "saxihpc0_fpd_aclk"
+    ],
+    "ps_resetn": "pl_resetn0"
+  },
+
+  "comment_addresses": "Faithful to the legacy working design. {ps_cell}/{vta_cell} substituted by the recipe. The ctrl self-map (gmem -> ctrl/reg0) and the OCM/QSPI windows are carried over for parity with the known-good bitstream; the two essential segments are PS Data -> VTA ctrl, and VTA gmem -> DDR_LOW.",
+  "addresses": [
+    {"space": "{ps_cell}/Data",        "seg": "{vta_cell}/s_axi_control/reg0",       "offset": "0xA0000000", "range": "0x00010000"},
+    {"space": "{vta_cell}/m_axi_gmem", "seg": "{vta_cell}/s_axi_control/reg0",       "offset": "0xA0000000", "range": "0x00010000"},
+    {"space": "{vta_cell}/m_axi_gmem", "seg": "{ps_cell}/SAXIGP0/HPC0_DDR_LOW",      "offset": "0x00000000", "range": "0x80000000"},
+    {"space": "{vta_cell}/m_axi_gmem", "seg": "{ps_cell}/SAXIGP0/HPC0_LPS_OCM",      "offset": "0xFF000000", "range": "0x01000000"},
+    {"space": "{vta_cell}/m_axi_gmem", "seg": "{ps_cell}/SAXIGP0/HPC0_QSPI",         "offset": "0xC0000000", "range": "0x20000000"}
+  ],
+  "address_excludes": [
+    {"space": "{ps_cell}/Data", "seg": "{ps_cell}/SAXIGP0/HPC0_DDR_LOW"},
+    {"space": "{ps_cell}/Data", "seg": "{ps_cell}/SAXIGP0/HPC0_LPS_OCM"},
+    {"space": "{ps_cell}/Data", "seg": "{ps_cell}/SAXIGP0/HPC0_QSPI"}
+  ]
+}

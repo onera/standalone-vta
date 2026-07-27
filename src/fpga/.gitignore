@@ -1,0 +1,4 @@
+# Ignore Vivado logs and journal files in the base directory
+*.log
+*.jou
+.Xil/

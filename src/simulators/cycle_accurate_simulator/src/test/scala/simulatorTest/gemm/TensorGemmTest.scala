@@ -1,31 +1,27 @@
 package simulatorTest.gemm
 
-import chisel3._
-import chisel3.util._
-import chiseltest._
-import chiseltest.iotesters._
-import unittest.util._
-import vta.core._
-import vta.util.config._
-
-import scala.io._
-import scala.language.postfixOps
+import chisel3.simulator.PeekPokeAPI
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
+import org.scalatest.matchers.should.Matchers
+import vta.core._
+import vta.tags
+import vta.util.AnyFlatSpecSim
 
-import unittest.{GenericTest, TensorGemmJsonTester}
+import scala.io._
 
-/**
- * Similar to unittest.TensorGemmJsonTest
- * with adaptation
- */
+/** Similar to unittest.TensorGemmJsonTest with adaptation
+  */
 
-class TensorGemmTest(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
-                     debug: Boolean = false)
-  extends PeekPokeTester(c) {
+class TensorGemmTest(
+    c: TensorGemmPipelinedSplit,
+    fn: String = "/x.json",
+    debug: Boolean = false
+) extends PeekPokeAPI
+    with Matchers {
 
   // Print the test name
-  if(debug) {
+  if (debug) {
     print("TEST NAME: \n\t TensorGemmTester (take a JSON in input)\n")
     print(s"\tJSON: ${fn} \n\n")
   }
@@ -34,35 +30,40 @@ class TensorGemmTest(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
   val bufferedSource = Source.fromURL(getClass.getResource(fn))
   val mapper = new ObjectMapper()
   mapper.registerModule(DefaultScalaModule)
-  val archState = mapper.readValue(bufferedSource.reader(), classOf[Map[String, Object]])
+  val archState =
+    mapper.readValue(bufferedSource.reader(), classOf[Map[String, Object]])
   bufferedSource.close
 
   // Decode the instruction
-  val inst = archState("inst").asInstanceOf[Map[String,String]]
+  val inst = archState("inst").asInstanceOf[Map[String, String]]
 
   // Scratchpad memory (emulate the buffers / registers)
   def build_scratchpad(tag: String): Map[BigInt, Array[BigInt]] = {
     val arr = archState(tag).asInstanceOf[Seq[Map[String, Object]]]
     (
-      for {m <- arr} yield {
+      for { m <- arr } yield {
         val idx = BigInt(m("idx").asInstanceOf[String], 16)
         val vec = m("vec").asInstanceOf[Seq[String]]
         idx -> (
-          for {v <- vec} yield {
+          for { v <- vec } yield {
             val value = BigInt(v, 16)
             // Sign conversion
-            if (value > 127) {value - 256}
-            else {value}
+            if (value > 127) { value - 256 }
+            else { value }
           }
-          ).toArray
+        ).toArray
       }
-      ).toMap
+    ).toMap
   }
 
   // Print scratchpad
-  def print_scratchpad(scratchpad: Map[BigInt, Array[BigInt]], index: BigInt, name: String = "?"): Unit = {
+  def print_scratchpad(
+      scratchpad: Map[BigInt, Array[BigInt]],
+      index: BigInt,
+      name: String = "?"
+  ): Unit = {
     print(s"\n ${name} scratchpad (index: ${index}) = \n (")
-    for {i <- scratchpad(index).indices} {
+    for { i <- scratchpad(index).indices } {
       print(s"${scratchpad(index)(i).toInt}")
       if (i != scratchpad(index).size - 1) {
         print(", ")
@@ -72,13 +73,20 @@ class TensorGemmTest(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
   }
 
   // Compare scratchpad
-  def compare_scratchpad(reference: Map[BigInt, Array[BigInt]], scratchpadUnderTest: Map[BigInt, Array[BigInt]]): Unit = {
+  def compare_scratchpad(
+      reference: Map[BigInt, Array[BigInt]],
+      scratchpadUnderTest: Map[BigInt, Array[BigInt]]
+  ): Unit = {
     val availableIndexes = reference.keySet
-    for (index <- availableIndexes){
+    for (index <- availableIndexes) {
       for (i <- reference(index).indices) {
         if (reference(index)(i).toInt != scratchpadUnderTest(index)(i).toInt) {
-          print(s"\n\nERROR: difference between result and expectation at index:${index} position:${i}\n")
-          print(s"\t Expected = ${reference(index)(i).toInt}, Obtained = ${scratchpadUnderTest(index)(i).toInt}")
+          print(
+            s"\n\nERROR: difference between result and expectation at index:${index} position:${i}\n"
+          )
+          print(
+            s"\t Expected = ${reference(index)(i).toInt}, Obtained = ${scratchpadUnderTest(index)(i).toInt}"
+          )
         }
         assert(reference(index)(i).toInt == scratchpadUnderTest(index)(i).toInt)
       }
@@ -96,117 +104,124 @@ class TensorGemmTest(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
   val acc_o_scratchpad = build_scratchpad("acc_o") // Expected
 
   // Unset start value (block computation -> sIdle)
-  poke(c.io.start, 0)
+  c.io.start.poke(0)
 
   // Instruction fields with base conversion (hexadecimal)
   val dec_reset = BigInt(inst("reset"), 16)
-  val uop_begin = BigInt(inst("uop_begin"), 16)
-  val uop_end = BigInt(inst("uop_end"), 16)
-  assert(uop_begin < uop_end)
-  val lp_0 = BigInt(inst("lp_0"), 16)
-  val lp_1 = BigInt(inst("lp_1"), 16)
-  val acc_0 = BigInt(inst("acc_0"), 16)
-  val inp_0 = BigInt(inst("inp_0"), 16)
-  val wgt_0 = BigInt(inst("wgt_0"), 16)
-  val acc_1 = BigInt(inst("acc_1"), 16)
-  val inp_1 = BigInt(inst("inp_1"), 16)
-  val wgt_1 = BigInt(inst("wgt_1"), 16)
+  val uopBegin = BigInt(inst("uop_begin"), 16)
+  val uopEnd = BigInt(inst("uop_end"), 16)
+  assert(uopBegin < uopEnd)
+  val lp0 = BigInt(inst("lp_0"), 16)
+  val lp1 = BigInt(inst("lp_1"), 16)
+  val acc0 = BigInt(inst("acc_0"), 16)
+  val inp0 = BigInt(inst("inp_0"), 16)
+  val wgt0 = BigInt(inst("wgt_0"), 16)
+  val acc1 = BigInt(inst("acc_1"), 16)
+  val inp1 = BigInt(inst("inp_1"), 16)
+  val wgt1 = BigInt(inst("wgt_1"), 16)
 
   // Read instructions
   // Reset signal
-  poke(c.io.dec.reset, dec_reset)
+  c.io.dec.reset.poke(dec_reset)
   // UOP_BGN
-  poke(c.io.dec.uop_begin, uop_begin)
-  // UOP_END
-  poke(c.io.dec.uop_end, uop_end)
-  // LOOP_EXTENT_0
-  poke(c.io.dec.lp_0, lp_0)
-  // LOOP_EXTENT_1
-  poke(c.io.dec.lp_1, lp_1)
-  // ACC_IDX_FACTOR_0 (X0)
-  poke(c.io.dec.acc_0, acc_0)
-  // ACC_IDX_FACTOR_1 (X1)
-  poke(c.io.dec.acc_1, acc_1)
-  // INP_IDX_FACTOR_0 (Y0)
-  poke(c.io.dec.inp_0, inp_0)
-  // INP_IDX_FACTOR_1 (Y1)
-  poke(c.io.dec.inp_1, inp_1)
-  // WGT_IDX_FACTOR_0 (Z0)
-  poke(c.io.dec.wgt_0, wgt_0)
-  // WGT_IDX_FACTOR_1 (Z1)
-  poke(c.io.dec.wgt_1, wgt_1)
+  c.io.dec.uopBegin.poke(uopBegin)
+  // uopEnd
+  c.io.dec.uopEnd.poke(uopEnd)
+  // LOOP_EXTENT0
+  c.io.dec.lp0.poke(lp0)
+  // LOOP_EXTENT1
+  c.io.dec.lp1.poke(lp1)
+  // ACC_IDX_FACTOR0 (X0)
+  c.io.dec.acc0.poke(acc0)
+  // ACC_IDX_FACTOR1 (X1)
+  c.io.dec.acc1.poke(acc1)
+  // INP_IDX_FACTOR0 (Y0)
+  c.io.dec.inp0.poke(inp0)
+  // INP_IDX_FACTOR1 (Y1)
+  c.io.dec.inp1.poke(inp1)
+  // WGT_IDX_FACTOR0 (Z0)
+  c.io.dec.wgt0.poke(wgt0)
+  // WGT_IDX_FACTOR1 (Z1)
+  c.io.dec.wgt1.poke(wgt1)
 
   if (debug) {
     print("Read instructions: \n")
-    print(s"\t RESET: ${peek(c.io.dec.reset)} \n")
-    print(s"\t UOP_BEGIN: ${peek(c.io.dec.uop_begin)} \n")
-    print(s"\t UOP_END: ${peek(c.io.dec.uop_end)} \n")
-    print(s"\t LP_0: ${peek(c.io.dec.lp_0)} \n")
-    print(s"\t LP_1: ${peek(c.io.dec.lp_1)} \n")
-    print(s"\t ACC_0: ${peek(c.io.dec.acc_0)} \n")
-    print(s"\t ACC_1: ${peek(c.io.dec.acc_1)} \n")
-    print(s"\t INP_0: ${peek(c.io.dec.inp_0)} \n")
-    print(s"\t INP_1: ${peek(c.io.dec.inp_1)} \n")
-    print(s"\t WGT_0: ${peek(c.io.dec.wgt_0)} \n")
-    print(s"\t WGT_1: ${peek(c.io.dec.wgt_1)} \n\n")
+    print(s"\t RESET: ${c.io.dec.reset.peek()} \n")
+    print(s"\t uopBegin: ${c.io.dec.uopBegin.peek()} \n")
+    print(s"\t uopEnd: ${c.io.dec.uopEnd.peek()} \n")
+    print(s"\t LP0: ${c.io.dec.lp0.peek()} \n")
+    print(s"\t LP1: ${c.io.dec.lp1.peek()} \n")
+    print(s"\t ACC0: ${c.io.dec.acc0.peek()} \n")
+    print(s"\t ACC1: ${c.io.dec.acc1.peek()} \n")
+    print(s"\t INP0: ${c.io.dec.inp0.peek()} \n")
+    print(s"\t INP1: ${c.io.dec.inp1.peek()} \n")
+    print(s"\t WGT0: ${c.io.dec.wgt0.peek()} \n")
+    print(s"\t WGT1: ${c.io.dec.wgt1.peek()} \n\n")
   }
 
-
   // Read scratchpad
-  class TensorMasterMock(tm: TensorMaster, scratchpad: Map[BigInt, Array[BigInt]]) {
-    poke(tm.rd(0).data.valid, 0)
-    var valid = peek(tm.rd(0).idx.valid)
+  class TensorMasterMock(
+      tm: TensorMaster,
+      scratchpad: Map[BigInt, Array[BigInt]]
+  ) {
+    tm.rd(0).data.valid.poke(0)
+    var valid = tm.rd(0).idx.valid.peekBoolean()
     var idx: Int = 0
 
     def logical_step(): Unit = {
-      if (valid == 1) {
-        poke(tm.rd(0).data.valid, 1)
+      if (valid) {
+        tm.rd(0).data.valid.poke(1)
         val cols = tm.rd(0).data.bits(0).size
-        for {i <- 0 until tm.rd(0).data.bits.size
-             j <- 0 until cols
-             } {
-          poke(tm.rd(0).data.bits(i)(j), scratchpad(idx)(i * cols + j))
+        for {
+          i <- 0 until tm.rd(0).data.bits.size
+          j <- 0 until cols
+        } {
+          tm.rd(0).data.bits(i)(j).poke(scratchpad(idx)(i * cols + j))
         }
       } else {
-        poke(tm.rd(0).data.valid, 0)
+        tm.rd(0).data.valid.poke(0)
       }
-      valid = peek(tm.rd(0).idx.valid)
-      idx = peek(tm.rd(0).idx.bits).toInt
+      valid = tm.rd(0).idx.valid.peekBoolean()
+      idx = tm.rd(0).idx.bits.peek().litValue.toInt
     }
   }
 
   // Write scratchpad
-  class TensorMasterMockWr(tm: TensorMaster, scratchpad: Map[BigInt, Array[BigInt]]) {
+  class TensorMasterMockWr(
+      tm: TensorMaster,
+      scratchpad: Map[BigInt, Array[BigInt]]
+  ) {
     def logical_step(): Unit = {
-      if (peek(tm.wr(0).valid) == 1) {
-        val idx = peek(tm.wr(0).bits.idx).toInt
+      if (tm.wr(0).valid.peekBoolean()) {
+        val idx = tm.wr(0).bits.idx.peek().litValue.toInt
         val cols = tm.wr(0).bits.data(0).size
         for {
           i <- 0 until tm.wr(0).bits.data.size
           j <- 0 until cols
         } {
-          scratchpad(idx)(i * cols + j) = peek(tm.wr(0).bits.data(i)(j))
+          scratchpad(idx)(i * cols + j) =
+            tm.wr(0).bits.data(i)(j).peek().litValue
         }
       }
     }
   }
 
   // Write UOP buffer scratchpad
-  class UopMasterMock(um: UopMaster, scratchpad: Map[BigInt,Array[BigInt]]) {
-    poke(um.data.valid, 0)
-    var valid = peek(um.idx.valid)
-    var idx : Int = 0
-    def logical_step() : Unit = {
-      if (valid == 1) {
-        poke(um.data.valid, 1)
-        poke(um.data.bits.u0, scratchpad(idx)(0))
-        poke(um.data.bits.u1, scratchpad(idx)(1))
-        poke(um.data.bits.u2, scratchpad(idx)(2))
+  class UopMasterMock(um: UopMaster, scratchpad: Map[BigInt, Array[BigInt]]) {
+    um.data.valid.poke(0)
+    var valid = um.idx.valid.peekBoolean()
+    var idx: Int = 0
+    def logical_step(): Unit = {
+      if (valid) {
+        um.data.valid.poke(1)
+        um.data.bits.u0.poke(scratchpad(idx)(0))
+        um.data.bits.u1.poke(scratchpad(idx)(1))
+        um.data.bits.u2.poke(scratchpad(idx)(2))
       } else {
-        poke(um.data.valid, 0)
+        um.data.valid.poke(0)
       }
-      valid = peek(um.idx.valid)
-      idx = peek(um.idx.bits).toInt
+      valid = um.idx.valid.peekBoolean()
+      idx = um.idx.bits.peek().litValue.toInt
     }
   }
 
@@ -226,8 +241,7 @@ class TensorGemmTest(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
     val out_indices = new scala.collection.mutable.Queue[BigInt]
 
     // Emulate the clock
-    def logical_step() : Unit = {
-      step(1)
+    def logical_step(): Unit = {
       // Perform the defined operations for each emulated memory
       uop_mock.logical_step()
       inp_mock.logical_step()
@@ -235,50 +249,111 @@ class TensorGemmTest(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
       acc_mock.logical_step()
       acc_mock_wr.logical_step()
 
-      if (peek(c.io.uop.idx.valid) == 1) {
-        expect(c.io.uop.idx.bits, uop_indices.dequeue())
+      if (c.io.uop.idx.valid.peekBoolean()) {
+        val index = uop_indices.dequeue()
+        c.io.uop.idx.bits.expect(
+          index,
+          "inconsistent uop index"
+        )
       }
-      if (peek(c.io.acc.rd(0).idx.valid) == 1) {
-        expect(c.io.acc.rd(0).idx.bits, acc_indices.dequeue())
+      if (c.io.acc.rd(0).idx.valid.peekBoolean()) {
+        c.io.acc
+          .rd(0)
+          .idx
+          .bits
+          .expect(acc_indices.dequeue(), "inconsistent acc index")
       }
-      if (peek(c.io.inp.rd(0).idx.valid) == 1) {
-        expect(c.io.inp.rd(0).idx.bits, inp_indices.dequeue())
+      if (c.io.inp.rd(0).idx.valid.peekBoolean()) {
+        c.io.inp
+          .rd(0)
+          .idx
+          .bits
+          .expect(inp_indices.dequeue(), "inconsistent inp index")
         if (debug) {
           // Print INPUT vector
-          print(s"\n\nThe input vector (offset: ${peek(c.io.inp.rd(0).idx.bits)}): \n")
-          print_scratchpad(inp_scratchpad, peek(c.io.inp.rd(0).idx.bits), "INP")
+          print(
+            s"\n\nThe input vector (offset: ${c.io.inp.rd(0).idx.bits.peek()}): \n"
+          )
+          print_scratchpad(
+            inp_scratchpad,
+            c.io.inp.rd(0).idx.bits.peek().litValue,
+            "INP"
+          )
         }
       }
-      if (peek(c.io.wgt.rd(0).idx.valid) == 1) {
-        expect(c.io.wgt.rd(0).idx.bits, wgt_indices.dequeue())
+      if (c.io.wgt.rd(0).idx.valid.peekBoolean()) {
+        val index = wgt_indices.dequeue()
+        c.io.wgt
+          .rd(0)
+          .idx
+          .bits
+          .expect(
+            index,
+            "inconsistent wgt index"
+          )
         if (debug) {
           // Print WEIGHT tensor
-          print(s"\n\nThe weight tensor (offset: ${peek(c.io.wgt.rd(0).idx.bits)}): \n")
-          print_scratchpad(wgt_scratchpad, peek(c.io.wgt.rd(0).idx.bits), "WGT")
+          print(
+            s"\n\nThe weight tensor (offset: ${c.io.wgt.rd(0).idx.bits.peek()}): \n"
+          )
+          print_scratchpad(
+            wgt_scratchpad,
+            c.io.wgt.rd(0).idx.bits.peek().litValue,
+            "WGT"
+          )
         }
       }
-      if (peek(c.io.acc.wr(0).valid) == 1) {
-        expect(c.io.acc.wr(0).bits.idx, accout_indices.dequeue())
+      if (c.io.acc.wr(0).valid.peekBoolean()) {
+        val index = accout_indices.dequeue()
+        c.io.acc
+          .wr(0)
+          .bits
+          .idx
+          .expect(
+            index,
+            "inconsistent acc index"
+          )
       }
-      if (peek(c.io.out.wr(0).valid) == 1) {
-        expect(c.io.out.wr(0).bits.idx, out_indices.dequeue())
+      if (c.io.out.wr(0).valid.peekBoolean()) {
+        val index = out_indices.dequeue()
+        c.io.out
+          .wr(0)
+          .bits
+          .idx
+          .expect(
+            index,
+            "inconsistent"
+          )
         if (debug) {
           // Print the result
-          print(s"\n\nThe output vector (offset: ${peek(c.io.out.wr(0).bits.idx)}): \n") // Call acc and not out (???)
-          print_scratchpad(acc_scratchpad, peek(c.io.out.wr(0).bits.idx), "ACC")
+          print(
+            s"\n\nThe output vector (offset: ${c.io.out.wr(0).bits.idx.peek()}): \n"
+          ) // Call acc and not out (???)
+          print_scratchpad(
+            acc_scratchpad,
+            c.io.out.wr(0).bits.idx.peek().litValue,
+            "ACC"
+          )
         }
       }
+      c.clock.step(1)
     }
 
     // Check if all the UOP are used
-    def test_if_done() : Unit = {
+    def test_if_done(): Unit = {
       print("\nSpecification:  \n")
-      print(s"\t uop_indices should be empty ${uop_indices.size} \n")
-      print(s"\t acc_indices should be empty ${acc_indices.size} \n")
-      print(s"\t inp_indices should be empty ${inp_indices.size} \n")
-      print(s"\t wgt_indices should be empty ${wgt_indices.size} \n")
-      print(s"\t accout_indices should be empty ${accout_indices.size} \n")
-      print(s"\t out_indices should be empty ${out_indices.size} \n")
+      uop_indices shouldBe empty
+      acc_indices shouldBe empty
+      inp_indices shouldBe empty
+      wgt_indices shouldBe empty
+      accout_indices shouldBe empty
+      out_indices shouldBe empty
+      // print(s"\t uop_indices should be empty ${uop_indices.size} \n")
+      // print(s"\t acc_indices should be empty ${acc_indices.size} \n")
+      // print(s"\t inp_indices should be empty ${inp_indices.size} \n")
+      // print(s"\t wgt_indices should be empty ${wgt_indices.size} \n")
+      // print(s"\t accout_indices should be empty ${accout_indices.size} \n")
+      // print(s"\t out_indices should be empty ${out_indices.size} \n")
     }
 
     // Assertion
@@ -291,61 +366,64 @@ class TensorGemmTest(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
 
   // Perform all the required operations (cf. GeMM pseudo-code)
   for {
-    cnt_o <- BigInt(0) until lp_0
-    cnt_i <- BigInt(0) until lp_1
-    uop_idx <- uop_begin until uop_end
+    cnt_o <- BigInt(0) until lp0
+    cnt_i <- BigInt(0) until lp1
+    uop_idx <- uopBegin until uopEnd
   } {
     val u0 = uop_scratchpad(uop_idx.toInt)(0)
     val u1 = uop_scratchpad(uop_idx.toInt)(1)
     val u2 = uop_scratchpad(uop_idx.toInt)(2)
 
     mocks.uop_indices.enqueue(uop_idx)
-    mocks.acc_indices.enqueue(u0 + acc_0*cnt_o + acc_1*cnt_i)
-    mocks.inp_indices.enqueue(u1 + inp_0*cnt_o + inp_1*cnt_i)
-    mocks.wgt_indices.enqueue(u2 + wgt_0*cnt_o + wgt_1*cnt_i)
-    mocks.accout_indices.enqueue(u0 + acc_0*cnt_o + acc_1*cnt_i)
+    mocks.acc_indices.enqueue(u0 + acc0 * cnt_o + acc1 * cnt_i)
+    mocks.inp_indices.enqueue(u1 + inp0 * cnt_o + inp1 * cnt_i)
+    mocks.wgt_indices.enqueue(u2 + wgt0 * cnt_o + wgt1 * cnt_i)
+    mocks.accout_indices.enqueue(u0 + acc0 * cnt_o + acc1 * cnt_i)
 
     if (dec_reset == 0) {
-      mocks.out_indices.enqueue(u0 + acc_0*cnt_o + acc_1*cnt_i)
+      mocks.out_indices.enqueue(u0 + acc0 * cnt_o + acc1 * cnt_i)
     }
   }
 
   // Unset (again ?) start signal
-  poke(c.io.start, 0)
+  c.io.start.poke(0)
   mocks.logical_step()
-  expect(c.io.state, c.sIdle)
+  c.io.state.expect(c.sIdle)
 
   // Set start signal (execute!)
-  poke(c.io.start, 1)
+  c.io.start.poke(1)
 
   // Specification
-  val total_steps = (uop_end-uop_begin)*lp_0*lp_1
+  val total_steps = (uopEnd - uopBegin) * lp0 * lp1
 
   // Timeout
-  val max_count = 100 + 4*total_steps
+  val max_count = 100 + 4 * total_steps
 
   // Count time to complete execuion
   var count = 0
-  while (peek(c.io.done) == 0 && count < max_count) {
+  while (!c.io.done.peekBoolean() && count < max_count) {
     if (debug) {
       print(s"[CYCLE $count] \n")
     }
     mocks.logical_step()
     if (count == 0) {
-      poke(c.io.start, 0)
+      c.io.start.poke(0)
     }
     count += 1
   }
 
   // Execution is done
-  assert(peek(c.io.done) == 1, s"Signal done never high even after $count steps.")
+  assert(
+    c.io.done.peekBoolean(),
+    s"Signal done never high even after $count steps."
+  )
   if (debug) {
     print(s"DEBUG: Signal done high after $count steps. \n")
   }
 
   // Reset signals (?)
   mocks.logical_step()
-  expect(c.io.done, 0)
+  c.io.done.expect(0)
 
   if (debug) {
     print(s"DEBUG: Total active steps: ${total_steps} \n")
@@ -361,80 +439,113 @@ class TensorGemmTest(c: TensorGemmPipelinedSplit, fn : String = "/x.json",
   }
 }
 
+@tags.UnitTests
+class TensorGemmJsonTestSuite extends AnyFlatSpecSim {
+  behavior of "TensorGemmPipelinedSplit"
 
-/**
- * Execute the tests
- */
-class TensorGemmTester_smm extends GenericTest("Simple Matrix Multiply", (p:Parameters) =>
-  new TensorGemmPipelinedSplit()(p),
-  (c:TensorGemmPipelinedSplit) => new TensorGemmTest(c, "/examples_gemm/b1_c1h1w16_c1h1w16_simple_matrix_multiply.json"))
+  val debug = false
+  def runSim(file: String) = {
+    simulate(new TensorGemmPipelinedSplit) { c =>
+      if (debug) enableWaves()
+      new TensorGemmTest(c, file, debug)
+    }
+  }
+  it should "compute a simple matrix multiplication" in runSim(
+    "/examples_gemm/b1_c1h1w16_c1h1w16_simple_matrix_multiply.json"
+  )
 
-class TensorGemmTester_oc extends GenericTest("Output Channel", (p:Parameters) =>
-  new TensorGemmPipelinedSplit()(p),
-  (c:TensorGemmPipelinedSplit) => new TensorGemmTest(c, "/examples_gemm/b1_c1h1w16_c2h1w16_output_channel.json"))
+  it should "output channel" in runSim(
+    "/examples_gemm/b1_c1h1w16_c2h1w16_output_channel.json"
+  )
+  it should "input channel" in runSim(
+    "/examples_gemm/b1_c2h1w16_c1h1w16_input_channel.json"
+  )
+
+  it should "compute a full operation" in
+    runSim("/examples_gemm/b1_c16h1w16_c16h1w16_full.json")
+
+  it should "compute several batches" in runSim(
+    "/examples_gemm/b2_c1h1w16_c1h1w16_batches.json"
+  )
+}
 
 /* We must modify the configuration for this test */
 //class TensorGemmTester_rows extends GenericTest("Rows", (p: Parameters) =>
 //  new TensorGemmPipelinedSplit()(p),
 //  (c: TensorGemmPipelinedSplit) => new TensorGemmTest(c, "/examples_gemm/b1_c1h2w16_c1h2w16_rows.json"))
 
-class TensorGemmTester_ic extends GenericTest("Input Channel", (p: Parameters) =>
-  new TensorGemmPipelinedSplit()(p),
-  (c: TensorGemmPipelinedSplit) => new TensorGemmTest(c, "/examples_gemm/b1_c2h1w16_c1h1w16_input_channel.json"))
-
-class TensorGemmTester_full extends GenericTest("Full", (p: Parameters) =>
-  new TensorGemmPipelinedSplit()(p),
-  (c: TensorGemmPipelinedSplit) => new TensorGemmTest(c, "/examples_gemm/b1_c16h1w16_c16h1w16_full.json"))
-
-class TensorGemmTester_batches extends GenericTest("Batches", (p: Parameters) =>
-  new TensorGemmPipelinedSplit()(p),
-  (c: TensorGemmPipelinedSplit) => new TensorGemmTest(c, "/examples_gemm/b2_c1h1w16_c1h1w16_batches.json"))
-
 /* Test for investigation */
-class TensorGemmTester_test extends GenericTest("Test instructions", (p: Parameters) =>
-  new TensorGemmPipelinedSplit()(p),
-  (c: TensorGemmPipelinedSplit) => new TensorGemmTest(c, "/examples_gemm/test_instructions.json"))
+class TensorGemmTester_test extends AnyFlatSpecSim {
+  "Test instructions" should "run without assertions" in
+    simulate(new TensorGemmPipelinedSplit()(p))(
+      new TensorGemmTest(_, "/examples_gemm/test_instructions.json")
+    )
 
+}
 /* Tests of performance */
-class TensorGemmTester_atomic extends GenericTest("Test atomic", (p: Parameters) =>
-  new TensorGemmPipelinedSplit()(p),
-  (c: TensorGemmPipelinedSplit) => new TensorGemmTest(c, "/examples_gemm/performance_tests/LoopOut1_LoopIn1_UOP1.json",
-    true),
-  true)
+class TensorGemmPerformanceTests extends AnyFlatSpecSim {
+  behavior of "TensorGemmPipelinedSplit"
 
-class TensorGemmTester_UOP2 extends GenericTest("Test 2 uop (ordered)", (p: Parameters) =>
-  new TensorGemmPipelinedSplit()(p),
-  (c: TensorGemmPipelinedSplit) => new TensorGemmTest(c, "/examples_gemm/performance_tests/LoopOut1_LoopIn1_UOP2.json",
-    true),
-  true)
+  it should "do atomic test" in
+    simulate(new TensorGemmPipelinedSplit())(
+      new TensorGemmTest(
+        _,
+        "/examples_gemm/performance_tests/LoopOut1_LoopIn1_UOP1.json",
+        true
+      )
+    )
 
-class TensorGemmTester_UOP2_bis extends GenericTest("Test 2 uop (reverse)", (p: Parameters) =>
-  new TensorGemmPipelinedSplit()(p),
-  (c: TensorGemmPipelinedSplit) => new TensorGemmTest(c, "/examples_gemm/performance_tests/LoopOut1_LoopIn1_UOP2_bis.json",
-    true),
-  true)
+  it should "test 2 uop (ordered)" in
+    simulate(new TensorGemmPipelinedSplit())(
+      new TensorGemmTest(
+        _,
+        "/examples_gemm/performance_tests/LoopOut1_LoopIn1_UOP2.json",
+        true
+      )
+    )
 
-class TensorGemmTester_loopIn2 extends GenericTest("Test 2 loop in", (p: Parameters) =>
-  new TensorGemmPipelinedSplit()(p),
-  (c: TensorGemmPipelinedSplit) => new TensorGemmTest(c, "/examples_gemm/performance_tests/LoopOut1_LoopIn2_UOP1.json",
-    true),
-  true)
+  it should "test 2 uop (reversed)" in
+    simulate(new TensorGemmPipelinedSplit())(
+      new TensorGemmTest(
+        _,
+        "/examples_gemm/performance_tests/LoopOut1_LoopIn1_UOP2_bis.json",
+        true
+      )
+    )
 
-class TensorGemmTester_loopOut2 extends GenericTest("Test 2 loop out", (p: Parameters) =>
-  new TensorGemmPipelinedSplit()(p),
-  (c: TensorGemmPipelinedSplit) => new TensorGemmTest(c, "/examples_gemm/performance_tests/LoopOut2_LoopIn1_UOP1.json",
-    true),
-  true)
+  it should "test 2 loop in" in
+    simulate(new TensorGemmPipelinedSplit())(
+      new TensorGemmTest(
+        _,
+        "/examples_gemm/performance_tests/LoopOut1_LoopIn2_UOP1.json",
+        true
+      )
+    )
 
-class TensorGemmTester_block_pattern extends GenericTest("Test block pattern", (p: Parameters) =>
-  new TensorGemmPipelinedSplit()(p),
-  (c: TensorGemmPipelinedSplit) => new TensorGemmTest(c, "/examples_gemm/performance_tests/block_matrix_pattern.json",
-    true),
-  true)
+  it should "test 2 loop out" in
+    simulate(new TensorGemmPipelinedSplit())(
+      new TensorGemmTest(
+        _,
+        "/examples_gemm/performance_tests/LoopOut2_LoopIn1_UOP1.json",
+        true
+      )
+    )
 
-class TensorGemmTester_block_uop extends GenericTest("Test block uop", (p: Parameters) =>
-  new TensorGemmPipelinedSplit()(p),
-  (c: TensorGemmPipelinedSplit) => new TensorGemmTest(c, "/examples_gemm/performance_tests/block_matrix_uop.json",
-    true),
-  true)
+  it should "Test block pattern" in
+    simulate(new TensorGemmPipelinedSplit())(
+      new TensorGemmTest(
+        _,
+        "/examples_gemm/performance_tests/block_matrix_pattern.json",
+        true
+      )
+    )
 
+  it should "Test block matrix uop" in
+    simulate(new TensorGemmPipelinedSplit())(
+      new TensorGemmTest(
+        _,
+        "/examples_gemm/performance_tests/block_matrix_uop.json",
+        true
+      )
+    )
+}

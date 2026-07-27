@@ -30,12 +30,6 @@
   #include "../external_lib/tvm/packed_func.h"
   #include "../external_lib/tvm/registry.h"
 
-  
-  /******************************
-    Execute simulator's prototype
-  *******************************/
-  int fsim_single_layer();
-  int fsim_nn();
 
   /********************
     READ BINARY FILES
@@ -59,6 +53,22 @@
       file.read(reinterpret_cast<char*>(buffer.data()), file_size);
       file.close();
       return buffer;
+  }
+
+  /***************
+    WRITE BINARY FILES
+  ****************/
+  // Raw counterpart to read_binary_file: writes the vector's bytes verbatim,
+  // with NO reshaping/unblocking (unlike output_tensor in cpu_functions.h).
+  template <typename T>
+  void write_binary_file(const std::string& file_path, const std::vector<T>& buffer) {
+      std::ofstream file(file_path, std::ios::binary);
+      if (!file) {
+          perror(("ERROR: Could not open file for write: " + file_path).c_str());
+          return;
+      }
+      file.write(reinterpret_cast<const char*>(buffer.data()),
+                 static_cast<std::streamsize>(buffer.size() * sizeof(T)));
   }
 
   /***************

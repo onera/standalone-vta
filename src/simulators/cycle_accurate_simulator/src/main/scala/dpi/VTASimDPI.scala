@@ -20,17 +20,13 @@
 package vta.dpi
 
 import chisel3._
-import chisel3.util._
-import vta.util.config._
-import vta.interface.axi._
-import vta.shell._
 
 /** Sim DPI module.
- *
- * Wrapper for Sim Verilog DPI module.
- */
-class VTASimDPI extends BlackBox with HasBlackBoxResource {
-  val io = IO(new Bundle {
+  *
+  * Wrapper for Sim Verilog DPI module.
+  */
+class VTASimDPI extends ExtModule {
+  val io = FlatIO(new Bundle {
     val clock = Input(Clock())
     val reset = Input(Reset())
     val dpi_wait = Output(Bool())

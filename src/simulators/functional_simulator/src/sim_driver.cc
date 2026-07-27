@@ -21,16 +21,20 @@
  * \file sim_driver.cc
  * \brief VTA driver for simulated backend.
  */
-#include "../include/driver.h" //<vta/driver.h>
-#include "../config/hw_spec.h" //<vta/hw_spec.h>
+#include "../config/hw_spec.h"            //<vta/hw_spec.h>
 #include "../external_lib/tvm/registry.h" //<tvm/runtime/registry.h>
+#include "../include/driver.h"            //<vta/driver.h>
+#include "../include/vta_device_backend.h"
+#ifdef VERILATOR_BUILD_ENABLED
+#include "../external_lib/dmlc/logging.h"
+#endif
 #include "../include/sim_tlpp.h" //<vta/sim_tlpp.h>
-#include <type_traits>
-#include <mutex>
-#include <map>
-#include <unordered_map>
 #include <cstring>
+#include <map>
+#include <mutex>
 #include <sstream>
+#include <type_traits>
+#include <unordered_map>
 
 #include "../include/virtual_memory.h" //"../vmem/virtual_memory.h"
 
@@ -41,9 +45,12 @@ namespace vta {
 namespace sim {
 
 /*! \brief debug flag for skipping computation */
-enum DebugFlagMask {
-  kSkipExec = 1
-};
+enum DebugFlagMask { kSkipExec = 1 };
+
+/*! \brief Non-zero DRAM base offset (bytes) added to every device data access.
+ *  Models the baremetal ddr_base / HW ptr base register. 0 = base-0 (default,
+ *  matches the compiler's dram_offset=0).  Set via VTASetDramBase(). */
+uint64_t g_dram_base = 0;
 
 /*!
  * \brief Helper class to pack and unpack bits
@@ -52,20 +59,17 @@ enum DebugFlagMask {
  * \tparam bits The number of bits in integer.
  * \note This implementation relies on little endian.
  */
-template<uint32_t bits>
-class BitPacker {
- public:
-  explicit BitPacker(void* data) {
-    data_ = static_cast<uint32_t*>(data);
-  }
+template <uint32_t bits> class BitPacker {
+public:
+  explicit BitPacker(void *data) { data_ = static_cast<uint32_t *>(data); }
 
   uint32_t GetUnsigned(uint32_t index) const {
     if (bits == 32) {
       return data_[index];
     } else if (bits == 16) {
-      return reinterpret_cast<uint16_t*>(data_)[index];
+      return reinterpret_cast<uint16_t *>(data_)[index];
     } else if (bits == 8) {
-      return reinterpret_cast<uint8_t*>(data_)[index];
+      return reinterpret_cast<uint8_t *>(data_)[index];
     } else {
       uint32_t offset = index / kNumPackElem;
       uint32_t shift = index % kNumPackElem;
@@ -75,16 +79,15 @@ class BitPacker {
 
   int32_t GetSigned(uint32_t index) const {
     if (bits == 32) {
-      return reinterpret_cast<int32_t*>(data_)[index];
+      return reinterpret_cast<int32_t *>(data_)[index];
     } else if (bits == 16) {
-      return reinterpret_cast<int16_t*>(data_)[index];
+      return reinterpret_cast<int16_t *>(data_)[index];
     } else if (bits == 8) {
-      return reinterpret_cast<int8_t*>(data_)[index];
+      return reinterpret_cast<int8_t *>(data_)[index];
     } else {
       uint32_t offset = index / kNumPackElem;
       uint32_t shift = (index % kNumPackElem) * bits;
-      int32_t uvalue = static_cast<int32_t>(
-          (data_[offset] >> shift) & kMask);
+      int32_t uvalue = static_cast<int32_t>((data_[offset] >> shift) & kMask);
       int kleft = 32 - bits;
       return (uvalue << kleft) >> kleft;
     }
@@ -94,9 +97,9 @@ class BitPacker {
     if (bits == 32) {
       data_[index] = value;
     } else if (bits == 16) {
-      reinterpret_cast<uint16_t*>(data_)[index] = value;
+      reinterpret_cast<uint16_t *>(data_)[index] = value;
     } else if (bits == 8) {
-      reinterpret_cast<uint8_t*>(data_)[index] = value;
+      reinterpret_cast<uint8_t *>(data_)[index] = value;
     } else {
       uint32_t offset = index / kNumPackElem;
       uint32_t shift = (index % kNumPackElem) * bits;
@@ -107,11 +110,11 @@ class BitPacker {
 
   void SetSigned(uint32_t index, int32_t value) {
     if (bits == 32) {
-      reinterpret_cast<int32_t*>(data_)[index] = value;
+      reinterpret_cast<int32_t *>(data_)[index] = value;
     } else if (bits == 16) {
-      reinterpret_cast<int16_t*>(data_)[index] = value;
+      reinterpret_cast<int16_t *>(data_)[index] = value;
     } else if (bits == 8) {
-      reinterpret_cast<int8_t*>(data_)[index] = value;
+      reinterpret_cast<int8_t *>(data_)[index] = value;
     } else {
       uint32_t offset = index / kNumPackElem;
       uint32_t shift = (index % kNumPackElem) * bits;
@@ -120,8 +123,8 @@ class BitPacker {
     }
   }
 
- private:
-  uint32_t* data_;
+private:
+  uint32_t *data_;
   static constexpr uint32_t kNumPackElem = 32 / bits;
   static constexpr uint32_t kMask = (1U << (bits >= 32U ? 31U : bits)) - 1U;
 };
@@ -138,34 +141,28 @@ using DRAM = ::vta::vmem::VirtualMemoryManager;
  * \tparam kLane Number of lanes in one element.
  * \tparam kMaxNumElem Maximum number of element.
  */
-template<int kBits, int kLane, int kMaxNumElem>
-class SRAM {
- public:
+template <int kBits, int kLane, int kMaxNumElem> class SRAM {
+public:
   /*! \brief Bytes of single vector element */
   static const int kElemBytes = (kBits * kLane + 7) / 8;
   /*! \brief content data type */
   using DType = typename std::aligned_storage<kElemBytes, kElemBytes>::type;
-  SRAM() {
-    data_ = new DType[kMaxNumElem];
-  }
-  ~SRAM() {
-    delete [] data_;
-  }
+  SRAM() { data_ = new DType[kMaxNumElem]; }
+  ~SRAM() { delete[] data_; }
   // Get the i-th index
-  void* BeginPtr(uint32_t index) {
+  void *BeginPtr(uint32_t index) {
     CHECK_LT(index, kMaxNumElem);
     return &(data_[index]);
   }
   // Execute the load instruction on this SRAM
-  void Load(const VTAMemInsn* op,
-            DRAM* dram,
-            uint64_t* load_counter,
+  void Load(const VTAMemInsn *op, DRAM *dram, uint64_t *load_counter,
             bool skip_exec) {
     load_counter[0] += (op->x_size * op->y_size) * kElemBytes;
-    if (skip_exec) return;
-    DType* sram_ptr = data_ + op->sram_base;
-    uint8_t* dram_ptr = static_cast<uint8_t*>(dram->GetAddr(
-        op->dram_base * kElemBytes));
+    if (skip_exec)
+      return;
+    DType *sram_ptr = data_ + op->sram_base;
+    uint8_t *dram_ptr = static_cast<uint8_t *>(
+        dram->GetAddr(op->dram_base * kElemBytes + g_dram_base));
     uint64_t xtotal = op->x_size + op->x_pad_0 + op->x_pad_1;
     uint32_t ytotal = op->y_size + op->y_pad_0 + op->y_pad_1;
     uint64_t sram_end = op->sram_base + xtotal * ytotal;
@@ -186,10 +183,8 @@ class SRAM {
   }
 
   // This is for load 8bits to ACC only
-  void Load_int8(const VTAMemInsn* op,
-            DRAM* dram,
-            uint64_t* load_counter,
-            bool skip_exec) {
+  void Load_int8(const VTAMemInsn *op, DRAM *dram, uint64_t *load_counter,
+                 bool skip_exec) {
     CHECK_EQ(kBits, VTA_ACC_WIDTH);
 
     // TODO(zhanghao): extend to other width
@@ -198,10 +193,11 @@ class SRAM {
 
     int factor = VTA_ACC_WIDTH / VTA_INP_WIDTH;
     load_counter[0] += (op->x_size * op->y_size) * kElemBytes;
-    if (skip_exec) return;
-    DType* sram_ptr = data_ + op->sram_base;
-    int8_t* dram_ptr = static_cast<int8_t*>(dram->GetAddr(
-        op->dram_base * kElemBytes / factor));
+    if (skip_exec)
+      return;
+    DType *sram_ptr = data_ + op->sram_base;
+    int8_t *dram_ptr = static_cast<int8_t *>(
+        dram->GetAddr(op->dram_base * kElemBytes / factor + g_dram_base));
     uint64_t xtotal = op->x_size + op->x_pad_0 + op->x_pad_1;
     uint32_t ytotal = op->y_size + op->y_pad_0 + op->y_pad_1;
     uint64_t sram_end = op->sram_base + xtotal * ytotal;
@@ -213,7 +209,7 @@ class SRAM {
       memset(sram_ptr, 0, kElemBytes * op->x_pad_0);
       sram_ptr += op->x_pad_0;
 
-      int32_t* sram_ele_ptr = (int32_t*)sram_ptr;
+      int32_t *sram_ele_ptr = (int32_t *)sram_ptr;
       for (uint32_t x = 0; x < op->x_size * VTA_BATCH * VTA_BLOCK_OUT; ++x) {
         *(sram_ele_ptr + x) = (int32_t)*(dram_ptr + x);
       }
@@ -228,42 +224,40 @@ class SRAM {
     memset(sram_ptr, 0, kElemBytes * xtotal * op->y_pad_1);
   }
 
-
   // Execute the store instruction on this SRAM apply trucation.
   // This relies on the elements is 32 bits
-  template<int target_bits>
-  void TruncStore(const VTAMemInsn* op, DRAM* dram) {
+  template <int target_bits> void TruncStore(const VTAMemInsn *op, DRAM *dram) {
     CHECK_EQ(op->x_pad_0, 0);
     CHECK_EQ(op->x_pad_1, 0);
     CHECK_EQ(op->y_pad_0, 0);
     CHECK_EQ(op->y_pad_1, 0);
     int target_width = (target_bits * kLane + 7) / 8;
     BitPacker<kBits> src(data_ + op->sram_base);
-    BitPacker<target_bits> dst(dram->GetAddr(op->dram_base * target_width));
+    BitPacker<target_bits> dst(
+        dram->GetAddr(op->dram_base * target_width + g_dram_base));
     for (uint32_t y = 0; y < op->y_size; ++y) {
       for (uint32_t x = 0; x < op->x_size; ++x) {
         uint32_t sram_base = y * op->x_size + x;
         uint32_t dram_base = y * op->x_stride + x;
         for (int i = 0; i < kLane; ++i) {
           dst.SetSigned(dram_base * kLane + i,
-                        src.GetSigned(sram_base * kLane +i));
+                        src.GetSigned(sram_base * kLane + i));
         }
       }
     }
   }
 
- private:
+private:
   /*! \brief internal data content */
-  DType* data_;
+  DType *data_;
 };
-
 
 /*!
  * \brief Memory information of special memory region.
  *  Use MemoryInfo as its container type
  */
 class Profiler {
- public:
+public:
   /*! \brief The memory load statistics */
   uint64_t inp_load_nbytes{0};
   /*! \brief The memory load statistics */
@@ -291,9 +285,7 @@ class Profiler {
     alu_counter = 0;
   }
   /*! \return Whether we should skip execution. */
-  bool SkipExec() const {
-    return (debug_flag & DebugFlagMask::kSkipExec) != 0;
-  }
+  bool SkipExec() const { return (debug_flag & DebugFlagMask::kSkipExec) != 0; }
 
   std::string AsJSON() {
     std::ostringstream os;
@@ -305,32 +297,30 @@ class Profiler {
        << " \"out_store_nbytes\":" << out_store_nbytes << ",\n"
        << " \"gemm_counter\":" << gemm_counter << ",\n"
        << " \"alu_counter\":" << alu_counter << "\n"
-       <<"}\n";
+       << "}\n";
     return os.str();
   }
 
-  static Profiler* ThreadLocal() {
+  static Profiler *ThreadLocal() {
     static thread_local Profiler inst;
     return &inst;
   }
 };
 
-
 // Simulate device
 // TODO(tqchen,thierry): queue based event driven simulation.
-class Device {
- public:
-  Device() {
+class FunctionalDevice : public VTADeviceBackend {
+public:
+  FunctionalDevice() {
     prof_ = Profiler::ThreadLocal();
     dram_ = DRAM::Global();
     ptlpp = TlppVerify::Global();
   }
 
-  int Run(vta_phy_addr_t insn_phy_addr,
-          uint32_t insn_count,
-          uint32_t wait_cycles) {
-    VTAGenericInsn* insn = static_cast<VTAGenericInsn*>(
-        dram_->GetAddr(insn_phy_addr));
+  int Run(vta_phy_addr_t insn_phy_addr, uint32_t insn_count,
+          uint32_t wait_cycles) override {
+    VTAGenericInsn *insn =
+        static_cast<VTAGenericInsn *>(dram_->GetAddr(insn_phy_addr));
     finish_counter_ = 0;
     for (uint32_t i = 0; i < insn_count; ++i) {
       this->Run(insn + i); // Enqueue the instructions
@@ -340,35 +330,44 @@ class Device {
     return 0;
   }
 
- private:
-  static void Run_Insn(const VTAGenericInsn* insn, void * dev) {
-    Device * device = reinterpret_cast<Device *> (dev);
-    const VTAMemInsn* mem = reinterpret_cast<const VTAMemInsn*>(insn);
-    const VTAGemInsn* gem = reinterpret_cast<const VTAGemInsn*>(insn);
-    const VTAAluInsn* alu = reinterpret_cast<const VTAAluInsn*>(insn);
+private:
+  static void Run_Insn(const VTAGenericInsn *insn, void *dev) {
+    FunctionalDevice *device = reinterpret_cast<FunctionalDevice *>(dev);
+    const VTAMemInsn *mem = reinterpret_cast<const VTAMemInsn *>(insn);
+    const VTAGemInsn *gem = reinterpret_cast<const VTAGemInsn *>(insn);
+    const VTAAluInsn *alu = reinterpret_cast<const VTAAluInsn *>(insn);
     switch (mem->opcode) {
-      case VTA_OPCODE_LOAD: device->RunLoad(mem); break;
-      case VTA_OPCODE_STORE: device->RunStore(mem); break;
-      case VTA_OPCODE_GEMM: device->RunGEMM(gem); break;
-      case VTA_OPCODE_ALU: device->RunALU(alu); break;
-      case VTA_OPCODE_FINISH: ++(device->finish_counter_); break;
-      default: {
-        LOG(FATAL) << "Unknown op_code" << mem->opcode;
-      }
+    case VTA_OPCODE_LOAD:
+      device->RunLoad(mem);
+      break;
+    case VTA_OPCODE_STORE:
+      device->RunStore(mem);
+      break;
+    case VTA_OPCODE_GEMM:
+      device->RunGEMM(gem);
+      break;
+    case VTA_OPCODE_ALU:
+      device->RunALU(alu);
+      break;
+    case VTA_OPCODE_FINISH:
+      ++(device->finish_counter_);
+      break;
+    default: {
+      LOG(FATAL) << "Unknown op_code" << mem->opcode;
+    }
     }
   }
 
- private:
-  void Run(const VTAGenericInsn* insn) {
-    ptlpp->TlppPushInsn(insn);
-  }
+private:
+  void Run(const VTAGenericInsn *insn) { ptlpp->TlppPushInsn(insn); }
 
   void TlppSynchronization(void) {
-    ptlpp->TlppSynchronization(Run_Insn, reinterpret_cast<void *> (this));
+    ptlpp->TlppSynchronization(Run_Insn, reinterpret_cast<void *>(this));
   }
 
-  void RunLoad(const VTAMemInsn* op) {
-    if (op->x_size == 0) return;
+  void RunLoad(const VTAMemInsn *op) {
+    if (op->x_size == 0)
+      return;
     if (op->memory_type == VTA_MEM_ID_INP) {
       inp_.Load(op, dram_, &(prof_->inp_load_nbytes), prof_->SkipExec());
     } else if (op->memory_type == VTA_MEM_ID_WGT) {
@@ -386,28 +385,30 @@ class Device {
     }
   }
 
-  void RunStore(const VTAMemInsn* op) {
-    if (op->x_size == 0) return;
+  void RunStore(const VTAMemInsn *op) {
+    if (op->x_size == 0)
+      return;
     if (op->memory_type == VTA_MEM_ID_OUT) {
-      prof_->out_store_nbytes += (
-          op->x_size * op->y_size * VTA_BATCH * VTA_BLOCK_OUT * VTA_OUT_WIDTH / 8);
+      prof_->out_store_nbytes += (op->x_size * op->y_size * VTA_BATCH *
+                                  VTA_BLOCK_OUT * VTA_OUT_WIDTH / 8);
       if (!prof_->SkipExec()) {
         acc_.TruncStore<VTA_OUT_WIDTH>(op, dram_);
       }
     } else {
-      LOG(FATAL) << "Store do not support memory_type="
-                 << op->memory_type;
+      LOG(FATAL) << "Store do not support memory_type=" << op->memory_type;
     }
   }
 
-  void RunGEMM(const VTAGemInsn* op) {
+  void RunGEMM(const VTAGemInsn *op) {
     if (!op->reset_reg) {
-      prof_->gemm_counter += op->iter_out * op->iter_in * (op->uop_end - op->uop_bgn);
-      if (prof_->SkipExec()) return;
+      prof_->gemm_counter +=
+          op->iter_out * op->iter_in * (op->uop_end - op->uop_bgn);
+      if (prof_->SkipExec())
+        return;
       for (uint32_t y = 0; y < op->iter_out; ++y) {
         for (uint32_t x = 0; x < op->iter_in; ++x) {
           for (uint32_t uindex = op->uop_bgn; uindex < op->uop_end; ++uindex) {
-            VTAUop* uop_ptr = static_cast<VTAUop*>(uop_.BeginPtr(uindex));
+            VTAUop *uop_ptr = static_cast<VTAUop *>(uop_.BeginPtr(uindex));
             // Read in memory indices
             uint32_t acc_idx = uop_ptr->dst_idx;
             uint32_t inp_idx = uop_ptr->src_idx;
@@ -427,9 +428,8 @@ class Device {
                 uint32_t acc_offset = i * VTA_BLOCK_OUT + j;
                 int32_t sum = acc.GetSigned(acc_offset);
                 for (uint32_t k = 0; k < VTA_BLOCK_IN; ++k) {
-                  sum +=
-                      inp.GetSigned(i * VTA_BLOCK_IN + k) *
-                      wgt.GetSigned(j * VTA_BLOCK_IN + k);
+                  sum += inp.GetSigned(i * VTA_BLOCK_IN + k) *
+                         wgt.GetSigned(j * VTA_BLOCK_IN + k);
                 }
                 acc.SetSigned(acc_offset, sum);
               }
@@ -438,12 +438,13 @@ class Device {
         }
       }
     } else {
-      if (prof_->SkipExec()) return;
+      if (prof_->SkipExec())
+        return;
       // reset
       for (uint32_t y = 0; y < op->iter_out; ++y) {
         for (uint32_t x = 0; x < op->iter_in; ++x) {
           for (uint32_t uindex = op->uop_bgn; uindex < op->uop_end; ++uindex) {
-            VTAUop* uop_ptr = static_cast<VTAUop*>(uop_.BeginPtr(uindex));
+            VTAUop *uop_ptr = static_cast<VTAUop *>(uop_.BeginPtr(uindex));
             uint32_t acc_idx = uop_ptr->dst_idx;
             acc_idx += y * op->dst_factor_out + x * op->dst_factor_in;
             BitPacker<VTA_ACC_WIDTH> acc(acc_.BeginPtr(acc_idx));
@@ -456,7 +457,7 @@ class Device {
     }
   }
 
-  void RunALU(const VTAAluInsn* op) {
+  void RunALU(const VTAAluInsn *op) {
     if (op->use_imm) {
       RunALU_<true>(op);
     } else {
@@ -464,53 +465,50 @@ class Device {
     }
   }
 
-  template<bool use_imm>
-  void RunALU_(const VTAAluInsn* op) {
+  template <bool use_imm> void RunALU_(const VTAAluInsn *op) {
     switch (op->alu_opcode) {
-      case VTA_ALU_OPCODE_ADD: {
-        return RunALULoop<use_imm>(op, [](int32_t x, int32_t y) {
-            return x + y;
-          });
-      }
-      case VTA_ALU_OPCODE_MAX: {
-        return RunALULoop<use_imm>(op, [](int32_t x, int32_t y) {
-            return std::max(x, y);
-          });
-      }
-      case VTA_ALU_OPCODE_MIN: {
-        return RunALULoop<use_imm>(op, [](int32_t x, int32_t y) {
-            return std::min(x, y);
-          });
-      }
-      case VTA_ALU_OPCODE_SHR: {
-        return RunALULoop<use_imm>(op, [](int32_t x, int32_t y) {
-            if (y >= 0) {
-              return x >> y;
-            } else {
-              return x << (-y);
-            }
-          });
-      }
-      case VTA_ALU_OPCODE_MUL: {
-        return RunALULoop<use_imm>(op, [](int32_t x, int32_t y) {
-            return x * y;
-          });
-      }
-      default: {
-        LOG(FATAL) << "Unknown ALU code " << op->alu_opcode;
-      }
+    case VTA_ALU_OPCODE_ADD: {
+      return RunALULoop<use_imm>(op,
+                                 [](int32_t x, int32_t y) { return x + y; });
+    }
+    case VTA_ALU_OPCODE_MAX: {
+      return RunALULoop<use_imm>(
+          op, [](int32_t x, int32_t y) { return std::max(x, y); });
+    }
+    case VTA_ALU_OPCODE_MIN: {
+      return RunALULoop<use_imm>(
+          op, [](int32_t x, int32_t y) { return std::min(x, y); });
+    }
+    case VTA_ALU_OPCODE_SHR: {
+      return RunALULoop<use_imm>(op, [](int32_t x, int32_t y) {
+        if (y >= 0) {
+          return x >> y;
+        } else {
+          return x << (-y);
+        }
+      });
+    }
+    case VTA_ALU_OPCODE_MUL: {
+      return RunALULoop<use_imm>(op,
+                                 [](int32_t x, int32_t y) { return x * y; });
+    }
+    default: {
+      LOG(FATAL) << "Unknown ALU code " << op->alu_opcode;
+    }
     }
   }
 
-  template<bool use_imm, typename F>
-  void RunALULoop(const VTAAluInsn* op, F func) {
-    prof_->alu_counter += op->iter_out * op->iter_in * (op->uop_end - op->uop_bgn);
-    if (prof_->SkipExec()) return;
+  template <bool use_imm, typename F>
+  void RunALULoop(const VTAAluInsn *op, F func) {
+    prof_->alu_counter +=
+        op->iter_out * op->iter_in * (op->uop_end - op->uop_bgn);
+    if (prof_->SkipExec())
+      return;
     for (int y = 0; y < op->iter_out; ++y) {
       for (int x = 0; x < op->iter_in; ++x) {
         for (int k = op->uop_bgn; k < op->uop_end; ++k) {
           // Read micro op
-          VTAUop* uop_ptr = static_cast<VTAUop*>(uop_.BeginPtr(k));
+          VTAUop *uop_ptr = static_cast<VTAUop *>(uop_.BeginPtr(k));
           uint32_t dst_index = uop_ptr->dst_idx;
           uint32_t src_index = uop_ptr->src_idx;
           dst_index += y * op->dst_factor_out + x * op->dst_factor_in;
@@ -531,10 +529,10 @@ class Device {
   // the finish counter
   int finish_counter_{0};
   // Prof_
-  Profiler* prof_;
+  Profiler *prof_;
   // The DRAM interface
-  DRAM* dram_;
-  TlppVerify* ptlpp;
+  DRAM *dram_;
+  TlppVerify *ptlpp;
   // The SRAM
   SRAM<VTA_INP_WIDTH, VTA_BATCH * VTA_BLOCK_IN, VTA_INP_BUFF_DEPTH> inp_;
   SRAM<VTA_WGT_WIDTH, VTA_BLOCK_IN * VTA_BLOCK_OUT, VTA_WGT_BUFF_DEPTH> wgt_;
@@ -542,73 +540,93 @@ class Device {
   SRAM<VTA_UOP_WIDTH, 1, VTA_UOP_BUFF_DEPTH> uop_;
 };
 
-using tvm::runtime::TVMRetValue;
 using tvm::runtime::TVMArgs;
+using tvm::runtime::TVMRetValue;
 
 TVM_REGISTER_GLOBAL("vta.simulator.profiler_clear")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    Profiler::ThreadLocal()->Clear();
-  });
+    .set_body([](TVMArgs args, TVMRetValue *rv) {
+      Profiler::ThreadLocal()->Clear();
+    });
 TVM_REGISTER_GLOBAL("vta.simulator.profiler_status")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = Profiler::ThreadLocal()->AsJSON();
-  });
+    .set_body([](TVMArgs args, TVMRetValue *rv) {
+      *rv = Profiler::ThreadLocal()->AsJSON();
+    });
 TVM_REGISTER_GLOBAL("vta.simulator.profiler_debug_mode")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    Profiler::ThreadLocal()->debug_flag = args[0];
-  });
-}  // namespace sim
-}  // namespace vta
+    .set_body([](TVMArgs args, TVMRetValue *rv) {
+      Profiler::ThreadLocal()->debug_flag = args[0];
+    });
+} // namespace sim
+} // namespace vta
 
-void* VTAMemAlloc(size_t size, int cached) {
+void *VTAMemAlloc(size_t size, int cached) {
   return vta::sim::DRAM::Global()->Alloc(size);
 }
 
-void VTAMemFree(void* buf) {
-  vta::sim::DRAM::Global()->Free(buf);
-}
+void VTAMemFree(void *buf) { vta::sim::DRAM::Global()->Free(buf); }
 
-vta_phy_addr_t VTAMemGetPhyAddr(void* buf) {
+vta_phy_addr_t VTAMemGetPhyAddr(void *buf) {
   return vta::sim::DRAM::Global()->GetPhyAddr(buf);
 }
 
-void VTAMemCopyFromHost(void* dst, const void* src, size_t size) {
+void VTASetDramBase(uint64_t base_bytes) {
+  vta::sim::g_dram_base = base_bytes;
+  if (base_bytes != 0) {
+    // Shift all subsequent allocations up by base_bytes so the data the
+    // instructions reference at (logical*elem) now lives at (base + logical*elem).
+    vta::sim::DRAM::Global()->ReserveBase(base_bytes);
+  }
+}
+
+uint64_t VTAGetDramBase(void) { return vta::sim::g_dram_base; }
+
+void VTAMemCopyFromHost(void *dst, const void *src, size_t size) {
   memcpy(dst, src, size);
 }
 
-void VTAMemCopyToHost(void* dst, const void* src, size_t size) {
+void VTAMemCopyToHost(void *dst, const void *src, size_t size) {
   memcpy(dst, src, size);
 }
 
-void VTAFlushCache(void* vir_addr, vta_phy_addr_t phy_addr, int size) {
-}
+void VTAFlushCache(void *vir_addr, vta_phy_addr_t phy_addr, int size) {}
 
-void VTAInvalidateCache(void* vir_addr, vta_phy_addr_t phy_addr, int size) {
-}
+void VTAInvalidateCache(void *vir_addr, vta_phy_addr_t phy_addr, int size) {}
+
+bool g_use_verilator = false;
+
+#ifdef VERILATOR_BUILD_ENABLED
+// Forward declaration - defined in verilated_device.cc
+class VerilatedDevice;
+extern VTADeviceBackend *CreateVerilatedDevice();
+
+// Definition of the global Verilator run-time configuration.
+// before VTADeviceAlloc() is called.
+VerilatorRunConfig g_verilator_config;
+#endif
 
 VTADeviceHandle VTADeviceAlloc() {
-  return new vta::sim::Device();
+#ifdef VERILATOR_BUILD_ENABLED
+  if (g_use_verilator) {
+    return CreateVerilatedDevice();
+  }
+#endif
+  return new vta::sim::FunctionalDevice();
 }
 
 void VTADeviceFree(VTADeviceHandle handle) {
-  delete static_cast<vta::sim::Device*>(handle);
+  delete static_cast<VTADeviceBackend *>(handle);
 }
 
-int VTADeviceRun(VTADeviceHandle handle,
-                 vta_phy_addr_t insn_phy_addr,
-                 uint32_t insn_count,
-                 uint32_t wait_cycles) {
-  return static_cast<vta::sim::Device*>(handle)->Run(
-      insn_phy_addr, insn_count, wait_cycles);
+int VTADeviceRun(VTADeviceHandle handle, vta_phy_addr_t insn_phy_addr,
+                 uint32_t insn_count, uint32_t wait_cycles) {
+  return static_cast<VTADeviceBackend *>(handle)->Run(insn_phy_addr, insn_count,
+                                                      wait_cycles);
 }
 
-void VTAProgram(const char* bitstream) {
-}
+void VTAProgram(const char *bitstream) {}
 
 /* ADDED FUNCTION */
-int CheckTestDriver(int value){ // ADDED
+int CheckTestDriver(int value) {                         // ADDED
   printf("CheckTestDriver() successfully tested! \n\r"); // ADDED
-  return value + 1; // ADDED
+  return value + 1;                                      // ADDED
 } // ADDED
 /* END ADDED FUNCTION */
-

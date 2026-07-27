@@ -98,16 +98,6 @@ module VTAMemDPI #
     __reset <= reset;
   end
 
-  // delaying outputs by one-cycle
-  // since verilator does not support delays
-  integer i;
-  always_ff @(posedge clock) begin
-    dpi_rd_valid <= dpi1_t ' (__rd_valid);
-    for (i = 0; i < blockNb; i = i +1) begin
-      dpi_rd_bits_data[64 * i +: 64]  <= __rd_value[i];
-    end
-    dpi_rd_bits_id    <= __rd_id;
-  end
 
   assign __rd_req_valid  = dpi8_t ' (dpi_req_ar_valid);
   assign __rd_req_len    = dpi8_t ' (dpi_req_ar_len);
@@ -136,6 +126,8 @@ module VTAMemDPI #
   assign __rd_ready   = dpi8_t ' (dpi_rd_ready);
 
   // evaluate DPI function
+  // outputs are delayed by one cycle (since verilator does not support delays)
+  integer i;
   always_ff @(posedge clock) begin
     if(reset) begin
       dpi_rd_valid <= 0;

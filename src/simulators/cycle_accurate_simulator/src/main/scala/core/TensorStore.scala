@@ -20,43 +20,54 @@
 package vta.core
 
 import chisel3._
-import chisel3.util._
-import vta.util.config._
 import vta.shell._
+import vta.util.config._
 
 /** TensorStore.
- *
- * Store 1D and 2D tensors from out-scratchpad (SRAM) to main memory (DRAM).
- */
-class TensorStore(tensorType: String = "none", debug: Boolean = false)(
-    implicit p: Parameters)
-    extends Module {
-  val tp = new TensorParams(tensorType)
-  val mp = p(ShellKey).memParams
-  val io = IO(new Bundle {
+  *
+  * Store 1D and 2D tensors from out-scratchpad (SRAM) to main memory (DRAM).
+  */
+trait TensorStore extends Module {
+  val parameters: Parameters
+  val tensorType: String
+  val tp = new TensorParams(tensorType)(parameters)
+  val mp = parameters(ShellKey).memParams
+  class TensorStoreIf extends Bundle {
     val start = Input(Bool())
     val done = Output(Bool())
     val inst = Input(UInt(INST_BITS.W))
     val baddr = Input(UInt(mp.addrBits.W))
-    val vme_wr = new VMEWriteMaster
-    val tensor = new TensorClient(tensorType)
-  })
+    val vmeWr = new VMEWriteMaster()(parameters)
+    val tensor = new TensorClient(tensorType)(parameters)
+  }
+  def io: TensorStoreIf
 
-  override def desiredName = "TensorStore" + tensorType.capitalize
+}
 
-  val forceSimpleStore = false // force original store flow. Narrow it is
+object TensorStore {
+  def apply(
+      tensorType: String = "none",
+      forceSimpleStore: Boolean = false
+  )(implicit
+      p: Parameters
+  ): TensorStore = {
 
-  if (mp.dataBits >= tp.tensorSizeBits && !forceSimpleStore) {
-    // cacheline is wider than tensor size,
-    // macro memory bitwidth by cache size
-    // bank by tansor size
-    val tensorStore = Module(new TensorStoreWideVME(tensorType, debug))
-    io <> tensorStore.io
-  } else {
-    // tensor is wider than cacheline, bank by
-    // macro memory bitwidth by tensor size
-    // bank by cacheline size
-    val tensorStore = Module(new TensorStoreNarrowVME(tensorType, debug))
-    io <> tensorStore.io
+    val tp = new TensorParams(tensorType)
+    val mp = p(ShellKey).memParams
+    if (mp.dataBits >= tp.tensorSizeBits && !forceSimpleStore) {
+      // cacheline is wider than tensor size,
+      // macro memory bitwidth by cache size
+      // bank by tansor size
+      TensorStoreWideVME(tensorType).suggestName(
+        "TensorStoreWideVME" + tensorType.capitalize
+      )
+    } else {
+      // tensor is wider than cacheline, bank by
+      // macro memory bitwidth by tensor size
+      // bank by cacheline size
+      TensorStoreNarrowVME(tensorType).suggestName(
+        "TensorStoreNarrowVME" + tensorType.capitalize
+      )
+    }
   }
 }

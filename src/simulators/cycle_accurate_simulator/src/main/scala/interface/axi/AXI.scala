@@ -20,6 +20,7 @@
 package vta.interface.axi
 
 import chisel3._
+import chisel3.experimental.dataview.DataView
 import chisel3.util._
 import vta.util.genericbundle._
 
@@ -29,7 +30,7 @@ case class AXIParams(
     addrBits: Int = 32,
     dataBits: Int = 64,
     lenBits: Int = 8,
-    userBits: Int = 1
+    userBits: Int = 0
 ) {
   require(addrBits > 0)
   require(dataBits >= 8 && dataBits % 2 == 0)
@@ -46,7 +47,7 @@ case class AXIParams(
   val sizeConst = log2Ceil(dataBits / 8)
   val idConst = 0
   val userConst = if (coherent) 1 else 0
-  val burstConst = 1
+  val burstConst = BurstType.increment
   val lockConst = 0
   val cacheConst = if (coherent) 15 else 3
   val protConst = if (coherent) 4 else 0
@@ -54,8 +55,11 @@ case class AXIParams(
   val regionConst = 0
 }
 
+object BurstType extends ChiselEnum {
+  val fixed, increment, wrapped = Value
+}
 abstract class AXIBase(params: AXIParams)
-  extends GenericParameterizedBundle(params)
+    extends GenericParameterizedBundle(params)
 
 // AXILite
 
@@ -84,7 +88,7 @@ class AXILiteMaster(params: AXIParams) extends AXIBase(params) {
   val ar = Decoupled(new AXILiteAddress(params))
   val r = Flipped(Decoupled(new AXILiteReadData(params)))
 
-  def tieoff() : Unit = {
+  def tieoff(): Unit = {
     aw.valid := false.B
     aw.bits.addr := 0.U
     w.valid := false.B
@@ -104,7 +108,7 @@ class AXILiteClient(params: AXIParams) extends AXIBase(params) {
   val ar = Flipped(Decoupled(new AXILiteAddress(params)))
   val r = Decoupled(new AXILiteReadData(params))
 
-  def tieoff() : Unit = {
+  def tieoff(): Unit = {
     aw.ready := false.B
     w.ready := false.B
     b.valid := false.B
@@ -123,7 +127,7 @@ class AXIAddress(params: AXIParams) extends AXILiteAddress(params) {
   val user = UInt(params.userBits.W)
   val len = UInt(params.lenBits.W)
   val size = UInt(params.sizeBits.W)
-  val burst = UInt(params.burstBits.W)
+  val burst = BurstType()
   val lock = UInt(params.lockBits.W)
   val cache = UInt(params.cacheBits.W)
   val prot = UInt(params.protBits.W)
@@ -155,7 +159,7 @@ class AXIMaster(params: AXIParams) extends AXIBase(params) {
   val ar = Decoupled(new AXIAddress(params))
   val r = Flipped(Decoupled(new AXIReadData(params)))
 
-  def tieoff() : Unit = {
+  def tieoff(): Unit = {
     aw.valid := false.B
     aw.bits.addr := 0.U
     aw.bits.id := 0.U
@@ -193,9 +197,9 @@ class AXIMaster(params: AXIParams) extends AXIBase(params) {
   // These values are not changed in VTA
   // Usually means that there is no implementation for
   // alternative behavior
-  def setConst() : Unit = {
+  def setConst(): Unit = {
     aw.bits.user := params.userConst.U
-    aw.bits.burst := params.burstConst.U
+    aw.bits.burst := params.burstConst
     aw.bits.lock := params.lockConst.U
     aw.bits.cache := params.cacheConst.U
     aw.bits.prot := params.protConst.U
@@ -204,7 +208,7 @@ class AXIMaster(params: AXIParams) extends AXIBase(params) {
     aw.bits.size := params.sizeConst.U
     w.bits.user := params.userConst.U
     ar.bits.user := params.userConst.U
-    ar.bits.burst := params.burstConst.U
+    ar.bits.burst := params.burstConst
     ar.bits.lock := params.lockConst.U
     ar.bits.cache := params.cacheConst.U
     ar.bits.prot := params.protConst.U
@@ -221,7 +225,7 @@ class AXIClient(params: AXIParams) extends AXIBase(params) {
   val ar = Flipped(Decoupled(new AXIAddress(params)))
   val r = Decoupled(new AXIReadData(params))
 
-  def tieoff() : Unit = {
+  def tieoff(): Unit = {
     aw.ready := false.B
     w.ready := false.B
     b.valid := false.B
@@ -270,7 +274,7 @@ class XilinxAXIMaster(params: AXIParams) extends AXIBase(params) {
   val AWUSER = Output(UInt(params.userBits.W))
   val AWLEN = Output(UInt(params.lenBits.W))
   val AWSIZE = Output(UInt(params.sizeBits.W))
-  val AWBURST = Output(UInt(params.burstBits.W))
+  val AWBURST = Output(BurstType())
   val AWLOCK = Output(UInt(params.lockBits.W))
   val AWCACHE = Output(UInt(params.cacheBits.W))
   val AWPROT = Output(UInt(params.protBits.W))
@@ -295,7 +299,7 @@ class XilinxAXIMaster(params: AXIParams) extends AXIBase(params) {
   val ARUSER = Output(UInt(params.userBits.W))
   val ARLEN = Output(UInt(params.lenBits.W))
   val ARSIZE = Output(UInt(params.sizeBits.W))
-  val ARBURST = Output(UInt(params.burstBits.W))
+  val ARBURST = Output(BurstType())
   val ARLOCK = Output(UInt(params.lockBits.W))
   val ARCACHE = Output(UInt(params.cacheBits.W))
   val ARPROT = Output(UInt(params.protBits.W))
@@ -308,4 +312,77 @@ class XilinxAXIMaster(params: AXIParams) extends AXIBase(params) {
   val RLAST = Input(Bool())
   val RID = Input(UInt(params.idBits.W))
   val RUSER = Input(UInt(params.userBits.W))
+}
+
+object AXIMaster {
+  implicit val axiView: DataView[XilinxAXIMaster, AXIMaster] = DataView(
+    vab => new AXIMaster(vab.params),
+    _.AWVALID -> _.aw.valid,
+    _.AWREADY -> _.aw.ready,
+    _.AWADDR -> _.aw.bits.addr,
+    _.AWID -> _.aw.bits.id,
+    _.AWUSER -> _.aw.bits.user,
+    _.AWLEN -> _.aw.bits.len,
+    _.AWSIZE -> _.aw.bits.size,
+    _.AWBURST -> _.aw.bits.burst,
+    _.AWLOCK -> _.aw.bits.lock,
+    _.AWCACHE -> _.aw.bits.cache,
+    _.AWPROT -> _.aw.bits.prot,
+    _.AWQOS -> _.aw.bits.qos,
+    _.AWREGION -> _.aw.bits.region,
+    _.WVALID -> _.w.valid,
+    _.WREADY -> _.w.ready,
+    _.WDATA -> _.w.bits.data,
+    _.WSTRB -> _.w.bits.strb,
+    _.WLAST -> _.w.bits.last,
+    _.WID -> _.w.bits.id,
+    _.WUSER -> _.w.bits.user,
+    _.BVALID -> _.b.valid,
+    _.BREADY -> _.b.ready,
+    _.BRESP -> _.b.bits.resp,
+    _.BID -> _.b.bits.id,
+    _.BUSER -> _.b.bits.user,
+    _.ARVALID -> _.ar.valid,
+    _.ARREADY -> _.ar.ready,
+    _.ARADDR -> _.ar.bits.addr,
+    _.ARID -> _.ar.bits.id,
+    _.ARUSER -> _.ar.bits.user,
+    _.ARLEN -> _.ar.bits.len,
+    _.ARSIZE -> _.ar.bits.size,
+    _.ARBURST -> _.ar.bits.burst,
+    _.ARLOCK -> _.ar.bits.lock,
+    _.ARCACHE -> _.ar.bits.cache,
+    _.ARPROT -> _.ar.bits.prot,
+    _.ARQOS -> _.ar.bits.qos,
+    _.ARREGION -> _.ar.bits.region,
+    _.RVALID -> _.r.valid,
+    _.RREADY -> _.r.ready,
+    _.RDATA -> _.r.bits.data,
+    _.RRESP -> _.r.bits.resp,
+    _.RLAST -> _.r.bits.last,
+    _.RID -> _.r.bits.id,
+    _.RUSER -> _.r.bits.user
+  )
+}
+object AXILiteClient {
+  implicit val axiView: DataView[XilinxAXILiteClient, AXILiteClient] = DataView(
+    vab => new AXILiteClient(vab.params),
+    _.AWVALID -> _.aw.valid,
+    _.AWREADY -> _.aw.ready,
+    _.AWADDR -> _.aw.bits.addr,
+    _.WVALID -> _.w.valid,
+    _.WREADY -> _.w.ready,
+    _.WDATA -> _.w.bits.data,
+    _.WSTRB -> _.w.bits.strb,
+    _.BVALID -> _.b.valid,
+    _.BREADY -> _.b.ready,
+    _.BRESP -> _.b.bits.resp,
+    _.ARVALID -> _.ar.valid,
+    _.ARREADY -> _.ar.ready,
+    _.ARADDR -> _.ar.bits.addr,
+    _.RVALID -> _.r.valid,
+    _.RREADY -> _.r.ready,
+    _.RDATA -> _.r.bits.data,
+    _.RRESP -> _.r.bits.resp
+  )
 }

@@ -20,8 +20,8 @@
 package vta.test
 
 import chisel3._
-import vta.util.config._
 import vta.shell._
+import vta.util.config._
 
 /** Test. This generates a testbench file for simulation */
 class Test(implicit p: Parameters) extends Module {
