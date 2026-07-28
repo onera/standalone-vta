@@ -7,15 +7,15 @@ import fpga.host.parsers.ConfigParser
   * host-golden fixture directories.
   *
   * Usage: fpga.host.RegenHostGolden <binRoot> <goldenRoot> binRoot - directory
-  * produced by the Mill `compilerOutputs` task; layout:
+  * produced by the Mill `goldenOutputs` task; layout:
   * <binRoot>/<case>/compiler_output/ goldenRoot - committed fixture root:
-  * vta/fpga/src/test/resources/host-golden/
+  * vta/fpga/software/src/test/resources/host-golden/
   *
   * For each of the 4 cases the tool regenerates gen/, gen-debug/ and gen-sd/
   * using the production [[GenNnBaremetal.generate]] so the stored golden is a
   * faithful snapshot of the tool under test.
   *
-  * Run via Mill: ./mill vta.fpga.regenHostGolden
+  * Run via Mill: ./mill vta.fpga.software.regenHostGolden
   */
 object RegenHostGolden {
 

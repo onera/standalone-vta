@@ -374,16 +374,18 @@ object `package` extends build.BaseVtaModule {
     }
 
     /** Regenerate the committed host-golden fixtures under
-      * vta/fpga/src/test/resources/host-golden/ from a fresh compile of the
-      * golden cases.
+      * vta/fpga/software/src/test/resources/host-golden/ from a fresh compile
+      * of the golden cases.
       *
       * Run it (and review the diff) when a deliberate compiler or codegen
       * change makes the fpga host tests fail.
       */
     def regenHostGolden() = Task.Command {
       val binRoot = test.goldenOutputs().path / "host-golden-bin"
+      // The fixtures this module's tests read: resources of `software`, not of
+      // vta/fpga. Writing anywhere else silently regenerates nothing.
       val goldenRoot =
-        BuildCtx.workspaceRoot / "vta" / "fpga" / "src" / "test" / "resources" / "host-golden"
+        moduleDir / "src" / "test" / "resources" / "host-golden"
       runner().run(
         args = Seq(binRoot.toString, goldenRoot.toString),
         mainClass = "fpga.host.RegenHostGolden",
