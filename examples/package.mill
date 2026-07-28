@@ -1,8 +1,10 @@
 package build.examples
 
 import mill._
+import mill.api.BuildCtx
 import build.BaseVtaModule
 import build.vta.VtaPipelineModule
+import build.vta.{HasRawIrModel, SimTasks}
 
 /** One example model built for one config: the full pipeline, keyed by both.
   *
@@ -24,6 +26,69 @@ trait ExampleModule
   def onnxRoot: os.Path = moduleDir / "onnx"
 }
 
+/** One raw VTA IR fixture built for one config: compile and simulate.
+  *
+  * Composes only the front end and the simulator tasks. The baremetal, Vitis
+  * and post-synthesis traits are deliberately absent: they consume NN-mode
+  * artifacts, which a fixture compiled without nn_compiler cannot produce.
+  */
+trait IrExampleModule
+    extends Cross.Module2[String, String]
+    with HasRawIrModel
+    with SimTasks {
+
+  def configKey = crossValue2
+
+  /** This fixture's name: the first cross value. */
+  def modelKey: String = crossValue
+
+  /** The fixtures live in examples/vta_ir, this module's own directory. */
+  def irRoot: os.Path = moduleDir
+
+  /** Run both simulators on this fixture and byte-compare their outputs.
+    *
+    * The check that replaces the reference comparison for a fixture with no
+    * golden: fsim and vsim must agree byte for byte. Both read the same cached
+    * compile, so they see identical operands. Writes each run to its own
+    * subdirectory of this task's dest. Fails the build on a mismatch.
+    */
+  def check() = Task.Command {
+    val root = BuildCtx.workspaceRoot
+    val python = build.vta.compiler.pythonExe().path
+    val compOut = compile().path
+    // Resolved off the module, not off `sim`: the Task macro cannot lift a
+    // Task#apply() whose receiver is a local val of this block.
+    val fsimBin = build.vta.simulator(configKey).fsimBinary().path
+    val vsimBin = build.vta.simulator(configKey).vsimBinary().path
+    val sim = build.vta.simulator(configKey)
+    val fsimOut = Task.dest / "fsim"
+    val vsimOut = Task.dest / "vsim"
+
+    sim.launchSim(
+      fsimBin,
+      Seq("--comp-dir", compOut.toString, "--output", fsimOut.toString)
+        ++ defaultSimFlags,
+      root,
+      Task.env
+    )
+    sim.launchSim(
+      vsimBin,
+      Seq("--comp-dir", compOut.toString, "--output", vsimOut.toString)
+        ++ defaultSimFlags ++ Seq("--no-timeout"),
+      root,
+      Task.env
+    )
+    build.vta.compiler.runCompare(
+      python,
+      root,
+      fsimOut / layerOutputName,
+      vsimOut / layerOutputName,
+      Task.env
+    )
+    PathRef(Task.dest)
+  }
+}
+
 /** End-to-end pipelines for every (model, config) pair: compile, simulate,
   * check, generate baremetal.
   *
@@ -33,4 +98,13 @@ trait ExampleModule
   */
 object `package`
     extends Cross[ExampleModule](build.examplePairs)
-    with BaseVtaModule {}
+    with BaseVtaModule {
+
+  /** End-to-end runs for every (raw VTA IR fixture, config) pair.
+    *
+    * One cross instance per fixture in examples/vta_ir and config in config/;
+    * address it as `examples.vta_ir[<fixture>,<config>]`, e.g. `./mill
+    * "examples.vta_ir[matmul_16x16,vta_config].check"`.
+    */
+  object vta_ir extends Cross[IrExampleModule](build.exampleIrPairs)
+}

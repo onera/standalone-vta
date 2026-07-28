@@ -56,6 +56,8 @@ object `package` extends CompilerPythonModule { m =>
   def vtaCompilerMain = moduleDir / "vta_compiler" / "main_vta_compiler.py"
   def referenceMain = moduleDir / "reference_computation" / "reference_onnx.py"
   def checkMain = moduleDir / "reference_computation" / "check_bin.py"
+  def genIrInputsMain = moduleDir / "utils" / "gen_ir_inputs.py"
+  def compareMain = moduleDir / "reference_computation" / "compare_bin.py"
 
   // Every stage resolves its output dir from VTA_COMPILER_OUT, so `dest` is
   // threaded through the environment (matching the Makefile and the scripts).
@@ -145,6 +147,57 @@ object `package` extends CompilerPythonModule { m =>
   ): os.Path = {
     os.makeDir.all(dest)
     nnCompile(python, root, onnx, config, dest, env)
+    vtaCompile(python, root, config, dest, env)
+    dest
+  }
+
+  /** Generate the operands a raw VTA IR fixture declares, into `dest`. */
+  def genIrInputs(
+    python: os.Path,
+    root: os.Path,
+    ir: os.Path,
+    config: os.Path,
+    dest: os.Path,
+    env: Map[String, String]
+  ): Unit =
+    os.proc(python, genIrInputsMain, config, ir)
+      .call(
+        cwd = root,
+        env = envFor(env, dest),
+        stdout = os.Inherit,
+        stderr = os.Inherit
+      )
+
+  /** Byte-compare two simulator outputs; throws when they differ. */
+  def runCompare(
+    python: os.Path,
+    root: os.Path,
+    a: os.Path,
+    b: os.Path,
+    env: Map[String, String]
+  ): Unit =
+    os.proc(python, compareMain, a, b)
+      .call(cwd = root, env = env, stdout = os.Inherit, stderr = os.Inherit)
+
+  /** A raw VTA IR fixture compiled to .bin streams: copy the IR in, generate
+    * its operands, then vta_compiler.
+    *
+    * The counterpart of compileModel for the front-endless path. No nn_compiler
+    * and no reference: the fixture is already VTA IR, and nothing defines what
+    * its output should be. The copy is what makes vtaCompile work, since that
+    * globs the .json files in `dest`.
+    */
+  def compileIr(
+    python: os.Path,
+    root: os.Path,
+    ir: os.Path,
+    config: os.Path,
+    dest: os.Path,
+    env: Map[String, String]
+  ): os.Path = {
+    os.makeDir.all(dest)
+    os.copy.into(ir, dest, replaceExisting = true)
+    genIrInputs(python, root, ir, config, dest, env)
     vtaCompile(python, root, config, dest, env)
     dest
   }

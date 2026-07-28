@@ -254,8 +254,8 @@ object `package` extends build.BaseVtaModule {
     }
   }
 
-  /** FPGA software generator and tools module, contains everything needed to run
-    * models on heterogenous Xilinx SoC.
+  /** FPGA software generator and tools module, contains everything needed to
+    * run models on heterogenous Xilinx SoC.
     */
   object software extends build.VtaScalaModule { m =>
 

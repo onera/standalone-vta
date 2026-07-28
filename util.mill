@@ -153,6 +153,23 @@ def configNames = BuildCtx.watchValue(
   */
 def examplePairs = exampleModels.flatMap(m => configNames.map(c => (m, c)))
 
+/** Plain (non-Task) path to the raw VTA IR fixtures, listed eagerly for the
+  * same reason as onnxDir.
+  */
+def vtaIrDir = BuildCtx.workspaceRoot / "examples" / "vta_ir"
+
+/** The hand-written VTA IR fixtures under examples/vta_ir, as cross keys
+  * (extension stripped). watchValue: adding or removing a fixture updates the
+  * cross entries without touching the build file. Mirrors exampleModels.
+  */
+def exampleIrModels = BuildCtx.watchValue(
+  os.list(vtaIrDir).filter(_.ext == "json").map(_.baseName).sorted
+)
+
+/** Every (IR fixture, config) pair - the Cross keys for `examples.vta_ir`. */
+def exampleIrPairs =
+  exampleIrModels.flatMap(m => configNames.map(c => (m, c)))
+
 /** Plain (non-Task) path to the FPGA board definitions, listed eagerly for the
   * same reason as configDirPath.
   */

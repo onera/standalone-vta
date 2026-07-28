@@ -80,11 +80,13 @@ trait ConfigModule extends build.ConfigCrossModule {
   ) =
     os.proc(binary, flags).call(env = env, cwd = cwd, stdout = os.Inherit)
 
-  def launchFSim(args: Args) = Task.Anon{
-    os.proc(fsimBinary().path,args.value).call(cwd = BuildCtx.workspaceRoot,env = Task.env,stdout = os.Inherit) 
+  def launchFSim(args: Args) = Task.Anon {
+    os.proc(fsimBinary().path, args.value)
+      .call(cwd = BuildCtx.workspaceRoot, env = Task.env, stdout = os.Inherit)
   }
   def launchVSim(args: Args) = Task.Anon {
-    os.proc(vsimBinary().path,args.value).call(cwd = BuildCtx.workspaceRoot,env = Task.env,stdout = os.Inherit) 
+    os.proc(vsimBinary().path, args.value)
+      .call(cwd = BuildCtx.workspaceRoot, env = Task.env, stdout = os.Inherit)
   }
 
   /** Build the functional simulator for the active config and launch it on an
@@ -94,7 +96,7 @@ trait ConfigModule extends build.ConfigCrossModule {
     *   flags for the fsim binary, e.g. `--comp-dir <compiler_output> --layer 3
     *   --verbose`. Defaults to compiler_output/ at the repo root.
     */
-  def fsim(args: Args) = Task.Command {launchFSim(args)()}
+  def fsim(args: Args) = Task.Command { launchFSim(args)() }
 
   /** Build the Verilated RTL simulator for the active config and launch it on
     * an already-compiled model. No compile, no reference check.
@@ -103,7 +105,7 @@ trait ConfigModule extends build.ConfigCrossModule {
     *   flags for the vsim binary, e.g. `--comp-dir <compiler_output>
     *   --no-timeout --trace`. Defaults to compiler_output/ at the repo root.
     */
-  def vsim(args: Args) = Task.Command (launchVSim(args)())
+  def vsim(args: Args) = Task.Command(launchVSim(args)())
 }
 
 /** The two C++ simulators: fsim (fast functional model) and vsim (the Chisel

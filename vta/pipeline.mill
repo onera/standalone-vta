@@ -16,14 +16,40 @@ import mill.api.BuildCtx
   * an override conflict.
   */
 
+/** A model compiled to VTA binaries, whatever front end produced it.
+  *
+  * The axis the simulator tasks hang off: they need a compiled model and know
+  * whether it has a golden to check against, but not where it came from.
+  */
+trait HasCompiledModel extends Module with HasVtaConfig {
+
+  /** This model's name, which keys its outputs. */
+  def modelKey: String
+
+  /** Compile this model for this config, writing the .bin / .csv streams to
+    * this task's dest.
+    */
+  def compile: Task.Simple[PathRef]
+
+  /** Whether a golden reference exists, so the simulator tasks check their
+    * output against it. A hand-written VTA IR fixture has none.
+    */
+  def hasReference: Boolean = true
+
+  /** Flags prepended to every simulator invocation.
+    *
+    * Emitted before the caller's args so repeating a flag overrides them: the
+    * fsim parser assigns on each occurrence, so the last one wins
+    * (vta/simulator/src/fsim_main.cc:80).
+    */
+  def defaultSimFlags: Seq[String] = Seq.empty
+}
+
 /** An ONNX model and its compilation to VTA binaries. */
-trait HasOnnxModel extends Module with HasVtaConfig {
+trait HasOnnxModel extends HasCompiledModel {
 
   /** Directory the model files live in. */
   def onnxRoot: os.Path
-
-  /** This model's name: `<onnxRoot>/<modelKey>.onnx`. */
-  def modelKey: String
 
   def onnxDir = onnxRoot
 
@@ -57,8 +83,59 @@ trait HasOnnxModel extends Module with HasVtaConfig {
   }
 }
 
+/** A hand-written VTA IR fixture and its compilation to VTA binaries.
+  *
+  * The front-endless path: the fixture is already VTA IR, so vta_compiler runs
+  * alone. There is no ONNX model, hence no nn_compiler and no reference. That
+  * also rules out NN mode, since run_nn reads dependency.csv and input_nn.bin
+  * which only nn_compiler writes (vta/simulator/src/fsim_nn.cc:37-41), so these
+  * fixtures run single-layer.
+  */
+trait HasRawIrModel extends HasCompiledModel {
+
+  /** Directory the IR fixtures live in. */
+  def irRoot: os.Path
+
+  /** The one VTA IR layer a fixture holds, and the layer the simulators run. */
+  def irLayer: Int = 0
+
+  /** This fixture's IR: `<irRoot>/<modelKey>.json`. */
+  def irPath = Task.Source(irRoot / os.RelPath(s"$modelKey.json"))
+
+  /** The file a single-layer simulator run writes into its output dir
+    * (vta/simulator/src/fsim_single_layer.cc:140).
+    */
+  def layerOutputName: String = s"layer${irLayer}_output.bin"
+
+  override def hasReference = false
+
+  override def defaultSimFlags = Seq("--layer", irLayer.toString)
+
+  /** Compile this fixture for this config: generate its operands, then
+    * vta_compiler.
+    *
+    * Writes the .bin / .csv streams to this task's dest. Cached: re-runs only
+    * when the fixture, the config content or the compiler sources change.
+    */
+  def compile = Task {
+    val root = BuildCtx.workspaceRoot
+    val python = build.vta.compiler.pythonExe().path
+    build.vta.compiler.sources() // invalidate on compiler-code change
+    configSignature() // invalidate on config-content change
+    build.vta.compiler.compileIr(
+      python,
+      root,
+      irPath().path,
+      configPath,
+      Task.dest,
+      Task.env
+    )
+    PathRef(Task.dest)
+  }
+}
+
 /** Functional and Verilated RTL simulation of a compiled model. */
-trait SimTasks extends HasOnnxModel {
+trait SimTasks extends HasCompiledModel {
 
   private def simStage(
     python: os.Path,
@@ -79,7 +156,10 @@ trait SimTasks extends HasOnnxModel {
         root,
         env
       )
-    build.vta.compiler.runCheck(python, root, compOut, simOut, env, isRtl)
+    // A fixture without a golden has nothing to check against; the caller
+    // compares the two simulators instead.
+    if (hasReference)
+      build.vta.compiler.runCheck(python, root, compOut, simOut, env, isRtl)
   }
 
   /** Run the functional (C++) simulator on this example and check its output
@@ -103,7 +183,7 @@ trait SimTasks extends HasOnnxModel {
       compOut = compOut,
       simOut = Task.dest,
       binary = fsim,
-      flags = args.value,
+      flags = defaultSimFlags ++ args.value,
       env = Task.env
     )
     PathRef(Task.dest)
@@ -130,19 +210,33 @@ trait SimTasks extends HasOnnxModel {
       compOut = compOut,
       simOut = Task.dest,
       binary = vsim,
-      flags = args.value,
+      flags = defaultSimFlags ++ args.value,
       env = Task.env,
       isRtl = true
     )
     PathRef(Task.dest)
   }
 
+}
+
+/** The per-layer fsim goldens, and so the NN-mode half of the pipeline.
+  *
+  * Split out of SimTasks because [[layerDumps]] runs the simulator in
+  * full-network mode, which needs the dependency.csv and input_nn.bin that only
+  * nn_compiler writes. Mixing it in is therefore a claim that this model came
+  * through the ONNX front end; a raw VTA IR fixture must not inherit it, or it
+  * would expose a task that can only fail. Its two consumers, BaremetalTasks
+  * and PostSynthTasks, name it explicitly.
+  */
+trait LayerDumpTasks extends SimTasks {
+
   /** Per-layer fsim golden dumps for this example: input<suffix>.bin and
     * output<suffix>.bin in this task's dest.
     *
     * The reference set the on-board isolation runners and the post-synth
     * compare check against. Compiles the model first if stale; cached, so the
-    * dump is shared by [[genBaremetalDebug]] and [[postSynth]].
+    * dump is shared by [[BaremetalTasks.genBaremetalDebug]] and
+    * [[PostSynthTasks.postSynth]].
     */
   def layerDumps = Task {
     val compOut = compile().path
@@ -150,20 +244,22 @@ trait SimTasks extends HasOnnxModel {
     build.vta
       .simulator(configKey)
       .launchFSim(
-        Args(Seq(
-          "--comp-dir",
-          compOut.toString,
-          "--output",
-          Task.dest.toString,
-          "--dump-layers"
-        )),
+        Args(
+          Seq(
+            "--comp-dir",
+            compOut.toString,
+            "--output",
+            Task.dest.toString,
+            "--dump-layers"
+          )
+        )
       )
     PathRef(Task.dest)
   }
 }
 
 /** Baremetal PS codegen and the SD-card file sets. */
-trait BaremetalTasks extends SimTasks {
+trait BaremetalTasks extends LayerDumpTasks {
 
   /** DDR base address used by the baremetal codegen, from -Dvta.ddr.base
     * (default 0x0). Must match the board's DDR base, e.g. 0x10000000.
@@ -396,7 +492,7 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
 }
 
 /** Post-synthesis gate-level checking. */
-trait PostSynthTasks extends SimTasks with HasFpgaBoard {
+trait PostSynthTasks extends LayerDumpTasks with HasFpgaBoard {
 
   /** End-to-end post-synthesis gate-level check for this example on the active
     * board (-Dvta.board.name): compile the model, dump the per-layer fsim
@@ -482,6 +578,9 @@ trait PostSynthTasks extends SimTasks with HasFpgaBoard {
   *
   * Mix this in and supply `configKey`, `modelKey` and `onnxRoot`; everything
   * else follows. `VitisTasks` and `PostSynthTasks` between them already extend
-  * the rest of the chain, so naming those two composes all six.
+  * the rest of the chain, so naming those two composes all six. `HasOnnxModel`
+  * is named explicitly because the simulator tasks now hang off the front-end
+  * agnostic `HasCompiledModel`: this is the pipeline for an ONNX model, so it
+  * is what supplies the front end.
   */
-trait VtaPipelineModule extends VitisTasks with PostSynthTasks
+trait VtaPipelineModule extends VitisTasks with PostSynthTasks with HasOnnxModel
