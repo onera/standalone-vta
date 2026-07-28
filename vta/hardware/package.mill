@@ -71,27 +71,17 @@ object `package` extends build.VtaScalaModule with PublishModule { m =>
 
   def publishVersion = "6.0-SNAPSHOT"
 
-  /** Content hash of the active config JSON, for the emit tasks below.
-    *
-    * None when the name does not resolve under config/ (e.g. a resource-based
-    * test config).
-    */
-  // Needed because the forked emit JVM only receives the config *filename* (via
-  // forkArgs -Dvta.config.file): without this, editing the file in place would
-  // not invalidate the cached emit.
-  def vtaConfigSignature = Task.Input {
-    // Same property BaseVtaModule.vtaConfigFile reads (Task.Input cannot
-    // depend on another task).
-    val name = sys.props.getOrElse("vta.config.file", build.defaultConfigName)
-    build.configSig(os.Path(name, BuildCtx.workspaceRoot / "config"))
-  }
+  // The one config-keyed instance the flat `emitVta*Config` commands export
+  // from, selected by the global -Dvta.config.file. Private: `configs` already
+  // exposes every instance, and a public def would add a second spelling of
+  // each to the task namespace.
+  private def activeConfigModule: ConfigModule = configs(build.activeConfigKey)
 
-  /** Shared body for vtaSimConfig/vtaFpgaConfig (flat, global-prop-driven) and
-    * configs[X]'s versions (cross-value-driven): emit a Chisel config's SV/tcl
+  /** Shared body for the per-config emit tasks: emit a Chisel config's SV/tcl
     * output with an explicit -Dvta.config.file, scoped to just this call.
     * RunModule.Runner.run's forkArgs parameter *replaces* (not appends to) the
-    * module's own default forkArgs, so this works whether the caller wants the
-    * global config or a specific cross value.
+    * module's own default forkArgs, so the emit is pinned to the cross value
+    * regardless of what the module's default forkArgs carry.
     */
   def emitConfig(
     runner: mill.javalib.RunModule.Runner,
@@ -106,22 +96,6 @@ object `package` extends build.VtaScalaModule with PublishModule { m =>
       workingDir = BuildCtx.workspaceRoot
     )
     PathRef(dest)
-  }
-
-  /** Emit VTAShell.sv for the active config (simulation shell, DPI ports) into
-    * a cached dir.
-    *
-    * This is what vta.simulator's vsim is Verilated from; use
-    * [[emitVtaSimConfig]] to get a copy under build/emitted/.
-    */
-  def vtaSimConfig = Task {
-    vtaConfigSignature()
-    emitConfig(
-      runner(),
-      Task.dest,
-      vtaConfigFile(),
-      "vta.exporters.TestDefaultPynqConfigEmitter"
-    )
   }
 
   /** Copy an emitted-config task's output dir to a stable location under
@@ -141,46 +115,33 @@ object `package` extends build.VtaScalaModule with PublishModule { m =>
   /** Export the simulation RTL (VTAShell.sv, DPI shell) for the active config
     * to build/emitted/vta-sim-shell/.
     *
-    * A convenience copy of [[vtaSimConfig]] for inspecting the SV by hand; the
-    * Verilated simulator does not need it.
+    * A convenience copy of `configs[<config>].vtaSimConfig` for inspecting the
+    * SV by hand; the Verilated simulator consumes that task directly and does
+    * not need this one.
     *
     * @param args
     *   ignored.
     */
   def emitVtaSimConfig(args: Args) = Task.Command {
     val outDir = BuildCtx.workspaceRoot / "build" / "emitted" / "vta-sim-shell"
-    exportEmitted(vtaSimConfig(), outDir, "sim")
+    exportEmitted(activeConfigModule.vtaSimConfig(), outDir, "sim")
   }
 
-  /** Emit the Xilinx RTL plus package_ip.tcl for the active config into a
-    * cached dir.
+  /** The RTL emitters, one independently cached instance per config in config/.
     *
-    * The input of the Vivado flow (vta.fpga's fpgaProject / fpgaSynth), which
-    * reuses it instead of re-emitting. Depends on the config only, never on a
-    * compiled model, and needs no Vivado itself.
-    */
-  def vtaFpgaConfig = Task {
-    vtaConfigSignature()
-    emitConfig(
-      runner(),
-      Task.dest,
-      vtaConfigFile(),
-      "vta.exporters.DefaultXilinxConfigEmitter"
-    )
-  }
-
-  /** The same RTL emitters, one independently cached instance per config in
-    * config/.
-    *
-    * Use these to emit for a config other than the global -Dvta.config.file
-    * one: `./mill vta.hardware.configs[vta_w8b].vtaFpgaConfig`. The Scala code
-    * itself is compiled once, regardless of config.
+    * Address them as `./mill vta.hardware.configs[vta_w8b].vtaFpgaConfig`; the
+    * `emitVta*Config` commands above are the same thing for whichever config
+    * -Dvta.config.file selects, copied to a stable path. The Scala code itself
+    * is compiled once, regardless of config.
     */
   object configs extends Cross[ConfigModule](build.configNames)
   trait ConfigModule extends build.ConfigCrossModule {
 
-    /** Emit the simulation RTL (VTAShell.sv) for this config. See
-      * vta.hardware.vtaSimConfig.
+    /** Emit VTAShell.sv for this config (simulation shell, DPI ports) into a
+      * cached dir.
+      *
+      * This is what vta.simulator[<config>]'s vsim is Verilated from; use
+      * [[emitVtaSimConfig]] to get a copy under build/emitted/.
       */
     def vtaSimConfig = Task {
       configSignature()
@@ -192,8 +153,12 @@ object `package` extends build.VtaScalaModule with PublishModule { m =>
       )
     }
 
-    /** Emit the Xilinx RTL + package_ip.tcl for this config. See
-      * vta.hardware.vtaFpgaConfig.
+    /** Emit the Xilinx RTL plus package_ip.tcl for this config into a cached
+      * dir.
+      *
+      * The input of the Vivado flow (vta.fpga.targets[...]'s fpgaProject /
+      * fpgaSynth), which reuses it instead of re-emitting. Depends on the
+      * config only, never on a compiled model, and needs no Vivado itself.
       */
     def vtaFpgaConfig = Task {
       configSignature()
@@ -223,8 +188,8 @@ object `package` extends build.VtaScalaModule with PublishModule { m =>
   /** Export the Xilinx RTL + package_ip.tcl for the active config, ready to
     * package as an IP.
     *
-    * Only needed to drive Vivado by hand; `vta.fpga.fpgaSynth` consumes
-    * [[vtaFpgaConfig]] directly.
+    * Only needed to drive Vivado by hand; `vta.fpga.targets[...].fpgaSynth`
+    * consumes `configs[<config>].vtaFpgaConfig` directly.
     *
     * @param args
     *   optional absolute destination dir (default:
@@ -235,7 +200,7 @@ object `package` extends build.VtaScalaModule with PublishModule { m =>
       if (args.value.isEmpty)
         BuildCtx.workspaceRoot / "build" / "emitted" / "vta-xilinx-shell"
       else os.Path(args.value.head)
-    exportEmitted(vtaFpgaConfig(), outDir, "fpga")
+    exportEmitted(activeConfigModule.vtaFpgaConfig(), outDir, "fpga")
   }
 
   /** Emit a SystemVerilog testbench that replays a compiled model against the

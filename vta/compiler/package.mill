@@ -7,9 +7,11 @@ import mill.api.BuildCtx
 /** The Python compiler: ONNX model -> VTA IR -> instruction/uop/data .bin
   * streams, plus the ONNX reference used to check simulator output.
   *
-  * Needs a Python env with the compiler dependencies active on PATH. Examples
-  * call these stages through `examples[<model>,<config>].compile`; use
-  * [[compile]] here to compile an arbitrary model by hand.
+  * Needs a Python env with the compiler dependencies active on PATH. This
+  * module holds no tasks of its own: it is the set of plain functions the
+  * example pipelines call, through `examples.onnx[<model>,<config>].compile`
+  * (both stages) and `examples.ir[<fixture>,<config>].compile` (vta_compiler
+  * alone).
   */
 object `package` extends Module { m =>
 
@@ -34,10 +36,11 @@ object `package` extends Module { m =>
   private def envFor(env: Map[String, String], dest: os.Path) =
     env + ("VTA_COMPILER_OUT" -> dest.toString)
 
-  /** Compiler uses the current python
-   * source your venv/pixi env before, or run `pixi run`
-   * @return the python string
-   */
+  /** The python the compiler stages run under: whatever is first on PATH.
+    *
+    * Activate your venv/pixi env before invoking Mill, or prefix the command
+    * with `pixi run`.
+    */
   def python = "python"
 
   def nnCompile(
@@ -59,7 +62,9 @@ object `package` extends Module { m =>
     dest: os.Path,
     env: Map[String, String]
   ): Unit = {
-    // The IR JSONs are produced by runNn into `dest`; resolve the glob here.
+    // The IR JSONs are already in `dest` - written there by [[nnCompile]] on
+    // the ONNX path, or copied in by [[compileIr]] on the raw IR one. Resolve
+    // the glob here rather than passing a pattern the shell would not expand.
     val irs = os.list(dest).filter(_.ext == "json").map(_.toString).sorted
     os.proc(python, vtaCompilerMain, "--summary", config, irs)
       .call(
@@ -133,13 +138,14 @@ object `package` extends Module { m =>
       )
 
   /** Byte-compare two simulator outputs; throws when they differ. */
-  def runCompare(
-    a: os.Path,
-    b: os.Path,
-    env: Map[String, String]
-  ): Unit =
+  def runCompare(a: os.Path, b: os.Path, env: Map[String, String]): Unit =
     os.proc(python, compareMain, a, b)
-      .call(cwd = BuildCtx.workspaceRoot, env = env, stdout = os.Inherit, stderr = os.Inherit)
+      .call(
+        cwd = BuildCtx.workspaceRoot,
+        env = env,
+        stdout = os.Inherit,
+        stderr = os.Inherit
+      )
 
   /** A raw VTA IR fixture compiled to .bin streams: copy the IR in, generate
     * its operands, then vta_compiler.

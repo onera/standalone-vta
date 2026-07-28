@@ -10,26 +10,18 @@ import mill.api.BuildCtx
   *
   * An FPGA build is identified by a (config, board) pair: see [[targets]]. To
   * go from a model to a flashable workspace in one step, prefer
-  * `examples[<model>,<config>].createVitisProject`.
+  * `examples.onnx[<model>,<config>].createVitisProject`.
   */
-object `package` extends build.BaseVtaModule {
+object `package` extends Module {
 
-  /** Config key of the global -Dvta.config.file (default vta_config), read
-    * eagerly like build.defaultBoardName: the flat synthesis tasks use it to
-    * select a [[targets]] Cross instance, whose keys must be known before the
-    * task graph exists.
-    */
-  def activeConfigKey: String =
-    sys.props
-      .getOrElse("vta.config.file", build.defaultConfigName)
-      .stripSuffix(".json")
-
-  /** The [[targets]] instance of the active (config, board) pair: the global
-    * -Dvta.config.file and -Dvta.board.name. The flat fpgaProject / fpgaSynth
-    * tasks delegate here, so the flat and crossed forms share one cache.
-    */
-  def activeTarget: TargetModule =
-    targets(activeConfigKey, build.defaultBoardName)
+  // The [[targets]] instance of the active (config, board) pair: the global
+  // -Dvta.config.file and -Dvta.board.name. The flat fpgaProject / fpgaSynth
+  // tasks delegate here, so the flat and crossed forms share one cache.
+  // Private: it is an alias for a module Mill already exposes as
+  // vta.fpga.targets[<config>,<board>], and a public def would add a third
+  // spelling of the same build to the task namespace.
+  private def activeTarget: TargetModule =
+    targets(build.activeConfigKey, build.defaultBoardName)
 
   /** Optional shallow root for the heavy Xilinx project trees
     * (-Dvta.xil.out=<dir>): the Vivado build, the OOC netlist project and the
@@ -193,7 +185,7 @@ object `package` extends build.BaseVtaModule {
       *
       * The netlist depends on the config (via the emitted debug shell), the
       * board (part, clock) and the synthesis flow only - never on a model or a
-      * layer subset - so every `examples[...].postSynth` run against this
+      * layer subset - so every `examples.onnx[...].postSynth` run against this
       * (config, board) reuses it.
       */
     def oocNetlist = Task {
@@ -224,11 +216,12 @@ object `package` extends build.BaseVtaModule {
       * (config, board), from its synthesized XSA ([[fpgaSynth]]'s manifest).
       *
       * The platform is model-independent: per-model app components are added on
-      * top by `examples[<model>,<config>].createVitisProject` (or the flat
-      * [[createVitisProject]]), all sharing this one workspace. xilOutffs is
-      * enabled at build time so SD-loader apps never need a platform rebuild; a
-      * changed XSA refreshes the platform in place (update_hw). Persistent;
-      * returns the workspace dir (as a String: a Vitis workspace is not worth
+      * top by `examples.onnx[<model>,<config>].createVitisProject` (or the flat
+      * [[software.createVitisProject]]), all sharing this one workspace. The
+      * xilffs (FAT filesystem) library is enabled in the platform BSP at build
+      * time so SD-loader apps never need a platform rebuild; a changed XSA
+      * refreshes the platform in place (update_hw). Persistent; returns the
+      * workspace dir (as a String: a Vitis workspace is not worth
       * content-hashing). Honors -Dvta.xil.out.
       */
     def vitisPlatform = Task(persistent = true) {
@@ -266,7 +259,7 @@ object `package` extends build.BaseVtaModule {
       * vta_hw_config.h) from a compiler_output dir, for the active config.
       *
       * Raw CLI pass-through, uncached. For an example model, prefer the cached
-      * `examples[<model>,<config>].genBaremetal`.
+      * `examples.onnx[<model>,<config>].genBaremetal`.
       *
       * @param args
       *   the compiler_output dir, then GenNnBaremetal flags: `--outdir <dir>`,
@@ -418,10 +411,10 @@ object `package` extends build.BaseVtaModule {
     /** Plain function: add app component(s) to an existing workspace whose
       * platform is already built (script add-app mode, no --xsa). genDir is
       * optional so the config-only createVitisProject Command below can omit it
-      * (the script falls back to its own software/gen default) while
-      * build.mill's per-example task passes a specific model's genBaremetal()
-      * output. namePrefix keeps the apps of several models apart in the shared
-      * workspace (<prefix>_<runner>[_<loader>]).
+      * (the script falls back to its own software/gen default) while the
+      * per-example task in vta/pipeline.mill passes a specific model's
+      * genBaremetal() output. namePrefix keeps the apps of several models apart
+      * in the shared workspace (<prefix>_<runner>[_<loader>]).
       */
     def runCreateVitisApps(
       env: Map[String, String],
@@ -453,8 +446,8 @@ object `package` extends build.BaseVtaModule {
       *
       * Uses the checked-in software/gen/ headers and the default `vta` app-name
       * prefix; for a specific model, use
-      * `examples[<model>,<config>].createVitisProject` instead (per-model gen
-      * headers and app names).
+      * `examples.onnx[<model>,<config>].createVitisProject` instead (per-model
+      * gen headers and app names).
       *
       * @param args
       *   extra flags forwarded to create_vitis_workspace.py, e.g. `--runner
@@ -656,17 +649,17 @@ object `package` extends build.BaseVtaModule {
     }
 
     /** Plain function: run one stage of the split Vivado build for a given
-      * (config, board, out) triple. Shared by fpgaProject (create the project,
-      * --skip-synth) and fpgaSynth (reopen it and synth/impl/XSA,
-      * --skip-project), for both this module and the per-config Cross submodule
-      * below. hardware.vtaFpgaConfig() owns the RTL emit (cached by Mill) and
-      * is handed over as --emit-dir; propagateEnv because Vivado needs XILINX_*
-      * / DISPLAY. `stageFlags` selects the stage: Seq("--skip-synth") for the
-      * project stage, Seq("--skip-package", "--skip-project") for the synth
-      * stage. Takes an already-resolved Runner (callers pass `runner()`) since
-      * Task APIs can't be invoked outside a Task{} block. The vivado executable
-      * is resolved by BuildFpga itself from $XILINX_VIVADO (propagateEnv makes
-      * the live env visible to the fork).
+      * (config, board, out) triple. Shared by the two stages of every
+      * [[targets]] instance: fpgaProject (create the project, --skip-synth) and
+      * fpgaSynth (reopen it and synth/impl/XSA, --skip-project).
+      * hardware.configs[<config>].vtaFpgaConfig() owns the RTL emit (cached by
+      * Mill) and is handed over as --emit-dir; propagateEnv because Vivado
+      * needs XILINX_* / DISPLAY. `stageFlags` selects the stage:
+      * Seq("--skip-synth") for the project stage, Seq("--skip-package",
+      * "--skip-project") for the synth stage. Takes an already-resolved Runner
+      * (callers pass `runner()`) since Task APIs can't be invoked outside a
+      * Task{} block. The vivado executable is resolved by BuildFpga itself from
+      * $XILINX_VIVADO (propagateEnv makes the live env visible to the fork).
       */
     def runBuildFpga(
       runner: mill.javalib.RunModule.Runner,

@@ -1,8 +1,6 @@
 package build.examples
 
 import mill._
-import mill.api.BuildCtx
-import build.BaseVtaModule
 import build.vta.VtaPipelineModule
 import build.vta.{HasRawIrModel, SimTasks}
 
@@ -93,7 +91,7 @@ trait IrExampleModule
   *     fpga)
   *   - ir : raw ir files (vta_compiler -> simulation)
   */
-object `package` extends BaseVtaModule {
+object `package` extends Module {
 
   /** End-to-end pipelines for every (model, config) pair: compile, simulate,
     * check, generate baremetal.

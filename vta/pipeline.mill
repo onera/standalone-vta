@@ -10,10 +10,9 @@ import mill.api.BuildCtx
   *
   * Every trait here that needs the config reaches it through HasVtaConfig alone
   * (directly, or transitively through another trait in this file), and the
-  * board-dependent ones through HasFpgaBoard; both come from util.mill. None of
-  * them mix in BaseVtaModule: it defines configKey and configSignature too, as
-  * Tasks off the global -Dvta.config.file, and mixing both into one module is
-  * an override conflict.
+  * board-dependent ones through HasFpgaBoard; both come from util.mill. Nothing
+  * here reads the global -Dvta.config.file: an example's config is a cross
+  * value, which is what makes each (model, config) pair cache independently.
   */
 
 /** A model compiled to VTA binaries, whatever front end produced it.
@@ -66,12 +65,7 @@ trait HasOnnxModel extends HasCompilableModel {
     configSignature() // invalidate on config-content change
     val compOut = Task.dest
     build.vta.compiler
-      .compileModel(
-        onnxPath().path,
-        configPath,
-        compOut,
-        Task.env
-      )
+      .compileModel(onnxPath().path, configPath, compOut, Task.env)
     build.vta.compiler
       .runReference(onnxPath().path, compOut, Task.env)
     PathRef(compOut)
@@ -114,12 +108,7 @@ trait HasRawIrModel extends HasCompilableModel {
     */
   def compile = Task {
     configSignature() // invalidate on config-content change
-    build.vta.compiler.compileIr(
-      irPath().path,
-      configPath,
-      Task.dest,
-      Task.env
-    )
+    build.vta.compiler.compileIr(irPath().path, configPath, Task.dest, Task.env)
     PathRef(Task.dest)
   }
 }
@@ -160,7 +149,6 @@ trait SimTasks extends HasCompilableModel {
     *   run and print a single VTA layer.
     */
   def fsim(args: Args) = Task.Command {
-    val root = BuildCtx.workspaceRoot
     val compOut = compile().path
     val fsim = build.vta.simulator(configKey).fsimBinary().path
     simStage(
@@ -184,7 +172,6 @@ trait SimTasks extends HasCompilableModel {
     *   (waveform per layer), `--layer 3`, `--dump-layers`.
     */
   def vsim(args: Args) = Task.Command {
-    val root = BuildCtx.workspaceRoot
     val compOut = compile().path
     val vsim = build.vta.simulator(configKey).vsimBinary().path
     simStage(
@@ -226,13 +213,13 @@ trait LayerDumpTasks extends SimTasks {
       .simulator(configKey)
       .launchSim(
         fsim,
-          Seq(
-            "--comp-dir",
-            compOut.toString,
-            "--output",
-            Task.dest.toString,
-            "--dump-layers"
-          ),
+        Seq(
+          "--comp-dir",
+          compOut.toString,
+          "--output",
+          Task.dest.toString,
+          "--dump-layers"
+        ),
         env = Task.env
       )
     PathRef(Task.dest)
@@ -245,8 +232,9 @@ trait BaremetalTasks extends LayerDumpTasks {
   /** DDR base address used by the baremetal codegen, from -Dvta.ddr.base
     * (default 0x0). Must match the board's DDR base, e.g. 0x10000000.
     *
-    * Duplicates BaseVtaModule's task of the same name, which this trait cannot
-    * mix in (see the file header); the default itself is shared.
+    * The one knob of this pipeline that is still a global property rather than
+    * a cross value, because it is a property of the board the artifacts are
+    * flashed to, not of the (model, config) pair they are built from.
     */
   def vtaDdrBase = Task.Input {
     sys.props.getOrElse("vta.ddr.base", build.defaultDdrBase)
@@ -559,9 +547,10 @@ trait PostSynthTasks extends LayerDumpTasks with HasFpgaBoard {
   *
   * Mix this in and supply `configKey`, `modelKey` and `onnxRoot`; everything
   * else follows. `VitisTasks` and `PostSynthTasks` between them already extend
-  * the rest of the chain, so naming those two composes all six. `HasOnnxModel`
-  * is named explicitly because the simulator tasks now hang off the front-end
-  * agnostic `HasCompiledModel`: this is the pipeline for an ONNX model, so it
-  * is what supplies the front end.
+  * the rest of the chain (BaremetalTasks -> LayerDumpTasks -> SimTasks ->
+  * HasCompilableModel), so naming those two pulls in every task trait in this
+  * file. `HasOnnxModel` is named on top because the simulator tasks hang off
+  * the front-end agnostic `HasCompilableModel`: this is the pipeline for an
+  * ONNX model, so it is what supplies the front end.
   */
 trait VtaPipelineModule extends VitisTasks with PostSynthTasks with HasOnnxModel

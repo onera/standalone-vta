@@ -25,56 +25,17 @@ val defaultDdrBase = "0x0"
 /** Default board when -Dvta.board.name is unset. */
 val defaultBoard = "zcu104"
 
-/** Hardware-config plumbing shared by every VTA module: which config JSON is
-  * active, and the tasks that must be invalidated when its content changes.
+/** Key (name without ".json") of the config selected globally with
+  * `-Dvta.config.file`, default vta_config.
   *
-  * The active config is selected globally with `-Dvta.config.file=<name>.json`
-  * (default vta_config.json); the `configs[...]` cross modules take theirs from
-  * the cross value instead.
+  * A plain value, not a Task.Input: its only callers use it to pick a
+  * `configs[...]` / `targets[...]` Cross instance, and Cross keys must be known
+  * before the task graph exists. Untracked is fine, since a different config
+  * resolves to a different, independently cached module instance rather than
+  * dirtying one.
   */
-trait BaseVtaModule extends Module {
-
-  /** The config/ directory: every hardware config JSON lives here. */
-  def configDir = Task.Source(BuildCtx.workspaceRoot / "config")
-
-  /** All hardware config JSONs available under config/. */
-  def configFiles = Task { os.list(configDir().path).filter(_.ext == "json") }
-
-  /** File name of the active config, from -Dvta.config.file (default
-    * vta_config.json). Set it to switch the whole build to another config.
-    */
-  def vtaConfigFile = Task.Input {
-    sys.props.getOrElse("vta.config.file", defaultConfigName)
-  }
-
-  /** Absolute path to the active config JSON.
-    *
-    * Falls back to config/<name> when the name is not found there (e.g. a
-    * resource-only test config).
-    */
-  def vtaConfigPath = Task {
-    val name = vtaConfigFile()
-    configFiles().find(_.last == name).getOrElse(configDir().path / name)
-  }
-
-  /** Name of the active config without its ".json" suffix, such as vta_w8b.
-    *
-    * Keys the per-config build and run output directories.
-    */
-  def configKey = Task { vtaConfigPath().baseName }
-
-  /** Content hash of the active config JSON: depend on it to make a cached task
-    * re-run when the config file is edited in place.
-    */
-  def configSignature = Task { configSig(vtaConfigPath()) }
-
-  /** DDR base address used by the baremetal codegen, from -Dvta.ddr.base
-    * (default 0x0). Must match the board's DDR base, e.g. 0x10000000.
-    */
-  def vtaDdrBase = Task.Input {
-    sys.props.getOrElse("vta.ddr.base", defaultDdrBase)
-  }
-}
+def activeConfigKey: String =
+  sys.props.getOrElse("vta.config.file", defaultConfigName).stripSuffix(".json")
 
 /** Env vars forwarded to the forked JVMs (forkEnv): an explicit whitelist,
   * because forkEnv is hashed into every runner-dependent task - anything
@@ -95,7 +56,7 @@ def stableEnv(env: Map[String, String]): Map[String, String] =
     forkEnvVars(k) || forkEnvPrefixes.exists(k.startsWith)
   }
 
-trait VtaScalaModule extends BaseVtaModule with SbtModule with ScalafixModule {
+trait VtaScalaModule extends SbtModule with ScalafixModule {
 
   def scalaVersion = "2.13.18"
 
@@ -104,6 +65,14 @@ trait VtaScalaModule extends BaseVtaModule with SbtModule with ScalafixModule {
   // changes - including the per-config Cross instances that ignore it. Call
   // sites that want the global config pass configForkArgs() explicitly.
   def forkArgs = Seq.empty[String]
+
+  /** File name of the active config, from -Dvta.config.file (default
+    * vta_config.json). Set it to switch the raw pass-through Commands to
+    * another config; the per-config Cross modules ignore it.
+    */
+  def vtaConfigFile = Task.Input {
+    sys.props.getOrElse("vta.config.file", defaultConfigName)
+  }
 
   /** The -Dvta.config.file fork arg for the active global config. Passed
     * explicitly by the raw passthrough Commands (whose forked mains resolve
@@ -200,14 +169,13 @@ def defaultBoardName = sys.props.getOrElse("vta.board.name", defaultBoard)
 def fpgaTargets = configNames.flatMap(c => boardNames.map(b => (c, b)))
 
 /** A config carried as an explicit value rather than read from the global
-  * -Dvta.config.file property that BaseVtaModule uses. Implementors supply
-  * `configKey` (in practice a Cross value); the path and the content signature
-  * follow from it.
+  * -Dvta.config.file property. Implementors supply `configKey` (in practice a
+  * Cross value); the path and the content signature follow from it.
   *
-  * This is the axis the per-config caching hangs off: every module mixing this
-  * in is an independently addressable, independently cached instance
-  * (vta.simulator[vta_w8b].fsimBinary), whereas the ambient BaseVtaModule tasks
-  * all share one cache slot that thrashes when -Dvta.config.file changes.
+  * This is the axis the whole per-config caching hangs off: every module mixing
+  * it in is an independently addressable, independently cached instance
+  * (vta.simulator[vta_w8b].fsimBinary), so switching config resolves to another
+  * instance instead of dirtying a shared one.
   */
 trait HasVtaConfig extends Module {
 
@@ -234,9 +202,9 @@ trait HasFpgaBoard extends Module {
 }
 
 /** A single config's identity, derived directly from a Cross value. Mixed into
-  * the `configs` Cross submodule of vta.hardware/vta.simulator/ vta.fpga -
-  * BaseVtaModule and the flat, global-prop-driven tasks it powers are left
-  * untouched for the Makefiles/CI that still call them directly.
+  * `vta.hardware.configs[...]` and the `vta.simulator[...]` cross instances.
+  * The two-axis (config, board) modules of vta.fpga take HasVtaConfig directly
+  * instead, since their config is only one of their two cross values.
   */
 trait ConfigCrossModule extends Cross.Module[String] with HasVtaConfig {
   def configKey: String = crossValue
