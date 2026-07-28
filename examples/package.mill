@@ -58,8 +58,6 @@ trait IrExampleModule
     * subdirectory of this task's dest. Fails the build on a mismatch.
     */
   def check() = Task.Command {
-    val root = BuildCtx.workspaceRoot
-    val python = build.vta.compiler.pythonExe().path
     val compOut = compile().path
     // Resolved off the module, not off `sim`: the Task macro cannot lift a
     // Task#apply() whose receiver is a local val of this block.
@@ -73,19 +71,17 @@ trait IrExampleModule
       fsimBin,
       Seq("--comp-dir", compOut.toString, "--output", fsimOut.toString)
         ++ defaultSimFlags,
-      root,
+      BuildCtx.workspaceRoot,
       Task.env
     )
     sim.launchSim(
       vsimBin,
       Seq("--comp-dir", compOut.toString, "--output", vsimOut.toString)
         ++ defaultSimFlags ++ Seq("--no-timeout"),
-      root,
+      BuildCtx.workspaceRoot,
       Task.env
     )
     build.vta.compiler.runCompare(
-      python,
-      root,
       fsimOut / layerOutputName,
       vsimOut / layerOutputName,
       Task.env

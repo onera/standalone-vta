@@ -63,22 +63,17 @@ trait HasOnnxModel extends HasCompiledModel {
     * when the model, the config content or the compiler sources change.
     */
   def compile = Task {
-    val root = BuildCtx.workspaceRoot
-    val python = build.vta.compiler.pythonExe().path
-    build.vta.compiler.sources() // invalidate on compiler-code change
     configSignature() // invalidate on config-content change
     val compOut = Task.dest
     build.vta.compiler
       .compileModel(
-        python,
-        root,
         onnxPath().path,
         configPath,
         compOut,
         Task.env
       )
     build.vta.compiler
-      .runReference(python, root, onnxPath().path, compOut, Task.env)
+      .runReference(onnxPath().path, compOut, Task.env)
     PathRef(compOut)
   }
 }
@@ -118,13 +113,8 @@ trait HasRawIrModel extends HasCompiledModel {
     * when the fixture, the config content or the compiler sources change.
     */
   def compile = Task {
-    val root = BuildCtx.workspaceRoot
-    val python = build.vta.compiler.pythonExe().path
-    build.vta.compiler.sources() // invalidate on compiler-code change
     configSignature() // invalidate on config-content change
     build.vta.compiler.compileIr(
-      python,
-      root,
       irPath().path,
       configPath,
       Task.dest,
@@ -138,7 +128,6 @@ trait HasRawIrModel extends HasCompiledModel {
 trait SimTasks extends HasCompiledModel {
 
   private def simStage(
-    python: os.Path,
     root: os.Path,
     compOut: os.Path,
     simOut: os.Path,
@@ -159,7 +148,7 @@ trait SimTasks extends HasCompiledModel {
     // A fixture without a golden has nothing to check against; the caller
     // compares the two simulators instead.
     if (hasReference)
-      build.vta.compiler.runCheck(python, root, compOut, simOut, env, isRtl)
+      build.vta.compiler.runCheck(compOut, simOut, env, isRtl)
   }
 
   /** Run the functional (C++) simulator on this example and check its output
@@ -174,11 +163,9 @@ trait SimTasks extends HasCompiledModel {
     */
   def fsim(args: Args) = Task.Command {
     val root = BuildCtx.workspaceRoot
-    val python = build.vta.compiler.pythonExe().path
     val compOut = compile().path
     val fsim = build.vta.simulator(configKey).fsimBinary().path
     simStage(
-      python = python,
       root = root,
       compOut = compOut,
       simOut = Task.dest,
@@ -201,11 +188,9 @@ trait SimTasks extends HasCompiledModel {
     */
   def vsim(args: Args) = Task.Command {
     val root = BuildCtx.workspaceRoot
-    val python = build.vta.compiler.pythonExe().path
     val compOut = compile().path
     val vsim = build.vta.simulator(configKey).vsimBinary().path
     simStage(
-      python = python,
       root = root,
       compOut = compOut,
       simOut = Task.dest,

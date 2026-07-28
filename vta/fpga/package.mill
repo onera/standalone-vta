@@ -524,8 +524,6 @@ object `package` extends build.BaseVtaModule {
           val root = BuildCtx.workspaceRoot
           val dest = Task.dest / "compiler_output"
           build.vta.compiler.compileModel(
-            build.vta.compiler.pythonExe().path,
-            root,
             root / "examples" / os.RelPath(onnx),
             root / "config" / cfg,
             dest,
