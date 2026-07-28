@@ -166,7 +166,7 @@ def exampleIrModels = BuildCtx.watchValue(
   os.list(vtaIrDir).filter(_.ext == "json").map(_.baseName).sorted
 )
 
-/** Every (IR fixture, config) pair - the Cross keys for `examples.vta_ir`. */
+/** Every (IR fixture, config) pair - the Cross keys for `examples.ir`. */
 def exampleIrPairs =
   exampleIrModels.flatMap(m => configNames.map(c => (m, c)))
 

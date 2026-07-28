@@ -62,7 +62,6 @@ standalone `build_fpga.py` + `build_fpga.tcl` have been removed.
 | `resources/synthesis/{create_project,synthesis}.tcl` | Board-agnostic Vivado recipe (create-project stage + synth/impl/XSA stage). Builds the block design, assigns addresses, runs to bitstream/device image, exports the XSA. Parameterized entirely by a generated `board_params.tcl`. |
 | `boards/<board>.json`                                | The only place board specifics live: part, board preset, CPU, PL clock, AXI/NoC port wiring, address map.                                                                                                                          |
 | `Makefile`                                           | Thin `make bitstream` / `dry-run` / `clean` entry (wraps the Mill task).                                                                                                                                                           |
-| `legacy/vta_zcu104.tcl`                              | The old 919-line `write_project_tcl` GUI dump, kept for reference. See below.                                                                                                                                                      |
 
 ## Adding a board
 
@@ -85,20 +84,6 @@ of a usable design. After implementation the flow reads the post-route timing su
 records `timing_met` in `manifest.json`, and prints a loud warning if constraints are
 not met. If you see `Timing: NOT MET`, lower `pl_clock_mhz` in the board JSON or move
 to a larger/faster part before using the bitstream on hardware.
-
-## Why this replaces `legacy/vta_zcu104.tcl`
-
-The legacy file was a Vivado GUI export (`write_project_tcl`): 919 lines, hardcoded to
-the ZCU104 part, ~270 lines of resolved `CONFIG.PSU__*` board preset, a frozen
-block-design net snapshot, and ~260 lines of report boilerplate. It created the
-synth/impl runs but never launched them, never wrote a bitstream, and never exported
-an XSA - all of that was manual in the GUI. It also referenced a stale IP name
-(`VTADefaultShell`); the current emit packages the IP as `onera:user:VTA:0.2.0`, which
-the new flow reads from the emitted `package_ip.tcl` so it can never drift.
-
-The new recipe wires the design by stable interface name and IP VLNV, so it does not
-break when the RTL interface or the config changes. Keep `legacy/` until the new flow
-is validated on real hardware, then remove it.
 
 # Post-synthesis gate-level simulation (xsim)
 
@@ -137,13 +122,13 @@ Prereq: `source <Xilinx>/2025.2/Vivado/settings64.sh`.
 
 ### One-shot (chained)
 
-`examples[<model>,<config>].postSynth` runs the whole chain (compile the model, dump the fsim
+`examples.onnx[<model>,<config>].postSynth` runs the whole chain (compile the model, dump the fsim
 goldens, emit the shell + TB, OOC-synth, xsim behavioral + netlist, compare) into its task dest.
 The board comes from `-Dvta.board.name` (default zcu104); the argument is the layer subset:
 
 ```bash
 pixi run ./mill -Dvta.board.name=zcu104 \
-  "examples[lenet5,vta_config].postSynth" QLinearConv1,MaxPool2,QLinearConv3
+  "examples.onnx[lenet5,vta_config].postSynth" QLinearConv1,MaxPool2,QLinearConv3
 ```
 
 ### By hand (per stage, from the repo root)

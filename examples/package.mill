@@ -23,7 +23,7 @@ trait ExampleModule
   def modelKey: String = crossValue
 
   /** The example models live in examples/onnx. */
-  def onnxRoot: os.Path = moduleDir / "onnx"
+  def onnxRoot: os.Path = moduleDir
 }
 
 /** One raw VTA IR fixture built for one config: compile and simulate.
@@ -105,16 +105,16 @@ object `package` extends BaseVtaModule {
     * check, generate baremetal.
     *
     * One cross instance per ONNX model in examples/onnx and config in config/;
-    * address it as `examples[<model>,<config>]`, e.g. `./mill
-    * "examples[lenet5,vta_w8b].run"`.
+    * address it as `examples.onnx[<model>,<config>]`, e.g. `./mill
+    * "examples.onnx[lenet5,vta_w8b].fsim"`.
     */
   object onnx extends Cross[ExampleModule](build.examplePairs)
 
   /** End-to-end runs for every (raw VTA IR fixture, config) pair.
     *
     * One cross instance per fixture in examples/vta_ir and config in config/;
-    * address it as `examples.vta_ir[<fixture>,<config>]`, e.g. `./mill
-    * "examples.vta_ir[matmul_16x16,vta_config].check"`.
+    * address it as `examples.ir[<fixture>,<config>]`, e.g. `./mill
+    * "examples.ir[matmul_16x16,vta_config].check"`.
     */
   object ir extends Cross[IrExampleModule](build.exampleIrPairs)
 }
