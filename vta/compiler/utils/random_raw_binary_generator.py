@@ -23,7 +23,9 @@ def random_raw_binary_generator(m_rows, n_columns, filename="input",
     # Define the dtype
     if (dtype == 'int8'):
         dtype = np.int8
-    else: 
+    elif (dtype == 'int16'):
+        dtype = np.int16
+    else:
         dtype = np.int32
 
     # Matrix generation
