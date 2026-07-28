@@ -42,8 +42,13 @@ trait IrExampleModule
   /** This fixture's name: the first cross value. */
   def modelKey: String = crossValue
 
-  /** The fixtures live in examples/vta_ir, this module's own directory. */
-  def irRoot: os.Path = moduleDir
+  /** The fixtures live in examples/vta_ir.
+    *
+    * Taken from build.vtaIrDir rather than moduleDir so the directory and the
+    * task name (`examples.ir`) can differ without silently resolving to an
+    * empty directory; it is also the same value the cross keys are listed from.
+    */
+  def irRoot: os.Path = build.vtaIrDir
 
   /** Run both simulators on this fixture and byte-compare their outputs.
     *
@@ -89,16 +94,21 @@ trait IrExampleModule
   }
 }
 
-/** End-to-end pipelines for every (model, config) pair: compile, simulate,
-  * check, generate baremetal.
-  *
-  * One cross instance per ONNX model in examples/onnx and config in config/;
-  * address it as `examples[<model>,<config>]`, e.g. `./mill
-  * "examples[lenet5,vta_w8b].run"`.
+/** Examples for exercising the Standalone VTA build pipeline
+  *   - onnx : full onnx models (nn_compiler -> vta_compiler -> simulation +
+  *     fpga)
+  *   - ir : raw ir files (vta_compiler -> simulation)
   */
-object `package`
-    extends Cross[ExampleModule](build.examplePairs)
-    with BaseVtaModule {
+object `package` extends BaseVtaModule {
+
+  /** End-to-end pipelines for every (model, config) pair: compile, simulate,
+    * check, generate baremetal.
+    *
+    * One cross instance per ONNX model in examples/onnx and config in config/;
+    * address it as `examples[<model>,<config>]`, e.g. `./mill
+    * "examples[lenet5,vta_w8b].run"`.
+    */
+  object onnx extends Cross[ExampleModule](build.examplePairs)
 
   /** End-to-end runs for every (raw VTA IR fixture, config) pair.
     *
@@ -106,5 +116,5 @@ object `package`
     * address it as `examples.vta_ir[<fixture>,<config>]`, e.g. `./mill
     * "examples.vta_ir[matmul_16x16,vta_config].check"`.
     */
-  object vta_ir extends Cross[IrExampleModule](build.exampleIrPairs)
+  object ir extends Cross[IrExampleModule](build.exampleIrPairs)
 }
