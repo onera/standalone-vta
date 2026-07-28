@@ -7,8 +7,10 @@ package build
 import mill._
 import mill.javalib._
 import mill.javalib.spotless.SpotlessModule
+import mill.scalalib.SbtModule
 import mill.api.BuildCtx
 import mill.api.Args
+import com.goyeau.mill.scalafix.ScalafixModule
 
 // Doc-comment convention for every task in the *.mill files, so that the
 // completion scripts (tools/completions/) and `./mill inspect <task>` both read
@@ -23,6 +25,228 @@ import mill.api.Args
 // Implementation rationale (why persistent, why a Cross module, ...) goes in
 // plain `//` comments, which stay out of the user-facing description.
 object `package` extends Module with SpotlessModule {
+
+  // This module holds the shared vocabulary of the build: the global
+  // defaults, the Scala-module base trait, the values the Cross axes are
+  // listed from, and the identity traits every per-config module mixes in.
+  // The pipeline task traits live in vta/pipeline.mill, and each module's own
+  // tasks in its package.mill.
+  //
+  // They live inside `object package` rather than at the top level of this
+  // file because that is what makes them addressable as `build.<name>` from
+  // the submodule files: Mill folds a root .mill file's top level into the
+  // wrapper object, not into the root module.
+
+  // -------------------------------------------------------------------------
+  // Global defaults and config helpers
+  // -------------------------------------------------------------------------
+
+  /** Content-hashed view of a config JSON, or None when it does not exist (e.g.
+    * a resource-only test config). Shared by every config-signature Task so
+    * cached tasks invalidate when the file is edited in place - the forked JVMs
+    * only ever receive the config filename, never its contents.
+    */
+  def configSig(path: os.Path): Option[PathRef] =
+    BuildCtx.withFilesystemCheckerDisabled {
+      if (os.exists(path)) Some(PathRef(path)) else None
+    }
+
+  /** Default config filename when -Dvta.config.file is unset. */
+  val defaultConfigName = "vta_config.json"
+
+  /** Default DDR base when -Dvta.ddr.base is unset. */
+  val defaultDdrBase = "0x0"
+
+  /** Default board when -Dvta.board.name is unset. */
+  val defaultBoard = "zcu104"
+
+  /** Key (name without ".json") of the config selected globally with
+    * `-Dvta.config.file`, default vta_config.
+    *
+    * A plain value, not a Task.Input: its only callers use it to pick a
+    * `configs[...]` / `targets[...]` Cross instance, and Cross keys must be
+    * known before the task graph exists. Untracked is fine, since a different
+    * config resolves to a different, independently cached module instance
+    * rather than dirtying one.
+    */
+  def activeConfigKey: String =
+    sys.props
+      .getOrElse("vta.config.file", defaultConfigName)
+      .stripSuffix(".json")
+
+  // -------------------------------------------------------------------------
+  // Forked-JVM environment
+  // -------------------------------------------------------------------------
+
+  /** Env vars forwarded to the forked JVMs (forkEnv): an explicit whitelist,
+    * because forkEnv is hashed into every runner-dependent task - anything
+    * session-volatile captured here (XDG_*, PWD, terminal vars, ...) would
+    * invalidate the cached Vivado tasks on every new shell. Whitelisted are
+    * only what the forks actually consume: the tool lookup (PATH and the Python
+    * env selection: pixi/conda/venv), HOME + locale, and the Xilinx
+    * install/license roots. Tasks that need the *live* session env (Vivado GUI,
+    * DISPLAY) already pass propagateEnv = true at the run() call.
+    */
+  val forkEnvVars: Set[String] =
+    Set("PATH", "HOME", "USER", "SHELL", "LANG", "VIRTUAL_ENV")
+  val forkEnvPrefixes: Seq[String] =
+    Seq("PIXI_", "CONDA_", "XILINX", "LM_LICENSE", "LC_")
+
+  def stableEnv(env: Map[String, String]): Map[String, String] =
+    env.filter { case (k, _) =>
+      forkEnvVars(k) || forkEnvPrefixes.exists(k.startsWith)
+    }
+
+  /** The base every Scala/Chisel module in this build extends. */
+  trait VtaScalaModule extends SbtModule with ScalafixModule {
+
+    def scalaVersion = "2.13.18"
+
+    // No -Dvta.config.file here: forkArgs feeds runner(), and every cached task
+    // that calls runner() would be invalidated whenever the global config prop
+    // changes - including the per-config Cross instances that ignore it. Call
+    // sites that want the global config pass configForkArgs() explicitly.
+    def forkArgs = Seq.empty[String]
+
+    /** File name of the active config, from -Dvta.config.file (default
+      * vta_config.json). Set it to switch the raw pass-through Commands to
+      * another config; the per-config Cross modules ignore it.
+      */
+    def vtaConfigFile = Task.Input {
+      sys.props.getOrElse("vta.config.file", defaultConfigName)
+    }
+
+    /** The -Dvta.config.file fork arg for the active global config. Passed
+      * explicitly by the raw passthrough Commands (whose forked mains resolve
+      * their config through that property); cached per-config tasks pass their
+      * own cross value instead.
+      */
+    def configForkArgs = Task {
+      Seq(s"-Dvta.config.file=${vtaConfigFile()}")
+    }
+
+    // stableEnv: see forkEnvVars above - forkEnv is hashed into every
+    // runner-dependent task, so only the whitelisted vars are captured.
+    def forkEnv =
+      stableEnv(Task.env) ++ Map("VTA_ROOT" -> BuildCtx.workspaceRoot.toString)
+  }
+
+  // -------------------------------------------------------------------------
+  // Cross-axis keys
+  //
+  // All plain values, never Tasks: Cross needs its keys before any task graph
+  // exists. BuildCtx.watchValue is what makes adding or removing a file under
+  // these directories update the cross entries with no build-file edit.
+  // -------------------------------------------------------------------------
+
+  def onnxDir = BuildCtx.workspaceRoot / "examples" / "onnx"
+
+  /** The example models under examples/onnx, as cross keys (path relative to
+    * onnxDir, extension stripped).
+    */
+  def exampleModels = BuildCtx.watchValue(
+    os.list(onnxDir)
+      .filter(_.ext == "onnx")
+      .map(_.relativeTo(onnxDir).toString.stripSuffix(".onnx"))
+      .sorted
+  )
+
+  /** Plain (non-Task) path to config/, listed eagerly like onnxDir. */
+  def configDirPath = BuildCtx.workspaceRoot / "config"
+
+  /** The config JSONs under config/, as cross keys (extension stripped). */
+  def configNames = BuildCtx.watchValue(
+    os.list(configDirPath).filter(_.ext == "json").map(_.baseName).sorted
+  )
+
+  /** Every (example model, config) pair - the Cross keys for `examples.onnx`.
+    */
+  def examplePairs = exampleModels.flatMap(m => configNames.map(c => (m, c)))
+
+  /** Plain (non-Task) path to the raw VTA IR fixtures. */
+  def vtaIrDir = BuildCtx.workspaceRoot / "examples" / "vta_ir"
+
+  /** The hand-written VTA IR fixtures under examples/vta_ir, as cross keys
+    * (extension stripped).
+    */
+  def exampleIrModels = BuildCtx.watchValue(
+    os.list(vtaIrDir).filter(_.ext == "json").map(_.baseName).sorted
+  )
+
+  /** Every (IR fixture, config) pair - the Cross keys for `examples.ir`. */
+  def exampleIrPairs =
+    exampleIrModels.flatMap(m => configNames.map(c => (m, c)))
+
+  /** Plain (non-Task) path to the FPGA board definitions. */
+  def boardsDirPath = BuildCtx.workspaceRoot / "vta" / "fpga" / "boards"
+
+  /** The board JSONs under vta/fpga/boards/, as cross keys (extension
+    * stripped).
+    */
+  def boardNames = BuildCtx.watchValue(
+    os.list(boardsDirPath).filter(_.ext == "json").map(_.baseName).sorted
+  )
+
+  /** Board used by the tasks that are not board-crossed: the `examples` FPGA
+    * wiring and the flat vta.fpga tasks. From -Dvta.board.name, default zcu104.
+    *
+    * A plain value for the same reason as [[activeConfigKey]]: it selects a
+    * Cross instance (`vta.fpga.targets(config, board)`).
+    */
+  def defaultBoardName = sys.props.getOrElse("vta.board.name", defaultBoard)
+
+  /** Every (config, board) pair - the Cross keys for `vta.fpga.targets`. An
+    * FPGA build is identified by both: the config fixes the RTL, the board
+    * fixes the pinout and the XSA.
+    */
+  def fpgaTargets = configNames.flatMap(c => boardNames.map(b => (c, b)))
+
+  // -------------------------------------------------------------------------
+  // Per-module identity traits
+  // -------------------------------------------------------------------------
+
+  /** A config carried as an explicit value rather than read from the global
+    * -Dvta.config.file property. Implementors supply `configKey` (in practice a
+    * Cross value); the path and the content signature follow from it.
+    *
+    * This is the axis the whole per-config caching hangs off: every module
+    * mixing it in is an independently addressable, independently cached
+    * instance (vta.simulator[vta_w8b].fsimBinary), so switching config resolves
+    * to another instance instead of dirtying a shared one.
+    */
+  trait HasVtaConfig extends Module {
+
+    /** Config name without its ".json" suffix, such as vta_w8b. */
+    def configKey: String
+
+    /** Absolute path to this module's config JSON, under config/. */
+    def configPath: os.Path = configDirPath / s"$configKey.json"
+
+    /** Content hash of this module's config JSON: depend on it to re-run when
+      * the config file is edited in place.
+      */
+    def configSignature = Task { configSig(configPath) }
+  }
+
+  /** The FPGA board a board-dependent module targets: the other identity axis
+    * next to HasVtaConfig, defaulting to -Dvta.board.name.
+    */
+  trait HasFpgaBoard extends Module {
+
+    // A plain def, not a Task: it indexes the vta.fpga.targets Cross, whose keys
+    // must exist before the task graph.
+    def fpgaBoard: String = defaultBoardName
+  }
+
+  /** A single config's identity, derived directly from a Cross value. Mixed
+    * into `vta.hardware.configs[...]` and the `vta.simulator[...]` cross
+    * instances. The two-axis (config, board) modules of vta.fpga take
+    * HasVtaConfig directly instead, since their config is only one of their two
+    * cross values.
+    */
+  trait ConfigCrossModule extends Cross.Module[String] with HasVtaConfig {
+    def configKey: String = crossValue
+  }
 
   def spotlessExcludes = Task {
     super.spotlessExcludes() ++ Seq(
