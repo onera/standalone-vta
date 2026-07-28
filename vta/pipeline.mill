@@ -10,9 +10,10 @@ import mill.api.BuildCtx
   *
   * Every trait here that needs the config reaches it through HasVtaConfig alone
   * (directly, or transitively through another trait in this file), and the
-  * board-dependent ones through HasFpgaBoard; both come from util.mill. Nothing
-  * here reads the global -Dvta.config.file: an example's config is a cross
-  * value, which is what makes each (model, config) pair cache independently.
+  * board-dependent ones through HasFpgaBoard; both come from build.mill.
+  * Nothing here reads the global -Dvta.config.file: an example's config is a
+  * cross value, which is what makes each (model, config) pair cache
+  * independently.
   */
 
 /** A model compiled to VTA binaries, whatever front end produced it.

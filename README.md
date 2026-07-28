@@ -47,7 +47,7 @@ The `standalone-vta` ecosystem is designed with a clear separation of concerns, 
   - `simulator/`: Fast C++ functional simulator (and the Verilated/DPI backend).
   - `hardware/`: Chisel hardware sources - the cycle-accurate simulator, and the SystemVerilog emitted for the Verilated and FPGA flows.
   - `fpga/`: FPGA synthesis flow and the PS-side baremetal runtime software.
-- `build.mill`, `util.mill`: Root Mill build - the shared config plumbing and the cross keys the example modules are built from.
+- `build.mill`: Root Mill build - the shared config plumbing and the cross keys the example modules are built from.
 - `vta/pipeline.mill`: The per-(model, config) pipeline traits (compile, simulate, baremetal, Vitis, post-synthesis) that the example modules mix in.
 - `config/`: Contains `vta_config.json` defining the VTA hardware parameters, plus alternative configurations. See [Config Documentation](config/README.md).
 - `environment_setup/`: Legacy setup files (Docker/Conda). The project now uses Pixi for package and environment management.

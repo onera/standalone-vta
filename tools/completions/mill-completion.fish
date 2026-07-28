@@ -154,7 +154,7 @@ function __mill_repo_root
 end
 
 # The -Dvta.* keys the build reads, as "key=<TAB>description" rows. Keep in sync
-# with the sys.props lookups in util.mill, vta/pipeline.mill and
+# with the sys.props lookups in build.mill, vta/pipeline.mill and
 # vta/*/package.mill.
 function __mill_vta_keys
     printf '%s\t%s\n' \
@@ -172,10 +172,10 @@ end
 
 # Emit "<key>=<name><TAB>desc" for every *.json in $dir (nothing if absent).
 # $ext controls the value form and must match how the build reads the property:
-#   keep  - file name with extension, as vta.config.file wants (util.mill:41,
-#           whose default is the literal "vta_config.json")
-#   strip - base name only, as vta.board.name wants (boardNames maps _.baseName
-#           over the dir, util.mill:122, so the cross keys are "zcu104" etc.)
+#   keep  - file name with extension, as vta.config.file wants (build.mill's
+#           defaultConfigName is the literal "vta_config.json")
+#   strip - base name only, as vta.board.name wants (build.mill's boardNames
+#           maps _.baseName over the dir, so the cross keys are "zcu104")
 function __mill_vta_json_values --argument-names key dir desc ext
     test -d "$dir"; or return
     for f in (path filter -f "$dir"/*.json 2>/dev/null)

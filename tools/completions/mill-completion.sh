@@ -159,7 +159,7 @@ _mill_repo_root() {
 }
 
 # The -Dvta.* keys the build reads. Keep in sync with the sys.props lookups in
-# util.mill, vta/pipeline.mill and vta/*/package.mill (and with __mill_vta_keys
+# build.mill, vta/pipeline.mill and vta/*/package.mill (and with __mill_vta_keys
 # in the fish file).
 _mill_vta_keys() {
   cat <<'EOF'
@@ -178,9 +178,9 @@ EOF
 
 # $1 = the full -D token typed so far. Prints one candidate per line, each
 # carrying the leading -D. Value forms must match how the build reads them:
-# vta.config.file keeps the .json extension (util.mill:41 defaults to the
+# vta.config.file keeps the .json extension (build.mill's defaultConfigName is the
 # literal "vta_config.json"), vta.board.name drops it (boardNames maps
-# _.baseName over the dir, util.mill:122, so the cross keys are "zcu104" etc.).
+# _.baseName over the dir, so the cross keys are "zcu104" etc.).
 # Keys with a free-form value print nothing.
 _mill_vta_props() {
   local tok="${1#-D}" root f d key val
