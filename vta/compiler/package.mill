@@ -29,24 +29,6 @@ object `package` extends Module { m =>
   def genIrInputsMain = moduleDir / "utils" / "gen_ir_inputs.py"
   def compareMain = moduleDir / "reference_computation" / "compare_bin.py"
 
-  def runner(main: os.Path,args: Args) = Task.Anon {
-    sources()
-    os.proc(python, main,args.value).call(BuildCtx.workspaceRoot,env = Map("VTA_COMPILER_OUT" -> getCompilerOutput().toString),stdout = os.Inherit,stderr = os.Inherit)
-  }
-  def getCompilerOutput = Task.Anon{
-    Task.env.get("VTA_COMPILER_OUT") match {
-      case Some(value) => os.Path(value,BuildCtx.workspaceRoot)
-      case None => Task.dest
-    }
-    }
-
-  def runNnCompile(onnx: os.Path,config: os.Path) = Task.Anon {
-    runner(nnCompilerMain,Args(Seq("--expand-bias", config.toString, onnx.toString)))()
-  }
-
-  def runVtaCompile(onnx: os.Path,config: os.Path) = Task.Anon {
-    runner(vtaCompilerMain,Args(Seq("--expand-bias", config.toString, onnx.toString)))()
-  }
   // Every stage resolves its output dir from VTA_COMPILER_OUT, so `dest` is
   // threaded through the environment (matching the Makefile and the scripts).
   private def envFor(env: Map[String, String], dest: os.Path) =
@@ -180,30 +162,4 @@ object `package` extends Module { m =>
     dest
   }
 
-  /** Compile one ONNX model for one config, outside the examples cross module:
-    * `./mill vta.compiler.compile <config.json> <model.onnx>`.
-    *
-    * Runs nn_compiler then vta_compiler. Writes to `$VTA_COMPILER_OUT`, or to
-    * `compiler_output/` at the repo root when that is unset. Uncached.
-    *
-    * @param config
-    *   the config JSON path (relative to the repo root or absolute)
-    * @param onnx
-    *   the ONNX model path.
-    */
-  def compile(config: String, onnx: String): Task.Command[Unit] = Task.Command {
-    val dest = getCompilerOutput()
-//    runNnCompile(
-//      os.Path(onnx, BuildCtx.workspaceRoot),
-//      os.Path(config, BuildCtx.workspaceRoot),
-//    )()
-//    runVtaCompile()
-    compileModel(
-      os.Path(onnx, BuildCtx.workspaceRoot),
-      os.Path(config, BuildCtx.workspaceRoot),
-      dest,
-      Task.env
-    )
-    println(s"[INFO] compiled $onnx into $dest")
-  }
 }

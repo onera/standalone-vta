@@ -71,14 +71,12 @@ trait IrExampleModule
       fsimBin,
       Seq("--comp-dir", compOut.toString, "--output", fsimOut.toString)
         ++ defaultSimFlags,
-      BuildCtx.workspaceRoot,
       Task.env
     )
     sim.launchSim(
       vsimBin,
       Seq("--comp-dir", compOut.toString, "--output", vsimOut.toString)
         ++ defaultSimFlags ++ Seq("--no-timeout"),
-      BuildCtx.workspaceRoot,
       Task.env
     )
     build.vta.compiler.runCompare(

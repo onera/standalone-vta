@@ -21,7 +21,7 @@ import mill.api.BuildCtx
   * The axis the simulator tasks hang off: they need a compiled model and know
   * whether it has a golden to check against, but not where it came from.
   */
-trait HasCompiledModel extends Module with HasVtaConfig {
+trait HasCompilableModel extends Module with HasVtaConfig {
 
   /** This model's name, which keys its outputs. */
   def modelKey: String
@@ -46,7 +46,7 @@ trait HasCompiledModel extends Module with HasVtaConfig {
 }
 
 /** An ONNX model and its compilation to VTA binaries. */
-trait HasOnnxModel extends HasCompiledModel {
+trait HasOnnxModel extends HasCompilableModel {
 
   /** Directory the model files live in. */
   def onnxRoot: os.Path
@@ -86,7 +86,7 @@ trait HasOnnxModel extends HasCompiledModel {
   * which only nn_compiler writes (vta/simulator/src/fsim_nn.cc:37-41), so these
   * fixtures run single-layer.
   */
-trait HasRawIrModel extends HasCompiledModel {
+trait HasRawIrModel extends HasCompilableModel {
 
   /** Directory the IR fixtures live in. */
   def irRoot: os.Path
@@ -125,10 +125,9 @@ trait HasRawIrModel extends HasCompiledModel {
 }
 
 /** Functional and Verilated RTL simulation of a compiled model. */
-trait SimTasks extends HasCompiledModel {
+trait SimTasks extends HasCompilableModel {
 
   private def simStage(
-    root: os.Path,
     compOut: os.Path,
     simOut: os.Path,
     binary: os.Path,
@@ -142,7 +141,6 @@ trait SimTasks extends HasCompiledModel {
         binary,
         Seq("--comp-dir", compOut.toString, "--output", simOut.toString)
           ++ flags,
-        root,
         env
       )
     // A fixture without a golden has nothing to check against; the caller
@@ -166,7 +164,6 @@ trait SimTasks extends HasCompiledModel {
     val compOut = compile().path
     val fsim = build.vta.simulator(configKey).fsimBinary().path
     simStage(
-      root = root,
       compOut = compOut,
       simOut = Task.dest,
       binary = fsim,
@@ -191,7 +188,6 @@ trait SimTasks extends HasCompiledModel {
     val compOut = compile().path
     val vsim = build.vta.simulator(configKey).vsimBinary().path
     simStage(
-      root = root,
       compOut = compOut,
       simOut = Task.dest,
       binary = vsim,
@@ -228,16 +224,16 @@ trait LayerDumpTasks extends SimTasks {
     val fsim = build.vta.simulator(configKey).fsimBinary().path
     build.vta
       .simulator(configKey)
-      .launchFSim(
-        Args(
+      .launchSim(
+        fsim,
           Seq(
             "--comp-dir",
             compOut.toString,
             "--output",
             Task.dest.toString,
             "--dump-layers"
-          )
-        )
+          ),
+        env = Task.env
       )
     PathRef(Task.dest)
   }
