@@ -66,10 +66,10 @@ The golden is a snapshot of the port. To re-baseline after an intentional change
 to `GenNnBaremetal`'s output (or to the compiler), run:
 
 ```
-./mill vta.fpga.regenHostGolden
+./mill vta.fpga.software.regenHostGolden
 ```
 
 This recompiles the binaries (via `compilerOutputs`) and rewrites `gen/`,
 `gen-debug/`, `gen-sd/`, `CASE.txt`, and `config.json` for every case. Review the
 diff and commit. (`init_dram.h` for `gemm-test` is re-baselined separately via
-`./mill vta.fpga.genInitDramTestGemm --outdir <gemm-test dir> --filename init_dram.h`.)
+`./mill vta.fpga.software.genInitDramTestGemm --outdir <gemm-test dir> --filename init_dram.h`.)

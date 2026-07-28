@@ -224,12 +224,11 @@ other one:
 
 Boards are the JSONs under `vta/fpga/boards/` (`zcu104`, `vck190`, `vek280`);
 adding one there adds the cross entries with no build-file edit. The older
-`-Dvta.config.file=<name>.json` global
-property still selects the config for the flat, non-crossed tasks
-(`vta.hardware.emitVtaSimConfig`, `vta.fpga.buildFpga`, `vta.hardware.test.unittest`,
-...) used by `examples/Makefile`, `vta/simulator/Makefile`, and
-`vta/fpga/software/Makefile`, which remain available for standalone use
-outside Mill.
+`-Dvta.config.file=<name>.json` global property still selects the config for
+the flat, non-crossed tasks (`vta.hardware.emitVtaSimConfig`,
+`vta.fpga.synthesis.buildFpga`, `vta.hardware.test.unittest`, ...) used by
+`examples/Makefile`, `vta/simulator/Makefile`, and `vta/fpga/software/Makefile`,
+which remain available for standalone use outside Mill.
 
 #### Vitis workspace from an existing XSA
 

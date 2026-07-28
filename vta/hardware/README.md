@@ -41,15 +41,15 @@ Alternatively, to use mill, you don't need to install other dependencies, as the
 
 ## Building
 
-1. **Navigate to the `cycle_accurate_simulator` directory.**
-2. **Run SBT or mill**
+1. **Run Mill from the repository root** (paths below are relative to this
+   module, `vta/hardware/`).
 
 ```sh
 sbt compile
 ```
 
 ```sh
-./mill _.compile
+./mill vta.hardware.compile
 ```
 
 ## Running Simulations
@@ -62,7 +62,7 @@ sbt compile
    ```
 
    ```bash
-   ./mill test.testOnly <test_name>
+   ./mill vta.hardware.test.testOnly <test_name>
    ```
 
    Replace `<test_name>` with the fully qualified name of the test you want to run. For example:
@@ -72,13 +72,13 @@ sbt compile
    ```
 
    ```bash
-   ./mill test.testOnly cli.ComputeTests
+   ./mill vta.hardware.test.testOnly cli.ComputeTests
    ```
 
 To run the unit-test suite (what CI runs):
 
    ```bash
-   ./mill test.unittest
+   ./mill vta.hardware.test.unittest
    ```
 
 ## Chisel VTA simulation
@@ -88,7 +88,7 @@ A simulation can be run on the entire VTA (VCR+VME+Core) that initializes an ext
 To execute this simulation, run:
 
 ```bash
-./mill runMain cli.VTAShellSimulator <mem init file> <output dir>
+./mill vta.hardware.runMain cli.VTAShellSimulator <mem init file> <output dir>
 ```
 
 ```bash
@@ -104,7 +104,7 @@ There are several configurations and shells available for the VTA that you can e
 For DPI simulation:
 
 ```bash
-./mill emitVtaSimConfig
+./mill vta.hardware.emitVtaSimConfig
 ```
 
 This runs the `vta.exporters.TestDefaultPynqConfigEmitter` main class and copies
@@ -115,7 +115,7 @@ argument.
 For FPGA Xilinx IP flow:
 To emit the SystemVerilog and tcl script, run the command below; you can specify a custom output directory by passing a path as argument (it defaults to `build/emitted/vta-xilinx-shell/`):
 ```bash
-./mill emitVtaFpgaConfig <destpath>
+./mill vta.hardware.emitVtaFpgaConfig <destpath>
 ```
 
 This runs the `vta.exporters.DefaultXilinxConfigEmitter` main class. The
@@ -125,7 +125,7 @@ argument to the default main class `cli.VTAShellSimulator`.
 You can pass a different configuration (ex: <project_root>/config/your_config.json):
 
 ```bash
-./mill -Dvta.config.file=your_config.json emitVtaFpgaConfig <destpath>
+./mill -Dvta.config.file=your_config.json vta.hardware.emitVtaFpgaConfig <destpath>
 ```
 Then run vivado on the package_ip.tcl script:
 ```bash

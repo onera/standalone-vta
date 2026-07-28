@@ -38,11 +38,10 @@ Single-layer runs are just an additional `--layer N` flag:
 
 The Verilator archive (`build/verilated/VVTAShell/VTest__ALL.a`) is the slow
 build step (~20 s) and is cached. The RTL sources for it come from
-`../cycle_accurate_simulator/build/emitted/vta-sim-shell/`, which must be
-emitted first:
+`<repo>/build/emitted/vta-sim-shell/`, which must be emitted first:
 
 ```bash
-cd ../cycle_accurate_simulator && ./mill emitVtaSimConfig
+(cd ../.. && ./mill vta.hardware.emitVtaSimConfig)
 ```
 
 Override the VTA configuration: `make CONFIG=../../../config/vta_config_8b.json ...`
@@ -160,7 +159,7 @@ and stops the simulation. No flag needed.
 ### Run a NN to completion against the RTL
 
 ```bash
-cd ../cycle_accurate_simulator && ./mill emitVtaSimConfig && cd -
+(cd ../.. && ./mill vta.hardware.emitVtaSimConfig)
 make vsim
 ```
 

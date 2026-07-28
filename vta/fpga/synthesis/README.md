@@ -23,7 +23,7 @@ make bitstream BOARD=vek280 CONFIG=../../../config/vta_config.json
 # or for vck190:
 make bitstream BOARD=vck190 CONFIG=../../../config/vta_config.json
 # or, equivalently, invoke the Mill task directly from the repo root:
-./mill vta.fpga.buildFpga --board vck190 --config config/vta_config.json
+./mill vta.fpga.synthesis.buildFpga --board vck190 --config config/vta_config.json
 ```
 
 The XSA lands in `build/vta_<board>.xsa`. Feed it straight to the software half:
@@ -45,7 +45,7 @@ Useful flags:
   run nothing (works without Xilinx tools installed).
 - `make bitstream SKIP_EMIT=1` - reuse RTL already emitted under the emit dir.
 - `make bitstream JOBS=8` - parallelism for synth/impl.
-- `./mill vta.fpga.buildFpga --help` - all options.
+- `./mill vta.fpga.synthesis.buildFpga --help` - all options.
 
 ## Files
 
@@ -58,7 +58,7 @@ standalone `build_fpga.py` + `build_fpga.tcl` have been removed.
 
 | File                                                 | Role                                                                                                                                                                                                                               |
 | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `fpga.synthesis.BuildFpga` (Scala)                   | Orchestrator: runs the stages, derives the IP VLNV from the emit, writes `manifest.json`. Run via `./mill vta.fpga.buildFpga` or this Makefile.                                                                                    |
+| `fpga.synthesis.BuildFpga` (Scala)                   | Orchestrator: runs the stages, derives the IP VLNV from the emit, writes `manifest.json`. Run via `./mill vta.fpga.synthesis.buildFpga` or this Makefile.                                                                                    |
 | `resources/synthesis/{create_project,synthesis}.tcl` | Board-agnostic Vivado recipe (create-project stage + synth/impl/XSA stage). Builds the block design, assigns addresses, runs to bitstream/device image, exports the XSA. Parameterized entirely by a generated `board_params.tcl`. |
 | `boards/<board>.json`                                | The only place board specifics live: part, board preset, CPU, PL clock, AXI/NoC port wiring, address map.                                                                                                                          |
 | `Makefile`                                           | Thin `make bitstream` / `dry-run` / `clean` entry (wraps the Mill task).                                                                                                                                                           |
@@ -108,10 +108,10 @@ recipe and the xsim TB wrapper are classpath resources under
 | piece                                                      | role                                                                                       |
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | `resources/synthesis/ooc_netlist.tcl`                      | OOC synth/impl recipe -> `<top>_funcsim.v` (mode=synth) or `+timesim.v`+`.sdf` (mode=impl) |
-| `fpga.synthesis.OocNetlist` (`./mill vta.fpga.oocNetlist`) | renders `ooc_params.tcl` from `boards/<board>.json` and runs the recipe                    |
+| `fpga.synthesis.OocNetlist` (`./mill vta.fpga.synthesis.oocNetlist`) | renders `ooc_params.tcl` from `boards/<board>.json` and runs the recipe                    |
 | `resources/synthesis/sim_top.sv`                           | xsim wrapper: clock/reset, `io_dbgW` write-snoop -> `writes.log`, DONE/WEDGE/TIMEOUT       |
-| `fpga.synthesis.RunXsim` (`./mill vta.fpga.runXsim`)       | compiles + runs xsim, `--behavioral` (control) or `--netlist <funcsim.v>` (DUT)            |
-| `fpga.synthesis.CompareOut` (`./mill vta.fpga.compareOut`) | strb-aware OUT compare vs `simulators_output/output<layer>.bin`                            |
+| `fpga.synthesis.RunXsim` (`./mill vta.fpga.synthesis.runXsim`)       | compiles + runs xsim, `--behavioral` (control) or `--netlist <funcsim.v>` (DUT)            |
+| `fpga.synthesis.CompareOut` (`./mill vta.fpga.synthesis.compareOut`) | strb-aware OUT compare vs `simulators_output/output<layer>.bin`                            |
 
 The Chisel side (`VTAPostSynthTb`, `CompilerOutputLayout`, `VtaHostDriver`) and the shell/TB
 emitters (`DebugXilinxConfigEmitter`, `DefaultPynqConfigTbEmitter`) live in `vta/hardware`.
@@ -144,21 +144,21 @@ pixi run ./mill -Dvta.config.file=vta_config.json -Dvta.layers=QLinearConv1,MaxP
   vta.hardware.emitVtaPostSynthTb
 
 # 3. OOC-synthesize the gate-level netlist of VTAXilinxShell (minutes)
-pixi run ./mill vta.fpga.oocNetlist --board zcu104 \
+pixi run ./mill vta.fpga.synthesis.oocNetlist --board zcu104 \
   --sv-dir build/emitted/vta-debug-xilinx-shell --top VTAXilinxShell \
   --out build/postsynth/vta_config-zcu104/ooc-netlist
 
 # 4. behavioral control vs gate-level funcsim (both should reach SIM_TOP: DONE)
-pixi run ./mill vta.fpga.runXsim --behavioral \
+pixi run ./mill vta.fpga.synthesis.runXsim --behavioral \
   --tb build/emitted/vta-postsynth-tb \
   --out build/postsynth/vta_config-zcu104/xsim-behav --layers 3
-pixi run ./mill vta.fpga.runXsim \
+pixi run ./mill vta.fpga.synthesis.runXsim \
   --netlist build/postsynth/vta_config-zcu104/ooc-netlist/VTAXilinxShell_funcsim.v \
   --tb build/emitted/vta-postsynth-tb \
   --out build/postsynth/vta_config-zcu104/xsim-net --layers 3
 
 # 5. strb-aware OUT compare (for the runs that reach DONE)
-pixi run ./mill vta.fpga.compareOut \
+pixi run ./mill vta.fpga.synthesis.compareOut \
   --writes build/postsynth/vta_config-zcu104/xsim-net/writes.log \
   --layers QLinearConv1,MaxPool2,QLinearConv3 \
   --compiler-out compiler_output --golden-dir simulators_output

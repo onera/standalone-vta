@@ -33,7 +33,7 @@ This flow automates RTL generation, Vivado project creation, synthesis, and impl
 
 2. **Navigate to the synthesis directory:**
    ```bash
-   cd src/fpga/synthesis
+   cd vta/fpga/synthesis
    ```
 
 3. **Generate the bitstream:**
@@ -45,8 +45,8 @@ This flow automates RTL generation, Vivado project creation, synthesis, and impl
 The automated build system will:
 - Emit Chisel-based RTL.
 - Package the RTL as a Vivado custom IP block.
-- Create a Vivado project at `src/fpga/synthesis/build/project/<BOARD>`.
-- Run synthesis, implementation, and export the hardware handoff file (`.xsa`) to `src/fpga/synthesis/build/vta_<BOARD>.xsa`.
+- Create a Vivado project at `vta/fpga/synthesis/build/project/<BOARD>`.
+- Run synthesis, implementation, and export the hardware handoff file (`.xsa`) to `vta/fpga/synthesis/build/vta_<BOARD>.xsa`.
 
 For further details and configuration options, see the [synthesis/README.md](synthesis/README.md).
 
@@ -62,7 +62,7 @@ This step compiles the neural network model into VTA instructions and configures
 
 2. **Navigate to the software directory:**
    ```bash
-   cd src/fpga/software
+   cd vta/fpga/software
    ```
 
 3. **Generate the baremetal source configuration files** (`make gen`, or the
@@ -70,7 +70,7 @@ This step compiles the neural network model into VTA instructions and configures
    ```bash
    make gen CONFIG=../../../config/vta_config.json DDR_BASE=0x200000
    # equivalently, from the repo root:
-   ./mill -Dvta.config.file=vta_config.json vta.fpga.genNnBaremetal ../../../compiler_output/ \
+   ./mill -Dvta.config.file=vta_config.json vta.fpga.software.genNnBaremetal ../../../compiler_output/ \
        --ddr-base    0x200000      \
        --max-addr    0x1ff00000    \
        --outdir      gen
@@ -100,14 +100,14 @@ For further details and configuration options, see the [software/README.md](soft
 ### Compilation and Execution
 
 1. **Build the Application:**
-   Open the Vitis Unified IDE, import/open the workspace located at `src/fpga/software/build/vitis_proj`, and compile the application component.
+   Open the Vitis Unified IDE, import/open the workspace located at `vta/fpga/software/build/vitis_proj`, and compile the application component.
 
 2. **Setup the Target Board:**
    - Connect the power, JTAG, and UART cables to your hardware.
    - *Example for VEK280:* Refer to the AMD documentation [for the board setup diagram](https://vitisai.docs.amd.com/en/latest/_images/target_board_updated.png).
    - Power on the target board.
 
-3. **Run the Inference via Host Script (from `src/fpga/software`):**
+3. **Run the Inference via Host Script (from `vta/fpga/software`):**
    Start the application execution in Vitis and run the host UART interface script simultanously (to send the input data and verify results):
    ```bash
    python host/uart_nn.py \
@@ -129,12 +129,11 @@ If you prefer to perform the integration yourself using the Vivado and Vitis GUI
 
 From the repository root, run the Chisel compiler to generate the hardware description files:
 ```bash
-cd src/simulators/cycle_accurate_simulator
-./mill emitVtaFpgaConfig
+./mill vta.hardware.emitVtaFpgaConfig
 ```
 
 By default, the compilation output is generated in:
-`src/simulators/cycle_accurate_simulator/build/emitted/vta-xilinx-shell/`
+`build/emitted/vta-xilinx-shell/` at the repository root
 
 This directory contains:
 - `.sv` (SystemVerilog) source files for the VTA processor.
@@ -146,7 +145,7 @@ This directory contains:
 Once the RTL is generated, package it into an IP block compatible with the Vivado IP Catalog:
 ```bash
 source <Xilinx>/2025.2/Vivado/settings64.sh
-cd src/simulators/cycle_accurate_simulator/build/emitted/vta-xilinx-shell/
+cd build/emitted/vta-xilinx-shell/
 vivado -mode batch -source package_ip.tcl -tclargs --part <DEVICE_PART>
 ```
 - Replace `<DEVICE_PART>` with your target FPGA part number (e.g., `xcve2802-vsvh1760-2MP-e-S` for VEK280).
@@ -210,10 +209,10 @@ This section describes how to manually compile and run the `test_gemm` standalon
 
 The `test_gemm` application requires a pre-generated header containing test matrices. From the repository root, run:
 ```bash
-cd src/fpga/software
+cd vta/fpga/software
 make gen-test_gemm
 ```
-This generates `src/fpga/software/gen/init_dram.h`.
+This generates `vta/fpga/software/gen/init_dram.h`.
 
 #### 2. Configure Vitis Project
 
@@ -230,10 +229,10 @@ This generates `src/fpga/software/gen/init_dram.h`.
    - **Platform:** Select the platform you just created.
    - **Domain:** Ensure the `standalone` domain is selected.
    - **Source Files:** Select **Add folders** and add the following directories one by one:
-     - `src/fpga/software/driver/src/`
-     - `src/fpga/software/driver/include/`
-     - `src/fpga/software/apps/test_gemm/`
-     - `src/fpga/software/gen/` (provides `init_dram.h`)
+     - `vta/fpga/software/driver/src/`
+     - `vta/fpga/software/driver/include/`
+     - `vta/fpga/software/apps/test_gemm/`
+     - `vta/fpga/software/gen/` (provides `init_dram.h`)
 5. **Configure Base Addresses:**
    - Open `test_gemm.cc` inside the Vitis application component.
    - Around line 23, verify that `VTA_VCR_BASE` is set to the base address of the VTA peripheral (e.g., `XPAR_VTA_0_BASEADDR`).

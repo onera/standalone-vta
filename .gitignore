@@ -18,8 +18,8 @@
 /**/compiler_output/*
 /**/simulators_output/
 /**/simulators_output/*
-/**/src/fpga/software/gen/*
-/**/src/fpga/software/vitis_workspace/*
+/**/vta/fpga/software/gen/*
+/**/vta/fpga/software/vitis_workspace/*
 /**/log_output/
 /**/log_output/*
 

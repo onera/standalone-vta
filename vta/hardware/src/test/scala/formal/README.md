@@ -14,7 +14,7 @@
 > that work today.
 
 The formal verification uses `chiseltest 6.0` to define the formal properties and generates a SMTLib problem.
-To verify the formal properties, the Z3 solver is needed. It can either be located in the system path or in the CHISEL project root (`cycle_accurate_simulator/`).
+To verify the formal properties, the Z3 solver is needed. It can either be located in the system path or in the CHISEL project root (`vta/hardware/`).
 
 To download Z3, follow the instruction there: https://github.com/Z3Prover/z3/releases
 
