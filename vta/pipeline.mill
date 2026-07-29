@@ -63,6 +63,7 @@ trait HasOnnxModel extends HasCompilableModel {
     * when the model, the config content or the compiler sources change.
     */
   def compile = Task {
+    build.vta.compiler.sources() // invalidate on source change
     configSignature() // invalidate on config-content change
     val compOut = Task.dest
     build.vta.compiler
@@ -109,6 +110,7 @@ trait HasRawIrModel extends HasCompilableModel {
     */
   def compile = Task {
     configSignature() // invalidate on config-content change
+    build.vta.compiler.sources()
     build.vta.compiler.compileIr(irPath().path, configPath, Task.dest, Task.env)
     PathRef(Task.dest)
   }
