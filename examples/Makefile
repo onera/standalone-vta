@@ -21,11 +21,11 @@ MILL=cd $(PROJECT_DIR) && ./mill
 export VTA_COMPILER_OUT := $(COMPILER_OUTPUT_DIR)
 # The simulators write final_output*.bin to the simulator output dir; pin it so
 # the checker (check_bin.py) reads the result from the same place. The simulator
-# binaries bake in this same default (see vta/simulator/Makefile), so a plain
+# binaries bake in this same default (see modules/simulator/Makefile), so a plain
 # run and the checker agree without extra flags.
 export VTA_SIMULATOR_OUT := $(SIMULATOR_OUTPUT_DIR)
 
-SRC_DIR          := $(PROJECT_DIR)/vta
+SRC_DIR          := $(PROJECT_DIR)/modules
 COMPILER_DIR     := $(SRC_DIR)/compiler
 LOG_OUTPUT_DIR   := $(PROJECT_DIR)/log_output
 

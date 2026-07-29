@@ -1,0 +1,314 @@
+package build.modules.hardware
+
+import mill._
+import mill.javalib._
+import mill.javalib.publish._
+import mill.javalib.TestModule.ScalaTest
+import mill.api.Task.Simple
+import mill.api.BuildCtx
+import mill.javalib.testrunner.TestResult
+
+/** The VTA hardware itself: the Chisel RTL, its ScalaTest cycle-accurate tests,
+  * and the SystemVerilog emitters.
+  *
+  * The emit tasks turn the active config into RTL - for the Verilated simulator
+  * (modules.simulator) or for the Xilinx IP flow (modules.fpga).
+  */
+object `package` extends build.VtaScalaModule with PublishModule { m =>
+
+  def artifactName = "vta-standalone"
+
+  // Unlike VtaScalaModule's default (empty), the hardware module keeps the
+  // global config in its forkArgs: its raw run entry points (run, testWaves,
+  // emitVtaPostSynthTb, ...) resolve their config through -Dvta.config.file.
+  // Consumers that must stay stable across config switches (the emit tasks
+  // below) override forkArgs per call, and their outputs are content-hashed,
+  // so downstream Vivado tasks only see real RTL changes.
+  override def forkArgs = configForkArgs()
+
+  def javacOptions = Seq("--release", "8")
+
+  def scalacOptions = Seq(
+    "-deprecation",
+    "-feature",
+    "-Xcheckinit",
+    "-language:reflectiveCalls",
+    "-Ymacro-annotations",
+    "-Wunused",
+    "-release:8"
+  )
+
+  override def mainClass: Simple[Option[String]] = Some("cli.VTAShellSimulator")
+
+  def chiselVersion = "7.11.0"
+
+  def mvnDeps = Seq(
+    mvn"com.fasterxml.jackson.core:jackson-databind:2.21.0",
+    mvn"com.fasterxml.jackson.module::jackson-module-scala:2.21.0",
+    mvn"net.java.dev.jna:jna:5.18.0",
+    mvn"org.chipsalliance::chisel:${chiselVersion}",
+    mvn"edu.berkeley.cs::chiseltest:6.0.0",
+    mvn"org.scalatest::scalatest:3.2.19",
+    mvn"com.github.scopt::scopt:4.1.0"
+  )
+  override def scalacPluginMvnDeps: Simple[Seq[Dep]] = Seq(
+    mvn"org.chipsalliance:::chisel-plugin:${chiselVersion}"
+  )
+
+  def pomSettings = PomSettings(
+    "vta-standalone",
+    "edu.berkeley.cs",
+    "",
+    Seq(),
+    VersionControl(
+      Some("https://github.com/onera/standalone-vta"),
+      Some("scm:git:https://github.com/onera/standalone-vta.git"),
+      Some("scm:git:git@github.com:onera/standalone-vta.git"),
+      None
+    ),
+    Seq()
+  )
+
+  def publishVersion = "6.0-SNAPSHOT"
+
+  // The one config-keyed instance the flat `emitVta*Config` commands export
+  // from, selected by the global -Dvta.config.file. Private: `configs` already
+  // exposes every instance, and a public def would add a second spelling of
+  // each to the task namespace.
+  private def activeConfigModule: ConfigModule = configs(build.activeConfigKey)
+
+  /** Shared body for the per-config emit tasks: emit a Chisel config's SV/tcl
+    * output with an explicit -Dvta.config.file, scoped to just this call.
+    * RunModule.Runner.run's forkArgs parameter *replaces* (not appends to) the
+    * module's own default forkArgs, so the emit is pinned to the cross value
+    * regardless of what the module's default forkArgs carry.
+    */
+  def emitConfig(
+    runner: mill.javalib.RunModule.Runner,
+    dest: os.Path,
+    configFileName: String,
+    mainClass: String
+  )(using ctx: mill.api.TaskCtx): PathRef = {
+    runner.run(
+      args = Seq(dest.toString),
+      mainClass = mainClass,
+      forkArgs = Seq(s"-Dvta.config.file=$configFileName"),
+      workingDir = BuildCtx.workspaceRoot
+    )
+    PathRef(dest)
+  }
+
+  /** Copy an emitted-config task's output dir to a stable location under
+    * build/emitted, replacing whatever is there. Shared by emitVtaSimConfig and
+    * emitVtaFpgaConfig.
+    */
+  private def exportEmitted(
+    src: PathRef,
+    outDir: os.Path,
+    label: String
+  ): Unit = {
+    os.remove.all(target = outDir, ignoreErrors = true)
+    os.copy(src.path, outDir, replaceExisting = true, createFolders = true)
+    println(s"[INFO] emitted $label config to $outDir")
+  }
+
+  /** Export the simulation RTL (VTAShell.sv, DPI shell) for the active config
+    * to build/emitted/vta-sim-shell/.
+    *
+    * A convenience copy of `configs[<config>].vtaSimConfig` for inspecting the
+    * SV by hand; the Verilated simulator consumes that task directly and does
+    * not need this one.
+    *
+    * @param args
+    *   ignored.
+    */
+  def emitVtaSimConfig(args: Args) = Task.Command {
+    val outDir = BuildCtx.workspaceRoot / "build" / "emitted" / "vta-sim-shell"
+    exportEmitted(activeConfigModule.vtaSimConfig(), outDir, "sim")
+  }
+
+  /** The RTL emitters, one independently cached instance per config in config/.
+    *
+    * Address them as `./mill modules.hardware.configs[vta_w8b].vtaFpgaConfig`; the
+    * `emitVta*Config` commands above are the same thing for whichever config
+    * -Dvta.config.file selects, copied to a stable path. The Scala code itself
+    * is compiled once, regardless of config.
+    */
+  object configs extends Cross[ConfigModule](build.configNames)
+  trait ConfigModule extends build.ConfigCrossModule {
+
+    /** Emit VTAShell.sv for this config (simulation shell, DPI ports) into a
+      * cached dir.
+      *
+      * This is what modules.simulator[<config>]'s vsim is Verilated from; use
+      * [[emitVtaSimConfig]] to get a copy under build/emitted/.
+      */
+    def vtaSimConfig = Task {
+      configSignature()
+      m.emitConfig(
+        m.runner(),
+        Task.dest,
+        s"$configKey.json",
+        "vta.exporters.TestDefaultPynqConfigEmitter"
+      )
+    }
+
+    /** Emit the Xilinx RTL plus package_ip.tcl for this config into a cached
+      * dir.
+      *
+      * The input of the Vivado flow (modules.fpga.targets[...]'s fpgaProject /
+      * fpgaSynth), which reuses it instead of re-emitting. Depends on the
+      * config only, never on a compiled model, and needs no Vivado itself.
+      */
+    def vtaFpgaConfig = Task {
+      configSignature()
+      m.emitConfig(
+        m.runner(),
+        Task.dest,
+        s"$configKey.json",
+        "vta.exporters.DefaultXilinxConfigEmitter"
+      )
+    }
+
+    /** Emit the debug Xilinx shell (the board-faithful top with the AXI write
+      * snoop) for this config: the OOC-synthesis input of the post-synth sim
+      * flow (modules.fpga.targets[config,board].oocNetlist).
+      */
+    def vtaDebugShell = Task {
+      configSignature()
+      m.emitConfig(
+        m.runner(),
+        Task.dest,
+        s"$configKey.json",
+        "vta.exporters.DebugXilinxConfigEmitter"
+      )
+    }
+  }
+
+  /** Export the Xilinx RTL + package_ip.tcl for the active config, ready to
+    * package as an IP.
+    *
+    * Only needed to drive Vivado by hand; `modules.fpga.targets[...].fpgaSynth`
+    * consumes `configs[<config>].vtaFpgaConfig` directly.
+    *
+    * @param args
+    *   optional absolute destination dir (default:
+    *   build/emitted/vta-xilinx-shell/).
+    */
+  def emitVtaFpgaConfig(args: Args) = Task.Command {
+    val outDir =
+      if (args.value.isEmpty)
+        BuildCtx.workspaceRoot / "build" / "emitted" / "vta-xilinx-shell"
+      else os.Path(args.value.head)
+    exportEmitted(activeConfigModule.vtaFpgaConfig(), outDir, "fpga")
+  }
+
+  /** Emit a SystemVerilog testbench that replays a compiled model against the
+    * VTA, for gate-level (post-synthesis) simulation in xsim.
+    *
+    * Reads a compiler_output dir and writes the TB to
+    * build/emitted/vta-postsynth-tb/ by default. Tune it with the JVM
+    * properties -Dmodules.compilerOutDir, -Dvta.simOutDir, -Dvta.layers,
+    * -Dvta.reloStride and -Dvta.perLayerTimeout, which are forwarded to the
+    * emitter. -Dvta.simOutDir must point at the fsim `--dump-layers` output
+    * (the per-layer input<layer>.bin the TB bakes into its .mem files).
+    *
+    * @param args
+    *   optional absolute destination dir.
+    */
+  def emitVtaPostSynthTb(args: Args) = Task.Command {
+    val outDir =
+      if (args.value.isEmpty)
+        BuildCtx.workspaceRoot / "build" / "emitted" / "vta-postsynth-tb"
+      else os.Path(args.value.head)
+    os.makeDir.all(outDir)
+
+    // Forward the optional emit knobs from the Mill JVM's -D props as program
+    // args, so they reach the forked run JVM regardless of -D propagation.
+    val forwarded =
+      Seq(
+        "compilerOutDir",
+        "simOutDir",
+        "layers",
+        "reloStride",
+        "perLayerTimeout"
+      ).flatMap(k => sys.props.get(s"vta.$k").map(v => s"--$k=$v"))
+
+    runner().run(
+      args = Seq(outDir.toString) ++ forwarded,
+      mainClass = "vta.exporters.DefaultPynqConfigTbEmitter",
+      workingDir = BuildCtx.workspaceRoot
+    )
+    println(s"[INFO] VTA post-synth TB emitted in ${outDir}")
+  }
+
+  /** Delete build/ at the repo root: every hand-exported artifact (emitted RTL,
+    * testbenches, baremetal workspaces).
+    *
+    * Does not touch Mill's own cache (out/) - use `./mill clean` for that.
+    */
+  def cleanOutputs() = Task.Command {
+    val outputDir = BuildCtx.workspaceRoot / "build"
+    println(s"[Clean] removing all outputs")
+    os.remove.all(target = outputDir)
+    println(s"[Clean] removed ${outputDir} directory")
+
+  }
+
+  /** The Chisel testbenches: cycle-accurate ScalaTest simulation of the RTL.
+    *
+    * `test` runs everything, [[unittest]] only the per-module unit tests. They
+    * run against the bundled vta_config_test.json unless -Dvta.config.file
+    * names another config.
+    */
+  object test extends SbtTests with ScalaTest {
+    override def scalaTestVersion: Simple[String] = "3.2.19"
+
+    def forkEnv = m.forkEnv
+    def testSandboxWorkingDir = true
+    def testParallelism = true
+
+    /** Config the tests run against, from -Dvta.config.file. None means the
+      * in-resources vta_config_test.json.
+      */
+    def vtaConfigFile = Task.Input {
+      sys.props.get("vta.config.file")
+    }
+
+    /** The -Dvta.config.* JVM args handed to the forked test JVM. */
+    def getConfigArgs = Task {
+      (for {
+        file <- vtaConfigFile()
+      } yield {
+        Seq(s"-Dvta.config.file=${file}")
+      }).getOrElse {
+        Seq(
+          "-Dvta.config.file=vta_config_test.json",
+          "-Dvta.config.fromResources=true"
+        )
+      }
+    }
+    override def forkArgs: Simple[Seq[String]] =
+      super.forkArgs() ++ getConfigArgs()
+
+    /** Run only the unit tests (the vta.tags.UnitTests-tagged ones), skipping
+      * the slower JSON-driven integration and shell tests.
+      */
+    def unittest: Simple[(msg: String, results: Seq[TestResult])] = {
+      testForked("-n", "vta.tags.UnitTests")()
+    }
+
+    /** Run selected tests with waveform dumping on: same as `testOnly`, plus
+      * -DemitFst=1, so each test writes an FST trace to its sandbox dir.
+      *
+      * @param args
+      *   the test class names (globs allowed), e.g.
+      *   `simulatorTest.ComputeTest`.
+      */
+    def testWaves(args: String*) = Task.Command {
+      testOnly(args ++ Seq("--", "-DemitFst=1")*)()
+    }
+
+  }
+
+}

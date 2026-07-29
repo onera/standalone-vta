@@ -186,13 +186,13 @@ function __mill_repo_root
 end
 
 # The -Dvta.* keys the build reads, as "key=<TAB>description" rows. Keep in sync
-# with the sys.props lookups in build.mill, vta/pipeline.mill and
-# vta/*/package.mill.
+# with the sys.props lookups in build.mill, modules/pipeline.mill and
+# modules/*/package.mill.
 function __mill_vta_keys
     printf '%s\t%s\n' \
         vta.config.file= 'Active hardware config JSON in config/ (default vta_config.json)' \
         vta.config.fromResources= 'Load the config from test resources instead of config/' \
-        vta.board.name= 'Target FPGA board in vta/fpga/boards/ (default zcu104)' \
+        vta.board.name= 'Target FPGA board in modules/fpga/boards/ (default zcu104)' \
         vta.ddr.base= 'DDR base for the baremetal codegen; match the board (default 0x0)' \
         vta.xil.out= 'Shallow root for Vivado/Vitis project trees (Windows long-path fix)' \
         vta.compilerOutDir= 'emitVtaPostSynthTb: compiler_output dir to replay' \

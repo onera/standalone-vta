@@ -19,9 +19,9 @@ The `standalone-vta` ecosystem is designed with a clear separation of concerns, 
 ```text
 +-----------------------+      +---------------------------+      +-------------------------------+
 |      Input Model      |      |   Standalone VTA Compiler |      |         VTA Simulators        |
-|  (ONNX or custom JSON)| ---> |       (vta/compiler/)     | ---> |   Functional (C++) for fast   |
-|                       |      |  Parses, partitions, and  |      |   validation (vta/simulator)  |
-|                       |      |  generates instructions.  |      | Cycle-Accurate (vta/hardware) |
+|  (ONNX or custom JSON)| ---> |       (modules/compiler/)     | ---> |   Functional (C++) for fast   |
+|                       |      |  Parses, partitions, and  |      |   validation (modules/simulator)  |
+|                       |      |  generates instructions.  |      | Cycle-Accurate (modules/hardware) |
 +-----------------------+      +---------------------------+      +-------------------------------+
                                              |                                  ^
                                              v                                  |
@@ -34,21 +34,21 @@ The `standalone-vta` ecosystem is designed with a clear separation of concerns, 
                                 +-------------------------+
 ```
 
-1. **Compiler Phase**: The standalone Python compiler (`vta/compiler`) reads a neural network representation (ONNX or a custom JSON VTA IR). It performs matrix partitioning, DRAM allocation, and generates VTA-specific instructions and micro-ops.
+1. **Compiler Phase**: The standalone Python compiler (`modules/compiler`) reads a neural network representation (ONNX or a custom JSON VTA IR). It performs matrix partitioning, DRAM allocation, and generates VTA-specific instructions and micro-ops.
 2. **Artifact Generation**: The compiler outputs binary files (`.bin`) and memory initialization files (`.json`) into the `compiler_output/` directory (or, when driven by Mill, into the task's own output directory under `out/`).
-3. **Simulation Phase**: The simulators (`vta/simulator` for the functional and Verilated/DPI backends, `vta/hardware` for the Chisel cycle-accurate one) read these artifacts to simulate the VTA execution, validating the compiler's output either functionally or cycle-accurately.
+3. **Simulation Phase**: The simulators (`modules/simulator` for the functional and Verilated/DPI backends, `modules/hardware` for the Chisel cycle-accurate one) read these artifacts to simulate the VTA execution, validating the compiler's output either functionally or cycle-accurately.
 
 ## Repository Map
 
-- `vta/`: Core source code, one directory per module. Each has its own
-  `package.mill` and is addressable as a Mill module (`vta.compiler`,
-  `vta.simulator`, ...).
+- `modules/`: Core source code, one directory per module. Each has its own
+  `package.mill` and is addressable as a Mill module (`modules.compiler`,
+  `modules.simulator`, ...).
   - `compiler/`: Python-based VTA compiler (TVM-independent).
   - `simulator/`: Fast C++ functional simulator (and the Verilated/DPI backend).
   - `hardware/`: Chisel hardware sources - the cycle-accurate simulator, and the SystemVerilog emitted for the Verilated and FPGA flows.
   - `fpga/`: FPGA synthesis flow and the PS-side baremetal runtime software.
 - `build.mill`: Root Mill build - the shared config plumbing and the cross keys the example modules are built from.
-- `vta/pipeline.mill`: The per-(model, config) pipeline traits (compile, simulate, baremetal, Vitis, post-synthesis) that the example modules mix in.
+- `modules/pipeline.mill`: The per-(model, config) pipeline traits (compile, simulate, baremetal, Vitis, post-synthesis) that the example modules mix in.
 - `config/`: Contains `vta_config.json` defining the VTA hardware parameters, plus alternative configurations. See [Config Documentation](config/README.md).
 - `environment_setup/`: Legacy setup files (Docker/Conda). The project now uses Pixi for package and environment management.
 - `examples/`: Sample inputs and their Mill module (`examples/package.mill`), plus the legacy Makefile.
@@ -67,20 +67,20 @@ Explore the detailed documentation for each component of the `standalone-vta` ec
   - [Configuration (`vta_config.json`)](config/README.md)
   - [Environment Setup (Legacy Docker/Conda)](environment_setup/README.md)
 
-- **Compiler (`vta/compiler/`)**
-  - [Standalone VTA Compiler](vta/compiler/vta_compiler/operations_definition/README.md)
+- **Compiler (`modules/compiler/`)**
+  - [Standalone VTA Compiler](modules/compiler/vta_compiler/operations_definition/README.md)
 
-- **Simulator (`vta/simulator/`)**
-  - [Functional Simulator (C++)](vta/simulator/README.md)
-- **Hardware (`vta/hardware/`)**
-  - [Hardware (Chisel)](vta/hardware/README.md)
-  - [Simulator Test Documentation](vta/hardware/src/test/documentation/test_documentation.md)
-  - [Simulator Testbench README](vta/hardware/src/test/scala/simulatorTest/README.md)
-  - [Formal Verification README](vta/hardware/src/test/scala/formal/README.md)
+- **Simulator (`modules/simulator/`)**
+  - [Functional Simulator (C++)](modules/simulator/README.md)
+- **Hardware (`modules/hardware/`)**
+  - [Hardware (Chisel)](modules/hardware/README.md)
+  - [Simulator Test Documentation](modules/hardware/src/test/documentation/test_documentation.md)
+  - [Simulator Testbench README](modules/hardware/src/test/scala/simulatorTest/README.md)
+  - [Formal Verification README](modules/hardware/src/test/scala/formal/README.md)
 
-- **FPGA (`vta/fpga/`)**
-  - [FPGA Implementation & IP Generation](vta/fpga/README.md)
-  - [FPGA Runtime Software](vta/fpga/software/README.md)
+- **FPGA (`modules/fpga/`)**
+  - [FPGA Implementation & IP Generation](modules/fpga/README.md)
+  - [FPGA Runtime Software](modules/fpga/software/README.md)
 - **Tutorials**
   - [Tutorials Overview](tutorials/README.md)
 
@@ -182,8 +182,8 @@ Outputs are isolated per model and config in each task's Mill dest under
 `out/examples/onnx/<model>/<config>/`: `compile.dest/` (compile),
 `fsim.dest/` and `vsim.dest/` (simulation), `genBaremetal.dest/`,
 `createVitisProject.dest/<board>/`. The C++/Verilator simulator
-(`vta.simulator[<config>]`) is built once per config and cached, and the FPGA
-bitstream once per (config, board) pair (`vta.fpga.targets[<config>,<board>]`),
+(`modules.simulator[<config>]`) is built once per config and cached, and the FPGA
+bitstream once per (config, board) pair (`modules.fpga.targets[<config>,<board>]`),
 so switching config, board, or adding a new example model does not rebuild
 everything.
 
@@ -215,19 +215,19 @@ addressable and cached - flipping between boards does not re-synthesize the
 other one:
 
 ```bash
-./mill "vta.fpga.targets[vta_w8b,zcu104].fpgaSynth"    # bitstream + XSA
-./mill "vta.fpga.targets[vta_w8b,vek280].fpgaProject"  # Vivado project only
+./mill "modules.fpga.targets[vta_w8b,zcu104].fpgaSynth"    # bitstream + XSA
+./mill "modules.fpga.targets[vta_w8b,vek280].fpgaProject"  # Vivado project only
 
 # examples pick their board from -Dvta.board.name (default zcu104)
 ./mill -Dvta.board.name=vek280 "examples.onnx[lenet5,vta_w8b].createVitisProject"
 ```
 
-Boards are the JSONs under `vta/fpga/boards/` (`zcu104`, `vck190`, `vek280`);
+Boards are the JSONs under `modules/fpga/boards/` (`zcu104`, `vck190`, `vek280`);
 adding one there adds the cross entries with no build-file edit. The older
 `-Dvta.config.file=<name>.json` global property still selects the config for
-the flat, non-crossed tasks (`vta.hardware.emitVtaSimConfig`,
-`vta.fpga.synthesis.buildFpga`, `vta.hardware.test.unittest`, ...) used by
-`examples/Makefile`, `vta/simulator/Makefile`, and `vta/fpga/software/Makefile`,
+the flat, non-crossed tasks (`modules.hardware.emitVtaSimConfig`,
+`modules.fpga.synthesis.buildFpga`, `modules.hardware.test.unittest`, ...) used by
+`examples/Makefile`, `modules/simulator/Makefile`, and `modules/fpga/software/Makefile`,
 which remain available for standalone use outside Mill.
 
 #### Vitis workspace from an existing XSA
@@ -250,7 +250,7 @@ any of those flags to override them, since the script keeps the last
 occurrence. Everything else is yours, including `--cpu` for a non-ZynqMP board
 (the script defaults to `psu_cortexa53_0`).
 
-The XSA is *not* checked against the active config: a bitstream synthesized for
+The XSA is _not_ checked against the active config: a bitstream synthesized for
 a different block size than the compiled binaries will run and produce garbage.
 
 #### SD-card file set
@@ -268,7 +268,7 @@ per-model subfolder (`0:/lenet5/instructions_L0.bin`), so one card can hold
 several models, and the codegen is deterministic, so the staged addresses match
 the app built from `genBaremetal`.
 
-`xilffs` (FatFs) is enabled when the platform is *created*, so a workspace built
+`xilffs` (FatFs) is enabled when the platform is _created_, so a workspace built
 before any SD app was requested cannot build one - point `--workspace` at a
 fresh directory.
 

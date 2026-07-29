@@ -29,7 +29,7 @@ object `package` extends Module with SpotlessModule {
   // This module holds the shared vocabulary of the build: the global
   // defaults, the Scala-module base trait, the values the Cross axes are
   // listed from, and the identity traits every per-config module mixes in.
-  // The pipeline task traits live in vta/pipeline.mill, and each module's own
+  // The pipeline task traits live in modules/pipeline.mill, and each module's own
   // tasks in its package.mill.
   //
   // They live inside `object package` rather than at the top level of this
@@ -178,9 +178,9 @@ object `package` extends Module with SpotlessModule {
     exampleIrModels.flatMap(m => configNames.map(c => (m, c)))
 
   /** Plain (non-Task) path to the FPGA board definitions. */
-  def boardsDirPath = BuildCtx.workspaceRoot / "vta" / "fpga" / "boards"
+  def boardsDirPath = BuildCtx.workspaceRoot / "modules" / "fpga" / "boards"
 
-  /** The board JSONs under vta/fpga/boards/, as cross keys (extension
+  /** The board JSONs under modules/fpga/boards/, as cross keys (extension
     * stripped).
     */
   def boardNames = BuildCtx.watchValue(
@@ -188,14 +188,14 @@ object `package` extends Module with SpotlessModule {
   )
 
   /** Board used by the tasks that are not board-crossed: the `examples` FPGA
-    * wiring and the flat vta.fpga tasks. From -Dvta.board.name, default zcu104.
+    * wiring and the flat modules.fpga tasks. From -Dvta.board.name, default zcu104.
     *
     * A plain value for the same reason as [[activeConfigKey]]: it selects a
-    * Cross instance (`vta.fpga.targets(config, board)`).
+    * Cross instance (`modules.fpga.targets(config, board)`).
     */
   def defaultBoardName = sys.props.getOrElse("vta.board.name", defaultBoard)
 
-  /** Every (config, board) pair - the Cross keys for `vta.fpga.targets`. An
+  /** Every (config, board) pair - the Cross keys for `modules.fpga.targets`. An
     * FPGA build is identified by both: the config fixes the RTL, the board
     * fixes the pinout and the XSA.
     */
@@ -211,7 +211,7 @@ object `package` extends Module with SpotlessModule {
     *
     * This is the axis the whole per-config caching hangs off: every module
     * mixing it in is an independently addressable, independently cached
-    * instance (vta.simulator[vta_w8b].fsimBinary), so switching config resolves
+    * instance (modules.simulator[vta_w8b].fsimBinary), so switching config resolves
     * to another instance instead of dirtying a shared one.
     */
   trait HasVtaConfig extends Module {
@@ -233,14 +233,14 @@ object `package` extends Module with SpotlessModule {
     */
   trait HasFpgaBoard extends Module {
 
-    // A plain def, not a Task: it indexes the vta.fpga.targets Cross, whose keys
+    // A plain def, not a Task: it indexes the modules.fpga.targets Cross, whose keys
     // must exist before the task graph.
     def fpgaBoard: String = defaultBoardName
   }
 
   /** A single config's identity, derived directly from a Cross value. Mixed
-    * into `vta.hardware.configs[...]` and the `vta.simulator[...]` cross
-    * instances. The two-axis (config, board) modules of vta.fpga take
+    * into `modules.hardware.configs[...]` and the `modules.simulator[...]` cross
+    * instances. The two-axis (config, board) modules of modules.fpga take
     * HasVtaConfig directly instead, since their config is only one of their two
     * cross values.
     */

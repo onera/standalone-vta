@@ -159,7 +159,7 @@ _mill_repo_root() {
 }
 
 # The -Dvta.* keys the build reads. Keep in sync with the sys.props lookups in
-# build.mill, vta/pipeline.mill and vta/*/package.mill (and with __mill_vta_keys
+# build.mill, modules/pipeline.mill and modules/*/package.mill (and with __mill_vta_keys
 # in the fish file).
 _mill_vta_keys() {
   cat <<'EOF'

@@ -1,12 +1,12 @@
 package build.examples
 
 import mill._
-import build.vta.VtaPipelineModule
-import build.vta.{HasRawIrModel, SimTasks}
+import build.modules.VtaPipelineModule
+import build.modules.{HasRawIrModel, SimTasks}
 
 /** One example model built for one config: the full pipeline, keyed by both.
   *
-  * The tasks all come from [[build.vta.VtaPipelineModule]] (vta/pipeline.mill);
+  * The tasks all come from [[build.modules.VtaPipelineModule]] (modules/pipeline.mill);
   * this supplies only the three values that identify the instance. `configKey`
   * is a direct Cross value rather than BaseVtaModule's global
   * -Dvta.config.file.
@@ -59,9 +59,9 @@ trait IrExampleModule
     val compOut = compile().path
     // Resolved off the module, not off `sim`: the Task macro cannot lift a
     // Task#apply() whose receiver is a local val of this block.
-    val fsimBin = build.vta.simulator(configKey).fsimBinary().path
-    val vsimBin = build.vta.simulator(configKey).vsimBinary().path
-    val sim = build.vta.simulator(configKey)
+    val fsimBin = build.modules.simulator(configKey).fsimBinary().path
+    val vsimBin = build.modules.simulator(configKey).vsimBinary().path
+    val sim = build.modules.simulator(configKey)
     val fsimOut = Task.dest / "fsim"
     val vsimOut = Task.dest / "vsim"
 
@@ -77,7 +77,7 @@ trait IrExampleModule
         ++ defaultSimFlags ++ Seq("--no-timeout"),
       Task.env
     )
-    build.vta.compiler.runCompare(
+    build.modules.compiler.runCompare(
       fsimOut / layerOutputName,
       vsimOut / layerOutputName,
       Task.env
