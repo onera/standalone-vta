@@ -50,10 +50,42 @@
 #
 # The `mill-fzf-level` helper is found relative to this file, so keep the two
 # together in tools/completions/.
+#
+# Requires fish 3.3 or newer (the version Ubuntu 22.04 ships). Nothing here uses
+# the `path` builtin, which only arrived in fish 3.5 - see the two helpers below.
+
+# --- fish 3.3 compatibility -------------------------------------------------
+
+# dirname/basename as plain string surgery, so the script also runs on the fish
+# 3.3 of Ubuntu 22.04, which predates the `path` builtin. Unmatched globs need
+# no guard either: fish leaves a `for` header that matches nothing empty rather
+# than erroring, on both 3.3 and 4.x.
+
+function __mill_dirname --argument-names p
+    # No slash at all: the parent is the current directory.
+    string match -q '*/*' -- $p
+    or begin
+        echo .
+        return
+    end
+    set -l dir (string replace -r '/[^/]+/?$' '' -- $p)
+    # A top-level entry ("/foo") strips down to nothing; its parent is "/".
+    test -n "$dir"; or set dir /
+    echo $dir
+end
+
+function __mill_basename --argument-names p
+    string replace -r '^.*/' '' -- $p
+end
 
 # Directory holding this file and the mill-fzf-level helper (resolve symlinks so
 # it points at the real tools/completions/ dir even when sourced via a symlink).
-set -g __mill_tools_dir (path dirname (path resolve (status filename)))
+# fish defines `realpath` as a function wrapping the system one on every version
+# of interest; the fallback covers a host without it, where the path is used
+# unresolved.
+set -l __mill_self (status filename)
+set __mill_self (realpath $__mill_self 2>/dev/null; or echo $__mill_self)
+set -g __mill_tools_dir (__mill_dirname $__mill_self)
 
 # --- description cleaning ---------------------------------------------------
 
@@ -148,7 +180,7 @@ function __mill_repo_root
             return 0
         end
         test "$dir" = /; and break
-        set dir (path dirname $dir)
+        set dir (__mill_dirname $dir)
     end
     return 1
 end
@@ -178,9 +210,11 @@ end
 #           maps _.baseName over the dir, so the cross keys are "zcu104")
 function __mill_vta_json_values --argument-names key dir desc ext
     test -d "$dir"; or return
-    for f in (path filter -f "$dir"/*.json 2>/dev/null)
-        set -l name (path basename $f)
-        test "$ext" = strip; and set name (path change-extension '' $name)
+    for f in $dir/*.json
+        # Skip a directory that happens to be named *.json.
+        test -f "$f"; or continue
+        set -l name (__mill_basename $f)
+        test "$ext" = strip; and set name (string replace -r '\.json$' '' -- $name)
         printf '%s\t%s\n' "$key=$name" "$desc"
     end
 end
