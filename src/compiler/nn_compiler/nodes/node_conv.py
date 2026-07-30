@@ -426,7 +426,9 @@ def node_mulconstant(node, param={}, node_mapping={}, node_info={}, filename='',
                     if (shape != 1):
                         raise Exception(f"ERROR (in {filename}): Wrong shape ({shape} when 1 is expected)! \n")
                 isScalarGet = j
-                scalar = np.asarray(param[inp['name']]).reshape(-1)[0]
+                # ONNX initializers export 0D scalars as 1D tensors (e.g., shape [1] with value [88]).
+                # Note: Only single-element scalars are supported for MulConstant (per-channel broadcasting is not supported).
+                scalar = int(np.asarray(param[inp['name']]).item())
 
             # Error on the shape
             else:
@@ -491,7 +493,6 @@ def node_mulconstant(node, param={}, node_mapping={}, node_info={}, filename='',
     if (B_zp != 0):
         scalar = scalar - B_zp
 
-
     # ---
     # WRITE VTA IR
     # ------------
@@ -505,7 +506,7 @@ def node_mulconstant(node, param={}, node_mapping={}, node_info={}, filename='',
         "LOAD": {
             "INP": ["A"]
         },
-        "GEMM": ["C", "A", int( scalar )],
+        "GEMM": ["C", "A", scalar],
         "STORE": {
             "C": ["C"]
         }
