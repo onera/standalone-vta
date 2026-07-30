@@ -45,15 +45,9 @@ object `package` extends Module {
 
   /** Resolve the vitis executable: $XILINX_VITIS/bin/vitis, else whatever
     * `vitis` is on PATH. A plain function, not a Task.Input: the tool's
-    * location is an environment detail, not build content. (Unlike vivado, Mill
-    * resolves this itself because it execs the workspace script directly rather
-    * than through a Scala entry point.) On Windows the bin/ dir only ships
-    * `vitis.bat` (no `vitis.exe`, and the extensionless `vitis` is a Linux/WSL
-    * script), so the name gets a `.bat` suffix there in both cases - needed
-    * because this is launched via java.lang.ProcessBuilder directly (no shell),
-    * which only auto-wraps a command in `cmd /c` when it already ends in
-    * `.bat`/`.cmd`.
-    */
+    * location is an environment detail, not build content. On Windows the bin/ dir only ships
+    * `vitis.bat`
+    **/
   def resolveVitis(env: Map[String, String]): String = {
     val exeName = "vitis" + (if (scala.util.Properties.isWin) ".bat" else "")
     env
@@ -78,7 +72,7 @@ object `package` extends Module {
         } else {
           val fullCmd =
             s"source ${vitisRoot}/settings64.sh && ${vitisExe} ${argStrings}"
-          os.proc("sh", "-c", fullCmd).call(stdout = os.Inherit)
+          os.proc("bash", "-c", fullCmd).call(stdout = os.Inherit)
         }
       case None =>
         os.proc(resolveVitis(env) +: args).call(stdout = os.Inherit)

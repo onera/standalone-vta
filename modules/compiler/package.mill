@@ -3,6 +3,7 @@ package build.modules.compiler
 import mill.*
 import mill.api.Args
 import mill.api.BuildCtx
+import os.Shellable
 
 /** The Python compiler: ONNX model -> VTA IR -> instruction/uop/data .bin
   * streams, plus the ONNX reference used to check simulator output.
@@ -38,10 +39,9 @@ object `package` extends Module { m =>
 
   /** The python the compiler stages run under: whatever is first on PATH.
     *
-    * Activate your venv/pixi env before invoking Mill, or prefix the command
-    * with `pixi run`.
+    * Pixi is called explicitly in the sub process. If you do not use pixi, change this.
     */
-  def python = "python"
+  def python: Shellable = Seq("pixi","run", "python")
 
   def nnCompile(
     onnx: os.Path,
