@@ -102,12 +102,6 @@ object `package` extends Module with SpotlessModule {
 
     def scalaVersion = "2.13.18"
 
-    // No -Dvta.config.file here: forkArgs feeds runner(), and every cached task
-    // that calls runner() would be invalidated whenever the global config prop
-    // changes - including the per-config Cross instances that ignore it. Call
-    // sites that want the global config pass configForkArgs() explicitly.
-    def forkArgs = Seq.empty[String]
-
     /** File name of the active config, from -Dvta.config.file (default
       * vta_config.json). Set it to switch the raw pass-through Commands to
       * another config; the per-config Cross modules ignore it.
@@ -128,7 +122,8 @@ object `package` extends Module with SpotlessModule {
     // stableEnv: see forkEnvVars above - forkEnv is hashed into every
     // runner-dependent task, so only the whitelisted vars are captured.
     def forkEnv =
-      stableEnv(Task.env) ++ Map("VTA_ROOT" -> BuildCtx.workspaceRoot.toString)
+      // stableEnv(Task.env) ++ Map("VTA_ROOT" -> BuildCtx.workspaceRoot.toString)
+      Map("VTA_ROOT" -> BuildCtx.workspaceRoot.toString)
   }
 
   // -------------------------------------------------------------------------
@@ -188,7 +183,8 @@ object `package` extends Module with SpotlessModule {
   )
 
   /** Board used by the tasks that are not board-crossed: the `examples` FPGA
-    * wiring and the flat modules.fpga tasks. From -Dvta.board.name, default zcu104.
+    * wiring and the flat modules.fpga tasks. From -Dvta.board.name, default
+    * zcu104.
     *
     * A plain value for the same reason as [[activeConfigKey]]: it selects a
     * Cross instance (`modules.fpga.targets(config, board)`).
@@ -211,8 +207,8 @@ object `package` extends Module with SpotlessModule {
     *
     * This is the axis the whole per-config caching hangs off: every module
     * mixing it in is an independently addressable, independently cached
-    * instance (modules.simulator[vta_w8b].fsimBinary), so switching config resolves
-    * to another instance instead of dirtying a shared one.
+    * instance (modules.simulator[vta_w8b].fsimBinary), so switching config
+    * resolves to another instance instead of dirtying a shared one.
     */
   trait HasVtaConfig extends Module {
 
@@ -239,8 +235,8 @@ object `package` extends Module with SpotlessModule {
   }
 
   /** A single config's identity, derived directly from a Cross value. Mixed
-    * into `modules.hardware.configs[...]` and the `modules.simulator[...]` cross
-    * instances. The two-axis (config, board) modules of modules.fpga take
+    * into `modules.hardware.configs[...]` and the `modules.simulator[...]`
+    * cross instances. The two-axis (config, board) modules of modules.fpga take
     * HasVtaConfig directly instead, since their config is only one of their two
     * cross values.
     */

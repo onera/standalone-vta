@@ -27,7 +27,7 @@ proc read_filelist {base_dir filelist_path} {
 # ---------------------------------------------------------------------------
 # Step 1: Create a temporary in-memory project
 # ---------------------------------------------------------------------------
-set tmp_proj [file join $script_dir .vivado_pkg_tmp]
+set tmp_proj [file join [file dirname $ip_root] .vivado_pkg_tmp]
 file mkdir $tmp_proj
 
 create_project -force vta_pkg_tmp \

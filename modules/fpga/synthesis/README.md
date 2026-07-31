@@ -5,12 +5,21 @@ and a board definition down to a bitstream and an XSA, with no manual Vivado ste
 
 ```
 config.json + boards/<board>.json
-  -> (mill)   emit Xilinx-shell RTL + package_ip.tcl      [stage 1]
-  -> (vivado) package RTL as an IP-XACT IP (ip_repo/)     [stage 2]
-  -> (vivado) block design -> synth -> impl -> bitstream
-              -> XSA                                       [stage 3]
+  -> (mill)   emit Xilinx-shell RTL + package_ip.tcl
+              modules.hardware.configs[<config>].vtaFpgaConfig
+  -> (vivado) package RTL as an IP-XACT IP        PackageIp
+              modules.fpga.targets[<config>,<board>].ipRepo
+  -> (vivado) block design -> synth -> impl       BuildFpga
+              -> bitstream -> XSA
   -> build/vta_<board>.xsa  (+ .bit, reports, manifest.json)
 ```
+
+Each arrow is a separately cached Mill task with its own output directory, and
+none of them writes into another's. That is what keeps a Vivado run off the
+critical path when nothing it depends on changed: the IP is repackaged only when
+the emitted RTL or the board part moves, and synthesis only when the IP,
+the board JSON, the config or the flow itself moves. See
+`docs/fpga/mill_caching_review.md` in the workspace for the full dependency audit.
 
 ## Quick start
 
@@ -22,8 +31,9 @@ make bitstream BOARD=zcu104 CONFIG=../../../config/vta_config.json
 make bitstream BOARD=vek280 CONFIG=../../../config/vta_config.json
 # or for vck190:
 make bitstream BOARD=vck190 CONFIG=../../../config/vta_config.json
-# or, equivalently, invoke the Mill task directly from the repo root:
-./mill vta.fpga.synthesis.buildFpga --board vck190 --config config/vta_config.json
+# or, better, the cached crossed task from the repo root - it skips whatever is
+# already up to date, where the Makefile always re-emits/repackages/resynthesizes:
+./mill "modules.fpga.targets[vta_config,vck190].fpgaSynth"
 ```
 
 The XSA lands in `build/vta_<board>.xsa`. Feed it straight to the software half:
@@ -43,9 +53,12 @@ Useful flags:
 
 - `make dry-run BOARD=vck190` - print the plan and the generated `board_params.tcl`,
   run nothing (works without Xilinx tools installed).
-- `make bitstream SKIP_EMIT=1` - reuse RTL already emitted under the emit dir.
+- `make emit` / `make package-ip` - run just the RTL emit, or the emit plus the
+  IP packaging, into `EMIT_DIR` / `IP_REPO`. `make bitstream` depends on
+  `package-ip`, since `BuildFpga` consumes a packaged repo rather than
+  producing one.
 - `make bitstream JOBS=8` - parallelism for synth/impl.
-- `./mill vta.fpga.synthesis.buildFpga --help` - all options.
+- `./mill modules.fpga.synthesis.buildFpga --help` - all options.
 
 ## Files
 
@@ -58,7 +71,8 @@ standalone `build_fpga.py` + `build_fpga.tcl` have been removed.
 
 | File                                                 | Role                                                                                                                                                                                                                               |
 | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `fpga.synthesis.BuildFpga` (Scala)                   | Orchestrator: runs the stages, derives the IP VLNV from the emit, writes `manifest.json`. Run via `./mill vta.fpga.synthesis.buildFpga` or this Makefile.                                                                                    |
+| `fpga.synthesis.PackageIp` (Scala)                   | Packages the emitted shell as an IP-XACT core into an IP repository of its own (`<out>/vta`, with `<out>` the `ip_repo_paths` entry). Reads the emit dir, never writes it. Run via `./mill modules.fpga.synthesis.packageIp`.                 |
+| `fpga.synthesis.BuildFpga` (Scala)                   | Orchestrator: runs the create-project and synth stages, derives the IP VLNV from the emit, writes `manifest.json`. Takes the packaged repo as `--ip-repo`. Run via `./mill modules.fpga.synthesis.buildFpga` or this Makefile.                |
 | `resources/synthesis/{create_project,synthesis}.tcl` | Board-agnostic Vivado recipe (create-project stage + synth/impl/XSA stage). Builds the block design, assigns addresses, runs to bitstream/device image, exports the XSA. Parameterized entirely by a generated `board_params.tcl`. |
 | `boards/<board>.json`                                | The only place board specifics live: part, board preset, CPU, PL clock, AXI/NoC port wiring, address map.                                                                                                                          |
 | `Makefile`                                           | Thin `make bitstream` / `dry-run` / `clean` entry (wraps the Mill task).                                                                                                                                                           |

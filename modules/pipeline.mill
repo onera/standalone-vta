@@ -79,8 +79,8 @@ trait HasOnnxModel extends HasCompilableModel {
   * The front-endless path: the fixture is already VTA IR, so vta_compiler runs
   * alone. There is no ONNX model, hence no nn_compiler and no reference. That
   * also rules out NN mode, since run_nn reads dependency.csv and input_nn.bin
-  * which only nn_compiler writes (modules/simulator/src/fsim_nn.cc:37-41), so these
-  * fixtures run single-layer.
+  * which only nn_compiler writes (modules/simulator/src/fsim_nn.cc:37-41), so
+  * these fixtures run single-layer.
   */
 trait HasRawIrModel extends HasCompilableModel {
 
@@ -111,7 +111,12 @@ trait HasRawIrModel extends HasCompilableModel {
   def compile = Task {
     configSignature() // invalidate on config-content change
     build.modules.compiler.sources()
-    build.modules.compiler.compileIr(irPath().path, configPath, Task.dest, Task.env)
+    build.modules.compiler.compileIr(
+      irPath().path,
+      configPath,
+      Task.dest,
+      Task.env
+    )
     PathRef(Task.dest)
   }
 }
@@ -361,12 +366,12 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
     * (config, board), ready to build and flash.
     *
     * The workspace and its hardware platform are per (config, board) only -
-    * `modules.fpga.targets[<config>,<board>].vitisPlatform`, built first if stale
-    * (which synthesizes the XSA if needed). This task adds the model-dependent
-    * part on top: app components named `<model>_<runner>[_<loader>]`, wired to
-    * this example's generated headers ([[genBaremetal]]). Several models
-    * therefore coexist in one workspace per platform. Requires Vivado and
-    * Vitis.
+    * `modules.fpga.targets[<config>,<board>].vitisPlatform`, built first if
+    * stale (which synthesizes the XSA if needed). This task adds the
+    * model-dependent part on top: app components named
+    * `<model>_<runner>[_<loader>]`, wired to this example's generated headers
+    * ([[genBaremetal]]). Several models therefore coexist in one workspace per
+    * platform. Requires Vivado and Vitis.
     *
     * The board comes from -Dvta.board.name (default zcu104).
     *
@@ -491,7 +496,8 @@ trait PostSynthTasks extends LayerDumpTasks with HasFpgaBoard {
     val tbDir = Task.dest / "vta-postsynth-tb"
 
     // The cached gate-level netlist for this (config, board).
-    val netlist = build.modules.fpga.targets(configKey, fpgaBoard).oocNetlist().path
+    val netlist =
+      build.modules.fpga.targets(configKey, fpgaBoard).oocNetlist().path
 
     // The cached fsim per-layer dumps (input/output<layer>.bin). Read-only
     // here: the TB emitter reads input<layer>.bin, the compare stage reads

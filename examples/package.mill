@@ -6,10 +6,10 @@ import build.modules.{HasRawIrModel, SimTasks}
 
 /** One example model built for one config: the full pipeline, keyed by both.
   *
-  * The tasks all come from [[build.modules.VtaPipelineModule]] (modules/pipeline.mill);
-  * this supplies only the three values that identify the instance. `configKey`
-  * is a direct Cross value rather than BaseVtaModule's global
-  * -Dvta.config.file.
+  * The tasks all come from [[build.modules.VtaPipelineModule]]
+  * (modules/pipeline.mill); this supplies only the three values that identify
+  * the instance. `configKey` is a direct Cross value rather than
+  * BaseVtaModule's global -Dvta.config.file.
   */
 trait ExampleModule
     extends Cross.Module2[String, String]

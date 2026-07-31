@@ -53,8 +53,8 @@ trait ConfigModule extends build.ConfigCrossModule {
   /** Build the Verilated RTL simulator for this config and return the vsim
     * binary.
     *
-    * Verilates the VTAShell.sv that modules.hardware.configs[<config>] emits, so a
-    * Chisel change rebuilds it. Cached like [[fsimBinary]] otherwise.
+    * Verilates the VTAShell.sv that modules.hardware.configs[<config>] emits,
+    * so a Chisel change rebuilds it. Cached like [[fsimBinary]] otherwise.
     */
   def vsimBinary = Task {
     simSources()

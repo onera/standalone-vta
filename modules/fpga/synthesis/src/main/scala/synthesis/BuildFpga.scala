@@ -17,9 +17,9 @@ object BuildFpga {
     out: Option[String] = None,
     exportDir: Option[String] = None,
     emitDir: Option[String] = None,
+    ipRepo: Option[String] = None,
     jobs: Option[Int] = None,
     vivado: String = Vivado.tool(sys.env, "vivado"),
-    skipPackage: Boolean = false,
     skipProject: Boolean = false,
     skipSynth: Boolean = false,
     dryRun: Boolean = false
@@ -54,6 +54,11 @@ object BuildFpga {
         .text(
           "emitted RTL directory (default <repo>/build/emitted/vta-xilinx-shell)"
         ),
+      opt[String]("ip-repo")
+        .action((x, c) => c.copy(ipRepo = Some(x)))
+        .text(
+          "IP repository holding the packaged VTA core, from fpga.synthesis.PackageIp (default <emit-dir>/ip_repo)"
+        ),
       opt[Int]("jobs")
         .action((x, c) => c.copy(jobs = Some(x)))
         .text("Vivado parallel jobs (default min(4, nCPUs))"),
@@ -62,9 +67,6 @@ object BuildFpga {
         .text(
           "vivado executable (default $XILINX_VIVADO/bin/vivado, else vivado on PATH)"
         ),
-      opt[Unit]("skip-package")
-        .action((_, c) => c.copy(skipPackage = true))
-        .text("skip the IP-package stage"),
       opt[Unit]("skip-project")
         .action((_, c) => c.copy(skipProject = true))
         .text(
@@ -131,7 +133,6 @@ object BuildFpga {
     val jobs =
       o.jobs.getOrElse(math.min(4, Runtime.getRuntime.availableProcessors))
     val vivado = o.vivado
-    val skipPkg = o.skipPackage
     val skipProject = o.skipProject
     val skipSynth = o.skipSynth
     val dryRun = o.dryRun
@@ -139,7 +140,12 @@ object BuildFpga {
     val board = Board.load((boardsDir / s"$boardName.json").toString)
     val outDir = os.Path(outStr, os.pwd)
     val emitDir = os.Path(emitDirStr, os.pwd)
-    val ipRepo = emitDir / "ip_repo"
+    // The IP repository is produced by fpga.synthesis.PackageIp, which owns its
+    // own directory (the Mill task modules.fpga.targets[...].ipRepo). The
+    // legacy <emit-dir>/ip_repo default is only for a hand-driven flow that
+    // ran the old in-tree packaging; it makes this tool read the emit dir,
+    // never write it.
+    val ipRepo = o.ipRepo.map(os.Path(_, os.pwd)).getOrElse(emitDir / "ip_repo")
     val projDir = outDir / "project"
     // Where the deliverables (XSA, bitstream, reports, manifest) land. The
     // Vivado project stays in --out; Mill's fpgaSynth passes its own task
@@ -151,40 +157,30 @@ object BuildFpga {
     println(s"  board      : ${board.name}  (part ${board.part})")
     println(s"  config     : $configPath")
     println(s"  emit dir   : $emitDir")
+    println(s"  ip repo    : $ipRepo")
     println(s"  output dir : $outDir")
     println(s"  export dir : $exportDir")
     println(s"  jobs       : $jobs")
 
-    // The RTL emit is owned by Mill (vta.hardware.vtaFpgaConfig /
-    // emitVtaFpgaConfig); this tool consumes an already-emitted dir and reads
-    // the IP identity out of its package_ip.tcl.
+    // The RTL emit is owned by Mill (modules.hardware.configs[c].vtaFpgaConfig)
+    // and the IP packaging by fpga.synthesis.PackageIp; this tool consumes an
+    // already-emitted dir and an already-packaged repo, and reads the IP
+    // identity out of the emitted package_ip.tcl.
     val vlnv: String =
       if (dryRun && !os.exists(emitDir / "package_ip.tcl"))
         "unknown:unknown:VTA:0.0.0"
-      else vlnvFromEmit(emitDir)
-
-    // Stage 1: package IP
-    if (!skipPkg) {
-      Vivado.runCmd(
-        Seq(
-          vivado,
-          "-mode",
-          "batch",
-          "-source",
-          (emitDir / "package_ip.tcl").toString,
-          "-tclargs",
-          "--part",
-          board.part
-        ),
-        cwd = emitDir,
-        dryRun = dryRun,
-        stage = "1/3 package IP"
-      )
-    } else {
-      println("\n[1/3 package IP] skipped (--skip-package)")
-    }
+      else PackageIp.vlnvFromEmit(emitDir)
 
     println(s"  VTA IP     : $vlnv")
+
+    if (!dryRun && !skipProject && !os.exists(ipRepo / PackageIp.coreDirName)) {
+      System.err.println(
+        s"ERROR: no packaged VTA IP under $ipRepo\n" +
+          s"       Package it first: ./mill \"modules.fpga.targets[<config>,${board.name}].ipRepo\"\n" +
+          s"       (or fpga.synthesis.PackageIp --board ${board.name} --emit-dir $emitDir --out <dir>)"
+      )
+      return 1
+    }
 
     // board_params.tcl: always (re)written so a later --skip-project run
     // (possibly with different --jobs) sources fresh values.
@@ -206,10 +202,10 @@ object BuildFpga {
     } else {
       os.makeDir.all(outDir)
       os.write.over(paramsFile, params + "\n")
-      println(s"\n[2/3 create project] wrote $paramsFile")
+      println(s"\n[1/2 create project] wrote $paramsFile")
     }
 
-    // Stage 2: create project + block design
+    // Stage 1: create project + block design
     if (!skipProject) {
       Vivado.runCmd(
         Seq(
@@ -223,15 +219,15 @@ object BuildFpga {
         ),
         cwd = outDir,
         dryRun = dryRun,
-        stage = "2/3 create project"
+        stage = "1/2 create project"
       )
     } else {
-      println("\n[2/3 create project] skipped (--skip-project)")
+      println("\n[1/2 create project] skipped (--skip-project)")
     }
 
     if (skipSynth) {
       val xpr = projDir / board.name / s"${board.name}.xpr"
-      println("\n[3/3 synth] skipped (--skip-synth)")
+      println("\n[2/2 synth] skipped (--skip-synth)")
       if (os.exists(xpr)) {
         println(s"Project ready: $xpr")
       } else {
@@ -241,12 +237,12 @@ object BuildFpga {
       }
       println("Open it in the Vivado GUI to edit, then resume with:")
       println(
-        s"  buildFpga --board ${board.name} --out $outDir --config $configPath --emit-dir $emitDirStr --jobs $jobs --vivado $vivado --skip-package --skip-project"
+        s"  buildFpga --board ${board.name} --out $outDir --config $configPath --emit-dir $emitDirStr --ip-repo $ipRepo --jobs $jobs --vivado $vivado --skip-project"
       )
       return 0
     }
 
-    // Stage 3: synthesis + implementation + XSA export
+    // Stage 2: synthesis + implementation + XSA export
     Vivado.runCmd(
       Seq(
         vivado,
@@ -259,7 +255,7 @@ object BuildFpga {
       ),
       cwd = outDir,
       dryRun = dryRun,
-      stage = "3/3 synth"
+      stage = "2/2 synth"
     )
 
     // Timing verdict
@@ -325,25 +321,6 @@ object BuildFpga {
     println(s"  make -C $softwareDir workspace XSA=$xsa CPU=${board.cpu}")
 
     0
-  }
-
-  private def vlnvFromEmit(emitDir: os.Path): String = {
-    val pkg = emitDir / "package_ip.tcl"
-    if (!os.exists(pkg))
-      sys.error(
-        s"ERROR: emitted package_ip.tcl not found at $pkg\n" +
-          s"       Emit the RTL first: ./mill vta.hardware.emitVtaFpgaConfig"
-      )
-    val text = os.read(pkg)
-    val fields = Seq("ip_vendor", "ip_lib", "ip_name", "ip_version").map {
-      key =>
-        val pat = s"""set\\s+${key}\\s+"([^"]+)"""".r
-        pat.findFirstMatchIn(text) match {
-          case Some(m) => m.group(1)
-          case None    => sys.error(s"ERROR: could not parse '$key' from $pkg")
-        }
-    }
-    fields.mkString(":")
   }
 
   private def timingMet(report: os.Path): Option[Boolean] = {

@@ -129,10 +129,10 @@ object `package` extends build.VtaScalaModule with PublishModule { m =>
 
   /** The RTL emitters, one independently cached instance per config in config/.
     *
-    * Address them as `./mill modules.hardware.configs[vta_w8b].vtaFpgaConfig`; the
-    * `emitVta*Config` commands above are the same thing for whichever config
-    * -Dvta.config.file selects, copied to a stable path. The Scala code itself
-    * is compiled once, regardless of config.
+    * Address them as `./mill modules.hardware.configs[vta_w8b].vtaFpgaConfig`;
+    * the `emitVta*Config` commands above are the same thing for whichever
+    * config -Dvta.config.file selects, copied to a stable path. The Scala code
+    * itself is compiled once, regardless of config.
     */
   object configs extends Cross[ConfigModule](build.configNames)
   trait ConfigModule extends build.ConfigCrossModule {
