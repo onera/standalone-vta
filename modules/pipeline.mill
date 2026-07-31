@@ -4,6 +4,7 @@ import mill._
 import build.HasFpgaBoard
 import build.HasVtaConfig
 import mill.api.BuildCtx
+import mainargs.arg
 
 /** The per-(model, config) pipeline, split by domain so a module can compose
   * the parts it needs instead of inheriting all of them.
@@ -397,6 +398,14 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
       args.value
     )
     ws.toString
+  }
+
+  /** Run the uart com script (run_nn_uart application must be running on the FPGA board before launch, build [[createVitisProject]] with `--runner run_nn_uart`, then build and run with vitis)
+   *  
+   */
+  def runUart(@arg(doc = "port name (ex: /dev/tty0,COM1)") port: String,args: Args) = Task.Command {
+    build.modules.fpga.software.runUartScript(compile().path / "input_nn.bin", Task.dest,compile().path,port,args.value)
+    Task.dest.toString
   }
 
   /** Create a Vitis workspace for this example from an XSA you already have,

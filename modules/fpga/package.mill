@@ -482,6 +482,30 @@ object `package` extends Module {
         ) ++ extraArgs
       )
 
+    def uartScript = moduleDir / "host" / "uart_nn.py"
+    def runUartScript(
+      input: os.Path,
+      workingDir: os.Path,
+      refDir: os.Path,
+      port: String,
+      extraArgs: Seq[String],
+    ) = {
+      os.proc(
+        "pixi",
+        "run",
+        "python",
+        uartScript,
+        "--port",
+        port,
+        "--input",
+        input.toString,
+        "--detile",
+        "--check",
+        refDir.toString,
+        extraArgs
+      ).call(stdout = os.Inherit, stderr = os.Inherit)
+    }
+
     /** Add app components for the active config to its shared Vitis workspace,
       * building the platform first if stale ([[TargetModule.vitisPlatform]]).
       *

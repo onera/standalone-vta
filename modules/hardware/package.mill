@@ -242,19 +242,6 @@ object `package` extends build.VtaScalaModule with PublishModule { m =>
     println(s"[INFO] VTA post-synth TB emitted in ${outDir}")
   }
 
-  /** Delete build/ at the repo root: every hand-exported artifact (emitted RTL,
-    * testbenches, baremetal workspaces).
-    *
-    * Does not touch Mill's own cache (out/) - use `./mill clean` for that.
-    */
-  def cleanOutputs() = Task.Command {
-    val outputDir = BuildCtx.workspaceRoot / "build"
-    println(s"[Clean] removing all outputs")
-    os.remove.all(target = outputDir)
-    println(s"[Clean] removed ${outputDir} directory")
-
-  }
-
   /** The Chisel testbenches: cycle-accurate ScalaTest simulation of the RTL.
     *
     * `test` runs everything, [[unittest]] only the per-module unit tests. They
