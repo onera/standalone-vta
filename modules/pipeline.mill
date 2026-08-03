@@ -124,9 +124,10 @@ trait HasOnnxModel extends HasCompilableModel {
   *
   * The front-endless path: the fixture is already VTA IR, so vta_compiler runs
   * alone. There is no ONNX model, hence no nn_compiler and no reference. That
-  * also rules out NN mode, since run_nn reads dependency.csv and input_nn.bin
-  * which only nn_compiler writes (modules/simulator/src/fsim_nn.cc:37-41), so
-  * these fixtures run single-layer.
+  * also rules out NN mode, since run_nn reads dependency.csv, which only
+  * nn_compiler writes, and input_nn.bin, which only the ONNX reference writes
+  * (modules/simulator/src/fsim_nn.cc:37-41), so these fixtures run
+  * single-layer.
   */
 trait HasRawIrModel extends HasCompilableModel {
 
@@ -250,11 +251,12 @@ trait SimTasks extends HasCompilableModel {
 /** The per-layer fsim goldens, and so the NN-mode half of the pipeline.
   *
   * Split out of SimTasks because [[layerDumps]] runs the simulator in
-  * full-network mode, which needs the dependency.csv and input_nn.bin that only
-  * nn_compiler writes. Mixing it in is therefore a claim that this model came
-  * through the ONNX front end; a raw VTA IR fixture must not inherit it, or it
-  * would expose a task that can only fail. Its two consumers, BaremetalTasks
-  * and PostSynthTasks, name it explicitly.
+  * full-network mode, which needs dependency.csv, which only nn_compiler
+  * writes, and input_nn.bin, which only the ONNX reference writes. Mixing it in
+  * is therefore a claim that this model came through the ONNX front end; a raw
+  * VTA IR fixture must not inherit it, or it would expose a task that can only
+  * fail. Its two consumers, BaremetalTasks and PostSynthTasks, name it
+  * explicitly.
   */
 trait LayerDumpTasks extends SimTasks {
 

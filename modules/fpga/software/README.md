@@ -115,8 +115,8 @@ The `Makefile` wraps the common invocations, and is the easiest way in:
 | Target          | What it generates                                                             |
 | --------------- | ----------------------------------------------------------------------------- |
 | `gen` / `gen-nn`| `gen/` from compiler output (headers + Tcl + `.incbin` artifacts)             |
-| `gen-sd`        | `gen-nn` + `nn_sd_manifest.h` and the staged `gen/sd_card/` file set          |
-| `gen-sd-debug`  | `gen-sd` + the isolation-check goldens on the card (needs `REF_DIR`)         |
+| `gen-sd`        | `gen-nn` + `nn_sd_manifest.h` and the staged `gen/sd_card/` file set (needs `REFERENCE_OUTPUT`) |
+| `gen-sd-debug`  | `gen-sd` + the isolation-check goldens on the card (needs `REF_DIR` and `REFERENCE_OUTPUT`) |
 | `gen-test_gemm` | `gen/init_dram.h` for `test_gemm` (no compiler output needed)                 |
 | `test-cpu-ops`  | Builds and runs the host CPU-op unit test (no board, no model)                |
 | `workspace`     | Vitis workspace (`XSA`, `CPU`, `RUNNER`, `DATA_LOADER`)                       |
@@ -128,7 +128,11 @@ make gen-sd CONFIG=../../../config/vta_config.json DDR_BASE=0x200000 SD_DIR=qyol
 
 Variables: `COMPILER_OUTPUT` (default `../../../compiler_output`), `CONFIG`,
 `DDR_BASE` (`0x0`), `OUTDIR` (`gen`), `SD_DIR` (card root), `REF_DIR`
-(`../../../simulators_output`), `RUNNER`, `DATA_LOADER`, `XSA`, `CPU`.
+(`../../../simulators_output`, the fsim golden-dump dir passed as
+`--golden-dir`; `gen-sd-debug` only), `REFERENCE_OUTPUT`
+(`../../../reference_output`, passed as `--ref-dir` so `load_nn.tcl` /
+`load_input.tcl` / the SD manifest resolve `input_nn.bin`; `gen-sd` and
+`gen-sd-debug`), `RUNNER`, `DATA_LOADER`, `XSA`, `CPU`.
 
 Calling the Mill task directly gives the full flag set (run from the repo root;
 the active hardware config is selected by its file name via `-Dvta.config.file`):
@@ -148,9 +152,10 @@ the active hardware config is selected by its file name via `-Dvta.config.file`)
 | `-Dvta.config.file=X` | `vta_config.json` | JVM prop (before the task name): VTA hardware config, read from `config/<X>` (block size + data widths). Replaces the old `--config-json` / `--block-size` flags |
 | `--emit-sd-manifest`  | off     | Emit `nn_sd_manifest.h` and stage the `.bin` set into `<outdir>/sd_card/` for the `sd` data loader              |
 | `--sd-dir NAME`       | root    | Subfolder on the card to read from (e.g. `qyolo_pattern`), so several models can share one card                 |
-| `--emit-layer-check`  | off     | Emit per-layer isolation-check artifacts (`nn_debug_map.h` + golden in/out) for `run_nn_debug`. Requires `--ref-dir`. Off by default; normal images are unaffected. |
+| `--emit-layer-check`  | off     | Emit per-layer isolation-check artifacts (`nn_debug_map.h` + golden in/out) for `run_nn_debug`. Requires `--golden-dir`. Off by default; normal images are unaffected. |
 | `--emit-cpu-check`    | off     | Emit `nn_cpu_debug_map.h` for `run_nn_cpu_debug`; reuses the same golden regions and implies `--emit-layer-check` |
-| `--ref-dir DIR`       | -       | Directory with fsim golden dumps (`--dump-layers`): `input<SUFFIX>.bin` / `output<SUFFIX>.bin`. Required with `--emit-layer-check`. |
+| `--golden-dir DIR`    | -       | Directory with fsim golden dumps (`--dump-layers`): `input<SUFFIX>.bin` / `output<SUFFIX>.bin`. Required with `--emit-layer-check`. |
+| `--ref-dir DIR`       | -       | Reference dir holding `input_nn.bin` (`reference_output`); `GenNnBaremetal` resolves the network input from here, not from the compiler output dir. `load_nn.tcl` and `load_input.tcl` are emitted on every run regardless of the check flags - omit `--ref-dir` (or point it at a dir with no `input_nn.bin`) and both scripts render their "input_nn.bin not found" branch instead of a real load. |
 | `--verbose`           | off     | Print the DRAM layout summary                                                                                   |
 
 The script warns on non-default configurations:
@@ -381,7 +386,8 @@ with `./build/fsim --dump-layers`.
 ./mill -Dvta.config.file=vta_config.json vta.fpga.software.genNnBaremetal <compiler_output_dir> \
     --ddr-base    0x10000000                          \
     --emit-layer-check                                \
-    --ref-dir     <repo>/simulators_output
+    --golden-dir  <repo>/simulators_output            \
+    --ref-dir     <repo>/reference_output
 ```
 
 The golden inputs/outputs are placed in a reserved DRAM region above all live
@@ -400,7 +406,7 @@ vitis -s host/create_vitis_workspace.py \
 
 Use `--data-loader sd` instead to read the model and the goldens from the card
 (generate them with `make gen-sd-debug`, or `--emit-sd-manifest
---emit-layer-check --ref-dir …`). Add `--pl-reset-between-layers` to pulse a
+--emit-layer-check --golden-dir … --ref-dir …`). Add `--pl-reset-between-layers` to pulse a
 PL-only fabric reset before each layer, so a layer cannot inherit VTA state left
 by the previous one.
 
@@ -610,7 +616,7 @@ example pipeline use):
 | Mill task                         | Purpose                                                                                                   |
 | --------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | `vta.fpga.software.checkOutput <dump>`     | Detiles a board output dump to NCHW and diffs it against the fsim `simulators_output/final_output.bin`      |
-| `vta.fpga.software.auditDram <comp-dir>`   | Runs the generator's layout guards (overlap / fit / `--max-addr`) on a compiler output dir and prints the DRAM map, without emitting anything. Useful to sanity-check a non-zero `--ddr-base` relocation, since fsim and the compiler both use `0x0` |
+| `vta.fpga.software.auditDram <comp-dir>`   | Runs the generator's layout guards (overlap / fit / `--max-addr`) on a compiler output dir and prints the DRAM map, without emitting anything. Useful to sanity-check a non-zero `--ddr-base` relocation, since fsim and the compiler both use `0x0`. **Known limitation:** it passes no reference dir, so it always sizes the raw-input scratch region as 0, while `GenNnBaremetal` (given `--ref-dir`) sizes it from the real `input_nn.bin`. Since every CPU-scratch address is allocated above `rawPhys + max(alignPage(rawSize), 0x1000)`, an `input_nn.bin` larger than 4096 bytes shifts every such address in the generator's map but not in the audit's, so the two silently diverge. |
 | `vta.fpga.software.sdChecksum <file>`      | Size + 32-bit additive checksum of a file, matching what `sd_loader_test` prints over UART                |
 | `vta.fpga.software.genInitDramTestGemm`    | Generates `gen/init_dram.h` for `test_gemm` (`make gen-test_gemm`); needs no compiler output              |
 

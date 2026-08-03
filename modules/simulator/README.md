@@ -63,6 +63,9 @@ Runtime:
                         when omitted.
   --comp-dir DIR        Directory the compiler outputs are read from. Defaults
                         to the compile-time compiler-output dir when omitted.
+  --ref-dir DIR         Directory the reference is read from (input_nn.bin,
+                        reference.bin). Defaults to the compile-time
+                        reference-output dir (reference_output) when omitted.
   --dump-layers         Dump per-layer raw input/output to the output dir
 
 vsim only:

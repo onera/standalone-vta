@@ -13,6 +13,14 @@ import fpga.utils.HexUtils.parseAddr
   * fitting the VTA region they feed, and - with maxAddr - every allocation
   * fitting the board's mapped DRAM.
   *
+  * Known limitation: [[audit]] always passes `None` for the reference dir
+  * (below), so it sizes the raw-input scratch region as 0 instead of from the
+  * real input_nn.bin the way [[fpga.host.GenNnBaremetal.generate]] does when
+  * given `--ref-dir`. An input_nn.bin over 4096 bytes therefore shifts every
+  * CPU-scratch address in the generator's map but not in this audit's, so the
+  * two silently diverge. Not fixed here - see the reference_output separation
+  * work.
+  *
   * Translated from host/audit_dram.py.
   */
 object AuditDram {

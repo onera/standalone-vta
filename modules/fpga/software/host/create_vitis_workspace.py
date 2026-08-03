@@ -512,7 +512,8 @@ def _next_steps(runner: str, data_loader: str | None) -> None:
         if dl == "sd":
             print(
                 "  1. Generate sources with --emit-sd-manifest --emit-layer-check"
-                " --ref-dir <simulators_output> (--sd-dir <model> optional)."
+                " --golden-dir <simulators_output> --ref-dir <reference_output>"
+                " (--sd-dir <model> optional)."
             )
             print("  2. Copy gen/sd_card/* to a FAT32 SD card; insert it.")
             print(
@@ -541,8 +542,8 @@ def _next_steps(runner: str, data_loader: str | None) -> None:
         if dl == "sd":
             print(
                 "  1. Generate sources with --emit-sd-manifest --emit-layer-check"
-                " --emit-cpu-check --ref-dir <simulators_output>"
-                " (--sd-dir <model> optional)."
+                " --emit-cpu-check --golden-dir <simulators_output>"
+                " --ref-dir <reference_output> (--sd-dir <model> optional)."
             )
             print("  2. Copy gen/sd_card/* to a FAT32 SD card; insert it.")
             print(

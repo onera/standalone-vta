@@ -56,7 +56,7 @@ The `standalone-vta` ecosystem is designed with a clear separation of concerns, 
   - `vta_ir/`: Hand-written raw VTA IR fixtures, driven by `examples.ir[<fixture>,<config>]`.
 - `tutorials/`: Jupyter notebooks detailing the compiler components.
 - `out/`: Mill's output tree - each task writes into its own dest directory here.
-- `compiler_output/`, `simulators_output/`, `log_output/`: Default directories for generated artifacts, simulation results and run logs when driving the flow through the Makefiles rather than Mill.
+- `compiler_output/`, `reference_output/`, `simulators_output/`, `log_output/`: Default directories for compiler artifacts, the ONNX reference (`input_nn.bin` + `reference.bin`), simulation results and run logs when driving the flow through the Makefiles rather than Mill. The reference is kept out of `compiler_output/` on purpose: `input_nn.bin` is randomly generated, and separating it removes one source of non-reproducibility from `compiler_output/`. `compile` is still not byte-reproducible on its own, though: `nn_compiler` also seeds placeholder accumulator data for MaxPool/Relu/QLinearAdd nodes from an unseeded RNG, straight into `compiler_output/`.
 
 ## Documentation Index
 
@@ -216,8 +216,9 @@ difference:
 config to `config/`) adds its cross entries with no build-file edit.
 
 The baremetal, Vitis and post-synthesis tasks are deliberately absent from
-`examples.ir`: they consume full-network artifacts (`dependency.csv`,
-`input_nn.bin`) that only `nn_compiler` writes.
+`examples.ir`: they consume full-network artifacts: `dependency.csv`, which
+only `nn_compiler` writes, and `input_nn.bin`, which only the ONNX reference
+writes.
 
 An FPGA build is identified by both its config (which fixes the RTL) and its
 board (which fixes the pinout and XSA), so each pair is independently

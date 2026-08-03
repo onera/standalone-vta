@@ -2,8 +2,8 @@ all:
 	@echo "Targets:"
 	@echo "  gen           - alias for gen-nn (compiler-output driven)"
 	@echo "  gen-nn        - generate $(OUTDIR)/ from compiler output (CONFIG, DDR_BASE, OUTDIR)"
-	@echo "  gen-sd        - gen-nn + nn_sd_manifest.h and $(OUTDIR)/sd_card/ (runtime SD loader)"
-	@echo "  gen-sd-debug  - gen-sd + isolation-check goldens on the card (REF_DIR; for run_nn_debug/run_nn_cpu_debug DATA_LOADER=sd)"
+	@echo "  gen-sd        - gen-nn + nn_sd_manifest.h and $(OUTDIR)/sd_card/ (runtime SD loader; REFERENCE_OUTPUT)"
+	@echo "  gen-sd-debug  - gen-sd + isolation-check goldens on the card (REF_DIR, REFERENCE_OUTPUT; for run_nn_debug/run_nn_cpu_debug DATA_LOADER=sd)"
 	@echo "  gen-test_gemm - generate $(OUTDIR)/init_dram.h for the test_gemm unit test (no compiler output needed)"
 	@echo "  workspace     - create Vitis workspace (XSA, CPU, RUNNER required)"
 	@echo "  test-cpu-ops  - host unit test: CPU ops vs fsim reference (no board/model needed)"
@@ -20,6 +20,7 @@ RUNNER    ?= run_nn
 DATA_LOADER ?= tcl
 SD_DIR    ?=
 REF_DIR   ?= ../../../simulators_output
+REFERENCE_OUTPUT ?= ../../../reference_output
 XSA ?=
 CPU ?=
 GEN = $(wildcard $(OUTDIR)/*)
@@ -49,21 +50,26 @@ gen-nn: $(COMPILER_OUTPUTS) $(CONFIG)
 # gen-sd: gen-nn plus the runtime SD-card loader artifacts - nn_sd_manifest.h
 # (file -> DDR map compiled into the ELF) and $(OUTDIR)/sd_card/ (the .bin set to
 # copy to a FAT32 card). Set SD_DIR=<name> to read from a card subfolder (lets
-# several models share one card). Used with `make workspace DATA_LOADER=sd`.
+# several models share one card). Also needs --ref-dir (REFERENCE_OUTPUT): every
+# genNnBaremetal run unconditionally emits load_nn.tcl / load_input.tcl, and
+# without --ref-dir those resolve to the "input_nn.bin not found" branch instead
+# of the real file. Used with `make workspace DATA_LOADER=sd`.
 gen-sd: $(COMPILER_OUTPUTS) $(CONFIG)
 	$(MILL) -Dvta.config.file=$(CONFIG_NAME) vta.fpga.software.genNnBaremetal \
 		$(abspath $(COMPILER_OUTPUT)) \
 		--ddr-base $(DDR_BASE)        \
 		$(SD_DIR_FLAG)                \
 		--outdir   $(abspath $(OUTDIR)) \
+		--ref-dir  $(abspath $(REFERENCE_OUTPUT)) \
 		--emit-sd-manifest
 
 # gen-sd-debug: gen-sd plus the per-layer isolation-check goldens
 # (input<suffix>.bin / output<suffix>.bin from a fsim VTA_DUMP_LAYERS=1 run in
 # REF_DIR). Emits nn_debug_map.h + nn_cpu_debug_map.h and stages the goldens into
 # $(OUTDIR)/sd_card/ alongside the model, so run_nn_debug / run_nn_cpu_debug can
-# read their references from the card. Used with
-# `make workspace RUNNER=run_nn_debug DATA_LOADER=sd`.
+# read their references from the card. Also needs --ref-dir (REFERENCE_OUTPUT):
+# GenNnBaremetal resolves input_nn.bin from there, separately from REF_DIR's
+# fsim golden dumps. Used with `make workspace RUNNER=run_nn_debug DATA_LOADER=sd`.
 gen-sd-debug: $(COMPILER_OUTPUTS) $(CONFIG)
 	$(MILL) -Dvta.config.file=$(CONFIG_NAME) vta.fpga.software.genNnBaremetal \
 		$(abspath $(COMPILER_OUTPUT)) \
@@ -73,7 +79,8 @@ gen-sd-debug: $(COMPILER_OUTPUTS) $(CONFIG)
 		--emit-sd-manifest            \
 		--emit-layer-check            \
 		--emit-cpu-check              \
-		--golden-dir $(abspath $(REF_DIR))
+		--golden-dir $(abspath $(REF_DIR)) \
+		--ref-dir    $(abspath $(REFERENCE_OUTPUT))
 
 # test_gemm is a unit test (hardcoded VTA program, randomised matrices); it
 # does NOT consume compiler_output/.  Kept as a separate target so it can run
