@@ -44,6 +44,30 @@ trait HasCompilableModel extends Module with HasVtaConfig {
     * (modules/simulator/src/fsim_main.cc:80).
     */
   def defaultSimFlags: Seq[String] = Seq.empty
+
+  /** This model's reference dir (input_nn.bin + reference.bin), when its front
+    * end has one.
+    *
+    * None by default, so a raw VTA IR fixture never exposes a reference it does
+    * not have: the simulator then falls back to the compiler's per-op
+    * input{suffix}.bin, which is exactly what those fixtures ship.
+    * [[HasOnnxModel]] overrides it, and it is the ONLY override needed - every
+    * other consumer here derives from it.
+    *
+    * Task.Anon rather than a plain value because the ONNX override has to
+    * evaluate the `reference` task to get the path. Anon also means it has no
+    * dest of its own, so it cannot trigger the `.super.<Trait>` dest relocation
+    * that a re-declared cached task would.
+    */
+  def referenceDir: Task[Option[os.Path]] = Task.Anon { None }
+
+  /** `--ref-dir <dir>` for the simulators, or nothing when there is no
+    * reference. Derived from [[referenceDir]] so the flag and the dir the
+    * checker reads can never disagree.
+    */
+  def referenceArgs: Task[Seq[String]] = Task.Anon {
+    referenceDir().toSeq.flatMap(d => Seq("--ref-dir", d.toString))
+  }
 }
 
 /** An ONNX model and its compilation to VTA binaries. */
@@ -57,11 +81,12 @@ trait HasOnnxModel extends HasCompilableModel {
   /** The ONNX model of this example, under examples/onnx. */
   def onnxPath = Task.Source(onnxDir / os.RelPath(s"$modelKey.onnx"))
 
-  /** Compile this model for this config: nn_compiler, vta_compiler and the ONNX
-    * reference.
+  /** Compile this model for this config: nn_compiler and vta_compiler.
     *
     * Writes the .bin / .csv streams to this task's dest. Cached: re-runs only
-    * when the model, the config content or the compiler sources change.
+    * when the model, the config content or the compiler sources change. The
+    * reference is NOT run here - see [[reference]]; keeping the random
+    * input_nn.bin out of this dest is what makes a compile reproducible.
     */
   def compile = Task {
     build.modules.compiler.sources() // invalidate on source change
@@ -69,10 +94,30 @@ trait HasOnnxModel extends HasCompilableModel {
     val compOut = Task.dest
     build.modules.compiler
       .compileModel(onnxPath().path, configPath, compOut, Task.env)
-    build.modules.compiler
-      .runReference(onnxPath().path, compOut, Task.env)
     PathRef(compOut)
   }
+
+  /** Run the ONNX reference for this model: input_nn.bin (the randomly
+    * generated network input) and reference.bin (the golden output), in this
+    * task's dest.
+    *
+    * Returns the directory, not just reference.bin, because the baremetal
+    * codegen needs input_nn.bin from it too. Every consumer must resolve this
+    * one task - two instances would mean two different random inputs, and the
+    * DDR scratch region is sized from input_nn.bin, so a mismatched pair
+    * corrupts the memory map silently rather than failing.
+    */
+  def reference = Task {
+    build.modules.compiler.runReference(
+      onnxPath().path,
+      compile().path,
+      Task.dest,
+      Task.env
+    )
+    PathRef(Task.dest)
+  }
+
+  override def referenceDir = Task.Anon { Some(reference().path) }
 }
 
 /** A hand-written VTA IR fixture and its compilation to VTA binaries.
@@ -131,6 +176,8 @@ trait SimTasks extends HasCompilableModel {
     binary: os.Path,
     flags: Seq[String],
     env: Map[String, String],
+    refArgs: Seq[String],
+    refOut: Option[os.Path],
     isRtl: Boolean = false
   ): Unit = {
     build.modules
@@ -138,13 +185,13 @@ trait SimTasks extends HasCompilableModel {
       .launchSim(
         binary,
         Seq("--comp-dir", compOut.toString, "--output", simOut.toString)
-          ++ flags,
+          ++ refArgs ++ flags,
         env
       )
     // A fixture without a golden has nothing to check against; the caller
     // compares the two simulators instead.
     if (hasReference)
-      build.modules.compiler.runCheck(compOut, simOut, env, isRtl)
+      build.modules.compiler.runCheck(compOut, refOut.get, simOut, env, isRtl)
   }
 
   /** Run the functional (C++) simulator on this example and check its output
@@ -165,7 +212,9 @@ trait SimTasks extends HasCompilableModel {
       simOut = Task.dest,
       binary = fsim,
       flags = defaultSimFlags ++ args.value,
-      env = Task.env
+      env = Task.env,
+      refArgs = referenceArgs(),
+      refOut = referenceDir()
     )
     PathRef(Task.dest)
   }
@@ -189,6 +238,8 @@ trait SimTasks extends HasCompilableModel {
       binary = vsim,
       flags = defaultSimFlags ++ args.value,
       env = Task.env,
+      refArgs = referenceArgs(),
+      refOut = referenceDir(),
       isRtl = true
     )
     PathRef(Task.dest)
@@ -217,6 +268,7 @@ trait LayerDumpTasks extends SimTasks {
     */
   def layerDumps = Task {
     val compOut = compile().path
+    val refArgs = referenceArgs()
     val fsim = build.modules.simulator(configKey).fsimBinary().path
     build.modules
       .simulator(configKey)
@@ -228,7 +280,7 @@ trait LayerDumpTasks extends SimTasks {
           "--output",
           Task.dest.toString,
           "--dump-layers"
-        ),
+        ) ++ refArgs,
         env = Task.env
       )
     PathRef(Task.dest)

@@ -35,10 +35,19 @@ object `package` extends Module { m =>
   def genIrInputsMain = moduleDir / "utils" / "gen_ir_inputs.py"
   def compareMain = moduleDir / "reference_computation" / "compare_bin.py"
 
-  // Every stage resolves its output dir from VTA_COMPILER_OUT, so `dest` is
-  // threaded through the environment (matching the Makefile and the scripts).
-  private def envFor(env: Map[String, String], dest: os.Path) =
-    env + ("VTA_COMPILER_OUT" -> dest.toString)
+  // Every stage resolves its output dirs from the environment (matching the
+  // Makefile and the scripts), so the dests are threaded through as env vars.
+  // Three separate dirs: compiler artefacts, the reference (random input +
+  // golden), and the simulator results.
+  private def envFor(
+    env: Map[String, String],
+    compDir: os.Path,
+    refDir: Option[os.Path] = None,
+    simDir: Option[os.Path] = None
+  ) =
+    env + ("VTA_COMPILER_OUT" -> compDir.toString) ++
+      refDir.map("VTA_REFERENCE_OUT" -> _.toString) ++
+      simDir.map("VTA_SIMULATOR_OUT" -> _.toString)
 
   /** The python the compiler stages run under: whatever is first on PATH.
     */
@@ -76,9 +85,16 @@ object `package` extends Module { m =>
       )
   }
 
+  /** Run the ONNX reference: reads the compiler's dependency.csv from
+    * `compDir`, writes input_nn.bin and reference.bin into `refDir`.
+    *
+    * Two dirs on purpose - input_nn.bin is randomly generated, so keeping it
+    * out of the compiler output is what makes a compile reproducible.
+    */
   def runReference(
     onnx: os.Path,
-    dest: os.Path,
+    compDir: os.Path,
+    refDir: os.Path,
     env: Map[String, String],
     refMode: String = "numpy",
     debug: String = "False"
@@ -86,25 +102,27 @@ object `package` extends Module { m =>
     os.proc(python, referenceMain, debug, refMode, onnx)
       .call(
         cwd = BuildCtx.workspaceRoot,
-        env = envFor(env, dest),
+        env = envFor(env, compDir, refDir = Some(refDir)),
         stdout = os.Inherit,
         stderr = os.Inherit
       )
 
   def runCheck(
-    dest: os.Path,
-    simDest: os.Path,
+    compDir: os.Path,
+    refDir: os.Path,
+    simDir: os.Path,
     env: Map[String, String],
     rtl: Boolean = false,
     debug: String = "False"
   ): Unit = {
     val extra = if (rtl) Seq("True") else Seq.empty[String]
-    // The checker reads reference.bin from VTA_COMPILER_OUT and the simulator
-    // result (final_output*.bin) from VTA_SIMULATOR_OUT.
+    // Three dirs: dependency.csv from the compiler dir, reference.bin from the
+    // reference dir, final_output*.bin from the simulator dir.
     os.proc(python, checkMain, debug, extra)
       .call(
         cwd = BuildCtx.workspaceRoot,
-        env = envFor(env, dest) + ("VTA_SIMULATOR_OUT" -> simDest.toString),
+        env =
+          envFor(env, compDir, refDir = Some(refDir), simDir = Some(simDir)),
         stdout = os.Inherit,
         stderr = os.Inherit
       )
