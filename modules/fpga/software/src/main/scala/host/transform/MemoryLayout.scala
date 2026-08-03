@@ -211,7 +211,7 @@ object MemoryLayout {
     layers: Seq[Model.LayerInfo],
     depInfo: DependencyInfo,
     ddrBase: Long,
-    refDir: String,
+    goldenDir: String,
     baseTop: Long
   ): (Seq[Model.LayerInfo], Long) = {
     // Thread the page-aligned allocation pointer through the layers with a fold
@@ -235,7 +235,7 @@ object MemoryLayout {
             )
 
           // Golden output (raw OUT, pre-rescale) - compared against board OUT.
-          val outFile = Model.refOutputPath(refDir, suffix)
+          val outFile = Model.refOutputPath(goldenDir, suffix)
           val (outRefFile, outRefAddr, outRefSize, ptrAfterOut) =
             if (Model.isFile(outFile)) {
               val size = os.size(os.Path(outFile, os.pwd))
@@ -254,7 +254,7 @@ object MemoryLayout {
             }
 
           // Golden input - copied into inDstAddr before the layer runs.
-          val inFile = Model.refInputPath(refDir, suffix)
+          val inFile = Model.refInputPath(goldenDir, suffix)
           val (inRefFile, inRefAddr, inRefSize, ptrAfterIn) =
             if (Model.isFile(inFile)) {
               val size = os.size(os.Path(inFile, os.pwd))
@@ -274,7 +274,7 @@ object MemoryLayout {
 
           // Dual-operand isolation is not wired up (no such VTA layer in current
           // nets; nbInp==2 int32 is the CPU qadd path).
-          val yFile = Model.refInputYPath(refDir, suffix)
+          val yFile = Model.refInputYPath(goldenDir, suffix)
           if (Model.isFile(yFile))
             println(
               s"WARNING: $yFile exists but dual-operand (accY) isolation is" +

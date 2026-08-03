@@ -32,7 +32,7 @@ class DebugEmitGoldenTest extends AnyFlatSpec with Matchers {
       val (_, _, allocTop2) =
         MemoryLayout.buildCpuParamAddrs(dep, c.comp.toString, allocTop)
 
-      // --emit-cpu-check uses the compiler_output dir as --ref-dir (golden
+      // --emit-cpu-check uses the compiler_output dir as --golden-dir (golden
       // input<suffix>.bin live there; output<suffix>.bin are absent).
       val (checkedLayers, _) = MemoryLayout.assignLayerCheckRegions(
         layers,

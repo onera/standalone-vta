@@ -155,16 +155,16 @@ object Model {
     s"$compDir/memory_addresses$suffix.csv"
 
   /** fsim golden input dump for a layer (VTA_DUMP_LAYERS=1). */
-  def refInputPath(refDir: String, suffix: String): String =
-    s"$refDir/input$suffix.bin"
+  def refInputPath(goldenDir: String, suffix: String): String =
+    s"$goldenDir/input$suffix.bin"
 
   /** fsim golden secondary-operand input dump (dual-operand int32 layers). */
-  def refInputYPath(refDir: String, suffix: String): String =
-    s"$refDir/input${suffix}_Y.bin"
+  def refInputYPath(goldenDir: String, suffix: String): String =
+    s"$goldenDir/input${suffix}_Y.bin"
 
   /** fsim golden output dump for a layer (raw OUT, pre-rescale). */
-  def refOutputPath(refDir: String, suffix: String): String =
-    s"$refDir/output$suffix.bin"
+  def refOutputPath(goldenDir: String, suffix: String): String =
+    s"$goldenDir/output$suffix.bin"
 
   /** Absolute path with POSIX separators, for embedding in generated sources.
     *

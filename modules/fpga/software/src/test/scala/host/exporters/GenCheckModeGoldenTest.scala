@@ -16,7 +16,7 @@ class GenCheckModeGoldenTest extends AnyFlatSpec with Matchers {
         ddrBase = c.ddrBase,
         cfg = ConfigParser.load(c.cfg.toString),
         emitCpuCheck = true,
-        refDir = Some(c.comp.toString)
+        goldenDir = Some(c.comp.toString)
       )
       // maps: direct compare
       for (f <- Seq("nn_debug_map.h", "nn_cpu_debug_map.h"))

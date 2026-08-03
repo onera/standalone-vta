@@ -324,7 +324,7 @@ trait BaremetalTasks extends LayerDumpTasks {
         sdDir,
         "--emit-layer-check",
         "--emit-cpu-check",
-        "--ref-dir",
+        "--golden-dir",
         layerDumps().path.toString
       )
     )
@@ -351,7 +351,7 @@ trait BaremetalTasks extends LayerDumpTasks {
         sdDir,
         "--emit-layer-check",
         "--emit-cpu-check",
-        "--ref-dir",
+        "--golden-dir",
         layerDumps().path.toString
       )
     )
@@ -401,26 +401,39 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
   }
 
   def checkUartOutput = Task.Anon {
-    build.modules.fpga.software.runner().run(
-      args = (
-        "output.bin",
-        "--comp-dir",
-        compile().path,
-        "--sim-dir",
-        layerDumps().path,
-        ),mainClass = "fpga.host.checkers.CheckOutput",
-      forkArgs = Seq(s"-Dvta.config.file=${configKey}.json"),
+    build.modules.fpga.software
+      .runner()
+      .run(
+        args = (
+          "output.bin",
+          "--comp-dir",
+          compile().path,
+          "--sim-dir",
+          layerDumps().path
+        ),
+        mainClass = "fpga.host.checkers.CheckOutput",
+        forkArgs = Seq(s"-Dvta.config.file=${configKey}.json")
       )
   }
-  /** Run the uart com script (run_nn_uart application must be running on the FPGA board before launch, build [[createVitisProject]] with `--runner run_nn_uart`, then build and run with vitis)
-   *  
-   */
-  def runUart(@arg(doc = "port name (ex: /dev/tty0,COM1)") port: String,args: Args) = Task.Command {
-    build.modules.fpga.software.runUartScript(compile().path / "input_nn.bin", Task.dest,compile().path,port,args.value)
+
+  /** Run the uart com script (run_nn_uart application must be running on the
+    * FPGA board before launch, build [[createVitisProject]] with `--runner
+    * run_nn_uart`, then build and run with vitis)
+    */
+  def runUart(
+    @arg(doc = "port name (ex: /dev/tty0,COM1)") port: String,
+    args: Args
+  ) = Task.Command {
+    build.modules.fpga.software.runUartScript(
+      compile().path / "input_nn.bin",
+      Task.dest,
+      compile().path,
+      port,
+      args.value
+    )
     checkUartOutput()
     Task.dest
   }
-
 
   /** Create a Vitis workspace for this example from an XSA you already have,
     * with no Vivado run at all.

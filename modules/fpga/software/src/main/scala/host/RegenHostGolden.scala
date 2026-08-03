@@ -125,7 +125,7 @@ object RegenHostGolden {
         os.write.over(genDir / f, canon(os.read(tmp / f), comp))
     }
 
-    // gen-debug/ - emitCpuCheck + refDir = comp
+    // gen-debug/ - emitCpuCheck + goldenDir = comp
     val genDebugDir = caseDir / "gen-debug"
     os.remove.all(genDebugDir)
     os.makeDir.all(genDebugDir)
@@ -136,7 +136,7 @@ object RegenHostGolden {
         ddrBase = cd.ddrBase,
         cfg = cfg,
         emitCpuCheck = true,
-        refDir = Some(comp.toString)
+        goldenDir = Some(comp.toString)
       )
       // debug maps: NO canonicalization (tests compare raw)
       for (f <- Seq("nn_debug_map.h", "nn_cpu_debug_map.h"))

@@ -36,7 +36,7 @@ object GenNnBaremetal {
     emitCpuCheck: Boolean = false,
     emitSdManifest: Boolean = false,
     stageSdFiles: Boolean = true,
-    refDir: Option[String] = None,
+    goldenDir: Option[String] = None,
     sdDir: String = "",
     maxAddr: Option[Long] = None,
     verbose: Boolean = false
@@ -89,15 +89,15 @@ object GenNnBaremetal {
     )
       sys.error("layout checks failed")
 
-    val resolvedRefDir =
+    val resolvedGoldenDir =
       if (!emitCheck) ""
       else {
-        val rd = refDir.getOrElse(
-          sys.error("ERROR: --emit-layer-check requires --ref-dir")
+        val gd = goldenDir.getOrElse(
+          sys.error("ERROR: --emit-layer-check requires --golden-dir")
         )
-        if (!os.isDir(os.Path(rd, os.pwd)))
-          sys.error(s"ERROR: --ref-dir not found: $rd")
-        rd
+        if (!os.isDir(os.Path(gd, os.pwd)))
+          sys.error(s"ERROR: --golden-dir not found: $gd")
+        gd
       }
 
     // activeL is `layers` in non-check mode; in check mode it is the updated
@@ -109,7 +109,7 @@ object GenNnBaremetal {
             layers,
             dep,
             ddrBase,
-            resolvedRefDir,
+            resolvedGoldenDir,
             allocTop2
           )
         val alignedBase = alignPage(allocTop2)
@@ -214,7 +214,7 @@ object GenNnBaremetal {
     emitCpuCheck: Boolean = false,
     emitSdManifest: Boolean = false,
     stageSdFiles: Boolean = true,
-    refDir: Option[String] = None,
+    goldenDir: Option[String] = None,
     sdDir: String = ""
   )
 
@@ -260,7 +260,9 @@ object GenNnBaremetal {
         .text("print the DRAM map summary"),
       opt[Unit]("emit-layer-check")
         .action((_, c) => c.copy(emitLayerCheck = true))
-        .text("emit per-layer isolation-check artifacts (requires --ref-dir)"),
+        .text(
+          "emit per-layer isolation-check artifacts (requires --golden-dir)"
+        ),
       opt[Unit]("emit-cpu-check")
         .action((_, c) => c.copy(emitCpuCheck = true))
         .text(
@@ -275,12 +277,14 @@ object GenNnBaremetal {
           "with --emit-sd-manifest: emit the header only, do not copy the" +
             " .bin set into <outdir>/sd_card"
         ),
-      opt[String]("ref-dir")
-        .action((x, c) => c.copy(refDir = Some(x)))
-        .text("fsim golden dump directory (required with the check flags)")
+      opt[String]("golden-dir")
+        .action((x, c) => c.copy(goldenDir = Some(x)))
+        .text(
+          "fsim per-layer golden dump directory (required with the check flags)"
+        )
         .validate(x =>
           if (os.isDir(os.Path(x, os.pwd))) success
-          else failure(s"ERROR: reference output directory not found: $x")
+          else failure(s"ERROR: golden dump directory not found: $x")
         ),
       opt[String]("sd-dir")
         .action((x, c) => c.copy(sdDir = x))
@@ -303,7 +307,8 @@ object GenNnBaremetal {
             emitCpuCheck = o.emitCpuCheck,
             emitSdManifest = o.emitSdManifest,
             stageSdFiles = o.stageSdFiles,
-            refDir = o.refDir.map(rd => new java.io.File(rd).getAbsolutePath),
+            goldenDir =
+              o.goldenDir.map(gd => new java.io.File(gd).getAbsolutePath),
             sdDir = o.sdDir,
             maxAddr = o.maxAddr.map(parseAddr),
             verbose = o.verbose

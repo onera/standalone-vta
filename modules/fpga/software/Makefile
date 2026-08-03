@@ -73,7 +73,7 @@ gen-sd-debug: $(COMPILER_OUTPUTS) $(CONFIG)
 		--emit-sd-manifest            \
 		--emit-layer-check            \
 		--emit-cpu-check              \
-		--ref-dir  $(abspath $(REF_DIR))
+		--golden-dir $(abspath $(REF_DIR))
 
 # test_gemm is a unit test (hardcoded VTA program, randomised matrices); it
 # does NOT consume compiler_output/.  Kept as a separate target so it can run
