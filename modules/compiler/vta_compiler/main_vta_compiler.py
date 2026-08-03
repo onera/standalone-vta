@@ -554,12 +554,13 @@ def main(
             + f"acc_name={acc_name}, acc_bis_name={acc_bis_name}, output_name={output_name}\n"
         )
 
-        print(
-            f"Subsection of JSON: \n\t name={name} \n\t load_dict={load_dict} \n\t matrices_dict={matrices_dict}"
-            + f"\n\t gemm_op={gemm_op} \n\t alu_list={alu_list} \n\t store_list={store_list} \n\n"
-        )
+        if debug:
+            print(
+                f"Subsection of JSON: \n\t name={name} \n\t load_dict={load_dict} \n\t matrices_dict={matrices_dict}"
+                + f"\n\t gemm_op={gemm_op} \n\t alu_list={alu_list} \n\t store_list={store_list} \n\n"
+            )
 
-        print(f"The flag_dict: \n\t {flag_dict} \n\n")
+            print(f"The flag_dict: \n\t {flag_dict} \n\n")
 
         print(
             f"Do the matrices overfit? {flag_dict['isOverfitting']} (Strategy {strategy_selector}) \n"
