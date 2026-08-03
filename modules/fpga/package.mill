@@ -317,11 +317,12 @@ object `package` extends Module {
     }
 
     /** Plain function: run GenNnBaremetal for a specific (compiler-output,
-      * config) pair.
+      * reference-output, config) triple.
       */
     def runGenNnBaremetal(
       runner: mill.javalib.RunModule.Runner,
       compDir: os.Path,
+      refDir: os.Path,
       outdir: os.Path,
       configKey: String,
       ddrBase: String,
@@ -330,6 +331,8 @@ object `package` extends Module {
       runner.run(
         args = Seq(
           compDir.toString,
+          "--ref-dir",
+          refDir.toString,
           "--ddr-base",
           ddrBase,
           "--outdir",
@@ -482,13 +485,13 @@ object `package` extends Module {
         ) ++ extraArgs
       )
 
-    def uartScript = moduleDir /  "host" / "uart_nn.py"
+    def uartScript = moduleDir / "host" / "uart_nn.py"
     def runUartScript(
       input: os.Path,
       workingDir: os.Path,
       refDir: os.Path,
       port: String,
-      extraArgs: Seq[String],
+      extraArgs: Seq[String]
     ) = {
       os.proc(
         build.python,
@@ -501,10 +504,10 @@ object `package` extends Module {
         "output.bin",
         // dump the raw binary, call the scala checker to check
         // "--detile",
-        // "--check", 
+        // "--check",
         // refDir.toString,
         extraArgs
-      ).call(stdout = os.Inherit, stderr = os.Inherit,cwd=workingDir)
+      ).call(stdout = os.Inherit, stderr = os.Inherit, cwd = workingDir)
     }
 
     /** Add app components for the active config to its shared Vitis workspace,
@@ -740,7 +743,7 @@ object `package` extends Module {
       */
     def buildFpga(args: Args) = Task.Command {
       runner().run(
-        args = Seq("--jobs",build.vivadoJobs) ++ args.value,
+        args = Seq("--jobs", build.vivadoJobs) ++ args.value,
         mainClass = "fpga.synthesis.BuildFpga",
         forkArgs = configForkArgs(),
         workingDir = BuildCtx.workspaceRoot,

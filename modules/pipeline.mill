@@ -319,9 +319,13 @@ trait BaremetalTasks extends LayerDumpTasks {
   // that a Vitis build reads from: a cached task must not silently overwrite it.
   def genBaremetal = Task {
     val compOut = compile().path
+    val refOut = referenceDir().getOrElse(
+      sys.error("the baremetal codegen needs a reference (ONNX front end only)")
+    )
     build.modules.fpga.software.runGenNnBaremetal(
       build.modules.fpga.software.runner(),
       compOut,
+      refOut,
       Task.dest,
       configKey,
       vtaDdrBase(),
@@ -341,9 +345,13 @@ trait BaremetalTasks extends LayerDumpTasks {
     */
   def sdCard() = Task.Command {
     val compOut = compile().path
+    val refOut = referenceDir().getOrElse(
+      sys.error("the baremetal codegen needs a reference (ONNX front end only)")
+    )
     build.modules.fpga.software.runGenNnBaremetal(
       build.modules.fpga.software.runner(),
       compOut,
+      refOut,
       Task.dest,
       configKey,
       vtaDdrBase(),
@@ -363,9 +371,13 @@ trait BaremetalTasks extends LayerDumpTasks {
     */
   def genBaremetalDebug = Task {
     val compOut = compile().path
+    val refOut = referenceDir().getOrElse(
+      sys.error("the baremetal codegen needs a reference (ONNX front end only)")
+    )
     build.modules.fpga.software.runGenNnBaremetal(
       build.modules.fpga.software.runner(),
       compOut,
+      refOut,
       Task.dest,
       configKey,
       vtaDdrBase(),
@@ -391,9 +403,13 @@ trait BaremetalTasks extends LayerDumpTasks {
     */
   def sdCardDebug() = Task.Command {
     val compOut = compile().path
+    val refOut = referenceDir().getOrElse(
+      sys.error("the baremetal codegen needs a reference (ONNX front end only)")
+    )
     build.modules.fpga.software.runGenNnBaremetal(
       build.modules.fpga.software.runner(),
       compOut,
+      refOut,
       Task.dest,
       configKey,
       vtaDdrBase(),
@@ -453,6 +469,9 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
   }
 
   def checkUartOutput = Task.Anon {
+    val refOut = referenceDir().getOrElse(
+      sys.error("the uart check needs a reference (ONNX front end only)")
+    )
     build.modules.fpga.software
       .runner()
       .run(
@@ -460,8 +479,8 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
           "output.bin",
           "--comp-dir",
           compile().path,
-          "--sim-dir",
-          layerDumps().path
+          "--ref",
+          refOut / "reference.bin"
         ),
         mainClass = "fpga.host.checkers.CheckOutput",
         forkArgs = Seq(s"-Dvta.config.file=${configKey}.json")
@@ -476,8 +495,11 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
     @arg(doc = "port name (ex: /dev/tty0,COM1)") port: String,
     args: Args
   ) = Task.Command {
+    val refOut = referenceDir().getOrElse(
+      sys.error("the uart runner needs a reference (ONNX front end only)")
+    )
     build.modules.fpga.software.runUartScript(
-      compile().path / "input_nn.bin",
+      refOut / "input_nn.bin",
       Task.dest,
       compile().path,
       port,
