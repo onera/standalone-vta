@@ -639,6 +639,35 @@ def _import_vitis():
         )
 
 
+def _lock_is_free(lock: Path) -> bool:
+    """Whether no live process currently holds `lock`.
+
+    POSIX: probe with a non-blocking flock, the same advisory lock the Vitis
+    server takes.  A failure to acquire it means the owner is still alive.
+
+    Windows: `fcntl` does not exist there, and there is no portable equivalent.
+    Report the lock as free and let the unlink itself be the probe: Windows
+    refuses to delete a file that a live process holds open (the JVM does not
+    open it with FILE_SHARE_DELETE), so the caller gets a PermissionError
+    instead of silently dropping a live lock.
+    """
+    try:
+        import fcntl
+    except ModuleNotFoundError:
+        return True
+    try:
+        with open(lock, "a") as handle:
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                return False
+            fcntl.flock(handle, fcntl.LOCK_UN)
+    except OSError:
+        # Cannot even open it (permissions, exotic filesystem): assume held.
+        return False
+    return True
+
+
 def _clear_stale_workspace_lock(workspace: Path) -> None:
     """Drop the workspace lock left behind by a previous Vitis run.
 
@@ -649,18 +678,15 @@ def _clear_stale_workspace_lock(workspace: Path) -> None:
     lock = workspace / "_ide" / ".wsdata" / ".lock"
     if not lock.exists():
         return
-    try:
-        import fcntl
-    except ModuleNotFoundError:
-        lock.unlink()
+    if not _lock_is_free(lock):
+        print(f"[vitis] Workspace lock held by a live process, keeping it: {lock}")
         return
-    with open(lock, "a") as handle:
-        try:
-            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError:
-            return
-        fcntl.flock(handle, fcntl.LOCK_UN)
-    lock.unlink()
+    try:
+        lock.unlink()
+    except OSError as exc:
+        # On Windows this is how a live owner shows up (PermissionError).
+        print(f"[vitis] WARNING: could not remove workspace lock {lock}: {exc}")
+        return
     print(f"[vitis] Removed stale workspace lock: {lock}")
 
 
