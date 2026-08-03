@@ -132,7 +132,11 @@ Variables: `COMPILER_OUTPUT` (default `../../../compiler_output`), `CONFIG`,
 `--golden-dir`; `gen-sd-debug` only), `REFERENCE_OUTPUT`
 (`../../../reference_output`, passed as `--ref-dir` so `load_nn.tcl` /
 `load_input.tcl` / the SD manifest resolve `input_nn.bin`; `gen-sd` and
-`gen-sd-debug`), `RUNNER`, `DATA_LOADER`, `XSA`, `CPU`.
+`gen-sd-debug`), `RUNNER`, `DATA_LOADER`, `XSA`, `CPU`. `gen-sd` and
+`gen-sd-debug` now require the `REFERENCE_OUTPUT` directory to already exist -
+`GenNnBaremetal` validates `--ref-dir` with `os.isDir` and hard-fails if it is
+missing, so run the compiler's ONNX reference stage (or `mkdir -p` an empty
+one if you knowingly want the "not found" placeholder branch) first.
 
 Calling the Mill task directly gives the full flag set (run from the repo root;
 the active hardware config is selected by its file name via `-Dvta.config.file`):

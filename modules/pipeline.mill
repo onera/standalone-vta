@@ -86,7 +86,9 @@ trait HasOnnxModel extends HasCompilableModel {
     * Writes the .bin / .csv streams to this task's dest. Cached: re-runs only
     * when the model, the config content or the compiler sources change. The
     * reference is NOT run here - see [[reference]]; keeping the random
-    * input_nn.bin out of this dest is what makes a compile reproducible.
+    * input_nn.bin out of this dest removes one source of nondeterminism from
+    * compile, but does not make it reproducible on its own - see runReference's
+    * doc in modules/compiler/package.mill for the other one.
     */
   def compile = Task {
     build.modules.compiler.sources() // invalidate on source change
@@ -126,7 +128,7 @@ trait HasOnnxModel extends HasCompilableModel {
   * alone. There is no ONNX model, hence no nn_compiler and no reference. That
   * also rules out NN mode, since run_nn reads dependency.csv, which only
   * nn_compiler writes, and input_nn.bin, which only the ONNX reference writes
-  * (modules/simulator/src/fsim_nn.cc:37-41), so these fixtures run
+  * (modules/simulator/src/fsim_nn.cc:37-43), so these fixtures run
   * single-layer.
   */
 trait HasRawIrModel extends HasCompilableModel {
