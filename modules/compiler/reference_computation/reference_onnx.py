@@ -24,8 +24,11 @@ from utils.numpy_implementation import *
 def reference_onnx(model_path, mode="ort", debug=False):
     # READ DEPENDENCY FILE (metadata)
     # ---
-    output_dir = compiler_output_setup()
-    file_dep_path = filepath_definition(output_dir, 'dependency.csv')
+    # Two dirs on purpose: the metadata below is a compiler artefact, the two
+    # binaries written at the end are not (input_nn.bin is random).
+    compiler_dir = compiler_output_setup()
+    reference_dir = reference_output_setup()
+    file_dep_path = filepath_definition(compiler_dir, 'dependency.csv')
     dep_dict = load_csv_to_dict(file_dep_path)
 
     # The first layer
@@ -117,8 +120,8 @@ def reference_onnx(model_path, mode="ort", debug=False):
     # WRITE BINARIES
     # ---
     # Set the paths
-    file_inp_path = filepath_definition(output_dir, 'input_nn.bin')
-    file_ref_path = filepath_definition(output_dir, 'reference.bin')
+    file_inp_path = filepath_definition(reference_dir, 'input_nn.bin')
+    file_ref_path = filepath_definition(reference_dir, 'reference.bin')
 
 
     # Write the result

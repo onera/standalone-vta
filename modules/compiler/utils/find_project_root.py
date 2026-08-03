@@ -33,6 +33,31 @@ def compiler_output_setup(filename = "default.bin"):
     return output_dir
 
 
+# REFERENCE OUTPUT FILE
+# ---------------------
+def reference_output_setup(filename = "default.bin"):
+    """
+    Resolve the directory where the ONNX reference is written/read.
+
+    Mirrors compiler_output_setup(), but for the reference: reference_onnx.py
+    writes the golden output (reference.bin) and the randomly generated network
+    input (input_nn.bin) here. Neither is a compiler artefact - input_nn.bin in
+    particular is random, and keeping it out of the compiler output dir is what
+    makes a compile reproducible.
+
+    Resolution order (no '.git' walk, so a script can run from any location):
+      1. the VTA_REFERENCE_OUT environment variable, if set, otherwise
+      2. a 'reference_output' directory under the current working directory.
+    """
+    override = os.environ.get("VTA_REFERENCE_OUT")
+    if override:
+        output_dir = os.path.abspath(override)
+    else:
+        output_dir = os.path.join(os.getcwd(), 'reference_output')
+    create_directory(output_dir)
+    return output_dir
+
+
 # SIMULATOR OUTPUT FILE
 # ---------------------
 def simulator_output_setup(filename = "default.bin"):
@@ -41,7 +66,7 @@ def simulator_output_setup(filename = "default.bin"):
 
     Mirrors compiler_output_setup(), but for the simulator side: the simulators
     write final_output.bin / final_output_rtl.bin here (never into the compiler
-    output dir, which holds only compiler artefacts such as reference.bin).
+    output dir, which holds only compiler artefacts; the reference lives in its own dir, see reference_output_setup).
 
     Resolution order (no '.git' walk, so a script can run from any location):
       1. the VTA_SIMULATOR_OUT environment variable, if set, otherwise
