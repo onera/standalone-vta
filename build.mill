@@ -191,6 +191,16 @@ object `package` extends Module with SpotlessModule {
     */
   def defaultBoardName = sys.props.getOrElse("vta.board.name", defaultBoard)
 
+  def vivadoJobs = sys.props.getOrElse("vta.vivado.jobs", "4")
+
+  def verilatorThreads = sys.props.getOrElse("vta.verilator.threads","4")
+
+  /* Python command
+   * Pixi is called explicitly in the sub process. If you do not use pixi,
+   * change this.
+   */
+  def python: os.Shellable = Seq("pixi", "run", "python")
+
   /** Every (config, board) pair - the Cross keys for `modules.fpga.targets`. An
     * FPGA build is identified by both: the config fixes the RTL, the board
     * fixes the pinout and the XSA.

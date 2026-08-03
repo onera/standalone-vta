@@ -482,7 +482,7 @@ object `package` extends Module {
         ) ++ extraArgs
       )
 
-    def uartScript = moduleDir / "host" / "uart_nn.py"
+    def uartScript = moduleDir /  "host" / "uart_nn.py"
     def runUartScript(
       input: os.Path,
       workingDir: os.Path,
@@ -491,19 +491,20 @@ object `package` extends Module {
       extraArgs: Seq[String],
     ) = {
       os.proc(
-        "pixi",
-        "run",
-        "python",
+        build.python,
         uartScript,
         "--port",
         port,
         "--input",
         input.toString,
-        "--detile",
-        "--check",
-        refDir.toString,
+        "--output",
+        "output.bin",
+        // dump the raw binary, call the scala checker to check
+        // "--detile",
+        // "--check", 
+        // refDir.toString,
         extraArgs
-      ).call(stdout = os.Inherit, stderr = os.Inherit)
+      ).call(stdout = os.Inherit, stderr = os.Inherit,cwd=workingDir)
     }
 
     /** Add app components for the active config to its shared Vitis workspace,
@@ -739,7 +740,7 @@ object `package` extends Module {
       */
     def buildFpga(args: Args) = Task.Command {
       runner().run(
-        args = args.value,
+        args = Seq("--jobs",build.vivadoJobs) ++ args.value,
         mainClass = "fpga.synthesis.BuildFpga",
         forkArgs = configForkArgs(),
         workingDir = BuildCtx.workspaceRoot,

@@ -32,7 +32,7 @@ trait ConfigModule extends build.ConfigCrossModule {
       s"BUILD_DIR=$dest",
       extraMakeArgs,
       s"compile-$binaryName"
-    ).call(cwd = moduleDir, env = env, stdout = os.Inherit, stderr = os.Inherit)
+    ).call(cwd = moduleDir, env = env,  stderr = os.Inherit)
     BuildCtx.withFilesystemCheckerDisabled {
       PathRef(dest / binaryName)
     }

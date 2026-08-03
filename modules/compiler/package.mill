@@ -41,11 +41,8 @@ object `package` extends Module { m =>
     env + ("VTA_COMPILER_OUT" -> dest.toString)
 
   /** The python the compiler stages run under: whatever is first on PATH.
-    *
-    * Pixi is called explicitly in the sub process. If you do not use pixi,
-    * change this.
     */
-  def python: Shellable = Seq("pixi", "run", "python")
+  def python: Shellable = build.python
 
   def nnCompile(
     onnx: os.Path,
