@@ -16,10 +16,14 @@
 #ifndef VTA_SIMULATOR_OUTPUT
 #define VTA_SIMULATOR_OUTPUT "simulators_output"
 #endif
+#ifndef VTA_REFERENCE_OUTPUT
+#define VTA_REFERENCE_OUTPUT "reference_output"
+#endif
 
 // Runtime override of the simulator-output dir (set from --output in main()).
 std::string g_sim_output_override;
 std::string g_comp_dir_override;
+std::string g_ref_dir_override;
 
 std::string compiler_output_path(const std::filesystem::path &cwd,
                                  const std::string &file) {
@@ -33,6 +37,13 @@ std::string sim_output_path(const std::filesystem::path &cwd,
   const std::string base = g_sim_output_override.empty()
                                ? VTA_SIMULATOR_OUTPUT
                                : g_sim_output_override;
+  return (cwd / base / file).lexically_normal().string();
+}
+
+std::string reference_output_path(const std::filesystem::path &cwd,
+                                  const std::string &file) {
+  const std::string base =
+      g_ref_dir_override.empty() ? VTA_REFERENCE_OUTPUT : g_ref_dir_override;
   return (cwd / base / file).lexically_normal().string();
 }
 
@@ -81,16 +92,17 @@ void load_and_allocate_layer(LayerContext &ctx,
 
   // D. READ AND SHAPE THE DATA
   // ---
-  // Input A. Single-layer mode reads the input file (input_nn.bin if present,
-  // else the compiler's per-op input{suffix}.bin); the NN path leaves raw_inpA
-  // empty and fills inpA later via chaining. Either way the same shaping runs,
-  // so inpA's size (hence the mem_inpA allocation / DRAM layout) is identical
-  // in both modes. Tolerant of an empty input.
+  // Input A. Single-layer mode reads the input file (input_nn.bin from the
+  // reference dir if present, else the compiler's per-op input{suffix}.bin);
+  // the NN path leaves raw_inpA empty and fills inpA later via chaining.
+  // Either way the same shaping runs, so inpA's size (hence the mem_inpA
+  // allocation / DRAM layout) is identical in both modes. Tolerant of an
+  // empty input.
   std::vector<inp_dtype> raw_inpA;
   if (load_input) {
     // Existence-check first to avoid read_binary_file's perror on the missing
     // candidate (test_gemm / test_alu have no input_nn.bin).
-    std::string fileInputNNPath = path("input_nn.bin");
+    std::string fileInputNNPath = reference_output_path(cwd, "input_nn.bin");
     std::string filePerOpInpPath = path("input" + ctx.suffix + ".bin");
     std::error_code inp_ec;
     std::string fileInpPath =

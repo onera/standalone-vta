@@ -40,6 +40,10 @@ static void print_usage(const char *prog) {
       "  --comp-dir DIR        Directory the compiler outputs are read from.\n"
       "                        Defaults to the compile-time compiler-output "
       "dir when omitted.\n"
+      "  --ref-dir DIR         Directory the reference is read from "
+      "(input_nn.bin, reference.bin).\n"
+      "                        Defaults to the compile-time reference-output "
+      "dir when omitted.\n"
       "  --dump-layers         Dump per-layer raw input/output to the "
       "output dir\n"
 #ifdef VERILATOR_BUILD_ENABLED
@@ -91,6 +95,10 @@ int main(int argc, char **argv) {
       if (!parse_required_value(arg, argc, argv, i, val))
         return 1;
       opts.comp_dir = val;
+    } else if (std::strcmp(arg, "--ref-dir") == 0) {
+      if (!parse_required_value(arg, argc, argv, i, val))
+        return 1;
+      opts.ref_dir = val;
     } else if (std::strcmp(arg, "--dump-layers") == 0) {
       opts.dump_layers = true;
 #ifdef VERILATOR_BUILD_ENABLED
@@ -125,6 +133,7 @@ int main(int argc, char **argv) {
 
   g_sim_output_override = opts.output_dir;
   g_comp_dir_override = opts.comp_dir;
+  g_ref_dir_override = opts.ref_dir;
 
   // Backend selection is baked in at compile time.
 #ifdef VERILATOR_BUILD_ENABLED

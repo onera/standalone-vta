@@ -27,11 +27,13 @@ BUILD_DIR       ?= build
 
 VTA_COMPILER_OUTPUT ?= $(ROOTDIR)/compiler_output
 VTA_SIMULATOR_OUTPUT ?=$(ROOTDIR)/simulators_output
+VTA_REFERENCE_OUTPUT ?= $(ROOTDIR)/reference_output
 
 # Verilated objects sit on the per-cycle hot path - optimise for throughput.
 VERILATED_CFLAGS = -std=c++17 -O3 -fomit-frame-pointer -MMD -MP
 PATH_DEFINES          = -DVTA_COMPILER_OUTPUT='"$(abspath $(VTA_COMPILER_OUTPUT))"' \
-                        -DVTA_SIMULATOR_OUTPUT='"$(abspath $(VTA_SIMULATOR_OUTPUT))"'
+                        -DVTA_SIMULATOR_OUTPUT='"$(abspath $(VTA_SIMULATOR_OUTPUT))"' \
+                        -DVTA_REFERENCE_OUTPUT='"$(abspath $(VTA_REFERENCE_OUTPUT))"'
 CFLAGS           += $(PATH_DEFINES)
 VERILATED_CFLAGS += $(PATH_DEFINES)
 

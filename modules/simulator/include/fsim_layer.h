@@ -51,12 +51,19 @@ struct LayerContext {
 // main(). Empty means "use the compile-time VTA_SIMULATOR_OUTPUT default".
 extern std::string g_sim_output_override;
 extern std::string g_comp_dir_override;
+// Runtime override of the reference dir, populated from --ref-dir in main().
+// The reference dir holds input_nn.bin and reference.bin, which are written by
+// reference_onnx.py, not by the compiler. Empty means "use the compile-time
+// VTA_REFERENCE_OUTPUT default".
+extern std::string g_ref_dir_override;
 
 // Path helpers.
 std::string compiler_output_path(const std::filesystem::path &cwd,
                                  const std::string &file);
 std::string sim_output_path(const std::filesystem::path &cwd,
                             const std::string &file);
+std::string reference_output_path(const std::filesystem::path &cwd,
+                                  const std::string &file);
 
 // Load layer `ctx` (its `suffix` must already be set) from compiler_output/:
 // read metadata{suffix}.csv, shape the ACC/OUT (and, when load_input, the INP)
@@ -65,10 +72,10 @@ std::string sim_output_path(const std::filesystem::path &cwd,
 // block size to `block_size`.
 //
 //   load_input  - true  : resolve and read the input file into inpA. Prefers
-//                          input_nn.bin (raw network image, written by
-//                          reference_onnx.py); falls back to the compiler's
-//                          per-op input{suffix}.bin when input_nn.bin is
-//                          absent.
+//                          input_nn.bin from the reference dir (the raw network
+//                          image, written by reference_onnx.py); falls back to
+//                          the compiler's per-op input{suffix}.bin when that is
+//                          absent, which is the raw-VTA-IR fixture case.
 //                 false : leave inpA empty (the NN path fills it later via the
 //                          chaining/reshape step).
 //   guard_empty - true  : skip 0-size VTAMemAlloc and null-guard the copies,

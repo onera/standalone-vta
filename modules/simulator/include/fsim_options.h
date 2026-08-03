@@ -20,6 +20,8 @@ struct FsimOptions {
   std::string output_dir;
   // Compiler output dir (input of simulator)
   std::string comp_dir;
+  // Reference dir (input_nn.bin + reference.bin), written by reference_onnx.py
+  std::string ref_dir;
 
   // Common runtime knobs.
   bool dump_layers = false;

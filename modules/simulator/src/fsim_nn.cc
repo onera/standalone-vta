@@ -21,10 +21,12 @@ int run_nn(const FsimOptions &opts) {
   auto construct_sim_output_path = [&](const std::string &filename) {
     return sim_output_path(currentPath, filename);
   };
+  auto construct_reference_path = [&](const std::string &filename) {
+    return reference_output_path(currentPath, filename);
+  };
   // Simulator results (final_output*.bin) always go to the simulator output
-  // dir, never the compiler dir: the compiler dir holds only compiler artefacts
-  // (reference.bin included). --output overrides the base; default is
-  // simulators_output.
+  // dir, never the compiler dir or the reference dir. --output overrides the
+  // base; default is simulators_output.
   auto construct_output_path = construct_sim_output_path;
 
   // 0. DEFINE GLOBAL FILE PATHES
@@ -38,7 +40,7 @@ int run_nn(const FsimOptions &opts) {
   CsvMap dependency_map = load_csv_to_map(fileDependencyPath);
 
   // Input file
-  std::string fileInputNNPath = construct_path("input_nn.bin");
+  std::string fileInputNNPath = construct_reference_path("input_nn.bin");
 
   // Output file
   std::string fileFinalOutputPath = construct_output_path("final_output.bin");
