@@ -58,11 +58,16 @@ object MemoryLayout {
     layers: Seq[Model.LayerInfo],
     ddrBase: Long,
     suffixToIdx: Map[String, Int],
-    compDir: String
+    compDir: String,
+    refDir: Option[String]
   ): (Map[String, Long], Long, Seq[(String, Long, Long)]) = {
     val rawPhys = scratchAddr(layers, ddrBase)
-    val inputNnPath = os.Path(s"$compDir/input_nn.bin", os.pwd)
-    val rawSize = if (os.exists(inputNnPath)) os.size(inputNnPath) else 0L
+    val rawSize = Model
+      .inputNnPath(refDir)
+      .map(os.Path(_, os.pwd))
+      .filter(os.exists)
+      .map(os.size)
+      .getOrElse(0L)
     val initAlloc =
       rawPhys + math.max(alignPage(rawSize), PAGE)
 

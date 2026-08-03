@@ -16,7 +16,7 @@ private[exporters] object LoaderRender {
       loadHeaderSection(t) ++
         layerSection(t.layers, t.ddrBase) ++
         extraBlobSection(t.extraBlobs) ++
-        (if (t.includeInput) inputSection(t.compDir, t.layers, t.ddrBase)
+        (if (t.includeInput) inputSection(t.refDir, t.layers, t.ddrBase)
          else Nil) ++
         Seq("# Resume ARM execution", "con")
     lines.mkString("\n") + "\n"
@@ -97,24 +97,25 @@ private[exporters] object LoaderRender {
     * blank line.
     */
   private def inputSection(
-    compDir: String,
+    refDir: Option[String],
     layers: Seq[Model.LayerInfo],
     ddrBase: Long
   ): Seq[String] = {
-    val inputNnPath = os.Path(compDir + "/input_nn.bin", os.pwd).toString
+    val inputNnPath = Model.inputNnPath(refDir)
     val addrStr = Model.hexAddr(MemoryLayout.scratchAddr(layers, ddrBase))
     Seq(
       "# --- raw network input (scratch - ARM applies im2row at runtime) ---",
       s"""puts "Loading input_nn.bin (raw) -> $addrStr...""""
-    ) ++ (if (os.exists(os.Path(inputNnPath))) {
-            Seq(s"dow -data {$inputNnPath} $addrStr")
-          } else {
-            Seq(
-              s"# WARNING: input_nn.bin not found at codegen time: $inputNnPath",
-              s"""puts stderr "ERROR: input_nn.bin not found - place it at: $inputNnPath"""",
-              "exit 1"
-            )
-          }) ++ Seq("")
+    ) ++ (inputNnPath.filter(p => os.exists(os.Path(p))) match {
+      case Some(p) => Seq(s"dow -data {$p} $addrStr")
+      case None =>
+        val shown = inputNnPath.getOrElse("<no reference dir given>")
+        Seq(
+          s"# WARNING: input_nn.bin not found at codegen time: $shown",
+          s"""puts stderr "ERROR: input_nn.bin not found - place it at: $shown"""",
+          "exit 1"
+        )
+    }) ++ Seq("")
   }
 
   /** Render `load_input.tcl` - loads only input_nn.bin into the scratch region.
@@ -135,7 +136,7 @@ private[exporters] object LoaderRender {
         |
         |""".stripMargin
     header ++ (
-      inputSection(t.compDir, t.layers, t.ddrBase) ++ Seq(
+      inputSection(t.refDir, t.layers, t.ddrBase) ++ Seq(
         "# Resume ARM execution",
         "con"
       )

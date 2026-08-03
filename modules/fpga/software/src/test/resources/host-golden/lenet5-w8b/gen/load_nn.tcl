@@ -75,8 +75,8 @@ dow -data {@COMP_DIR@/accumulatorQLinearConv7_block.bin} 0x10093000
 
 # --- raw network input (scratch - ARM applies im2row at runtime) ---
 puts "Loading input_nn.bin (raw) -> 0x10097000..."
-# WARNING: input_nn.bin not found at codegen time: @COMP_DIR@/input_nn.bin
-puts stderr "ERROR: input_nn.bin not found - place it at: @COMP_DIR@/input_nn.bin"
+# WARNING: input_nn.bin not found at codegen time: @REF_DIR@/input_nn.bin
+puts stderr "ERROR: input_nn.bin not found - place it at: @REF_DIR@/input_nn.bin"
 exit 1
 
 # Resume ARM execution

@@ -72,16 +72,16 @@ private[exporters] object DebugRender {
     val cfg = t.cfg
     val suffixToIdx = t.suffixToIdx
     val ddrBase = t.ddrBase
-    val compDir = t.compDir
 
     val inpBytes = HwConfig.elemBytes(cfg.logInpWidth)
     val accBytes = HwConfig.elemBytes(cfg.logAccWidth)
     val logOutWidth = cfg.logOutWidth
     val rawPhys = MemoryLayout.scratchAddr(layers, ddrBase)
-    val inputNnPath = s"$compDir/input_nn.bin"
-    val rawSize =
-      if (Model.isFile(inputNnPath)) os.size(os.Path(inputNnPath, os.pwd))
-      else 0L
+    val rawSize = Model
+      .inputNnPath(t.refDir)
+      .filter(Model.isFile)
+      .map(p => os.size(os.Path(p, os.pwd)))
+      .getOrElse(0L)
 
     val execSteps = ExecSteps.of(depInfo, layers, suffixToIdx, logOutWidth)
 

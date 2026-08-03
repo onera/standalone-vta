@@ -37,6 +37,7 @@ object GenNnBaremetal {
     emitSdManifest: Boolean = false,
     stageSdFiles: Boolean = true,
     goldenDir: Option[String] = None,
+    refDir: Option[String] = None,
     sdDir: String = "",
     maxAddr: Option[Long] = None,
     verbose: Boolean = false
@@ -66,7 +67,14 @@ object GenNnBaremetal {
 
     val suffixToIdx = Model.suffixToIdx(layers)
     val (cpuOut, allocTop, cpuScratch) =
-      MemoryLayout.buildCpuOutAddrs(dep, layers, ddrBase, suffixToIdx, compDir)
+      MemoryLayout.buildCpuOutAddrs(
+        dep,
+        layers,
+        ddrBase,
+        suffixToIdx,
+        compDir,
+        refDir
+      )
     val (ctParams, ctBlobs, allocTop2) =
       MemoryLayout.buildCpuParamAddrs(dep, compDir, allocTop)
     // CPU activation scratch + CPU-op parameter blobs, for the layout checks.
@@ -84,6 +92,7 @@ object GenNnBaremetal {
         HwConfig.elemBytes(cfg.logInpWidth),
         allScratch,
         compDir,
+        refDir,
         maxAddr = None
       )
     )
@@ -144,7 +153,8 @@ object GenNnBaremetal {
       compDir,
       scriptName = "load_nn_static.tcl",
       includeInput = false,
-      extraBlobs = ctBlobs
+      extraBlobs = ctBlobs,
+      refDir = refDir
     ).export(out("load_nn_static.tcl"))
     LoadTcl(
       activeL,
@@ -152,9 +162,10 @@ object GenNnBaremetal {
       compDir,
       scriptName = "load_nn.tcl",
       includeInput = true,
-      extraBlobs = ctBlobs
+      extraBlobs = ctBlobs,
+      refDir = refDir
     ).export(out("load_nn.tcl"))
-    InputTcl(activeL, ddrBase, compDir)
+    InputTcl(activeL, ddrBase, compDir, refDir = refDir)
       .export(out("load_input.tcl"))
 
     if (emitSdManifest)
@@ -166,7 +177,8 @@ object GenNnBaremetal {
         sdDir = sdDir,
         emitRefs = emitCheck,
         extraBlobs = ctBlobs,
-        stageFiles = stageSdFiles
+        stageFiles = stageSdFiles,
+        refDir = refDir
       ).export(out("nn_sd_manifest.h"))
 
     AsmIncbin(activeL, emitCheck = emitCheck, extraBlobs = ctBlobs).export(
@@ -182,15 +194,14 @@ object GenNnBaremetal {
     if (emitCheck)
       DebugMap(activeL).export(out("nn_debug_map.h"))
     if (emitCpuCheck)
-      CpuDebugMap(dep, activeL, cfg, suffixToIdx, ddrBase, compDir).export(
-        out("nn_cpu_debug_map.h")
-      )
+      CpuDebugMap(dep, activeL, cfg, suffixToIdx, ddrBase, compDir, refDir)
+        .export(out("nn_cpu_debug_map.h"))
 
     if (verbose) Checks.printSummary(activeL, ddrBase)
 
     maxAddr match {
       case Some(ma) =>
-        if (!Checks.checkMemoryFit(activeL, ddrBase, ma, compDir, allScratch))
+        if (!Checks.checkMemoryFit(activeL, ddrBase, ma, refDir, allScratch))
           sys.error("layout check failed: allocations exceed max DDR address")
       case None =>
         println(
@@ -215,6 +226,7 @@ object GenNnBaremetal {
     emitSdManifest: Boolean = false,
     stageSdFiles: Boolean = true,
     goldenDir: Option[String] = None,
+    refDir: Option[String] = None,
     sdDir: String = ""
   )
 
@@ -286,6 +298,13 @@ object GenNnBaremetal {
           if (os.isDir(os.Path(x, os.pwd))) success
           else failure(s"ERROR: golden dump directory not found: $x")
         ),
+      opt[String]("ref-dir")
+        .action((x, c) => c.copy(refDir = Some(x)))
+        .text("reference dir holding input_nn.bin (reference_output)")
+        .validate(x =>
+          if (os.isDir(os.Path(x, os.pwd))) success
+          else failure(s"ERROR: reference directory not found: $x")
+        ),
       opt[String]("sd-dir")
         .action((x, c) => c.copy(sdDir = x))
         .text("SD-card subfolder for the staged files")
@@ -309,6 +328,7 @@ object GenNnBaremetal {
             stageSdFiles = o.stageSdFiles,
             goldenDir =
               o.goldenDir.map(gd => new java.io.File(gd).getAbsolutePath),
+            refDir = o.refDir.map(rd => new java.io.File(rd).getAbsolutePath),
             sdDir = o.sdDir,
             maxAddr = o.maxAddr.map(parseAddr),
             verbose = o.verbose

@@ -34,7 +34,12 @@ object ExecPlanResolver {
         layers,
         ddrBase,
         resolvedSuffixToIdx,
-        compDir
+        compDir,
+        // ExecPlan carries no refDir of its own; every production caller
+        // (GenNnBaremetal.generate) always passes an explicit cpuOut, so this
+        // fallback path never resolves input_nn.bin itself - None is correct,
+        // not a stopgap.
+        None
       )
       m
     }

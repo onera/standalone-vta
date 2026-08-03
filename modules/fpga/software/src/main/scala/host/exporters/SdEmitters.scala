@@ -26,7 +26,6 @@ private[exporters] object SdRender {
   def build(t: SdManifest): (String, Seq[String], os.Path) = {
     val layers = t.layers
     val ddrBase = t.ddrBase
-    val compDir = t.compDir
     val emitRefs = t.emitRefs
 
     val sub = t.sdDir.stripPrefix("/").stripSuffix("/")
@@ -53,15 +52,17 @@ private[exporters] object SdRender {
     val staticPaths = staticAndPaths.map(_._2)
 
     // Raw network input (optional)
-    val inputPath = os.Path(s"$compDir/input_nn.bin", os.pwd).toString
-    val hasInput =
-      os.exists(os.Path(inputPath)) && os.isFile(os.Path(inputPath))
+    val inputPath = Model.inputNnPath(t.refDir)
+    val hasInput = inputPath.exists { p =>
+      val q = os.Path(p)
+      os.exists(q) && os.isFile(q)
+    }
     val inputEntry: Option[(String, Long, Long)] =
       if (hasInput) {
-        val sz = os.size(os.Path(inputPath))
+        val sz = os.size(os.Path(inputPath.get))
         Some(("input_nn.bin", MemoryLayout.scratchAddr(layers, ddrBase), sz))
       } else None
-    val inputPaths: Seq[String] = inputEntry.map(_ => inputPath).toSeq
+    val inputPaths: Seq[String] = inputEntry.map(_ => inputPath.get).toSeq
 
     // Isolation-debug golden references
     val refsAndPaths: Seq[((String, Long, Long), String)] = if (emitRefs) {

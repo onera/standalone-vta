@@ -23,7 +23,8 @@ class EmitSdGoldenTest extends AnyFlatSpec with Matchers {
           layers,
           c.ddrBase,
           suffixToIdx,
-          c.comp.toString
+          c.comp.toString,
+          None
         )
       val (_, ctBlobs, _) =
         MemoryLayout.buildCpuParamAddrs(dep, c.comp.toString, allocTop)

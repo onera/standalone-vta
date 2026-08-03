@@ -16,7 +16,8 @@ class GenNnBaremetalGoldenTest extends AnyFlatSpec {
         compDir = c.comp.toString,
         outdir = d.toString,
         ddrBase = c.ddrBase,
-        cfg = ConfigParser.load(c.cfg.toString)
+        cfg = ConfigParser.load(c.cfg.toString),
+        refDir = Some((c.comp / "reference").toString)
       )
       for (
         f <- Seq(

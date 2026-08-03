@@ -16,13 +16,15 @@ class EmitLoadersGoldenTest extends AnyFlatSpec {
       val suffixToIdx = layers.zipWithIndex.map { case (l, i) =>
         l.suffix -> i
       }.toMap
+      val refDir = Some((c.comp / "reference").toString)
       val (_, allocTop, _) =
         MemoryLayout.buildCpuOutAddrs(
           dep,
           layers,
           c.ddrBase,
           suffixToIdx,
-          c.comp.toString
+          c.comp.toString,
+          refDir
         )
       val (_, ctBlobs, _) =
         MemoryLayout.buildCpuParamAddrs(dep, c.comp.toString, allocTop)
@@ -33,7 +35,8 @@ class EmitLoadersGoldenTest extends AnyFlatSpec {
         c.comp.toString,
         scriptName = "load_nn_static.tcl",
         includeInput = false,
-        extraBlobs = ctBlobs
+        extraBlobs = ctBlobs,
+        refDir = refDir
       ).export(d / "load_nn_static.tcl")
       LoadTcl(
         layers,
@@ -41,9 +44,10 @@ class EmitLoadersGoldenTest extends AnyFlatSpec {
         c.comp.toString,
         scriptName = "load_nn.tcl",
         includeInput = true,
-        extraBlobs = ctBlobs
+        extraBlobs = ctBlobs,
+        refDir = refDir
       ).export(d / "load_nn.tcl")
-      InputTcl(layers, c.ddrBase, c.comp.toString)
+      InputTcl(layers, c.ddrBase, c.comp.toString, refDir = refDir)
         .export(d / "load_input.tcl")
       AsmIncbin(layers, extraBlobs = ctBlobs).export(d / "nn_bin_data.S")
       LinkerFragment(layers, c.ddrBase, extraBlobs = ctBlobs)

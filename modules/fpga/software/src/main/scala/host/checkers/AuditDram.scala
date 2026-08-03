@@ -43,7 +43,14 @@ object AuditDram {
     val suffixToIdx = Model.suffixToIdx(layers)
 
     val (cpuOut, _, cpuScratch) =
-      MemoryLayout.buildCpuOutAddrs(dep, layers, ddrBase, suffixToIdx, compDir)
+      MemoryLayout.buildCpuOutAddrs(
+        dep,
+        layers,
+        ddrBase,
+        suffixToIdx,
+        compDir,
+        None
+      )
 
     println(
       f"=== VTA DRAM audit (base 0x${ddrBase}%08X, block ${cfg.blockSize}) ==="
@@ -61,6 +68,7 @@ object AuditDram {
       HwConfig.elemBytes(cfg.logInpWidth),
       cpuScratch,
       compDir,
+      None,
       maxAddr
     )
 

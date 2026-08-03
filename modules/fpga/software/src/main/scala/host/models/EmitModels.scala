@@ -36,6 +36,9 @@ final case class ExecPlan(
   * `scriptName` is the destination file's own name, embedded in the usage
   * banner; the rendering is otherwise path-independent so it is supplied here
   * rather than read back from the export path.
+  *
+  * `refDir` is the reference_output dir holding input_nn.bin; None means no
+  * reference is available and the raw-input section is omitted.
   */
 final case class LoadTcl(
   layers: Seq[Model.LayerInfo],
@@ -43,14 +46,20 @@ final case class LoadTcl(
   compDir: String,
   scriptName: String,
   includeInput: Boolean,
-  extraBlobs: Seq[ExtraBlob] = Nil
+  extraBlobs: Seq[ExtraBlob] = Nil,
+  refDir: Option[String] = None
 )
 
-/** `load_input.tcl` - loads only `input_nn.bin` into the scratch region. */
+/** `load_input.tcl` - loads only `input_nn.bin` into the scratch region.
+  *
+  * `refDir` is the reference_output dir holding input_nn.bin; None means no
+  * reference is available and the raw-input section is omitted.
+  */
 final case class InputTcl(
   layers: Seq[Model.LayerInfo],
   ddrBase: Long,
-  compDir: String
+  compDir: String,
+  refDir: Option[String] = None
 )
 
 /** `nn_bin_data.S` - one `.incbin` section per static buffer per layer. */
@@ -76,6 +85,9 @@ final case class LinkerFragment(
   * so its `Exportable` instance is bespoke (it does more than write `path`).
   * `stageFiles = false` emits the header alone - the manifest only reads the
   * binaries' sizes, never their contents.
+  *
+  * `refDir` is the reference_output dir holding input_nn.bin; None means no
+  * reference is available and the raw-input section is omitted.
   */
 final case class SdManifest(
   layers: Seq[Model.LayerInfo],
@@ -85,13 +97,17 @@ final case class SdManifest(
   sdDir: String = "",
   emitRefs: Boolean = false,
   extraBlobs: Seq[ExtraBlob] = Nil,
-  stageFiles: Boolean = true
+  stageFiles: Boolean = true,
+  refDir: Option[String] = None
 )
 
 /** `nn_debug_map.h` - the per-layer `DebugLayerDesc nn_debug[]` table. */
 final case class DebugMap(layers: Seq[Model.LayerInfo])
 
 /** `nn_cpu_debug_map.h` - the per-CPU-op `DebugCpuStep nn_cpu_debug[]` table.
+  *
+  * `refDir` is the reference_output dir holding input_nn.bin; None means no
+  * reference is available and the raw-input section is omitted.
   */
 final case class CpuDebugMap(
   dep: DependencyInfo,
@@ -99,5 +115,6 @@ final case class CpuDebugMap(
   cfg: HwConfig.ConfigParams,
   suffixToIdx: Map[String, Int],
   ddrBase: Long,
-  compDir: String
+  compDir: String,
+  refDir: Option[String] = None
 )

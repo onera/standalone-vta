@@ -154,6 +154,14 @@ object Model {
   def memAddressesPath(compDir: String, suffix: String): String =
     s"$compDir/memory_addresses$suffix.csv"
 
+  /** Absolute path of the raw network input inside a reference dir, when one
+    * was supplied. `input_nn.bin` is written by reference_onnx.py into its own
+    * reference_output dir, never by the compiler into compDir, so it is
+    * resolved separately from every other binary here.
+    */
+  def inputNnPath(refDir: Option[String]): Option[String] =
+    refDir.map(rd => os.Path(s"$rd/input_nn.bin", os.pwd).toString)
+
   /** fsim golden input dump for a layer (VTA_DUMP_LAYERS=1). */
   def refInputPath(goldenDir: String, suffix: String): String =
     s"$goldenDir/input$suffix.bin"

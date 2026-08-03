@@ -256,12 +256,12 @@ object Checks {
     layers: Seq[Model.LayerInfo],
     ddrBase: Long,
     maxAddr: Long,
-    compDir: String,
+    refDir: Option[String],
     cpuScratch: Seq[(String, Long, Long)] = Nil
   ): Boolean = {
     val baseRegions = liveRegions(layers, ddrBase, cpuScratch)
     val rawPhys = MemoryLayout.scratchAddr(layers, ddrBase)
-    val sz = Model.fileSizeOr0(s"$compDir/input_nn.bin")
+    val sz = Model.inputNnPath(refDir).map(Model.fileSizeOr0).getOrElse(0L)
     val allRegions =
       if (sz > 0) baseRegions :+ ((rawPhys, rawPhys + sz, "input_nn scratch"))
       else baseRegions
@@ -301,6 +301,7 @@ object Checks {
     inpElemBytes: Int,
     cpuScratch: Seq[(String, Long, Long)],
     compDir: String,
+    refDir: Option[String],
     maxAddr: Option[Long]
   ): Boolean = (
     Seq(
@@ -316,7 +317,7 @@ object Checks {
         inpElemBytes
       )
     ) ++ maxAddr.toSeq.map(ma =>
-      checkMemoryFit(layers, ddrBase, ma, compDir, cpuScratch)
+      checkMemoryFit(layers, ddrBase, ma, refDir, cpuScratch)
     )
   ).forall(identity)
 

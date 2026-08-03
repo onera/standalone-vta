@@ -57,8 +57,20 @@ object GoldenSupport {
     os.makeDir.all(d)
     d
   }
+
+  /** The reference dir used by golden generation for this case (mirrors
+    * RegenHostGolden.refDirFor). Nested under compDir on purpose - the golden
+    * fixtures have no reference, so this deliberately does not exist on disk.
+    */
+  def refDirFor(c: Case): os.Path = c.comp / "reference"
+
   def assertGolden(c: Case, fileName: String, actual: String): Unit = {
-    val canon = actual.replace(c.comp.toString, "@COMP_DIR@")
+    // @REF_DIR@ MUST be replaced first: refDirFor(c) nests under c.comp, so
+    // replacing c.comp first would consume the prefix and leave nothing for
+    // the @REF_DIR@ pattern to match (see RegenHostGolden.canon).
+    val canon = actual
+      .replace(refDirFor(c).toString, "@REF_DIR@")
+      .replace(c.comp.toString, "@COMP_DIR@")
     val expected = os.read(c.gen / fileName)
     if (canon != expected) {
       val a = os.pwd / "golden-actual" / c.name / fileName

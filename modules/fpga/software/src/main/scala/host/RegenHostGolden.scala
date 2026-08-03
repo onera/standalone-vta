@@ -56,8 +56,21 @@ object RegenHostGolden {
     )
   )
 
+  // The @REF_DIR@ replacement MUST run first: refDirFor(compDir) nests under
+  // compDir, so replacing compDir first consumes the prefix and leaves the
+  // @REF_DIR@ pattern with nothing left to match.
   private def canon(s: String, compDir: os.Path): String =
-    s.replace(compDir.toString, "@COMP_DIR@")
+    s.replace(refDirFor(compDir).toString, "@REF_DIR@")
+      .replace(compDir.toString, "@COMP_DIR@")
+
+  /** The reference dir used when regenerating goldens. The golden fixtures have
+    * no reference (goldenCase.compilerOutput never runs reference_onnx.py), so
+    * this points at a dir that holds no input_nn.bin on purpose - but every
+    * emitter still renders the *searched path* into its "not found" branch
+    * (load_nn.tcl / load_input.tcl), so this path does appear in the goldens,
+    * canonicalized to @REF_DIR@.
+    */
+  private def refDirFor(compDir: os.Path): os.Path = compDir / "reference"
 
   private def withTempDir[A](prefix: String)(f: os.Path => A): A = {
     val tmp =
@@ -108,7 +121,8 @@ object RegenHostGolden {
         compDir = comp.toString,
         outdir = tmp.toString,
         ddrBase = cd.ddrBase,
-        cfg = cfg
+        cfg = cfg,
+        refDir = Some(refDirFor(comp).toString)
       )
       for (
         f <- Seq(
@@ -136,7 +150,8 @@ object RegenHostGolden {
         ddrBase = cd.ddrBase,
         cfg = cfg,
         emitCpuCheck = true,
-        goldenDir = Some(comp.toString)
+        goldenDir = Some(comp.toString),
+        refDir = Some(refDirFor(comp).toString)
       )
       // debug maps: NO canonicalization (tests compare raw)
       for (f <- Seq("nn_debug_map.h", "nn_cpu_debug_map.h"))
@@ -161,7 +176,8 @@ object RegenHostGolden {
         outdir = tmp.toString,
         ddrBase = cd.ddrBase,
         cfg = cfg,
-        emitSdManifest = true
+        emitSdManifest = true,
+        refDir = Some(refDirFor(comp).toString)
       )
       // SD manifest: NO canonicalization
       os.copy(

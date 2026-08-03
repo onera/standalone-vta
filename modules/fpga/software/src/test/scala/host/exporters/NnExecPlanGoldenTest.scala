@@ -26,7 +26,8 @@ class NnExecPlanGoldenTest extends AnyFlatSpec {
           layers,
           c.ddrBase,
           suffixToIdx,
-          c.comp.toString
+          c.comp.toString,
+          None
         )
       val (ctParams, _, _) =
         MemoryLayout.buildCpuParamAddrs(dep, c.comp.toString, allocTop)
