@@ -171,7 +171,7 @@ Python compiler itself: both depend on `compile`, which only re-runs when the
 model, config, or compiler sources actually change.
 
 Use `_` for a whole cross axis to run a set in one invocation (add Mill's
-`--keep-going` to see every failure rather than the first):
+`--keep-going` (or `-k`) to see every failure rather than only the first):
 
 ```bash
 ./mill "examples.onnx[_,vta_config].fsim"   # every model, one config
@@ -186,6 +186,16 @@ Outputs are isolated per model and config in each task's Mill dest under
 bitstream once per (config, board) pair (`modules.fpga.targets[<config>,<board>]`),
 so switching config, board, or adding a new example model does not rebuild
 everything.
+
+> [!important]
+> By default, mill runs a long-lived daemon, that may crash on long
+> invocations (e.g. fpga synthesis)
+> When running mill commands in scripts (makefiles, CLI), it is highly recommended to append
+> the `--no-daemon` (or `-i`) flag to mill:
+>
+> ```bash
+> ./mill -i examples.onnx.lenet5.vta_config.createVitisProject --runner run_nn --data-loader tcl
+> ```
 
 #### Raw VTA IR fixtures
 
