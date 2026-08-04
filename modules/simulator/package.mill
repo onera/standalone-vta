@@ -4,6 +4,25 @@ import mill.*
 import mill.api.BuildCtx
 import mill.api.TaskCtx
 
+/** A built simulator binary, launchable: obtained from [[ConfigModule.runner]],
+  * which captures the working directory and the environment once so callers
+  * pass only the binary and its flags. Shaped like Mill's own
+  * `RunModule.runner()`.
+  */
+final class SimRunner(cwd: os.Path, env: Map[String, String]) {
+
+  /** Launch a built simulator binary directly (this is the "run in Mill, not
+    * make" path). Callers pass --comp-dir and any runtime flags. Shared by the
+    * functional (fsim) and Verilated (vsim) paths - both just exec a binary.
+    */
+  // stderr is inherited alongside stdout, like every build.modules.compiler stage:
+  // otherwise a simulator warning is captured and only ever resurfaces inside
+  // the exception message of a run that failed.
+  def launch(binary: os.Path, flags: Seq[String]): Unit =
+    os.proc(binary, flags)
+      .call(env = env, cwd = cwd, stdout = os.Inherit, stderr = os.Inherit)
+}
+
 trait ConfigModule extends build.ConfigCrossModule {
 
   /** C++/Verilator source dirs whose content triggers a simulator rebuild
@@ -72,21 +91,15 @@ trait ConfigModule extends build.ConfigCrossModule {
     )
   }
 
-  /** Launch a built simulator binary directly (this is the "run in Mill, not
-    * make" path). Callers pass --comp-dir and any runtime flags. Shared by the
-    * functional (fsim) and Verilated (vsim) paths - both just exec a binary.
+  /** A simulator launcher for this config: resolve it inside a `Task {}` block
+    * and call `launch(binary, flags)` on the result.
+    *
+    * `Task.Anon` rather than `Task`: the value is plumbing, not a build
+    * artefact, so it is neither cached nor named in the task namespace.
     */
-  // stderr is inherited alongside stdout, like every build.modules.compiler stage:
-  // otherwise a simulator warning is captured and only ever resurfaces inside
-  // the exception message of a run that failed.
-  def launchSim(binary: os.Path, flags: Seq[String], env: Map[String, String]) =
-    os.proc(binary, flags)
-      .call(
-        env = env,
-        cwd = BuildCtx.workspaceRoot,
-        stdout = os.Inherit,
-        stderr = os.Inherit
-      )
+  def runner: Task[SimRunner] = Task.Anon {
+    new SimRunner(BuildCtx.workspaceRoot, Task.env)
+  }
 
   /** Build the functional simulator for the active config and launch it on an
     * already-compiled model. No compile, no reference check.
@@ -96,7 +109,7 @@ trait ConfigModule extends build.ConfigCrossModule {
     *   --verbose`. Defaults to compiler_output/ at the repo root.
     */
   def fsim(args: Args) = Task.Command {
-    launchSim(fsimBinary().path, args.value, Task.env)
+    runner().launch(fsimBinary().path, args.value)
   }
 
   /** Build the Verilated RTL simulator for the active config and launch it on
@@ -107,7 +120,7 @@ trait ConfigModule extends build.ConfigCrossModule {
     *   --no-timeout --trace`. Defaults to compiler_output/ at the repo root.
     */
   def vsim(args: Args) = Task.Command {
-    launchSim(vsimBinary().path, args.value, Task.env)
+    runner().launch(vsimBinary().path, args.value)
   }
 }
 

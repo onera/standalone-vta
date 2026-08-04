@@ -57,31 +57,26 @@ trait IrExampleModule
     */
   def check() = Task.Command {
     val compOut = compile().path
-    // Resolved off the module, not off `sim`: the Task macro cannot lift a
-    // Task#apply() whose receiver is a local val of this block.
+    // Resolved off the module, not off a local val: the Task macro cannot lift
+    // a Task#apply() whose receiver is a local val of this block.
     val fsimBin = build.modules.simulator(configKey).fsimBinary().path
     val vsimBin = build.modules.simulator(configKey).vsimBinary().path
-    val sim = build.modules.simulator(configKey)
+    val sim = build.modules.simulator(configKey).runner()
+    val compare = build.modules.compiler.runner()
     val fsimOut = Task.dest / "fsim"
     val vsimOut = Task.dest / "vsim"
 
-    sim.launchSim(
+    sim.launch(
       fsimBin,
       Seq("--comp-dir", compOut.toString, "--output", fsimOut.toString)
-        ++ defaultSimFlags,
-      Task.env
+        ++ defaultSimFlags
     )
-    sim.launchSim(
+    sim.launch(
       vsimBin,
       Seq("--comp-dir", compOut.toString, "--output", vsimOut.toString)
-        ++ defaultSimFlags ++ Seq("--no-timeout"),
-      Task.env
+        ++ defaultSimFlags ++ Seq("--no-timeout")
     )
-    build.modules.compiler.runCompare(
-      fsimOut / layerOutputName,
-      vsimOut / layerOutputName,
-      Task.env
-    )
+    compare.runCompare(fsimOut / layerOutputName, vsimOut / layerOutputName)
     PathRef(Task.dest)
   }
 }

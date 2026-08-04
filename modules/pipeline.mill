@@ -83,12 +83,13 @@ trait HasOnnxModel extends HasCompilableModel {
     * when the model, the config content or the compiler sources change. The
     * reference is not run here - see [[reference]].
     */
+  // The compiler-source dependency comes from the runner, which declares it.
   def compile = Task {
-    build.modules.compiler.sources() // invalidate on source change
     configSignature() // invalidate on config-content change
     val compOut = Task.dest
     build.modules.compiler
-      .compileModel(onnxPath().path, configPath, compOut, Task.env)
+      .runner()
+      .compileModel(onnxPath().path, configPath, compOut)
     PathRef(compOut, quick = true)
   }
 
@@ -101,12 +102,9 @@ trait HasOnnxModel extends HasCompilableModel {
     * instances would corrupt the memory map silently rather than failing.
     */
   def reference = Task {
-    build.modules.compiler.runReference(
-      onnxPath().path,
-      compile().path,
-      Task.dest,
-      Task.env
-    )
+    build.modules.compiler
+      .runner()
+      .runReference(onnxPath().path, compile().path, Task.dest)
     PathRef(Task.dest)
   }
 
@@ -149,13 +147,9 @@ trait HasRawIrModel extends HasCompilableModel {
     */
   def compile = Task {
     configSignature() // invalidate on config-content change
-    build.modules.compiler.sources()
-    build.modules.compiler.compileIr(
-      irPath().path,
-      configPath,
-      Task.dest,
-      Task.env
-    )
+    build.modules.compiler
+      .runner()
+      .compileIr(irPath().path, configPath, Task.dest)
     PathRef(Task.dest, quick = true)
   }
 }
@@ -163,28 +157,40 @@ trait HasRawIrModel extends HasCompilableModel {
 /** Functional and Verilated RTL simulation of a compiled model. */
 trait SimTasks extends HasCompilableModel {
 
-  private def simStage(
-    compOut: os.Path,
-    simOut: os.Path,
-    binary: os.Path,
+  /** One simulator leg: run `binary` on this model's compiled output, then
+    * check the result against the reference when the model has one.
+    *
+    * `binary` is the *task* that builds the simulator, not its result: a
+    * `Task[T]` parameter can be applied inside the Anon, which is what lets
+    * fsim, vsim and layerDumps share this body (see `RunModule.runForkedTask`).
+    *
+    * `Task.dest` inside an Anon is the dest of the cached task that applies it,
+    * so each caller still writes its run to its own directory.
+    */
+  protected def simRun(
+    binary: Task[PathRef],
     flags: Seq[String],
-    env: Map[String, String],
-    refArgs: Seq[String],
-    refOut: Option[os.Path],
-    isRtl: Boolean = false
-  ): Unit = {
+    isRtl: Boolean = false,
+    check: Boolean = hasReference
+  ): Task[PathRef] = Task.Anon {
+    val compOut = compile().path
+    val simOut = Task.dest
+    val refDir = referenceDir()
     build.modules
       .simulator(configKey)
-      .launchSim(
-        binary,
+      .runner()
+      .launch(
+        binary().path,
         Seq("--comp-dir", compOut.toString, "--output", simOut.toString)
-          ++ refArgs ++ flags,
-        env
+          ++ referenceArgs() ++ defaultSimFlags ++ flags
       )
     // A fixture without a golden has nothing to check against; the caller
     // compares the two simulators instead.
-    if (hasReference)
-      build.modules.compiler.runCheck(compOut, refOut.get, simOut, env, isRtl)
+    if (check)
+      build.modules.compiler
+        .runner()
+        .runCheck(compOut, refDir.get, simOut, rtl = isRtl)
+    PathRef(simOut)
   }
 
   /** Run the functional (C++) simulator on this example and check its output
@@ -198,18 +204,7 @@ trait SimTasks extends HasCompilableModel {
     *   run and print a single VTA layer.
     */
   def fsim(args: Args) = Task.Command {
-    val compOut = compile().path
-    val fsim = build.modules.simulator(configKey).fsimBinary().path
-    simStage(
-      compOut = compOut,
-      simOut = Task.dest,
-      binary = fsim,
-      flags = defaultSimFlags ++ args.value,
-      env = Task.env,
-      refArgs = referenceArgs(),
-      refOut = referenceDir()
-    )
-    PathRef(Task.dest)
+    simRun(build.modules.simulator(configKey).fsimBinary, args.value)()
   }
 
   /** Run the Verilated RTL (Chisel) simulator on this example and check its
@@ -223,19 +218,11 @@ trait SimTasks extends HasCompilableModel {
     *   (waveform per layer), `--layer 3`, `--dump-layers`.
     */
   def vsim(args: Args) = Task.Command {
-    val compOut = compile().path
-    val vsim = build.modules.simulator(configKey).vsimBinary().path
-    simStage(
-      compOut = compOut,
-      simOut = Task.dest,
-      binary = vsim,
-      flags = defaultSimFlags ++ args.value,
-      env = Task.env,
-      refArgs = referenceArgs(),
-      refOut = referenceDir(),
+    simRun(
+      build.modules.simulator(configKey).vsimBinary,
+      args.value,
       isRtl = true
-    )
-    PathRef(Task.dest)
+    )()
   }
 
 }
@@ -260,24 +247,15 @@ trait LayerDumpTasks extends SimTasks {
     * dump is shared by [[BaremetalTasks.genBaremetalDebug]] and
     * [[PostSynthTasks.postSynth]].
     */
+  // check = false: this is the golden producer, so there is nothing to compare
+  // it against here. Like every other leg it gets defaultSimFlags, so the dumps
+  // are produced the way the runs checked against them are.
   def layerDumps = Task {
-    val compOut = compile().path
-    val refArgs = referenceArgs()
-    val fsim = build.modules.simulator(configKey).fsimBinary().path
-    build.modules
-      .simulator(configKey)
-      .launchSim(
-        fsim,
-        Seq(
-          "--comp-dir",
-          compOut.toString,
-          "--output",
-          Task.dest.toString,
-          "--dump-layers"
-        ) ++ refArgs,
-        env = Task.env
-      )
-    PathRef(Task.dest)
+    simRun(
+      build.modules.simulator(configKey).fsimBinary,
+      Seq("--dump-layers"),
+      check = false
+    )()
   }
 }
 
@@ -312,61 +290,67 @@ trait BaremetalTasks extends LayerDumpTasks {
   // Writes into this task's dest, never the tracked modules/fpga/software/gen/ dir
   // that a Vitis build reads from: a cached task must not silently overwrite it.
   def genBaremetal = Task {
-    baremetalGeneratedSources("--no-stage-sd-files")
+    baremetalGen(noGolden, Seq("--no-stage-sd-files"))()
     PathRef(Task.dest)
   }
 
-  def baremetalGeneratedSources(extraArgs: String*) = Task.Anon {
+  /** The baremetal codegen, shared by the four tasks that differ only in which
+    * flags they pass and whether they wire in the fsim goldens.
+    *
+    * `goldenDir` is a *task*, not a value, so it can be applied inside the
+    * Anon: the debug variants hand in [[LayerDumpTasks.layerDumps]], the plain
+    * ones nothing. `Task.dest` here is the dest of whichever cached task
+    * applies it, so all four keep their own output dir out of one body.
+    */
+  protected def baremetalGen(
+    goldenDir: Task[Option[PathRef]],
+    extraArgs: Seq[String]
+  ): Task[Unit] = Task.Anon {
     val compileDir = compile().path
     val refDir = referenceDir().getOrElse(
       sys.error("the baremetal codegen needs a reference (ONNX front end only)")
     )
-    build.modules.fpga.software.runGenNnBaremetal(
-      build.modules.fpga.software.runner(),
-      compileDir,
-      refDir,
-      Task.dest,
-      configKey,
-      vtaDdrBase(),
-      Seq("--emit-sd-manifest", "--sd-dir", sdDir)
-    )
-  }
-
-  def baremetalGeneratedDebugSources(extraArgs: String*) = Task.Anon {
-    val compileDir = compile().path
-    val refDir = referenceDir().getOrElse(
-      sys.error("the baremetal codegen needs a reference (ONNX front end only)")
-    )
-    build.modules.fpga.software.runGenNnBaremetal(
-      build.modules.fpga.software.runner(),
-      compileDir,
-      refDir,
-      Task.dest,
-      configKey,
-      vtaDdrBase(),
+    val golden = goldenDir()
+    // --emit-cpu-check only adds a header, it changes no DDR layout, so one gen
+    // dir serves both run_nn_debug and run_nn_cpu_debug.
+    val debugArgs = golden.toSeq.flatMap(g =>
       Seq(
-        "--emit-sd-manifest",
-        "--sd-dir",
-        sdDir,
         "--emit-layer-check",
         "--emit-cpu-check",
         "--golden-dir",
-        layerDumps().path.toString
-      ) ++ extraArgs
+        g.path.toString
+      )
     )
+    build.modules.fpga.software.runGenNnBaremetal(
+      build.modules.fpga.software.runner(),
+      compileDir,
+      refDir,
+      configKey,
+      vtaDdrBase(),
+      Seq("--emit-sd-manifest", "--sd-dir", sdDir) ++ debugArgs ++ extraArgs
+    )
+  }
+
+  /** No goldens: the plain codegen path. */
+  protected def noGolden: Task[Option[PathRef]] = Task.Anon { None }
+
+  /** This example's fsim goldens, for the isolation-runner codegen path. */
+  protected def fsimGolden: Task[Option[PathRef]] = Task.Anon {
+    Some(layerDumps())
   }
 
   /** Stage this example's SD-card file set: the .bin streams the runtime `sd`
     * loader reads, under `<dest>/sd_card/<model>/`.
     *
     * Re-runs the codegen with staging enabled into its own dest; the layout is
-    * deterministic, so the addresses match the app built from [[genBaremetal]].
-    * Not used by the Vitis tasks - it only produces files to copy to a FAT32
-    * card. For the isolation runners use [[sdCardDebug]], which also stages the
-    * goldens.
+    * deterministic, so the addresses match the app built from [[genBaremetal]]
+    * (every emitted header is byte-identical, the staged sd_card/ tree is the
+    * only difference). Not used by the Vitis tasks - it only produces files to
+    * copy to a FAT32 card. For the isolation runners use [[sdCardDebug]], which
+    * also stages the goldens.
     */
   def sdCard() = Task.Command {
-    baremetalGeneratedSources()
+    baremetalGen(noGolden, Seq.empty)()
     println(s"[INFO] copy ${Task.dest / "sd_card" / sdDir} to the SD card root")
     PathRef(Task.dest / "sd_card")
   }
@@ -380,7 +364,7 @@ trait BaremetalTasks extends LayerDumpTasks {
     * only adds a header, it changes no DDR layout.
     */
   def genBaremetalDebug = Task {
-    baremetalGeneratedDebugSources("--no-stage-sd-files")
+    baremetalGen(fsimGolden, Seq("--no-stage-sd-files"))()
     PathRef(Task.dest)
   }
 
@@ -391,7 +375,7 @@ trait BaremetalTasks extends LayerDumpTasks {
     * plain [[sdCard]] set has no references and cannot drive a debug run.
     */
   def sdCardDebug() = Task.Command {
-    baremetalGeneratedDebugSources()
+    baremetalGen(fsimGolden, Seq.empty)()
     println(s"[INFO] copy ${Task.dest / "sd_card" / sdDir} to the SD card root")
     PathRef(Task.dest / "sd_card")
   }
@@ -418,21 +402,36 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
     *   <app>`, `--data-loader sd`.
     */
   def createVitisProject(args: Args) = Task.Command {
-    val genDir = genBaremetal().path
+    vitisApps(genBaremetal, args.value)()
+  }
+
+  /** Add app components for this example to the shared Vitis workspace of its
+    * (config, board), building the platform first if stale.
+    *
+    * Shared by [[createVitisProject]] and [[addVitisDebugApps]], which differ
+    * only in which generated-header task they wire in and which defaults they
+    * prepend; `genDir` is a *task* so it can be applied inside the Anon.
+    */
+  protected def vitisApps(
+    genDir: Task[PathRef],
+    extraArgs: Seq[String]
+  ): Task[String] = Task.Anon {
+    val gen = genDir().path
     val ws =
       os.Path(build.modules.fpga.targets(configKey, fpgaBoard).vitisPlatform())
     val manifest = build.modules.fpga
       .targets(configKey, fpgaBoard)
       .fpgaSynth()
       .path / "manifest.json"
-    build.modules.fpga.software.runCreateVitisApps(
-      build.modules.fpga.software.vitisScript().path,
-      build.modules.fpga.readManifestField(manifest, "cpu"),
-      Some(genDir),
-      ws,
-      modelKey,
-      args.value
-    )
+    build.modules.fpga.software
+      .vitisRunner()
+      .addApps(
+        workspace = ws,
+        namePrefix = modelKey,
+        cpu = Some(build.modules.fpga.readManifestField(manifest, "cpu")),
+        genDir = Some(gen),
+        extraArgs = extraArgs
+      )
     ws.toString
   }
 
@@ -496,19 +495,15 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
     val genDir = genBaremetal().path
     val ws = BuildCtx.workspaceRoot / "build" / "vitis" /
       s"${modelKey}_$configKey"
-    build.modules.fpga.execVitis(
-      Task.env,
-      Seq(
-        "-s",
-        build.modules.fpga.software.vitisScript().path.toString,
-        "--workspace",
-        ws.toString,
-        "--gen-dir",
-        genDir.toString,
-        "--name-prefix",
-        modelKey
-      ) ++ args.value
-    )
+    // No --cpu: on this path it comes from `args`, along with --xsa.
+    build.modules.fpga.software
+      .vitisRunner()
+      .addApps(
+        workspace = ws,
+        namePrefix = modelKey,
+        genDir = Some(genDir),
+        extraArgs = args.value
+      )
     ws.toString
   }
 
@@ -526,22 +521,10 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
     *   [[sdCardDebug]] first), `--pl-reset-between-layers`.
     */
   def addVitisDebugApps(args: Args) = Task.Command {
-    val genDir = genBaremetalDebug().path
-    val ws =
-      os.Path(build.modules.fpga.targets(configKey, fpgaBoard).vitisPlatform())
-    val manifest = build.modules.fpga
-      .targets(configKey, fpgaBoard)
-      .fpgaSynth()
-      .path / "manifest.json"
-    build.modules.fpga.software.runCreateVitisApps(
-      build.modules.fpga.software.vitisScript().path,
-      build.modules.fpga.readManifestField(manifest, "cpu"),
-      Some(genDir),
-      ws,
-      modelKey,
+    vitisApps(
+      genBaremetalDebug,
       Seq("--runner", "run_nn_debug", "--data-loader", "elf") ++ args.value
-    )
-    ws.toString
+    )()
   }
 }
 

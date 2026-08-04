@@ -1,21 +1,17 @@
 package build.modules.compiler
 
 import mill.*
-import mill.api.Args
 import mill.api.BuildCtx
 import os.Shellable
-import build.modules.HasOnnxModel
-import build.HasVtaConfig
-import mill.pythonlib.PythonModule
 
 /** The Python compiler: ONNX model -> VTA IR -> instruction/uop/data .bin
   * streams, plus the ONNX reference used to check simulator output.
   *
   * Needs a Python env with the compiler dependencies active on PATH. This
-  * module holds no tasks of its own: it is the set of plain functions the
-  * example pipelines call, through `examples.onnx[<model>,<config>].compile`
-  * (both stages) and `examples.ir[<fixture>,<config>].compile` (vta_compiler
-  * alone).
+  * module holds no cached tasks of its own: it exposes [[runner]], and the
+  * example pipelines call its stages through
+  * `examples.onnx[<model>,<config>].compile` (both stages) and
+  * `examples.ir[<fixture>,<config>].compile` (vta_compiler alone).
   */
 object `package` extends Module { m =>
 
@@ -35,152 +31,156 @@ object `package` extends Module { m =>
   def genIrInputsMain = moduleDir / "utils" / "gen_ir_inputs.py"
   def compareMain = moduleDir / "reference_computation" / "compare_bin.py"
 
-  // Every stage resolves its output dirs from the environment (matching the
-  // Makefile and the scripts), so the dests are threaded through as env vars:
-  // compiler artefacts, the reference, and the simulator results.
-  private def envFor(
-    env: Map[String, String],
-    compDir: os.Path,
-    refDir: Option[os.Path] = None,
-    simDir: Option[os.Path] = None
-  ) =
-    env + ("VTA_COMPILER_OUT" -> compDir.toString) ++
-      refDir.map("VTA_REFERENCE_OUT" -> _.toString) ++
-      simDir.map("VTA_SIMULATOR_OUT" -> _.toString)
-
   /** The python the compiler stages run under: whatever is first on PATH.
     */
   def python: Shellable = build.python
 
-  def nnCompile(
-    onnx: os.Path,
-    config: os.Path,
-    dest: os.Path,
-    env: Map[String, String]
-  ): Unit =
-    os.proc(python, nnCompilerMain, "--expand-bias", config, onnx)
-      .call(
-        cwd = BuildCtx.workspaceRoot,
-        env = envFor(env, dest),
-        stdout = os.Inherit,
-        stderr = os.Inherit
-      )
-
-  def vtaCompile(
-    config: os.Path,
-    dest: os.Path,
-    env: Map[String, String]
-  ): Unit = {
-    // The IR JSONs are already in `dest` - written there by [[nnCompile]] on
-    // the ONNX path, or copied in by [[compileIr]] on the raw IR one. Resolve
-    // the glob here rather than passing a pattern the shell would not expand.
-    val irs = os.list(dest).filter(_.ext == "json").map(_.toString).sorted
-    os.proc(python, vtaCompilerMain, "--summary", config, irs)
-      .call(
-        cwd = BuildCtx.workspaceRoot,
-        env = envFor(env, dest),
-        stdout = os.Inherit,
-        stderr = os.Inherit
-      )
-  }
-
-  /** Run the ONNX reference: reads the compiler's dependency.csv from
-    * `compDir`, writes input_nn.bin and reference.bin into `refDir`.
-    */
-  def runReference(
-    onnx: os.Path,
-    compDir: os.Path,
-    refDir: os.Path,
-    env: Map[String, String],
-    refMode: String = "numpy",
-    debug: String = "False"
-  ): Unit =
-    os.proc(python, referenceMain, debug, refMode, onnx)
-      .call(
-        cwd = BuildCtx.workspaceRoot,
-        env = envFor(env, compDir, refDir = Some(refDir)),
-        stdout = os.Inherit,
-        stderr = os.Inherit
-      )
-
-  def runCheck(
-    compDir: os.Path,
-    refDir: os.Path,
-    simDir: os.Path,
-    env: Map[String, String],
-    rtl: Boolean = false,
-    debug: String = "False"
-  ): Unit = {
-    val extra = if (rtl) Seq("True") else Seq.empty[String]
-    // Three dirs: dependency.csv from the compiler dir, reference.bin from the
-    // reference dir, final_output*.bin from the simulator dir.
-    os.proc(python, checkMain, debug, extra)
-      .call(
-        cwd = BuildCtx.workspaceRoot,
-        env =
-          envFor(env, compDir, refDir = Some(refDir), simDir = Some(simDir)),
-        stdout = os.Inherit,
-        stderr = os.Inherit
-      )
-  }
-
-  /** nn + vta - the compile shared by examples and the fpga goldens. */
-  def compileModel(
-    onnx: os.Path,
-    config: os.Path,
-    dest: os.Path,
-    env: Map[String, String]
-  ): os.Path = {
-    os.makeDir.all(dest)
-    nnCompile(onnx, config, dest, env)
-    vtaCompile(config, dest, env)
-    dest
-  }
-
-  /** Generate the operands a raw VTA IR fixture declares, into `dest`. */
-  def genIrInputs(
-    ir: os.Path,
-    config: os.Path,
-    dest: os.Path,
-    env: Map[String, String]
-  ): Unit =
-    os.proc(python, genIrInputsMain, config, ir)
-      .call(
-        cwd = BuildCtx.workspaceRoot,
-        env = envFor(env, dest),
-        stdout = os.Inherit,
-        stderr = os.Inherit
-      )
-
-  /** Byte-compare two simulator outputs; throws when they differ. */
-  def runCompare(a: os.Path, b: os.Path, env: Map[String, String]): Unit =
-    os.proc(python, compareMain, a, b)
-      .call(
-        cwd = BuildCtx.workspaceRoot,
-        env = env,
-        stdout = os.Inherit,
-        stderr = os.Inherit
-      )
-
-  /** A raw VTA IR fixture compiled to .bin streams: copy the IR in, generate
-    * its operands, then vta_compiler.
+  /** The compiler stages as methods on a plain value, obtained from [[runner]].
     *
-    * The counterpart of compileModel for the front-endless path. No nn_compiler
-    * and no reference: the fixture is already VTA IR, and nothing defines what
-    * its output should be. The copy is what makes vtaCompile work, since that
-    * globs the .json files in `dest`.
+    * Shaped like Mill's own `RunModule.runner()`: what the stages share and
+    * only a task can resolve - interpreter, working directory, environment - is
+    * captured at construction, so each method takes only what varies.
+    *
+    * `dest` stays an explicit parameter rather than being read from the task
+    * context: not every caller compiles into its own dest verbatim (the fpga
+    * host goldens use `Task.dest / "compiler_output"`).
     */
-  def compileIr(
-    ir: os.Path,
-    config: os.Path,
-    dest: os.Path,
+  final class PyRunner(
+    python: Shellable,
+    cwd: os.Path,
     env: Map[String, String]
-  ): os.Path = {
-    os.makeDir.all(dest)
-    os.copy.into(ir, dest, replaceExisting = true)
-    genIrInputs(ir, config, dest, env)
-    vtaCompile(config, dest, env)
-    dest
+  ) {
+
+    /** Run one compiler stage.
+      *
+      * Every stage resolves its output dirs from the environment (matching the
+      * Makefile and the scripts), so the dests are threaded through as env
+      * vars: compiler artefacts, the reference, and the simulator results.
+      */
+    private def exec(
+      main: os.Path,
+      args: Seq[String],
+      compDir: Option[os.Path] = None,
+      refDir: Option[os.Path] = None,
+      simDir: Option[os.Path] = None
+    ): Unit =
+      os.proc(python, main, args)
+        .call(
+          cwd = cwd,
+          env = env ++
+            compDir.map("VTA_COMPILER_OUT" -> _.toString) ++
+            refDir.map("VTA_REFERENCE_OUT" -> _.toString) ++
+            simDir.map("VTA_SIMULATOR_OUT" -> _.toString),
+          stdout = os.Inherit,
+          stderr = os.Inherit
+        )
+
+    /** qONNX -> per-node CPU params + VTA IR JSONs, into `dest`. */
+    def nnCompile(onnx: os.Path, config: os.Path, dest: os.Path): Unit =
+      exec(
+        nnCompilerMain,
+        Seq("--expand-bias", config.toString, onnx.toString),
+        compDir = Some(dest)
+      )
+
+    /** VTA IR JSONs -> .bin streams and address CSVs, in place in `dest`. */
+    def vtaCompile(config: os.Path, dest: os.Path): Unit = {
+      // The IR JSONs are already in `dest` - written there by [[nnCompile]] on
+      // the ONNX path, or copied in by [[compileIr]] on the raw IR one. Resolve
+      // the glob here rather than passing a pattern the shell would not expand.
+      val irs = os.list(dest).filter(_.ext == "json").map(_.toString).sorted
+      exec(
+        vtaCompilerMain,
+        Seq("--summary", config.toString) ++ irs,
+        compDir = Some(dest)
+      )
+    }
+
+    /** nn + vta - the compile shared by examples and the fpga goldens. */
+    def compileModel(onnx: os.Path, config: os.Path, dest: os.Path): os.Path = {
+      os.makeDir.all(dest)
+      nnCompile(onnx, config, dest)
+      vtaCompile(config, dest)
+      dest
+    }
+
+    /** Generate the operands a raw VTA IR fixture declares, into `dest`. */
+    def genIrInputs(ir: os.Path, config: os.Path, dest: os.Path): Unit =
+      exec(
+        genIrInputsMain,
+        Seq(config.toString, ir.toString),
+        compDir = Some(dest)
+      )
+
+    /** A raw VTA IR fixture compiled to .bin streams: copy the IR in, generate
+      * its operands, then vta_compiler.
+      *
+      * The counterpart of [[compileModel]] for the front-endless path. No
+      * nn_compiler and no reference: the fixture is already VTA IR, and nothing
+      * defines what its output should be. The copy is what makes [[vtaCompile]]
+      * work, since that globs the .json files in `dest`.
+      */
+    def compileIr(ir: os.Path, config: os.Path, dest: os.Path): os.Path = {
+      os.makeDir.all(dest)
+      os.copy.into(ir, dest, replaceExisting = true)
+      genIrInputs(ir, config, dest)
+      vtaCompile(config, dest)
+      dest
+    }
+
+    /** Run the ONNX reference: reads the compiler's dependency.csv from
+      * `compDir`, writes input_nn.bin and reference.bin into `refDir`.
+      */
+    def runReference(
+      onnx: os.Path,
+      compDir: os.Path,
+      refDir: os.Path,
+      refMode: String = "numpy",
+      debug: String = "False"
+    ): Unit =
+      exec(
+        referenceMain,
+        Seq(debug, refMode, onnx.toString),
+        compDir = Some(compDir),
+        refDir = Some(refDir)
+      )
+
+    /** Check a simulator run against the ONNX reference; throws on a mismatch.
+      *
+      * Three dirs: dependency.csv from the compiler dir, reference.bin from the
+      * reference dir, final_output*.bin from the simulator dir.
+      */
+    def runCheck(
+      compDir: os.Path,
+      refDir: os.Path,
+      simDir: os.Path,
+      rtl: Boolean = false,
+      debug: String = "False"
+    ): Unit =
+      exec(
+        checkMain,
+        Seq(debug) ++ (if (rtl) Seq("True") else Seq.empty[String]),
+        compDir = Some(compDir),
+        refDir = Some(refDir),
+        simDir = Some(simDir)
+      )
+
+    /** Byte-compare two simulator outputs; throws when they differ. */
+    def runCompare(a: os.Path, b: os.Path): Unit =
+      exec(compareMain, Seq(a.toString, b.toString))
   }
 
+  /** The compiler stages, ready to call: resolve it inside a `Task {}` block
+    * and call the stage you need on the result.
+    *
+    * `Task.Anon` rather than `Task`, like `RunModule.runner`: the value is
+    * plumbing, not a build artefact, so it is neither cached nor named in the
+    * task namespace. [[sources]] is applied here, the way `RunModule.runner`
+    * applies `runClasspath`, so every task that calls a stage re-runs when the
+    * compiler code changes.
+    */
+  def runner: Task[PyRunner] = Task.Anon {
+    sources()
+    new PyRunner(python, BuildCtx.workspaceRoot, Task.env)
+  }
 }
