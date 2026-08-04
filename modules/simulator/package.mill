@@ -2,6 +2,7 @@ package build.modules.simulator
 
 import mill.*
 import mill.api.BuildCtx
+import mill.api.TaskCtx
 
 trait ConfigModule extends build.ConfigCrossModule {
 
@@ -20,22 +21,24 @@ trait ConfigModule extends build.ConfigCrossModule {
     * per-config dir. The config comes from this instance's cross value, so the
     * two differ only by the binary they ask make for and the extra make args.
     */
-  private def buildSim(
-    dest: os.Path,
-    env: Map[String, String],
-    binaryName: String,
-    extraMakeArgs: Seq[String]
-  ): PathRef = {
+  private def buildSim(binaryName: String, extraMakeArgs: Seq[String])(using
+    ctx: TaskCtx
+  ): os.Path = {
     os.proc(
       "make",
       s"CONFIG=$configPath",
-      s"BUILD_DIR=$dest",
+      s"BUILD_DIR=${ctx.dest}",
       extraMakeArgs,
       s"compile-$binaryName"
-    ).call(cwd = moduleDir, env = env,  stderr = os.Inherit)
-    BuildCtx.withFilesystemCheckerDisabled {
-      PathRef(dest / binaryName)
-    }
+    ).call(cwd = moduleDir, env = ctx.env, stderr = os.Inherit)
+    ctx.dest / binaryName
+  }
+
+  /** The verilator threads input task. See [[build.verilatorThreads]] This is a
+    * compile time argument, and will invalidate [[vsimBinary]] on modification.
+    */
+  def threads = Task.Input {
+    build.verilatorThreads
   }
 
   /** Build the functional (C++ model) simulator for this config and return the
@@ -47,7 +50,7 @@ trait ConfigModule extends build.ConfigCrossModule {
   def fsimBinary = Task {
     simSources()
     configSignature()
-    buildSim(Task.dest, Task.env, "fsim", Seq())
+    PathRef(buildSim("fsim", Seq()), quick = true)
   }
 
   /** Build the Verilated RTL simulator for this config and return the vsim
@@ -60,7 +63,13 @@ trait ConfigModule extends build.ConfigCrossModule {
     simSources()
     configSignature()
     val shellDir = build.modules.hardware.configs(configKey).vtaSimConfig().path
-    buildSim(Task.dest, Task.env, "vsim", Seq(s"VTASHELL_DIR=$shellDir"))
+    PathRef(
+      buildSim(
+        "vsim",
+        Seq(s"VTASHELL_DIR=$shellDir", s"SIM_THREADS=${threads()}")
+      ),
+      quick = true
+    )
   }
 
   /** Launch a built simulator binary directly (this is the "run in Mill, not

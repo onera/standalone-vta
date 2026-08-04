@@ -31,12 +31,15 @@ object `package` extends Module with SpotlessModule {
   // listed from, and the identity traits every per-config module mixes in.
   // The pipeline task traits live in modules/pipeline.mill, and each module's own
   // tasks in its package.mill.
-  //
-  // They live inside `object package` rather than at the top level of this
-  // file because that is what makes them addressable as `build.<name>` from
-  // the submodule files: Mill folds a root .mill file's top level into the
-  // wrapper object, not into the root module.
 
+  def spotlessExcludes = Task {
+    super.spotlessExcludes() ++ Seq(
+      "glob:.*",
+      "glob:**/.*",
+      "glob:build",
+      "glob:build/**"
+    )
+  }
   // -------------------------------------------------------------------------
   // Global defaults and config helpers
   // -------------------------------------------------------------------------
@@ -51,14 +54,23 @@ object `package` extends Module with SpotlessModule {
       if (os.exists(path)) Some(PathRef(path)) else None
     }
 
-  /** Default config filename when -Dvta.config.file is unset. */
-  val defaultConfigName = "vta_config.json"
+  /** Default VTA build arguments, overridable by passing -Dvta.*=<value> flags
+    * to mill, or by running `./mill configure vta.*=<value>`
+    */
+  val defaultOpts = Map(
+    /** Default config filename */
+    "vta.config.file" -> "vta_config.json",
+    /** Default DDR offset for fpga DRAM allocation. */
+    "vta.ddr.base" -> "0x0",
+    /** Default fpga board used by synthesis flows. */
+    "vta.board.name" -> "zcu104",
+    /** Default verilator threads for verilator simulation. */
+    "vta.verilator.threads" -> "4",
+    /** Default jobs for vivado synthesis */
+    "vta.vivado.jobs" -> "4"
+  )
 
-  /** Default DDR base when -Dvta.ddr.base is unset. */
-  val defaultDdrBase = "0x0"
-
-  /** Default board when -Dvta.board.name is unset. */
-  val defaultBoard = "zcu104"
+  def getVtaArg(name: String) = sys.props.getOrElse(name, defaultOpts(name))
 
   /** Key (name without ".json") of the config selected globally with
     * `-Dvta.config.file`, default vta_config.
@@ -70,10 +82,34 @@ object `package` extends Module with SpotlessModule {
     * rather than dirtying one.
     */
   def activeConfigKey: String =
-    sys.props
-      .getOrElse("vta.config.file", defaultConfigName)
-      .stripSuffix(".json")
+    getVtaArg("vta.config.file").stripSuffix(".json")
 
+  /** Board used by the tasks that are not board-crossed: the `examples` FPGA
+    * wiring and the flat modules.fpga tasks. From -Dvta.board.name, default
+    * zcu104.
+    *
+    * A plain value for the same reason as [[activeConfigKey]]: it selects a
+    * Cross instance (`modules.fpga.targets(config, board)`).
+    */
+  def defaultBoardName = getVtaArg("vta.board.name")
+
+  /** Number of vivado jobs changing this property DOES NOT invalidate vivado
+    * tasks (runtime flag)
+    */
+  def vivadoJobs = getVtaArg("vta.vivado.jobs")
+
+  /** Number of threads for the verilator build. Changing this invalidates the
+    * vsim tasks, to prevent spurious invalidations it is recommended to keep
+    * the default, or make it permanent through `./mill configure
+    * vta.verilator.threads=<N>`
+    */
+  def verilatorThreads = getVtaArg("vta.verilator.threads")
+
+  /* Python command
+   * Pixi is called explicitly in the sub process. If you do not use pixi,
+   * change this. TODO: add a fallback python if pixi is not installed?
+   */
+  def python: os.Shellable = Seq("pixi", "run", "python")
   // -------------------------------------------------------------------------
   // Forked-JVM environment
   // -------------------------------------------------------------------------
@@ -107,7 +143,7 @@ object `package` extends Module with SpotlessModule {
       * another config; the per-config Cross modules ignore it.
       */
     def vtaConfigFile = Task.Input {
-      sys.props.getOrElse("vta.config.file", defaultConfigName)
+      getVtaArg("vta.config.file")
     }
 
     /** The -Dvta.config.file fork arg for the active global config. Passed
@@ -182,25 +218,6 @@ object `package` extends Module with SpotlessModule {
     os.list(boardsDirPath).filter(_.ext == "json").map(_.baseName).sorted
   )
 
-  /** Board used by the tasks that are not board-crossed: the `examples` FPGA
-    * wiring and the flat modules.fpga tasks. From -Dvta.board.name, default
-    * zcu104.
-    *
-    * A plain value for the same reason as [[activeConfigKey]]: it selects a
-    * Cross instance (`modules.fpga.targets(config, board)`).
-    */
-  def defaultBoardName = sys.props.getOrElse("vta.board.name", defaultBoard)
-
-  def vivadoJobs = sys.props.getOrElse("vta.vivado.jobs", "4")
-
-  def verilatorThreads = sys.props.getOrElse("vta.verilator.threads","4")
-
-  /* Python command
-   * Pixi is called explicitly in the sub process. If you do not use pixi,
-   * change this.
-   */
-  def python: os.Shellable = Seq("pixi", "run", "python")
-
   /** Every (config, board) pair - the Cross keys for `modules.fpga.targets`. An
     * FPGA build is identified by both: the config fixes the RTL, the board
     * fixes the pinout and the XSA.
@@ -254,15 +271,6 @@ object `package` extends Module with SpotlessModule {
     def configKey: String = crossValue
   }
 
-  def spotlessExcludes = Task {
-    super.spotlessExcludes() ++ Seq(
-      "glob:.*",
-      "glob:**/.*",
-      "glob:build",
-      "glob:build/**"
-    )
-  }
-
   /** Persist -Dvta.* options in .mill-jvm-opts so they apply to every later
     * ./mill run.
     *
@@ -271,7 +279,7 @@ object `package` extends Module with SpotlessModule {
     * current settings. A -D on the command line still wins for a single run.
     *
     * @param args
-    *   `vta.*` assignments, e.g. `./mill configure vta.board.name=te0803
+    *   `vta.*` assignments, e.g. `./mill configure vta.board.name=zcu104
     *   vta.ddr.base=0x10000000`, or the single flag `--reset`.
     */
   def configure(args: Args) = Task.Command {
@@ -301,14 +309,6 @@ object `package` extends Module with SpotlessModule {
   }
 
   private def jvmOptsFile = BuildCtx.workspaceRoot / ".mill-jvm-opts"
-
-  // Keys with a build-side default, printed even when unset so `./mill
-  // configure` shows what is actually in effect.
-  private def knownDefaults = Seq(
-    "vta.board.name" -> defaultBoard,
-    "vta.config.file" -> defaultConfigName,
-    "vta.ddr.base" -> defaultDdrBase
-  )
 
   private val vtaOptLine = """^-D(vta\.[^=]+)=(.*)$""".r
 
@@ -352,7 +352,7 @@ object `package` extends Module with SpotlessModule {
           case Array(k, v) if k.startsWith("vta.") => k -> v
           case _ =>
             sys.error(
-              s"expected a vta.* assignment such as vta.board.name=te0803, got: $arg"
+              s"expected a vta.* assignment such as vta.board.name=zcu104, got: $arg"
             )
         }
     }
@@ -374,13 +374,33 @@ object `package` extends Module with SpotlessModule {
   }
 
   private def printOpts(opts: Map[String, String]): Unit = {
-    val extra = (opts.keySet -- knownDefaults.map(_._1)).toSeq.sorted
-    val rows = knownDefaults.map { case (k, dflt) =>
+    val extra = (opts.keySet -- defaultOpts.map(_._1)).toSeq.sorted
+    val rows = defaultOpts.map { case (k, dflt) =>
       opts.get(k).map(v => (k, v, "configured")).getOrElse((k, dflt, "default"))
     } ++ extra.map(k => (k, opts(k), "configured"))
     val width = rows.map(_._1.length).max
-    rows.foreach { case (k, v, origin) =>
-      println(s"${k.padTo(width, ' ')} = $v ($origin)")
-    }
+    println(
+      "Current configuration:\n" + rows
+        .map { case (k, v, origin) =>
+          s"${k.padTo(width, ' ')} = $v ($origin)"
+        }
+        .mkString("\n")
+    )
   }
+  trait ModelPipeline
+      extends Cross.Module[String]
+      with build.modules.VtaPipelineModule {
+    def modelPath = BuildCtx.workspaceRoot / os.RelPath(
+      sys.props.getOrElse("vta.onnx.file", "examples/onnx/lenet5.onnx")
+    )
+    def configKey = crossValue
+    def modelKey = modelPath.baseName
+    def onnxRoot = modelPath / os.up
+
+  }
+
+  /** Cross Config module for running the compilation pipeline on any given onnx
+    * model
+    */
+  object run extends Cross[ModelPipeline](configNames)
 }

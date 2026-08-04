@@ -50,14 +50,12 @@ trait HasCompilableModel extends Module with HasVtaConfig {
     *
     * None by default, so a raw VTA IR fixture never exposes a reference it does
     * not have: the simulator then falls back to the compiler's per-op
-    * input{suffix}.bin, which is exactly what those fixtures ship.
-    * [[HasOnnxModel]] overrides it, and it is the ONLY override needed - every
-    * other consumer here derives from it.
+    * input{suffix}.bin, which is what those fixtures ship. [[HasOnnxModel]] is
+    * the only override; every other consumer here derives from it.
     *
-    * Task.Anon rather than a plain value because the ONNX override has to
-    * evaluate the `reference` task to get the path. Anon also means it has no
-    * dest of its own, so it cannot trigger the `.super.<Trait>` dest relocation
-    * that a re-declared cached task would.
+    * Task.Anon because the ONNX override evaluates the `reference` task, and
+    * because an Anon has no dest of its own to be relocated to `.super.<Trait>`
+    * the way a re-declared cached task would.
     */
   def referenceDir: Task[Option[os.Path]] = Task.Anon { None }
 
@@ -76,19 +74,14 @@ trait HasOnnxModel extends HasCompilableModel {
   /** Directory the model files live in. */
   def onnxRoot: os.Path
 
-  def onnxDir = onnxRoot
-
-  /** The ONNX model of this example, under examples/onnx. */
-  def onnxPath = Task.Source(onnxDir / os.RelPath(s"$modelKey.onnx"))
+  /** The ONNX model of this example, under onnxDir/<modelKey>.onnx. */
+  def onnxPath = Task.Source(onnxRoot / os.RelPath(s"$modelKey.onnx"))
 
   /** Compile this model for this config: nn_compiler and vta_compiler.
     *
     * Writes the .bin / .csv streams to this task's dest. Cached: re-runs only
     * when the model, the config content or the compiler sources change. The
-    * reference is NOT run here - see [[reference]]; keeping the random
-    * input_nn.bin out of this dest removes one source of nondeterminism from
-    * compile, but does not make it reproducible on its own - see runReference's
-    * doc in modules/compiler/package.mill for the other one.
+    * reference is not run here - see [[reference]].
     */
   def compile = Task {
     build.modules.compiler.sources() // invalidate on source change
@@ -96,18 +89,16 @@ trait HasOnnxModel extends HasCompilableModel {
     val compOut = Task.dest
     build.modules.compiler
       .compileModel(onnxPath().path, configPath, compOut, Task.env)
-    PathRef(compOut)
+    PathRef(compOut, quick = true)
   }
 
-  /** Run the ONNX reference for this model: input_nn.bin (the randomly
-    * generated network input) and reference.bin (the golden output), in this
-    * task's dest.
+  /** Run the ONNX reference for this model: input_nn.bin (the network input)
+    * and reference.bin (the golden output), in this task's dest.
     *
     * Returns the directory, not just reference.bin, because the baremetal
     * codegen needs input_nn.bin from it too. Every consumer must resolve this
-    * one task - two instances would mean two different random inputs, and the
-    * DDR scratch region is sized from input_nn.bin, so a mismatched pair
-    * corrupts the memory map silently rather than failing.
+    * one task: the DDR scratch region is sized from input_nn.bin, so two
+    * instances would corrupt the memory map silently rather than failing.
     */
   def reference = Task {
     build.modules.compiler.runReference(
@@ -127,9 +118,8 @@ trait HasOnnxModel extends HasCompilableModel {
   * The front-endless path: the fixture is already VTA IR, so vta_compiler runs
   * alone. There is no ONNX model, hence no nn_compiler and no reference. That
   * also rules out NN mode, since run_nn reads dependency.csv, which only
-  * nn_compiler writes, and input_nn.bin, which only the ONNX reference writes
-  * (modules/simulator/src/fsim_nn.cc:37-43), so these fixtures run
-  * single-layer.
+  * nn_compiler writes, and input_nn.bin, which only the ONNX reference writes,
+  * so these fixtures run single-layer.
   */
 trait HasRawIrModel extends HasCompilableModel {
 
@@ -166,7 +156,7 @@ trait HasRawIrModel extends HasCompilableModel {
       Task.dest,
       Task.env
     )
-    PathRef(Task.dest)
+    PathRef(Task.dest, quick = true)
   }
 }
 
@@ -302,7 +292,7 @@ trait BaremetalTasks extends LayerDumpTasks {
     * flashed to, not of the (model, config) pair they are built from.
     */
   def vtaDdrBase = Task.Input {
-    sys.props.getOrElse("vta.ddr.base", build.defaultDdrBase)
+    build.getVtaArg("vta.ddr.base")
   }
 
   /** SD-card subfolder this model's files live in: the model name, so several
@@ -322,20 +312,48 @@ trait BaremetalTasks extends LayerDumpTasks {
   // Writes into this task's dest, never the tracked modules/fpga/software/gen/ dir
   // that a Vitis build reads from: a cached task must not silently overwrite it.
   def genBaremetal = Task {
-    val compOut = compile().path
-    val refOut = referenceDir().getOrElse(
+    baremetalGeneratedSources("--no-stage-sd-files")
+    PathRef(Task.dest)
+  }
+
+  def baremetalGeneratedSources(extraArgs: String*) = Task.Anon {
+    val compileDir = compile().path
+    val refDir = referenceDir().getOrElse(
       sys.error("the baremetal codegen needs a reference (ONNX front end only)")
     )
     build.modules.fpga.software.runGenNnBaremetal(
       build.modules.fpga.software.runner(),
-      compOut,
-      refOut,
+      compileDir,
+      refDir,
       Task.dest,
       configKey,
       vtaDdrBase(),
-      Seq("--emit-sd-manifest", "--no-stage-sd-files", "--sd-dir", sdDir)
+      Seq("--emit-sd-manifest", "--sd-dir", sdDir)
     )
-    PathRef(Task.dest)
+  }
+
+  def baremetalGeneratedDebugSources(extraArgs: String*) = Task.Anon {
+    val compileDir = compile().path
+    val refDir = referenceDir().getOrElse(
+      sys.error("the baremetal codegen needs a reference (ONNX front end only)")
+    )
+    build.modules.fpga.software.runGenNnBaremetal(
+      build.modules.fpga.software.runner(),
+      compileDir,
+      refDir,
+      Task.dest,
+      configKey,
+      vtaDdrBase(),
+      Seq(
+        "--emit-sd-manifest",
+        "--sd-dir",
+        sdDir,
+        "--emit-layer-check",
+        "--emit-cpu-check",
+        "--golden-dir",
+        layerDumps().path.toString
+      ) ++ extraArgs
+    )
   }
 
   /** Stage this example's SD-card file set: the .bin streams the runtime `sd`
@@ -348,19 +366,7 @@ trait BaremetalTasks extends LayerDumpTasks {
     * goldens.
     */
   def sdCard() = Task.Command {
-    val compOut = compile().path
-    val refOut = referenceDir().getOrElse(
-      sys.error("the baremetal codegen needs a reference (ONNX front end only)")
-    )
-    build.modules.fpga.software.runGenNnBaremetal(
-      build.modules.fpga.software.runner(),
-      compOut,
-      refOut,
-      Task.dest,
-      configKey,
-      vtaDdrBase(),
-      Seq("--emit-sd-manifest", "--sd-dir", sdDir)
-    )
+    baremetalGeneratedSources()
     println(s"[INFO] copy ${Task.dest / "sd_card" / sdDir} to the SD card root")
     PathRef(Task.dest / "sd_card")
   }
@@ -374,28 +380,7 @@ trait BaremetalTasks extends LayerDumpTasks {
     * only adds a header, it changes no DDR layout.
     */
   def genBaremetalDebug = Task {
-    val compOut = compile().path
-    val refOut = referenceDir().getOrElse(
-      sys.error("the baremetal codegen needs a reference (ONNX front end only)")
-    )
-    build.modules.fpga.software.runGenNnBaremetal(
-      build.modules.fpga.software.runner(),
-      compOut,
-      refOut,
-      Task.dest,
-      configKey,
-      vtaDdrBase(),
-      Seq(
-        "--emit-sd-manifest",
-        "--no-stage-sd-files",
-        "--sd-dir",
-        sdDir,
-        "--emit-layer-check",
-        "--emit-cpu-check",
-        "--golden-dir",
-        layerDumps().path.toString
-      )
-    )
+    baremetalGeneratedDebugSources("--no-stage-sd-files")
     PathRef(Task.dest)
   }
 
@@ -406,27 +391,7 @@ trait BaremetalTasks extends LayerDumpTasks {
     * plain [[sdCard]] set has no references and cannot drive a debug run.
     */
   def sdCardDebug() = Task.Command {
-    val compOut = compile().path
-    val refOut = referenceDir().getOrElse(
-      sys.error("the baremetal codegen needs a reference (ONNX front end only)")
-    )
-    build.modules.fpga.software.runGenNnBaremetal(
-      build.modules.fpga.software.runner(),
-      compOut,
-      refOut,
-      Task.dest,
-      configKey,
-      vtaDdrBase(),
-      Seq(
-        "--emit-sd-manifest",
-        "--sd-dir",
-        sdDir,
-        "--emit-layer-check",
-        "--emit-cpu-check",
-        "--golden-dir",
-        layerDumps().path.toString
-      )
-    )
+    baremetalGeneratedDebugSources()
     println(s"[INFO] copy ${Task.dest / "sd_card" / sdDir} to the SD card root")
     PathRef(Task.dest / "sd_card")
   }
@@ -461,7 +426,6 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
       .fpgaSynth()
       .path / "manifest.json"
     build.modules.fpga.software.runCreateVitisApps(
-      Task.env,
       build.modules.fpga.software.vitisScript().path,
       build.modules.fpga.readManifestField(manifest, "cpu"),
       Some(genDir),
@@ -561,7 +525,7 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
     *   run_nn_cpu_debug`, `--data-loader sd` (stage the card with
     *   [[sdCardDebug]] first), `--pl-reset-between-layers`.
     */
-  def createVitisDebugProject(args: Args) = Task.Command {
+  def addVitisDebugApps(args: Args) = Task.Command {
     val genDir = genBaremetalDebug().path
     val ws =
       os.Path(build.modules.fpga.targets(configKey, fpgaBoard).vitisPlatform())
@@ -570,7 +534,6 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
       .fpgaSynth()
       .path / "manifest.json"
     build.modules.fpga.software.runCreateVitisApps(
-      Task.env,
       build.modules.fpga.software.vitisScript().path,
       build.modules.fpga.readManifestField(manifest, "cpu"),
       Some(genDir),

@@ -3,6 +3,7 @@ import mill.*, mill.scalalib.*
 import mill.javalib.TestModule.ScalaTest
 import mill.api.Task.Simple
 import mill.api.BuildCtx
+import mill.api.TaskCtx
 
 /** Everything that targets a real board: the Vivado synthesis flow (bitstream +
   * XSA), the baremetal code generator, the Vitis workspace, and the host-side
@@ -336,11 +337,10 @@ object `package` extends Module {
           "--ddr-base",
           ddrBase,
           "--outdir",
-          outdir.toString
+          ctx.dest.toString
         ) ++ extraArgs,
         mainClass = "fpga.host.GenNnBaremetal",
-        forkArgs = Seq(s"-Dvta.config.file=$configKey.json"),
-        workingDir = BuildCtx.workspaceRoot
+        forkArgs = Seq(s"-Dvta.config.file=$configKey.json")
       )
 
     /** Generate init_dram.h, a self-contained n x n GEMM fixture, for the
@@ -410,28 +410,6 @@ object `package` extends Module {
       )
     }
 
-    /** Regenerate the committed host-golden fixtures under
-      * modules/fpga/software/src/test/resources/host-golden/ from a fresh
-      * compile of the golden cases.
-      *
-      * Run it (and review the diff) when a deliberate compiler or codegen
-      * change makes the fpga host tests fail.
-      */
-    def regenHostGolden() = Task.Command {
-      val binRoot = test.goldenOutputs().path / "host-golden-bin"
-      // The fixtures this module's tests read: resources of `software`, not of
-      // modules/fpga. Writing anywhere else silently regenerates nothing.
-      val goldenRoot =
-        moduleDir / "src" / "test" / "resources" / "host-golden"
-      runner().run(
-        args = Seq(binRoot.toString, goldenRoot.toString),
-        mainClass = "fpga.host.RegenHostGolden",
-        forkArgs = configForkArgs(),
-        workingDir = BuildCtx.workspaceRoot
-      )
-      println("[INFO] regenHostGolden done")
-    }
-
     /** The Python script that builds the Vitis workspace
       * (software/host/create_vitis_workspace.py).
       */
@@ -461,16 +439,15 @@ object `package` extends Module {
       * in the shared workspace (<prefix>_<runner>[_<loader>]).
       */
     def runCreateVitisApps(
-      env: Map[String, String],
       script: os.Path,
       cpu: String,
       genDir: Option[os.Path],
       workspace: os.Path,
       namePrefix: String,
       extraArgs: Seq[String]
-    ): Unit =
+    )(using ctx: TaskCtx): Unit =
       execVitis(
-        env,
+        Task.env,
         Seq(
           "-s",
           script.toString,
@@ -526,7 +503,6 @@ object `package` extends Module {
       val ws = os.Path(activeTarget.vitisPlatform())
       val manifest = activeTarget.fpgaSynth().path / "manifest.json"
       runCreateVitisApps(
-        Task.env,
         vitisScript().path,
         readManifestField(manifest, "cpu"),
         None,
@@ -570,6 +546,28 @@ object `package` extends Module {
         BuildCtx.workspaceRoot / "config" / "vta_config.json",
         BuildCtx.workspaceRoot / "config" / "vta_w8b.json"
       )
+
+      /** Regenerate the committed host-golden fixtures under
+        * modules/fpga/software/src/test/resources/host-golden/ from a fresh
+        * compile of the golden cases.
+        *
+        * Run it (and review the diff) when a deliberate compiler or codegen
+        * change makes the fpga host tests fail.
+        */
+      def regenHostGolden() = Task.Command {
+        val binRoot = test.goldenOutputs().path / "host-golden-bin"
+        // The fixtures this module's tests read: resources of `software`, not of
+        // modules/fpga. Writing anywhere else silently regenerates nothing.
+        val goldenRoot =
+          moduleDir / "src" / "test" / "resources" / "host-golden"
+        runner().run(
+          args = Seq(binRoot.toString, goldenRoot.toString),
+          mainClass = "fpga.host.RegenHostGolden",
+          forkArgs = configForkArgs(),
+          workingDir = BuildCtx.workspaceRoot
+        )
+        println("[INFO] regenHostGolden done")
+      }
 
       /** One cached compile task per golden case (crossValue = case name), so
         * the four Python pipelines run in parallel and invalidate

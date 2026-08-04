@@ -28,7 +28,7 @@ object Vivado {
         cwd = cwd,
         env = xilinxEnv(cmd.headOption.getOrElse("")),
         check = false,
-        //stdout = os.Inherit,
+        // stdout = os.Inherit,
         stderr = os.Inherit
       )
     if (result.exitCode != 0) {

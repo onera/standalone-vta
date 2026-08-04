@@ -36,9 +36,8 @@ object `package` extends Module { m =>
   def compareMain = moduleDir / "reference_computation" / "compare_bin.py"
 
   // Every stage resolves its output dirs from the environment (matching the
-  // Makefile and the scripts), so the dests are threaded through as env vars.
-  // Three separate dirs: compiler artefacts, the reference (random input +
-  // golden), and the simulator results.
+  // Makefile and the scripts), so the dests are threaded through as env vars:
+  // compiler artefacts, the reference, and the simulator results.
   private def envFor(
     env: Map[String, String],
     compDir: os.Path,
@@ -87,12 +86,6 @@ object `package` extends Module { m =>
 
   /** Run the ONNX reference: reads the compiler's dependency.csv from
     * `compDir`, writes input_nn.bin and reference.bin into `refDir`.
-    *
-    * Two dirs on purpose - input_nn.bin is randomly generated, so keeping it
-    * out of the compiler output removes one source of nondeterminism from a
-    * compile. That does not make a compile reproducible on its own, though:
-    * nn_compiler/vta_backend.py still writes unseeded random placeholder
-    * accumulator data for MaxPool/Relu/QLinearAdd nodes straight into compDir.
     */
   def runReference(
     onnx: os.Path,

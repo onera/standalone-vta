@@ -41,12 +41,7 @@ def reference_output_setup(filename = "default.bin"):
 
     Mirrors compiler_output_setup(), but for the reference: reference_onnx.py
     writes the golden output (reference.bin) and the randomly generated network
-    input (input_nn.bin) here. Neither is a compiler artefact - input_nn.bin in
-    particular is random, and keeping it out of the compiler output dir removes
-    one source of nondeterminism from a compile. That does not make a compile
-    reproducible on its own, though: nn_compiler/vta_backend.py still writes
-    unseeded random placeholder accumulator data for MaxPool/Relu/QLinearAdd
-    nodes straight into the compiler output dir.
+    input (input_nn.bin) here. Neither is a compiler artefact.
 
     Resolution order (no '.git' walk, so a script can run from any location):
       1. the VTA_REFERENCE_OUT environment variable, if set, otherwise
