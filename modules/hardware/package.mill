@@ -156,9 +156,9 @@ object `package` extends build.VtaScalaModule with PublishModule { m =>
     /** Emit the Xilinx RTL plus package_ip.tcl for this config into a cached
       * dir.
       *
-      * The input of the Vivado flow (modules.fpga.targets[...]'s fpgaProject /
-      * fpgaSynth), which reuses it instead of re-emitting. Depends on the
-      * config only, never on a compiled model, and needs no Vivado itself.
+      * The input of the Vivado flow (targets[...]'s fpgaProject / synth), which
+      * reuses it instead of re-emitting. Depends on the config only, never on a
+      * compiled model, and needs no Vivado itself.
       */
     def vtaFpgaConfig = Task {
       configSignature()
@@ -172,7 +172,7 @@ object `package` extends build.VtaScalaModule with PublishModule { m =>
 
     /** Emit the debug Xilinx shell (the board-faithful top with the AXI write
       * snoop) for this config: the OOC-synthesis input of the post-synth sim
-      * flow (modules.fpga.targets[config,board].oocNetlist).
+      * flow (targets[config,board].oocNetlist).
       */
     def vtaDebugShell = Task {
       configSignature()
@@ -188,8 +188,8 @@ object `package` extends build.VtaScalaModule with PublishModule { m =>
   /** Export the Xilinx RTL + package_ip.tcl for the active config, ready to
     * package as an IP.
     *
-    * Only needed to drive Vivado by hand; `modules.fpga.targets[...].fpgaSynth`
-    * consumes `configs[<config>].vtaFpgaConfig` directly.
+    * Only needed to drive Vivado by hand; `targets[...].synth` consumes
+    * `configs[<config>].vtaFpgaConfig` directly.
     *
     * @param args
     *   optional absolute destination dir (default:

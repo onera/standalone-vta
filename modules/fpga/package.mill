@@ -15,7 +15,7 @@ import mill.api.BuildCtx
 object `package` extends Module {
 
   // The [[targets]] instance of the active (config, board) pair: the global
-  // -Dvta.config.file and -Dvta.board.name. The flat fpgaProject / fpgaSynth
+  // -Dvta.config.file and -Dvta.board.name. The flat vivadoProject / synthesize
   // tasks delegate here, so the flat and crossed forms share one cache.
   private def activeTarget =
     build.targets(build.activeConfigKey, build.defaultBoardName)
@@ -139,15 +139,14 @@ object `package` extends Module {
       .map(_.str)
       .getOrElse(sys.error(s"ERROR: '$key' not found in $manifestPath"))
 
-  // /** The Vivado build, one independently cached instance per (config, board):
-  //   * an FPGA build is identified by both.
-  //   *
-  //   * Address it as `modules.fpga.targets[<config>,<board>]`, e.g. `./mill
-  //   * "modules.fpga.targets[vta_w8b,zcu104].fpgaSynth"`. Boards are the JSONs
-  //   * under modules/fpga/boards/. Each pair keeps its own project and XSA, so
-  //   * switching board does not re-synthesize the other one.
-  //   */
-  // object targets extends Cross[TargetModule](build.fpgaTargets)
+  /** One Vivado build: the tasks of a (config, board) pair.
+    *
+    * The Cross itself lives at the root of the build, as `targets`, so it is
+    * addressed as `targets[<config>,<board>]`, e.g. `./mill
+    * "targets[vta_w8b,zcu104].synth"`. Boards are the JSONs under
+    * modules/fpga/boards/. Each pair keeps its own project and XSA, so
+    * switching board does not re-synthesize the other one.
+    */
   trait TargetModule
       extends Cross.Module2[String, String]
       with build.HasVtaConfig {
@@ -192,11 +191,11 @@ object `package` extends Module {
       * synthesis.
       *
       * Fast. Persistent: the project is kept across runs, so you can open it in
-      * the Vivado GUI, edit and save it, and [[fpgaSynth]] will reopen that
-      * same project. Re-runs when board JSON, config, the packaged [[ipRepo]]
-      * or the synthesis flow change. Returns the build dir path (as a string,
-      * not a PathRef: hashing a Vivado project tree is expensive and its logs
-      * churn on every run).
+      * the Vivado GUI, edit and save it, and [[synth]] will reopen that same
+      * project. Re-runs when board JSON, config, the packaged [[ipRepo]] or the
+      * synthesis flow change. Returns the build dir path (as a string, not a
+      * PathRef: hashing a Vivado project tree is expensive and its logs churn
+      * on every run).
       */
     def fpgaProject = Task(persistent = true) {
       val emitDir =
@@ -286,7 +285,7 @@ object `package` extends Module {
     }
 
     /** Create (or refresh) the Vitis workspace + hardware platform of this
-      * (config, board), from its synthesized XSA ([[fpgaSynth]]'s manifest).
+      * (config, board), from its synthesized XSA ([[synth]]'s manifest).
       *
       * The platform is model-independent: per-model app components are added on
       * top by `examples.onnx[<model>,<config>].createVitisProject` (or the flat
@@ -700,8 +699,8 @@ object `package` extends Module {
     /** Package an emitted Xilinx shell as a Vivado IP by hand.
       *
       * Raw CLI pass-through, uncached. Prefer
-      * `modules.fpga.targets[<config>,<board>].ipRepo`, which caches per
-      * (config, board) and feeds Mill's RTL emit in for you.
+      * `targets[<config>,<board>].ipRepo`, which caches per (config, board) and
+      * feeds Mill's RTL emit in for you.
       *
       * @param args
       *   PackageIp flags: `--board zcu104`, `--emit-dir <dir>`, `--out <dir>`
@@ -721,10 +720,10 @@ object `package` extends Module {
       * and export the XSA.
       *
       * Raw CLI pass-through, uncached and unstaged. Prefer
-      * `modules.fpga.targets[<config>,<board>].fpgaSynth`, which caches per
-      * (config, board) and reuses Mill's RTL emit and IP packaging. The vivado
-      * executable is resolved by the tool itself from $XILINX_VIVADO (override
-      * with `--vivado`).
+      * `targets[<config>,<board>].synth`, which caches per (config, board) and
+      * reuses Mill's RTL emit and IP packaging. The vivado executable is
+      * resolved by the tool itself from $XILINX_VIVADO (override with
+      * `--vivado`).
       *
       * @param args
       *   BuildFpga flags: `--board zcu104`, `--config <cfg.json>`, `--out
@@ -747,7 +746,7 @@ object `package` extends Module {
     /** Plain function: run one stage of the split Vivado build for a given
       * (config, board, out) triple. Shared by the two stages of every
       * [[targets]] instance: fpgaProject (create the project, --skip-synth) and
-      * fpgaSynth (reopen it and synth/impl/XSA, --skip-project).
+      * synth (reopen it and synth/impl/XSA, --skip-project).
       * hardware.configs[<config>].vtaFpgaConfig() owns the RTL emit (cached by
       * Mill) and is handed over as --emit-dir, [[TargetModule.ipRepo]] owns the
       * IP packaging.
@@ -791,7 +790,7 @@ object `package` extends Module {
     /** Synthesize, implement and export the bitstream + XSA for the active
       * config and board. The full FPGA build: slow (Vivado).
       *
-      * A delegate to `targets[<config>,<board>].fpgaSynth` - see there for the
+      * A delegate to `targets[<config>,<board>].synth` - see there for the
       * details and the caching behavior.
       */
     def synthesize = Task { activeTarget.synth() }

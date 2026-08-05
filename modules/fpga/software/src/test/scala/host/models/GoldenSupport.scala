@@ -19,8 +19,8 @@ object GoldenSupport {
         require(
           url != null,
           "host-golden-bin not available - set VTA_HOST_GOLDEN_BIN or run " +
-            "`./mill vta.fpga.test` (its compilerOutputs task compiles the ONNX " +
-            "models into compiler_output)"
+            "`./mill modules.fpga.software.test` (its goldenOutputs task " +
+            "compiles the ONNX models into compiler_output)"
         )
         os.Path(java.nio.file.Paths.get(url.toURI))
       }

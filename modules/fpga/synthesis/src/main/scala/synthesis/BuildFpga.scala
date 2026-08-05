@@ -92,7 +92,7 @@ object BuildFpga {
     val boardsDir = fpgaDir / "boards"
     require(
       os.exists(boardsDir),
-      s"$boardsDir not found; run from the repo root (./mill vta.fpga.BuildFpga)"
+      s"$boardsDir not found; run from the repo root (./mill modules.fpga.synthesis.buildFpga)"
     )
     // Extracted here (not deferred to point of use) so a missing classpath
     // resource fails fast, before any Vivado stage runs.
@@ -141,14 +141,14 @@ object BuildFpga {
     val outDir = os.Path(outStr, os.pwd)
     val emitDir = os.Path(emitDirStr, os.pwd)
     // The IP repository is produced by fpga.synthesis.PackageIp, which owns its
-    // own directory (the Mill task modules.fpga.targets[...].ipRepo). The
+    // own directory (the Mill task targets[...].ipRepo). The
     // legacy <emit-dir>/ip_repo default is only for a hand-driven flow that
     // ran the old in-tree packaging; it makes this tool read the emit dir,
     // never write it.
     val ipRepo = o.ipRepo.map(os.Path(_, os.pwd)).getOrElse(emitDir / "ip_repo")
     val projDir = outDir / "project"
     // Where the deliverables (XSA, bitstream, reports, manifest) land. The
-    // Vivado project stays in --out; Mill's fpgaSynth passes its own task
+    // Vivado project stays in --out; Mill's `synth` passes its own task
     // dest here so artifacts are written straight into it, no copy step.
     val exportDir = o.exportDir.map(os.Path(_, os.pwd)).getOrElse(outDir)
     val vtaCell = "VTA_0"
@@ -176,7 +176,7 @@ object BuildFpga {
     if (!dryRun && !skipProject && !os.exists(ipRepo / PackageIp.coreDirName)) {
       System.err.println(
         s"ERROR: no packaged VTA IP under $ipRepo\n" +
-          s"       Package it first: ./mill \"modules.fpga.targets[<config>,${board.name}].ipRepo\"\n" +
+          s"       Package it first: ./mill \"targets[<config>,${board.name}].ipRepo\"\n" +
           s"       (or fpga.synthesis.PackageIp --board ${board.name} --emit-dir $emitDir --out <dir>)"
       )
       return 1

@@ -371,8 +371,8 @@ trait BaremetalTasks extends LayerDumpTasks {
   /** Stage the SD-card file set for the isolation runners: the model .bin
     * streams *and* the per-layer goldens, under `<dest>/sd_card/<model>/`.
     *
-    * What `createVitisDebugProject --data-loader sd` needs on the card; the
-    * plain [[sdCard]] set has no references and cannot drive a debug run.
+    * What `addVitisDebugApps --data-loader sd` needs on the card; the plain
+    * [[sdCard]] set has no references and cannot drive a debug run.
     */
   def sdCardDebug() = Task.Command {
     baremetalGen(fsimGolden, Seq.empty)()
@@ -388,12 +388,11 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
     * (config, board), ready to build and flash.
     *
     * The workspace and its hardware platform are per (config, board) only -
-    * `modules.fpga.targets[<config>,<board>].vitisPlatform`, built first if
-    * stale (which synthesizes the XSA if needed). This task adds the
-    * model-dependent part on top: app components named
-    * `<model>_<runner>[_<loader>]`, wired to this example's generated headers
-    * ([[genBaremetal]]). Several models therefore coexist in one workspace per
-    * platform. Requires Vivado and Vitis.
+    * `targets[<config>,<board>].vitisPlatform`, built first if stale (which
+    * synthesizes the XSA if needed). This task adds the model-dependent part on
+    * top: app components named `<model>_<runner>[_<loader>]`, wired to this
+    * example's generated headers ([[genBaremetal]]). Several models therefore
+    * coexist in one workspace per platform. Requires Vivado and Vitis.
     *
     * The board comes from -Dvta.board.name (default zcu104).
     *
@@ -542,9 +541,9 @@ trait PostSynthTasks extends LayerDumpTasks with HasFpgaBoard {
     * All artifacts land under this task's dest.
     *
     * The slow OOC Vivado synthesis is NOT redone per run: the netlist comes
-    * from the cached `modules.fpga.targets[<config>,<board>].oocNetlist`, which
-    * depends on config + board only, so changing the model or the layer subset
-    * re-runs just the xsim legs. Requires Vivado + xsim on PATH.
+    * from the cached `targets[<config>,<board>].oocNetlist`, which depends on
+    * config + board only, so changing the model or the layer subset re-runs
+    * just the xsim legs. Requires Vivado + xsim on PATH.
     *
     * @param args
     *   the layer subset, comma-separated, e.g.

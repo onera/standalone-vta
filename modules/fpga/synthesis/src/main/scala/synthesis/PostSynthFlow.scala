@@ -108,7 +108,7 @@ object PostSynthFlow {
 
     // 1. OOC-synthesize the gate-level netlist of the board-faithful top, or
     // reuse an already-synthesized one (--netlist, e.g. the cached
-    // vta.fpga.targets[config,board].oocNetlist output).
+    // targets[config,board].oocNetlist output).
     val funcsim =
       if (o.netlist.nonEmpty) {
         val nl = os.Path(o.netlist, os.pwd)

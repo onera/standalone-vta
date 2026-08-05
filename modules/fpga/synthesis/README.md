@@ -8,7 +8,7 @@ config.json + boards/<board>.json
   -> (mill)   emit Xilinx-shell RTL + package_ip.tcl
               modules.hardware.configs[<config>].vtaFpgaConfig
   -> (vivado) package RTL as an IP-XACT IP        PackageIp
-              modules.fpga.targets[<config>,<board>].ipRepo
+              targets[<config>,<board>].ipRepo
   -> (vivado) block design -> synth -> impl       BuildFpga
               -> bitstream -> XSA
   -> build/vta_<board>.xsa  (+ .bit, reports, manifest.json)
@@ -33,7 +33,7 @@ make bitstream BOARD=vek280 CONFIG=../../../config/vta_config.json
 make bitstream BOARD=vck190 CONFIG=../../../config/vta_config.json
 # or, better, the cached crossed task from the repo root - it skips whatever is
 # already up to date, where the Makefile always re-emits/repackages/resynthesizes:
-./mill "modules.fpga.targets[vta_config,vck190].fpgaSynth"
+./mill "targets[vta_config,vck190].synth"
 ```
 
 The XSA lands in `build/vta_<board>.xsa`. Feed it straight to the software half:
@@ -66,7 +66,7 @@ The orchestrator and the Vivado recipe are the Scala `fpga.synthesis.BuildFpga`
 task and two classpath TCL resources under
 `modules/fpga/src/main/scala/synthesis/` and
 `modules/fpga/src/main/resources/synthesis/` - run through Mill, and shared with the
-cached `vta.fpga.targets[<config>,<board>].fpgaSynth` pipeline. The former
+cached `targets[<config>,<board>].synth` pipeline. The former
 standalone `build_fpga.py` + `build_fpga.tcl` have been removed.
 
 | File                                                 | Role                                                                                                                                                                                                                               |
@@ -122,10 +122,10 @@ recipe and the xsim TB wrapper are classpath resources under
 | piece                                                      | role                                                                                       |
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | `resources/synthesis/ooc_netlist.tcl`                      | OOC synth/impl recipe -> `<top>_funcsim.v` (mode=synth) or `+timesim.v`+`.sdf` (mode=impl) |
-| `fpga.synthesis.OocNetlist` (`./mill vta.fpga.synthesis.oocNetlist`) | renders `ooc_params.tcl` from `boards/<board>.json` and runs the recipe                    |
+| `fpga.synthesis.OocNetlist` (`./mill modules.fpga.synthesis.oocNetlist`) | renders `ooc_params.tcl` from `boards/<board>.json` and runs the recipe                    |
 | `resources/synthesis/sim_top.sv`                           | xsim wrapper: clock/reset, `io_dbgW` write-snoop -> `writes.log`, DONE/WEDGE/TIMEOUT       |
-| `fpga.synthesis.RunXsim` (`./mill vta.fpga.synthesis.runXsim`)       | compiles + runs xsim, `--behavioral` (control) or `--netlist <funcsim.v>` (DUT)            |
-| `fpga.synthesis.CompareOut` (`./mill vta.fpga.synthesis.compareOut`) | strb-aware OUT compare vs `simulators_output/output<layer>.bin`                            |
+| `fpga.synthesis.RunXsim` (`./mill modules.fpga.synthesis.runXsim`)       | compiles + runs xsim, `--behavioral` (control) or `--netlist <funcsim.v>` (DUT)            |
+| `fpga.synthesis.CompareOut` (`./mill modules.fpga.synthesis.compareOut`) | strb-aware OUT compare vs `simulators_output/output<layer>.bin`                            |
 
 The Chisel side (`VTAPostSynthTb`, `CompilerOutputLayout`, `VtaHostDriver`) and the shell/TB
 emitters (`DebugXilinxConfigEmitter`, `DefaultPynqConfigTbEmitter`) live in `modules/hardware`.
@@ -153,26 +153,26 @@ pixi run make -C examples compile_and_run CONFIG_FILE=vta_config.json ONNX_FILE=
 ( cd modules/simulator && ./build/fsim --dump-layers )      # -> simulators_output/{input,output}<layer>.bin
 
 # 2. emit the board-faithful shell (the synth input) and the xsim TB (+ per-layer .mem)
-pixi run ./mill -Dvta.config.file=vta_config.json vta.hardware.runMain vta.exporters.DebugXilinxConfigEmitter
+pixi run ./mill -Dvta.config.file=vta_config.json modules.hardware.runMain vta.exporters.DebugXilinxConfigEmitter
 pixi run ./mill -Dvta.config.file=vta_config.json -Dvta.layers=QLinearConv1,MaxPool2,QLinearConv3 \
-  vta.hardware.emitVtaPostSynthTb
+  modules.hardware.emitVtaPostSynthTb
 
 # 3. OOC-synthesize the gate-level netlist of VTAXilinxShell (minutes)
-pixi run ./mill vta.fpga.synthesis.oocNetlist --board zcu104 \
+pixi run ./mill modules.fpga.synthesis.oocNetlist --board zcu104 \
   --sv-dir build/emitted/vta-debug-xilinx-shell --top VTAXilinxShell \
   --out build/postsynth/vta_config-zcu104/ooc-netlist
 
 # 4. behavioral control vs gate-level funcsim (both should reach SIM_TOP: DONE)
-pixi run ./mill vta.fpga.synthesis.runXsim --behavioral \
+pixi run ./mill modules.fpga.synthesis.runXsim --behavioral \
   --tb build/emitted/vta-postsynth-tb \
   --out build/postsynth/vta_config-zcu104/xsim-behav --layers 3
-pixi run ./mill vta.fpga.synthesis.runXsim \
+pixi run ./mill modules.fpga.synthesis.runXsim \
   --netlist build/postsynth/vta_config-zcu104/ooc-netlist/VTAXilinxShell_funcsim.v \
   --tb build/emitted/vta-postsynth-tb \
   --out build/postsynth/vta_config-zcu104/xsim-net --layers 3
 
 # 5. strb-aware OUT compare (for the runs that reach DONE)
-pixi run ./mill vta.fpga.synthesis.compareOut \
+pixi run ./mill modules.fpga.synthesis.compareOut \
   --writes build/postsynth/vta_config-zcu104/xsim-net/writes.log \
   --layers QLinearConv1,MaxPool2,QLinearConv3 \
   --compiler-out compiler_output --golden-dir simulators_output

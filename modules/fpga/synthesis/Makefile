@@ -9,7 +9,7 @@
 # and re-synthesizes on every run. The cached path - which skips whatever is
 # already up to date - is the crossed task, and it is the one to prefer:
 #
-#   ./mill "modules.fpga.targets[vta_config,zcu104].fpgaSynth"
+#   ./mill "targets[vta_config,zcu104].synth"
 #
 # Source the Vivado environment first:
 #   source <Xilinx>/2025.2/Vivado/settings64.sh
@@ -55,7 +55,7 @@ help:
 	@echo "  make dry-run   BOARD=zcu104"
 	@echo ""
 	@echo "Prefer the cached task when you just want an XSA:"
-	@echo "  ./mill \"modules.fpga.targets[vta_config,$(BOARD)].fpgaSynth\""
+	@echo "  ./mill \"targets[vta_config,$(BOARD)].synth\""
 
 emit:
 	$(MILL) modules.hardware.emitVtaFpgaConfig $(EMIT_DIR)

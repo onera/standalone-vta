@@ -17,12 +17,12 @@ This project aims to improve VTA's usability and applicability, particularly in 
 The `standalone-vta` ecosystem is designed with a clear separation of concerns, moving from high-level models to low-level hardware simulation.
 
 ```text
-+-----------------------+      +---------------------------+      +-------------------------------+
-|      Input Model      |      |   Standalone VTA Compiler |      |         VTA Simulators        |
-|  (ONNX or custom JSON)| ---> |       (modules/compiler/)     | ---> |   Functional (C++) for fast   |
++-----------------------+      +---------------------------+      +-----------------------------------+
+|      Input Model      |      |   Standalone VTA Compiler |      |         VTA Simulators            |
+|  (ONNX or custom JSON)| ---> |       (modules/compiler/) | ---> |   Functional (C++) for fast       |
 |                       |      |  Parses, partitions, and  |      |   validation (modules/simulator)  |
 |                       |      |  generates instructions.  |      | Cycle-Accurate (modules/hardware) |
-+-----------------------+      +---------------------------+      +-------------------------------+
++-----------------------+      +---------------------------+      +-----------------------------------+
                                              |                                  ^
                                              v                                  |
                                 +-------------------------+                     |
@@ -47,16 +47,17 @@ The `standalone-vta` ecosystem is designed with a clear separation of concerns, 
   - `simulator/`: Fast C++ functional simulator (and the Verilated/DPI backend).
   - `hardware/`: Chisel hardware sources - the cycle-accurate simulator, and the SystemVerilog emitted for the Verilated and FPGA flows.
   - `fpga/`: FPGA synthesis flow and the PS-side baremetal runtime software.
-- `build.mill`: Root Mill build - the shared config plumbing and the cross keys the example modules are built from.
-- `modules/pipeline.mill`: The per-(model, config) pipeline traits (compile, simulate, baremetal, Vitis, post-synthesis) that the example modules mix in.
+- `Makefile`: Root Makefile - the quickstart front end over Mill (see [Quickstart](#3-quickstart)).
+- `build.mill`: Root Mill build - the shared config plumbing and the cross keys the pipeline modules are built from. Advanced usage: [MILL.md](MILL.md).
+- `modules/pipeline.mill`: The per-(model, config) pipeline traits (compile, simulate, baremetal, Vitis, post-synthesis) that the pipeline modules mix in.
 - `config/`: Contains `vta_config.json` defining the VTA hardware parameters, plus alternative configurations. See [Config Documentation](config/README.md).
 - `environment_setup/`: Legacy setup files (Docker/Conda). The project now uses Pixi for package and environment management.
-- `examples/`: Sample inputs and their Mill module (`examples/package.mill`), plus the legacy Makefile.
+- `examples/`: Sample inputs and their Mill module (`examples/package.mill`), plus a per-module Makefile predating the Mill build.
   - `onnx/`: Full ONNX models, driven by `examples.onnx[<model>,<config>]`.
   - `vta_ir/`: Hand-written raw VTA IR fixtures, driven by `examples.ir[<fixture>,<config>]`.
 - `tutorials/`: Jupyter notebooks detailing the compiler components.
 - `out/`: Mill's output tree - each task writes into its own dest directory here.
-- `compiler_output/`, `reference_output/`, `simulators_output/`, `log_output/`: Default directories for compiler artifacts, the ONNX reference (`input_nn.bin` + `reference.bin`), simulation results and run logs when driving the flow through the Makefiles rather than Mill. The reference is kept out of `compiler_output/` on purpose: `input_nn.bin` is randomly generated, and separating it removes one source of non-reproducibility from `compiler_output/`. `compile` is still not byte-reproducible on its own, though: `nn_compiler` also seeds placeholder accumulator data for MaxPool/Relu/QLinearAdd nodes from an unseeded RNG, straight into `compiler_output/`.
+- `compiler_output/`, `reference_output/`, `simulators_output/`, `log_output/`: Default directories for compiler artifacts, the ONNX reference (`input_nn.bin` + `reference.bin`), simulation results and run logs when driving the flow through the per-module Makefiles rather than Mill (the root Makefile goes through Mill, so its artifacts land in `out/`). The reference is kept out of `compiler_output/` on purpose: `input_nn.bin` is randomly generated, and separating it removes one source of non-reproducibility from `compiler_output/`. `compile` is still not byte-reproducible on its own, though: `nn_compiler` also seeds placeholder accumulator data for MaxPool/Relu/QLinearAdd nodes from an unseeded RNG, straight into `compiler_output/`.
 
 ## Documentation Index
 
@@ -64,6 +65,7 @@ Explore the detailed documentation for each component of the `standalone-vta` ec
 
 - **Root Documentation**
   - [Project Overview & Quickstart](README.md)
+  - [Advanced Usage: the Mill build](MILL.md)
   - [Configuration (`vta_config.json`)](config/README.md)
   - [Environment Setup (Legacy Docker/Conda)](environment_setup/README.md)
 
@@ -128,234 +130,78 @@ source /opt/Xilinx/Vitis/2025.2/settings64.sh
 export XILINXD_LICENSE_FILE=<port>@<server> # or path/to/license.lic
 ```
 
-### 3. Run an Example
+### 3. Quickstart
 
-Once inside the environment (after running `pixi shell`), Mill drives the
-full flow (Compiler -> Simulators -> check, plus FPGA baremetal codegen and
-Vitis workspace creation) for each (model, config) pair. There are two entry
-modules, one per input format:
-
-- `examples.onnx[<model>,<config>]` - a full ONNX model from `examples/onnx/`,
-  through both compiler stages, with the whole pipeline (simulation, baremetal,
-  Vitis, post-synthesis).
-- `examples.ir[<fixture>,<config>]` - a hand-written VTA IR fixture from
-  `examples/vta_ir/`, through `vta_compiler` alone, simulation only.
-
-In both, config is a Cross axis alongside the model, not a flag.
+The root `Makefile` is the entry point: it wraps the Mill build for the common
+flow (compile a model, simulate it, synthesize a bitstream, build the baremetal
+apps) so a first run needs no knowledge of Mill. Run it from the repository
+root, inside the Pixi environment.
 
 ```bash
-# Compile the model (nn_compiler + vta_compiler + ONNX reference) for a
-# given config - config is a required second cross value
-./mill "examples.onnx[lenet5,vta_config].compile"
-
-# Simulate and check against the ONNX reference: functional (C++), then
-# the Verilated RTL. Each compiles first if stale, then always simulates.
-./mill "examples.onnx[lenet5,vta_config].fsim"
-./mill "examples.onnx[lenet5,vta_config].vsim"
-
-# Same model, a different config - independent, cached, buildable together
-./mill "examples.onnx[lenet5,vta_w8b].fsim"
-
-# Generate the baremetal codegen for this model/config (needs no Vivado)
-./mill "examples.onnx[lenet5,vta_config].genBaremetal"
-
-# Create/update a Vitis workspace wired to that baremetal codegen and the
-# config's synthesized bitstream (needs Vivado + Vitis)
-./mill "examples.onnx[lenet5,vta_config].createVitisProject" --data-loader tcl
+make            # or `make help`: list every target and the current settings
 ```
 
-`fsim` and `vsim` are commands, so trailing arguments go straight to the
-simulator binary - `./mill "examples.onnx[lenet5,vta_config].fsim" --layer 3
---verbose`, or `--no-timeout --trace` for `vsim`. Neither re-invokes the
-Python compiler itself: both depend on `compile`, which only re-runs when the
-model, config, or compiler sources actually change.
+| Target           | What it does                                                                 |
+| ---------------- | ---------------------------------------------------------------------------- |
+| `make compile`   | Compile the ONNX model to VTA binaries (`nn_compiler` + `vta_compiler`).     |
+| `make fsim`      | Run the functional (C++) simulation and check it against the ONNX reference. |
+| `make vsim`      | Run the cycle-accurate (Verilated RTL) simulation and check it the same way. |
+| `make synthesis` | Run the Vivado synthesis for the target board (bitstream + XSA).             |
+| `make apps`      | Create the Vitis workspace with the baremetal applications.                  |
+| `make inspect`   | Show every task available for the current config, with its description.      |
 
-Use `_` for a whole cross axis to run a set in one invocation (add Mill's
-`--keep-going` (or `-k`) to see every failure rather than only the first):
+Each target compiles whatever it depends on if it is stale, so `make fsim` on a
+fresh clone compiles the model first. A typical first run:
 
 ```bash
-./mill "examples.onnx[_,vta_config].fsim"   # every model, one config
-./mill "examples.onnx[_,_].fsim"            # every (model, config) pair
+make fsim     # LeNet-5 on the default config, functional simulation
+make vsim     # the same model through the Chisel RTL
 ```
 
-Outputs are isolated per model and config in each task's Mill dest under
-`out/examples/onnx/<model>/<config>/`: `compile.dest/` (compile),
-`fsim.dest/` and `vsim.dest/` (simulation), `genBaremetal.dest/`,
-`createVitisProject.dest/<board>/`. The C++/Verilator simulator
-(`modules.simulator[<config>]`) is built once per config and cached, and the FPGA
-bitstream once per (config, board) pair (`modules.fpga.targets[<config>,<board>]`),
-so switching config, board, or adding a new example model does not rebuild
-everything.
+Four variables select what is being built:
 
-> [!important]
-> By default, mill runs a long-lived daemon, that may crash on long
-> invocations (e.g. fpga synthesis)
-> When running mill commands in scripts (makefiles, CLI), it is highly recommended to append
-> the `--no-daemon` (or `-i`) flag to mill:
->
-> ```bash
-> ./mill -i examples.onnx.lenet5.vta_config.createVitisProject --runner run_nn --data-loader tcl
-> ```
-
-#### Raw VTA IR fixtures
-
-The fixtures in `examples/vta_ir/` are VTA IR already, so they skip
-`nn_compiler` - and with it the ONNX reference, which is why they have no
-golden to check against. `check` runs both simulators on the same cached
-compile and byte-compares their outputs instead, failing the build on any
-difference:
+| Variable   | Default                     | Meaning                                                                  |
+| ---------- | --------------------------- | ------------------------------------------------------------------------ |
+| `ONNX`     | `examples/onnx/lenet5.onnx` | The ONNX model to compile and run.                                       |
+| `CONFIG`   | `vta_config`                | The hardware configuration, from `config/<CONFIG>.json`.                 |
+| `BOARD`    | `zcu104`                    | The FPGA board, from `modules/fpga/boards/<BOARD>.json`.                 |
+| `DDR_BASE` | `0x100000`                  | DDR base address baked into the baremetal codegen. Must match the board. |
 
 ```bash
-./mill "examples.ir[matmul_16x16,vta_config].compile"
-./mill "examples.ir[matmul_16x16,vta_config].check"   # fsim vs vsim, byte for byte
-./mill "examples.ir[_,_].check"                       # every fixture, every config
+make CONFIG=vta_w8b fsim
+make ONNX=examples/onnx/qyolo.onnx CONFIG=vta_w8b vsim
+make BOARD=vek280 CONFIG=vta_w8b synthesis
 ```
 
-`fsim` and `vsim` exist here too, and run the fixture's single layer. Adding a
-`.json` fixture to `examples/vta_ir/` (or a model to `examples/onnx/`, or a
-config to `config/`) adds its cross entries with no build-file edit.
-
-The baremetal, Vitis and post-synthesis tasks are deliberately absent from
-`examples.ir`: they consume full-network artifacts: `dependency.csv`, which
-only `nn_compiler` writes, and `input_nn.bin`, which only the ONNX reference
-writes.
-
-An FPGA build is identified by both its config (which fixes the RTL) and its
-board (which fixes the pinout and XSA), so each pair is independently
-addressable and cached - flipping between boards does not re-synthesize the
-other one:
+`make apps` additionally takes `RUNNER` (default `run_nn run_nn_uart`) and
+`DATA_LOADER` (default `elf sd`), which choose the baremetal applications and
+how the model data reaches DDR:
 
 ```bash
-./mill "modules.fpga.targets[vta_w8b,zcu104].fpgaSynth"    # bitstream + XSA
-./mill "modules.fpga.targets[vta_w8b,vek280].fpgaProject"  # Vivado project only
-
-# examples pick their board from -Dvta.board.name (default zcu104)
-./mill -Dvta.board.name=vek280 "examples.onnx[lenet5,vta_w8b].createVitisProject"
+make RUNNER=run_nn DATA_LOADER=tcl apps
 ```
 
-Boards are the JSONs under `modules/fpga/boards/` (`zcu104`, `vck190`, `vek280`);
-adding one there adds the cross entries with no build-file edit. The older
-`-Dvta.config.file=<name>.json` global property still selects the config for
-the flat, non-crossed tasks (`modules.hardware.emitVtaSimConfig`,
-`modules.fpga.synthesis.buildFpga`, `modules.hardware.test.unittest`, ...) used by
-`examples/Makefile`, `modules/simulator/Makefile`, and `modules/fpga/software/Makefile`,
-which remain available for standalone use outside Mill.
+The available values are read from the filesystem: any `.onnx` under
+`examples/onnx/`, any `config/*.json`, any `modules/fpga/boards/*.json`.
+Artifacts are cached per config and per (config, board), so switching `CONFIG`
+or `BOARD` does not rebuild what the other one already produced. `ONNX` is not
+part of that key, though: switching model reuses the same directories and
+overwrites the previous model's results. To keep several models side by side,
+use the Mill entry points described in [MILL.md](MILL.md).
 
-#### Vitis workspace from an existing XSA
-
-`createVitisProject` always goes through Vivado. When a suitable XSA already
-exists (a colleague's build, a GUI-made design, an archived handoff), the
-separate `createVitisProjectFromXsa` command skips synthesis entirely and hands
-the file straight to `create_vitis_workspace.py`:
+To drop the cached artifacts:
 
 ```bash
-./mill "examples.onnx[lenet5,vta_config].createVitisProjectFromXsa" \
-    --xsa vta_zcu104.xsa --runner run_nn --data-loader elf
+make clean          # this config's run artifacts only
+make cleaner        # every config's
+make clean-target   # this (config, board) FPGA cache
 ```
 
-The two commands share only the generated headers; nothing in this one's task
-graph reaches Vivado. Mill fills in the workspace directory
-(`build/vitis/<model>_<config>`, kept across runs so the platform is not
-rebuilt), this model's `genBaremetal` output and the app-name prefix - repeat
-any of those flags to override them, since the script keeps the last
-occurrence. Everything else is yours, including `--cpu` for a non-ZynqMP board
-(the script defaults to `psu_cortexa53_0`).
+### 4. Going further
 
-The XSA is _not_ checked against the active config: a bitstream synthesized for
-a different block size than the compiled binaries will run and produce garbage.
-
-#### SD-card file set
-
-`genBaremetal` always emits `nn_sd_manifest.h`, so `--data-loader sd` builds
-with no extra step. It does not copy the `.bin` streams themselves, which would
-bloat every cached gen dir - `sdCard` stages those:
-
-```bash
-./mill "examples.onnx[lenet5,vta_config].sdCard"
-```
-
-It prints the folder to copy to the root of a FAT32 card. Files land in a
-per-model subfolder (`0:/lenet5/instructions_L0.bin`), so one card can hold
-several models, and the codegen is deterministic, so the staged addresses match
-the app built from `genBaremetal`.
-
-`xilffs` (FatFs) is enabled when the platform is _created_, so a workspace built
-before any SD app was requested cannot build one - point `--workspace` at a
-fresh directory.
-
-#### On-board isolation debugging
-
-`run_nn_debug` and `run_nn_cpu_debug` check every layer on the board against the
-fsim goldens instead of only the final output. That needs an fsim
-`--dump-layers` run, a codegen wired to those dumps, and an app built with the
-debug runner; `createVitisDebugProject` chains all three:
-
-```bash
-./mill "examples.onnx[lenet5,vta_config].createVitisDebugProject"
-./mill "examples.onnx[lenet5,vta_config].createVitisDebugProject" --runner run_nn_cpu_debug
-```
-
-It defaults to `--runner run_nn_debug --data-loader elf` and shares the
-workspace and platform of `createVitisProject`, so it synthesizes if the
-bitstream is stale. The goldens (`layerDumps`) are cached and shared with
-`postSynth`. For `--data-loader sd`, stage the card with `sdCardDebug` rather
-than `sdCard`: the plain set carries no goldens, and a debug run without them
-has nothing to compare against.
-
-#### Pinning options between runs
-
-Rather than repeating `-Dvta.*` flags on every invocation, persist them:
-
-```bash
-./mill configure vta.board.name=te0803 vta.ddr.base=0x10000000
-```
-
-This writes a generated, git-ignored `.mill-jvm-opts` at the repo root, which
-applies from the next `./mill` invocation onwards. Later calls merge into it,
-so options not mentioned are kept:
-
-```bash
-./mill configure                 # show the options in effect
-./mill configure vta.ddr.base=   # drop one option, back to its default
-./mill configure --reset         # drop all of them
-```
-
-A flag still wins for a single run: `./mill -Dvta.ddr.base=0xBEEF <task>`.
-
-Do not hand-edit `.mill-jvm-opts`. It replaces (rather than adds to) the
-`//| mill-jvm-opts` header of `build.mill`, so it has to carry
-`-Dchisel.project.root`, which `configure` emits for you. Any other line you
-put there, such as an `-Xmx` setting for the build JVM, is preserved across
-`configure` runs, but `--reset` deletes the file and everything in it.
-
-### 4. Tab Completion
-
-`./mill <Tab>` can complete task names and show each task's description (its
-`/** ... */` doc comment in the `*.mill` build files). Completion is a shell
-hook that calls `mill --tab-complete` live on every keypress, so the candidate
-list always matches the current build. Enable it once per clone by sourcing the
-script for your shell (use your clone's path):
-
-```bash
-# bash / zsh - add to ~/.bashrc or ~/.zshrc
-source /path/to/standalone-vta/tools/completions/mill-completion.sh
-
-# fish - add to ~/.config/fish/config.fish
-source /path/to/standalone-vta/tools/completions/mill-completion.fish
-```
-
-Restart the shell (or re-`source` the rc file) and press `<Tab>` after `./mill`.
-
-If [`fzf`](https://github.com/junegunn/fzf) is installed (it ships in the pixi
-env), `<Tab>` opens a drill-down picker instead of the plain menu: the full
-description shows in a preview pane, `<Tab>` descends into a module's sub-tasks
-(e.g. `examples` -> `onnx` -> model -> config), `<Left>` goes back up, and `<Enter>`
-accepts the highlighted path. Without fzf it falls back to a native single-line
-menu. Both rely on the `mill-fzf-level` helper beside these scripts, so keep the
-three `tools/completions/` files together.
-
-Mill also ships an installer that writes the bash/zsh hook and edits your rc
-files for you: `./mill mill.tabcomplete/install`.
-
-A task shows a description only if it has a doc comment; add a `/** ... */`
-above a `def ... = Task { ... }` to describe it.
+The Makefile covers one model through the default pipeline. Everything else -
+running several models or configs side by side, the raw VTA IR fixtures, the
+individual FPGA and Vitis tasks, the on-board isolation runners, the
+post-synthesis gate-level check, the Chisel test suites, and how the build
+caches all of it - is driven directly with `./mill` and documented in
+[MILL.md](MILL.md).

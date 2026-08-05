@@ -24,21 +24,21 @@ There is **no** committed `compiler_output/`.
 ## The compiler_output binaries (generated, not committed)
 
 The `compiler_output/*.bin`/`*.csv` are produced by the Mill task
-`vta.fpga.test.compilerOutputs`, which compiles each committed ONNX model with
-the Python VTA compiler (`modules/compiler`, a `uv` project) into a gitignored
+`modules.fpga.software.test.goldenOutputs`, which compiles each committed ONNX model with
+the Python VTA compiler (`modules/compiler`, run in the pixi env) into a gitignored
 generated-resources root. That root is added to the test classpath as
 `host-golden-bin/<case>/compiler_output/...`; `GoldenSupport` reads the golden
 from `host-golden/` and the binaries from `host-golden-bin/`.
 
 Determinism: the compiler fills placeholder accumulator buffers (e.g. MaxPool,
 no real bias) with `np.random`; `modules/fpga/test-tools/seed_runner.py` seeds numpy
-so the output is byte-stable. `compilerOutputs` is cached on its inputs (ONNX,
-configs, compiler sources + `pyproject.toml`/`uv.lock`, and the test-tools), so
+so the output is byte-stable. `goldenOutputs` is cached on its inputs (ONNX,
+configs, compiler sources, and the test-tools), so
 Python only re-runs when one of those changes.
 
-Env to (re)generate: `uv sync` in `modules/compiler`, then `execstack -c` the
+Env to (re)generate: `pixi shell` at the repo root, then `execstack -c` the
 onnxruntime `.so` on hardened kernels (see the project guide). `./mill
-vta.fpga.test` runs the task automatically.
+modules.fpga.software.test` runs the task automatically.
 
 ## Cases
 
@@ -66,10 +66,10 @@ The golden is a snapshot of the port. To re-baseline after an intentional change
 to `GenNnBaremetal`'s output (or to the compiler), run:
 
 ```
-./mill vta.fpga.software.regenHostGolden
+./mill modules.fpga.software.test.regenHostGolden
 ```
 
-This recompiles the binaries (via `compilerOutputs`) and rewrites `gen/`,
+This recompiles the binaries (via `goldenOutputs`) and rewrites `gen/`,
 `gen-debug/`, `gen-sd/`, `CASE.txt`, and `config.json` for every case. Review the
 diff and commit. (`init_dram.h` for `gemm-test` is re-baselined separately via
-`./mill vta.fpga.software.genInitDramTestGemm --outdir <gemm-test dir> --filename init_dram.h`.)
+`./mill modules.fpga.software.genInitDramTestGemm --outdir <gemm-test dir> --filename init_dram.h`.)

@@ -42,7 +42,7 @@ SD_DIR_FLAG = $(if $(strip $(SD_DIR)),--sd-dir $(SD_DIR),)
 gen: gen-nn
 
 gen-nn: $(COMPILER_OUTPUTS) $(CONFIG)
-	$(MILL) -Dvta.config.file=$(CONFIG_NAME) vta.fpga.genNnBaremetal \
+	$(MILL) -Dvta.config.file=$(CONFIG_NAME) modules.fpga.software.genNnBaremetal \
 		$(abspath $(COMPILER_OUTPUT)) \
 		--ddr-base $(DDR_BASE)        \
 		--outdir   $(abspath $(OUTDIR))
@@ -55,7 +55,7 @@ gen-nn: $(COMPILER_OUTPUTS) $(CONFIG)
 # without --ref-dir those resolve to the "input_nn.bin not found" branch instead
 # of the real file. Used with `make workspace DATA_LOADER=sd`.
 gen-sd: $(COMPILER_OUTPUTS) $(CONFIG)
-	$(MILL) -Dvta.config.file=$(CONFIG_NAME) vta.fpga.software.genNnBaremetal \
+	$(MILL) -Dvta.config.file=$(CONFIG_NAME) modules.fpga.software.genNnBaremetal \
 		$(abspath $(COMPILER_OUTPUT)) \
 		--ddr-base $(DDR_BASE)        \
 		$(SD_DIR_FLAG)                \
@@ -71,7 +71,7 @@ gen-sd: $(COMPILER_OUTPUTS) $(CONFIG)
 # GenNnBaremetal resolves input_nn.bin from there, separately from REF_DIR's
 # fsim golden dumps. Used with `make workspace RUNNER=run_nn_debug DATA_LOADER=sd`.
 gen-sd-debug: $(COMPILER_OUTPUTS) $(CONFIG)
-	$(MILL) -Dvta.config.file=$(CONFIG_NAME) vta.fpga.software.genNnBaremetal \
+	$(MILL) -Dvta.config.file=$(CONFIG_NAME) modules.fpga.software.genNnBaremetal \
 		$(abspath $(COMPILER_OUTPUT)) \
 		--ddr-base $(DDR_BASE)        \
 		$(SD_DIR_FLAG)                \
@@ -86,7 +86,7 @@ gen-sd-debug: $(COMPILER_OUTPUTS) $(CONFIG)
 # does NOT consume compiler_output/.  Kept as a separate target so it can run
 # in environments where no model has been compiled yet.
 gen-test_gemm:
-	$(MILL) vta.fpga.genInitDramTestGemm --outdir $(abspath $(OUTDIR))
+	$(MILL) modules.fpga.software.genInitDramTestGemm --outdir $(abspath $(OUTDIR))
 
 # Host unit test for the PS-side CPU ops (driver/src/vta_cpu_ops.cc). Compiles
 # the real ops with host stubs (test/host/) and checks them against the

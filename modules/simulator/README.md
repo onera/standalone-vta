@@ -41,7 +41,7 @@ build step (~20 s) and is cached. The RTL sources for it come from
 `<repo>/build/emitted/vta-sim-shell/`, which must be emitted first:
 
 ```bash
-(cd ../.. && ./mill vta.hardware.emitVtaSimConfig)
+(cd ../.. && ./mill modules.hardware.emitVtaSimConfig)
 ```
 
 Override the VTA configuration: `make CONFIG=../../../config/vta_config_8b.json ...`
@@ -162,7 +162,7 @@ and stops the simulation. No flag needed.
 ### Run a NN to completion against the RTL
 
 ```bash
-(cd ../.. && ./mill vta.hardware.emitVtaSimConfig)
+(cd ../.. && ./mill modules.hardware.emitVtaSimConfig)
 make vsim
 ```
 

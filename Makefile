@@ -12,7 +12,7 @@ DATA_LOADER ?= elf sd
 
 all: help
 
-.PHONY: all fsim vsim synthesis apps inspect help debug clean cleaner mrproper
+.PHONY: all compile fsim vsim synthesis apps inspect help clean cleaner clean-target
 
 compile: ## Compile the ONNX to VTA binaries
 	$(CMD) run[$(CONFIG)].compile
@@ -43,10 +43,10 @@ clean-target: ## Clean fpga target cache
 
 help: ## Show this help
 	@echo "Convenient helper for compiling, simulating and executing an ONNX model on the VTA"
-	@echo "Wrap mill commands for the default run pipeline. For more advanced usage, use ./mill directly."
+	@echo "Wrap mill commands for the default run pipeline. For more advanced usage, use ./mill directly (see MILL.md)."
 	@grep -E '^[a-zA-Z0-9_-]+:.*?##' $(MAKEFILE_LIST) \
 	  | awk 'BEGIN {FS = ":[^#]*##[ \t]*"}; {printf "\033[36m%-28s\033[0m %s\n", $$1, $$2}'
-	@echo " Config:"
+	@echo " Current target:"
 	@echo "  ONNX: $(ONNX) (onnx model)"
 	@echo "  CONFIG: $(CONFIG) (target config)"
 	@echo "  BOARD: $(BOARD) (target FPGA board name)"

@@ -215,7 +215,7 @@ tsim: ## Run cycle-accurate TSIM via Mill/ScalaTest
 	@echo "Running TSIM..."
 	@date
 	$(MILL) -Dvta.config.file=$(CONFIG_FILE) \
-	  vta.hardware.runMain org.scalatest.run cli.ComputeApp \
+	  modules.hardware.runMain org.scalatest.run cli.ComputeApp \
 	  > $(LOG_OUTPUT_DIR)/tsim_report.txt
 	@date
 	@echo "TSIM DONE!"

@@ -15,7 +15,7 @@ import fpga.host.parsers.ConfigParser
   * using the production [[GenNnBaremetal.generate]] so the stored golden is a
   * faithful snapshot of the tool under test.
   *
-  * Run via Mill: ./mill vta.fpga.software.regenHostGolden
+  * Run via Mill: ./mill modules.fpga.software.test.regenHostGolden
   */
 object RegenHostGolden {
 
@@ -89,7 +89,7 @@ object RegenHostGolden {
     val comp = binRoot / cd.name / "compiler_output"
     require(
       os.isDir(comp),
-      s"compiler_output not found: $comp  (run ./mill vta.fpga.test.compilerOutputs first)"
+      s"compiler_output not found: $comp  (run ./mill modules.fpga.software.test.goldenOutputs first)"
     )
 
     val cfgPath = configRoot / cd.configName

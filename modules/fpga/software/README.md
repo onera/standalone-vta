@@ -142,7 +142,7 @@ Calling the Mill task directly gives the full flag set (run from the repo root;
 the active hardware config is selected by its file name via `-Dvta.config.file`):
 
 ```sh
-./mill -Dvta.config.file=vta_config.json vta.fpga.software.genNnBaremetal <compiler_output_dir> \
+./mill -Dvta.config.file=vta_config.json modules.fpga.software.genNnBaremetal <compiler_output_dir> \
     --ddr-base    0x200000      \
     --max-addr    0x1ff00000    \
     --outdir      gen           \
@@ -387,7 +387,7 @@ with `./build/fsim --dump-layers`.
 **2. Generate the board artifacts with the golden data embedded:**
 
 ```sh
-./mill -Dvta.config.file=vta_config.json vta.fpga.software.genNnBaremetal <compiler_output_dir> \
+./mill -Dvta.config.file=vta_config.json modules.fpga.software.genNnBaremetal <compiler_output_dir> \
     --ddr-base    0x10000000                          \
     --emit-layer-check                                \
     --golden-dir  <repo>/simulators_output            \
@@ -554,7 +554,7 @@ not just "did the file open".
 
 ```sh
 # Any file works; copy it to the card root as test.bin, then (from the repo root):
-./mill vta.fpga.software.sdChecksum test.bin        # expected size + checksum
+./mill modules.fpga.software.sdChecksum test.bin        # expected size + checksum
 
 vitis -s host/create_vitis_workspace.py \
     --xsa       path/to/design.xsa      \
@@ -563,7 +563,7 @@ vitis -s host/create_vitis_workspace.py \
 ```
 
 Build, initialize the PS as above, `dow sd_loader_test.elf`, `con`. Expect the
-byte count and checksum to match `mill vta.fpga.software.sdChecksum`, and a final `READBACK OK`.
+byte count and checksum to match `mill modules.fpga.software.sdChecksum`, and a final `READBACK OK`.
 `READBACK MISMATCH`, or an `f_mount` failure, means the SD path is broken and
 the full loader will not work either. The app caps reads at 16 MiB and writes to
 `0x10000000` (see the tunables at the top of `apps/sd_loader_test.cc`).
@@ -619,10 +619,10 @@ example pipeline use):
 
 | Mill task                         | Purpose                                                                                                   |
 | --------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `vta.fpga.software.checkOutput <dump>`     | Detiles a board output dump to NCHW and diffs it against the fsim `simulators_output/final_output.bin`      |
-| `vta.fpga.software.auditDram <comp-dir>`   | Runs the generator's layout guards (overlap / fit / `--max-addr`) on a compiler output dir and prints the DRAM map, without emitting anything. Useful to sanity-check a non-zero `--ddr-base` relocation, since fsim and the compiler both use `0x0`. **Known limitation:** it passes no reference dir, so it always sizes the raw-input scratch region as 0, while `GenNnBaremetal` (given `--ref-dir`) sizes it from the real `input_nn.bin`. Since every CPU-scratch address is allocated above `rawPhys + max(alignPage(rawSize), 0x1000)`, an `input_nn.bin` larger than 4096 bytes shifts every such address in the generator's map but not in the audit's, so the two silently diverge. |
-| `vta.fpga.software.sdChecksum <file>`      | Size + 32-bit additive checksum of a file, matching what `sd_loader_test` prints over UART                |
-| `vta.fpga.software.genInitDramTestGemm`    | Generates `gen/init_dram.h` for `test_gemm` (`make gen-test_gemm`); needs no compiler output              |
+| `modules.fpga.software.checkOutput <dump>`     | Detiles a board output dump to NCHW and diffs it against the fsim `simulators_output/final_output.bin`      |
+| `modules.fpga.software.auditDram <comp-dir>`   | Runs the generator's layout guards (overlap / fit / `--max-addr`) on a compiler output dir and prints the DRAM map, without emitting anything. Useful to sanity-check a non-zero `--ddr-base` relocation, since fsim and the compiler both use `0x0`. **Known limitation:** it passes no reference dir, so it always sizes the raw-input scratch region as 0, while `GenNnBaremetal` (given `--ref-dir`) sizes it from the real `input_nn.bin`. Since every CPU-scratch address is allocated above `rawPhys + max(alignPage(rawSize), 0x1000)`, an `input_nn.bin` larger than 4096 bytes shifts every such address in the generator's map but not in the audit's, so the two silently diverge. |
+| `modules.fpga.software.sdChecksum <file>`      | Size + 32-bit additive checksum of a file, matching what `sd_loader_test` prints over UART                |
+| `modules.fpga.software.genInitDramTestGemm`    | Generates `gen/init_dram.h` for `test_gemm` (`make gen-test_gemm`); needs no compiler output              |
 
 `make test-cpu-ops` builds and runs `test/test_cpu_ops.cc` on the host: it
 compiles the real `driver/src/vta_cpu_ops.cc` against stubs in `test/host/` and

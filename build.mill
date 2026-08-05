@@ -90,7 +90,7 @@ object `package` extends Module with SpotlessModule {
     * zcu104.
     *
     * A plain value for the same reason as [[activeConfigKey]]: it selects a
-    * Cross instance (`modules.fpga.targets(config, board)`).
+    * Cross instance (`targets(config, board)`).
     */
   def defaultBoardName = getVtaArg("vta.board.name")
 
@@ -219,9 +219,9 @@ object `package` extends Module with SpotlessModule {
     os.list(boardsDirPath).filter(_.ext == "json").map(_.baseName).sorted
   )
 
-  /** Every (config, board) pair - the Cross keys for `modules.fpga.targets`. An
-    * FPGA build is identified by both: the config fixes the RTL, the board
-    * fixes the pinout and the XSA.
+  /** Every (config, board) pair - the Cross keys for `targets`. An FPGA build
+    * is identified by both: the config fixes the RTL, the board fixes the
+    * pinout and the XSA.
     */
   def fpgaTargets = configNames.flatMap(c => boardNames.map(b => (c, b)))
 
@@ -257,7 +257,7 @@ object `package` extends Module with SpotlessModule {
     */
   trait HasFpgaBoard extends Module {
 
-    // A plain def, not a Task: it indexes the modules.fpga.targets Cross, whose keys
+    // A plain def, not a Task: it indexes the `targets` Cross, whose keys
     // must exist before the task graph.
     def fpgaBoard: String = defaultBoardName
   }
@@ -388,7 +388,7 @@ object `package` extends Module with SpotlessModule {
         .mkString("\n")
     )
   }
-  trait ModelPipeline
+  trait OnnxConfigPipeline
       extends Cross.Module[String]
       with build.modules.VtaPipelineModule {
     def modelPath = BuildCtx.workspaceRoot / os.RelPath(
@@ -401,15 +401,22 @@ object `package` extends Module with SpotlessModule {
   }
 
   /** Cross Config module for running the compilation pipeline on any given onnx
-    * model
+    * model.
+    *
+    * Pass the onnx path with `-Dvta.onnx.file=<path>` to all ./mill commands,
+    * or add it to the jvm opts, through `./mill configure vta.onnx.file=<path>`
+    * for persistence.
+    *
+    * Note that the run Module is not a Cross model module, re-runs with
+    * different models will delete previous results.
     */
-  object run extends Cross[ModelPipeline](configNames)
+  object run extends Cross[OnnxConfigPipeline](configNames)
 
   /** The Vivado build, one independently cached instance per (config, board):
     * an FPGA build is identified by both.
     *
     * Address it as `targets[<config>,<board>]`, e.g. `./mill
-    * "targets[vta_w8b,zcu104].fpgaSynth"`. Boards are the JSONs under
+    * "targets[vta_w8b,zcu104].synth"`. Boards are the JSONs under
     * modules/fpga/boards/. Each pair keeps its own project and XSA, so
     * switching board does not re-synthesize the other one.
     */

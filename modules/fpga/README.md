@@ -70,7 +70,7 @@ This step compiles the neural network model into VTA instructions and configures
    ```bash
    make gen CONFIG=../../../config/vta_config.json DDR_BASE=0x200000
    # equivalently, from the repo root:
-   ./mill -Dvta.config.file=vta_config.json vta.fpga.software.genNnBaremetal ../../../compiler_output/ \
+   ./mill -Dvta.config.file=vta_config.json modules.fpga.software.genNnBaremetal ../../../compiler_output/ \
        --ddr-base    0x200000      \
        --max-addr    0x1ff00000    \
        --outdir      gen
@@ -129,7 +129,7 @@ If you prefer to perform the integration yourself using the Vivado and Vitis GUI
 
 From the repository root, run the Chisel compiler to generate the hardware description files:
 ```bash
-./mill vta.hardware.emitVtaFpgaConfig
+./mill modules.hardware.emitVtaFpgaConfig
 ```
 
 By default, the compilation output is generated in:
