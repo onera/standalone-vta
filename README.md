@@ -51,7 +51,6 @@ The `standalone-vta` ecosystem is designed with a clear separation of concerns, 
 - `build.mill`: Root Mill build - the shared config plumbing and the cross keys the pipeline modules are built from. Advanced usage: [MILL.md](MILL.md).
 - `modules/pipeline.mill`: The per-(model, config) pipeline traits (compile, simulate, baremetal, Vitis, post-synthesis) that the pipeline modules mix in.
 - `config/`: Contains `vta_config.json` defining the VTA hardware parameters, plus alternative configurations. See [Config Documentation](config/README.md).
-- `environment_setup/`: Legacy setup files (Docker/Conda). The project now uses Pixi for package and environment management.
 - `examples/`: Sample inputs and their Mill module (`examples/package.mill`), plus a per-module Makefile predating the Mill build.
   - `onnx/`: Full ONNX models, driven by `examples.onnx[<model>,<config>]`.
   - `vta_ir/`: Hand-written raw VTA IR fixtures, driven by `examples.ir[<fixture>,<config>]`.
@@ -67,7 +66,6 @@ Explore the detailed documentation for each component of the `standalone-vta` ec
   - [Project Overview & Quickstart](README.md)
   - [Advanced Usage: the Mill build](MILL.md)
   - [Configuration (`vta_config.json`)](config/README.md)
-  - [Environment Setup (Legacy Docker/Conda)](environment_setup/README.md)
 
 - **Compiler (`modules/compiler/`)**
   - [Standalone VTA Compiler](modules/compiler/vta_compiler/operations_definition/README.md)

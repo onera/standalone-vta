@@ -316,6 +316,11 @@ clean_csv: | $(COMPILER_OUTPUT_DIR) ## Delete CSV output files only
 clean_hw: ## Clean Chisel/Mill build outputs
 	-rm -rf $(HW_OUTPUT_DIR)/*
 
+clean_fpga: ## Clean Vitis and Vivado workspaces
+	-rm -r $(FPGA_HW_DIR)/build
+	-rm -r $(FPGA_SW_DIR)/build
+	-rm -r $(FPGA_SW_DIR)/gen
+
 # ==============================================================================
 # OUTPUT DIRECTORIES
 # ==============================================================================
