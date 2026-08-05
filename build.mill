@@ -409,8 +409,8 @@ object `package` extends Module with SpotlessModule {
     * an FPGA build is identified by both.
     *
     * Address it as `targets[<config>,<board>]`, e.g. `./mill
-    * "targets[vta_w8b,zcu104].fpgaSynth"`. Boards are the JSONs
-    * under modules/fpga/boards/. Each pair keeps its own project and XSA, so
+    * "targets[vta_w8b,zcu104].fpgaSynth"`. Boards are the JSONs under
+    * modules/fpga/boards/. Each pair keeps its own project and XSA, so
     * switching board does not re-synthesize the other one.
     */
   object targets extends Cross[TargetModule](build.fpgaTargets)

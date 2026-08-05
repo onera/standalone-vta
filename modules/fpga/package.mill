@@ -17,11 +17,8 @@ object `package` extends Module {
   // The [[targets]] instance of the active (config, board) pair: the global
   // -Dvta.config.file and -Dvta.board.name. The flat fpgaProject / fpgaSynth
   // tasks delegate here, so the flat and crossed forms share one cache.
-  // Private: it is an alias for a module Mill already exposes as
-  // modules.fpga.targets[<config>,<board>], and a public def would add a third
-  // spelling of the same build to the task namespace.
-  private def activeTarget = build.targets(build.activeConfigKey, build.defaultBoardName)
-
+  private def activeTarget =
+    build.targets(build.activeConfigKey, build.defaultBoardName)
 
   /** Optional shallow root for the heavy Xilinx project trees
     * (-Dvta.xil.out=<dir>): the Vivado build, the OOC netlist project and the
@@ -162,23 +159,6 @@ object `package` extends Module {
       */
     def boardJson = Task.Source(build.boardsDirPath / s"$board.json")
 
-    // The Vivado tasks below fork from synthesis.runner(): their inputs are all
-    // plain Mill dependencies - boardJson, configSignature, the content-hashed
-    // emitted-SV dir, the packaged IP repo, and the modules.fpga.synthesis
-    // classpath. That classpath deliberately excludes modules.hardware (see the
-    // comment on `object synthesis`), so RTL reaches them only through the
-    // content-hashed emit; a Chisel edit that emits identical SV cannot
-    // re-synthesize. An edit under modules/fpga/synthesis/ still does, since
-    // that is the flow itself.
-    //
-    // configSignature() is called only by the tasks that read the config file
-    // *themselves* - fpgaSynth, which hands BuildFpga a --config to sha256 into
-    // manifest.json, and fpgaProject alongside it. ipRepo and oocNetlist never
-    // see the config: it reaches them through the emit, whose three tasks in
-    // modules/hardware all pull configSignature() first. So an in-place config
-    // edit re-runs the emit, and those two re-run only if the SV actually moved
-    // - which is the behaviour we want, not a missing dependency.
-
     /** Package the emitted Xilinx shell as a Vivado IP, into an IP repository
       * of its own.
       *
@@ -253,7 +233,7 @@ object `package` extends Module {
     // therefore repeated here on purpose; dropping one on the grounds that
     // fpgaProject already declares it would silently stop synthesis tracking
     // it.
-    def fpgaSynth = Task {
+    def synth = Task {
       val projectDir = os.Path(fpgaProject())
       val emitDir =
         build.modules.hardware.configs(configKey).vtaFpgaConfig().path
@@ -318,7 +298,7 @@ object `package` extends Module {
       * content-hashing). Honors -Dvta.xil.out.
       */
     def vitisPlatform = Task(persistent = true) {
-      val manifest = fpgaSynth().path / "manifest.json"
+      val manifest = synth().path / "manifest.json"
       val ws = xilOutRoot(xilOutDir(), configKey, board)
         .map(_ / "vitis")
         .getOrElse(Task.dest)
@@ -527,7 +507,7 @@ object `package` extends Module {
       */
     def createVitisProject(args: Args) = Task.Command {
       val ws = os.Path(activeTarget.vitisPlatform())
-      val manifest = activeTarget.fpgaSynth().path / "manifest.json"
+      val manifest = activeTarget.synth().path / "manifest.json"
       vitisRunner().addApps(
         workspace = ws,
         namePrefix = "vta",
@@ -660,17 +640,6 @@ object `package` extends Module {
     * post-synthesis simulation flow.
     */
   object synthesis extends build.VtaScalaModule { s =>
-    // Deliberately NOT `moduleDeps = Seq(build.modules.hardware)`. runner()
-    // hashes runClasspath into every task that forks from it - fpgaProject,
-    // fpgaSynth, oocNetlist - so a hardware moduleDep would put the whole
-    // Chisel bytecode in the input set of three Vivado runs, and any edit
-    // under modules/hardware (a comment shifts the LineNumberTable, so even
-    // that is enough) would re-synthesize. Nothing under
-    // synthesis/src/main/scala references vta.*; the dep only ever supplied
-    // os-lib and jackson transitively, so both are declared here instead, at
-    // the versions that used to resolve through chisel. RTL now reaches the
-    // Vivado tasks solely through the content-hashed emitted-SV dirs
-    // (hardware.configs[<config>].vtaFpgaConfig / vtaDebugShell).
     def mvnDeps = Seq(
       mvn"com.github.scopt::scopt:4.1.0",
       mvn"com.lihaoyi::os-lib:0.10.7",
@@ -781,13 +750,7 @@ object `package` extends Module {
       * fpgaSynth (reopen it and synth/impl/XSA, --skip-project).
       * hardware.configs[<config>].vtaFpgaConfig() owns the RTL emit (cached by
       * Mill) and is handed over as --emit-dir, [[TargetModule.ipRepo]] owns the
-      * IP packaging and is handed over as --ip-repo; propagateEnv because
-      * Vivado needs XILINX_* / DISPLAY. `stageFlags` selects the stage:
-      * Seq("--skip-synth") for the project stage, Seq("--skip-project") for the
-      * synth stage. Takes an already-resolved Runner (callers pass `runner()`)
-      * since Task APIs can't be invoked outside a Task{} block. The vivado
-      * executable is resolved by BuildFpga itself from $XILINX_VIVADO
-      * (propagateEnv makes the live env visible to the fork).
+      * IP packaging.
       */
     def runBuildFpga(
       runner: mill.javalib.RunModule.Runner,
@@ -831,7 +794,7 @@ object `package` extends Module {
       * A delegate to `targets[<config>,<board>].fpgaSynth` - see there for the
       * details and the caching behavior.
       */
-    def synthesize = Task { activeTarget.fpgaSynth() }
+    def synthesize = Task { activeTarget.synth() }
 
     object test extends SbtTests with ScalaTest {
       override def scalaTestVersion: Simple[String] = "3.2.19"

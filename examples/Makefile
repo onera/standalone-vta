@@ -152,7 +152,7 @@ fsim_compile_single_layer: ## Build fsim_single_layer
 
 
 exported_sv:
-	$(MILL) -Dvta.config.file=$(CONFIG_FILE) vta.hardware.emitVtaSimConfig
+	$(MILL) -Dvta.config.file=$(CONFIG_FILE) modules.hardware.emitVtaSimConfig
 
 
 vsim_compile: exported_sv ## Generate Verilated C++ model and build fsim_nn_rtl
