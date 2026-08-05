@@ -20,8 +20,8 @@ object `package` extends Module {
   // Private: it is an alias for a module Mill already exposes as
   // modules.fpga.targets[<config>,<board>], and a public def would add a third
   // spelling of the same build to the task namespace.
-  private def activeTarget: TargetModule =
-    targets(build.activeConfigKey, build.defaultBoardName)
+  private def activeTarget = build.targets(build.activeConfigKey, build.defaultBoardName)
+
 
   /** Optional shallow root for the heavy Xilinx project trees
     * (-Dvta.xil.out=<dir>): the Vivado build, the OOC netlist project and the
@@ -142,15 +142,15 @@ object `package` extends Module {
       .map(_.str)
       .getOrElse(sys.error(s"ERROR: '$key' not found in $manifestPath"))
 
-  /** The Vivado build, one independently cached instance per (config, board):
-    * an FPGA build is identified by both.
-    *
-    * Address it as `modules.fpga.targets[<config>,<board>]`, e.g. `./mill
-    * "modules.fpga.targets[vta_w8b,zcu104].fpgaSynth"`. Boards are the JSONs
-    * under modules/fpga/boards/. Each pair keeps its own project and XSA, so
-    * switching board does not re-synthesize the other one.
-    */
-  object targets extends Cross[TargetModule](build.fpgaTargets)
+  // /** The Vivado build, one independently cached instance per (config, board):
+  //   * an FPGA build is identified by both.
+  //   *
+  //   * Address it as `modules.fpga.targets[<config>,<board>]`, e.g. `./mill
+  //   * "modules.fpga.targets[vta_w8b,zcu104].fpgaSynth"`. Boards are the JSONs
+  //   * under modules/fpga/boards/. Each pair keeps its own project and XSA, so
+  //   * switching board does not re-synthesize the other one.
+  //   */
+  // object targets extends Cross[TargetModule](build.fpgaTargets)
   trait TargetModule
       extends Cross.Module2[String, String]
       with build.HasVtaConfig {
@@ -823,7 +823,7 @@ object `package` extends Module {
       * Fast. A delegate to `targets[<config>,<board>].fpgaProject`, so the flat
       * and crossed forms share one cache per (config, board) pair.
       */
-    def fpgaProject = Task { activeTarget.fpgaProject() }
+    def vivadoProject = Task { activeTarget.fpgaProject() }
 
     /** Synthesize, implement and export the bitstream + XSA for the active
       * config and board. The full FPGA build: slow (Vivado).
@@ -831,7 +831,8 @@ object `package` extends Module {
       * A delegate to `targets[<config>,<board>].fpgaSynth` - see there for the
       * details and the caching behavior.
       */
-    def fpgaSynth = Task { activeTarget.fpgaSynth() }
+    def synthesize = Task { activeTarget.fpgaSynth() }
+
     object test extends SbtTests with ScalaTest {
       override def scalaTestVersion: Simple[String] = "3.2.19"
       // The hardware dep lives here rather than on the module above, so it

@@ -11,6 +11,7 @@ import mill.scalalib.SbtModule
 import mill.api.BuildCtx
 import mill.api.Args
 import com.goyeau.mill.scalafix.ScalafixModule
+import build.modules.fpga.TargetModule
 
 // Doc-comment convention for every task in the *.mill files, so that the
 // completion scripts (tools/completions/) and `./mill inspect <task>` both read
@@ -403,4 +404,23 @@ object `package` extends Module with SpotlessModule {
     * model
     */
   object run extends Cross[ModelPipeline](configNames)
+
+  /** The Vivado build, one independently cached instance per (config, board):
+    * an FPGA build is identified by both.
+    *
+    * Address it as `targets[<config>,<board>]`, e.g. `./mill
+    * "targets[vta_w8b,zcu104].fpgaSynth"`. Boards are the JSONs
+    * under modules/fpga/boards/. Each pair keeps its own project and XSA, so
+    * switching board does not re-synthesize the other one.
+    */
+  object targets extends Cross[TargetModule](build.fpgaTargets)
+
+  // The [[targets]] instance of the active (config, board) pair: the global
+  // -Dvta.config.file and -Dvta.board.name. The flat fpgaProject / fpgaSynth
+  // tasks delegate here, so the flat and crossed forms share one cache.
+  // Private: it is an alias for a module Mill already exposes as
+  // modules.fpga.targets[<config>,<board>], and a public def would add a third
+  // spelling of the same build to the task namespace.
+  def activeTarget: TargetModule =
+    targets(build.activeConfigKey, build.defaultBoardName)
 }

@@ -418,9 +418,8 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
   ): Task[String] = Task.Anon {
     val gen = genDir().path
     val ws =
-      os.Path(build.modules.fpga.targets(configKey, fpgaBoard).vitisPlatform())
-    val manifest = build.modules.fpga
-      .targets(configKey, fpgaBoard)
+      os.Path(build.targets(configKey, fpgaBoard).vitisPlatform())
+    val manifest = build.targets(configKey, fpgaBoard)
       .fpgaSynth()
       .path / "manifest.json"
     build.modules.fpga.software
@@ -491,10 +490,11 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
     *   also `--runner run_nn`, `--data-loader elf`, and `--cpu <name>` for a
     *   non-ZynqMP board (default psu_cortexa53_0).
     */
-  def createVitisProjectFromXsa(args: Args) = Task.Command {
+  def createVitisProjectFromXsa(@arg(doc="XSA file used to build the platform") xsa: String, args: Args) = Task.Command {
     val genDir = genBaremetal().path
     val ws = BuildCtx.workspaceRoot / "build" / "vitis" /
       s"${modelKey}_$configKey"
+    val xsaPath = os.Path(xsa,BuildCtx.workspaceRoot)
     // No --cpu: on this path it comes from `args`, along with --xsa.
     build.modules.fpga.software
       .vitisRunner()
@@ -502,7 +502,7 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
         workspace = ws,
         namePrefix = modelKey,
         genDir = Some(genDir),
-        extraArgs = args.value
+        extraArgs = Seq("--xsa", xsaPath.toString) ++ args.value
       )
     ws.toString
   }
@@ -557,7 +557,7 @@ trait PostSynthTasks extends LayerDumpTasks with HasFpgaBoard {
 
     // The cached gate-level netlist for this (config, board).
     val netlist =
-      build.modules.fpga.targets(configKey, fpgaBoard).oocNetlist().path
+      build.targets(configKey, fpgaBoard).oocNetlist().path
 
     // The cached fsim per-layer dumps (input/output<layer>.bin). Read-only
     // here: the TB emitter reads input<layer>.bin, the compare stage reads
