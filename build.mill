@@ -415,12 +415,4 @@ object `package` extends Module with SpotlessModule {
     */
   object targets extends Cross[TargetModule](build.fpgaTargets)
 
-  // The [[targets]] instance of the active (config, board) pair: the global
-  // -Dvta.config.file and -Dvta.board.name. The flat fpgaProject / fpgaSynth
-  // tasks delegate here, so the flat and crossed forms share one cache.
-  // Private: it is an alias for a module Mill already exposes as
-  // modules.fpga.targets[<config>,<board>], and a public def would add a third
-  // spelling of the same build to the task namespace.
-  def activeTarget: TargetModule =
-    targets(build.activeConfigKey, build.defaultBoardName)
 }
