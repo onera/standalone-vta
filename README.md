@@ -145,7 +145,7 @@ make            # or `make help`: list every target and the current settings
 | `make fsim`      | Run the functional (C++) simulation and check it against the ONNX reference. |
 | `make vsim`      | Run the cycle-accurate (Verilated RTL) simulation and check it the same way. |
 | `make synthesis` | Run the Vivado synthesis for the target board (bitstream + XSA).             |
-| `make apps`      | Create the Vitis workspace with the baremetal applications.                  |
+| `make baremetal` | Create the Vitis workspace with the baremetal applications.                  |
 | `make inspect`   | Show every task available for the current config, with its description.      |
 
 Each target compiles whatever it depends on if it is stale, so `make fsim` on a

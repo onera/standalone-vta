@@ -12,13 +12,8 @@ DATA_LOADER ?= elf sd
 
 all: help
 
-.PHONY: all compile fsim vsim synthesis apps inspect help clean cleaner clean-target example check_irs
+.PHONY: all compile fsim vsim synthesis baremetal inspect help clean cleaner clean-target check_onnx check_irs
 
-example: ## Run all example in simulation on default config
-	@$(CMD) examples.onnx[_,vta_config].fsim
-
-check_irs: ## Run raw vta ir in both simulators on $CONFIG
-	@$(CMD) examples.irs[_,$(CONFIG)].check
 
 compile: ## Compile the ONNX to VTA binaries
 	@$(CMD) default.compile
@@ -32,8 +27,17 @@ vsim: ## Run cycle-accurate simulation
 synthesis: ## Run vivado synthesis
 	@$(CMD) targets[$(CONFIG),$(BOARD)].synth
 
-apps: ## Create vitis workspace with baremetal apps
+baremetal: ## Create vitis workspace with baremetal apps
 	@$(CMD) default.createVitisProject --runner $(RUNNER) --data-loader $(DATA_LOADER)
+
+check_onnx: ## Run all example in simulation on default config
+	@$(CMD) examples.onnx[_,vta_config].fsim
+
+check_irs: ## Run raw vta ir in both simulators on $CONFIG
+	@$(MILL) -i -k examples.irs[_,_].check
+
+tests: ## Run all test suites (slow ~20min)
+	@$(MILL) -k modules.hardware.test.unittest + modules.fpga.synthesis.test + modules.fpga.software.test
 
 inspect: ## Run mill inspect on default target
 	@$(CMD) inspect default._
