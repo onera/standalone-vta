@@ -30,7 +30,7 @@ jobs:
           path: |
             ~/.cache/mill
             out
-          key: mill-${{ runner.os }}-${{ hashFiles('**/*.mill', 'vta/**/*.scala', 'config/*.json') }}
+          key: mill-${{ runner.os }}-${{ hashFiles('**/*.mill', 'modules/**/*.scala', 'config/*.json') }}
           restore-keys: |
             mill-${{ runner.os }}-
       - name: Setup pixi
@@ -55,7 +55,7 @@ jobs:
           path: |
             ~/.cache/mill
             out
-          key: mill-${{ runner.os }}-${{ hashFiles('**/*.mill', 'vta/**/*.scala', 'config/*.json') }}
+          key: mill-${{ runner.os }}-${{ hashFiles('**/*.mill', 'modules/**/*.scala', 'config/*.json') }}
           restore-keys: |
             mill-${{ runner.os }}-
       - name: Setup pixi
@@ -80,7 +80,7 @@ jobs:
           path: |
             ~/.cache/mill
             out
-          key: mill-${{ runner.os }}-${{ hashFiles('**/*.mill', 'vta/**/*.scala', 'config/*.json') }}
+          key: mill-${{ runner.os }}-${{ hashFiles('**/*.mill', 'modules/**/*.scala', 'config/*.json') }}
           restore-keys: |
             mill-${{ runner.os }}-
       - name: Setup pixi
@@ -108,7 +108,7 @@ jobs:
           path: |
             ~/.cache/mill
             out
-          key: mill-${{ runner.os }}-${{ hashFiles('**/*.mill', 'vta/**/*.scala', 'config/*.json') }}
+          key: mill-${{ runner.os }}-${{ hashFiles('**/*.mill', 'modules/**/*.scala', 'config/*.json') }}
           restore-keys: |
             mill-${{ runner.os }}-
       - name: Setup pixi
