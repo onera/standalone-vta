@@ -1,10 +1,5 @@
 # Workflow executing VTA simulator and perform basic tests
 #
-# Everything runs through the root Mill build. A pipeline task such as
-# `examples.onnx[<model>,<config>].fsim` compiles the ONNX model, runs the simulator
-# and checks the result against the ONNX reference in one go, so the jobs below
-# are a single Mill invocation each. The (model, config) pair is an explicit
-# Cross key: no -Dvta.config.file, and each pair caches independently.
 
 name: Standalone VTA CI
 
@@ -38,9 +33,6 @@ jobs:
           key: mill-${{ runner.os }}-${{ hashFiles('**/*.mill', 'vta/**/*.scala', 'config/*.json') }}
           restore-keys: |
             mill-${{ runner.os }}-
-      # activate-environment puts the pixi env on PATH for the steps below, so
-      # Mill's own JDK/curl and the python3 the compiler tasks resolve off PATH
-      # both come from the lockfile.
       - name: Setup pixi
         uses: prefix-dev/setup-pixi@v0.10.0
         with:
@@ -48,8 +40,6 @@ jobs:
           cache: true
           locked: true
           activate-environment: true
-      # Compiles lenet5, runs the C++ functional simulator and checks its output
-      # against the ONNX reference.
       - name: Test VTA compiler and functional simulator
         run: ./mill 'examples.onnx[lenet5,vta_config].fsim'
 
@@ -75,8 +65,6 @@ jobs:
           cache: true
           locked: true
           activate-environment: true
-      # Runs against the in-resources vta_config_test.json (the default when
-      # -Dvta.config.file is unset).
       - name: Run Chisel unit tests
         run: ./mill vta.hardware.test.unittest
 
@@ -102,15 +90,10 @@ jobs:
           cache: true
           locked: true
           activate-environment: true
-      # Host-side FPGA tooling only: baremetal codegen, exporters and checkers
-      # against golden fixtures, plus dry-run coverage of the Vivado/xsim
-      # invocations. No Vivado or xsim needed. Compiles its four golden models
-      # (lenet5 and qyolo_pattern, each on vta_config and vta_w8b) on the fly,
-      # hence the pixi env for the Python compiler.
       - name: Run FPGA host tests
-        run: ./mill vta.fpga.software.test
+        run: ./mill modules.fpga.software.test
       - name: Run FPGA synth tests
-        run: ./mill vta.fpga.synthesis.test
+        run: ./mill modules.fpga.synthesis.test
 
   cycle-accurate-simulator-test:
     needs: [functional-simulator-test, chisel-unittests]
@@ -135,13 +118,7 @@ jobs:
           cache: true
           locked: true
           activate-environment: true
-      # Emits VTAShell.sv for this config, Verilates it, runs the RTL simulator
-      # and checks its output against the ONNX reference. Mill pulls the emit
-      # and the model compile in as dependencies.
       - name: Simulate the inference and check against reference
-        run: ./mill 'examples.onnx[lenet5,vta_config].vsim'
-      # Raw VTA IR fixtures have no golden, so the check is fsim vs vsim byte
-      # for byte. It reuses the two simulator binaries the step above built,
-      # which is why it lives in this job rather than the functional one.
+        run: ./mill -i -Dvta.verilator.threads=2 'examples.onnx[lenet5,vta_config].vsim'
       - name: Cross-check the raw VTA IR fixtures (fsim vs vsim)
-        run: ./mill 'examples.ir[_,vta_config].check'
+        run: ./mill -i -Dvta.verilator.threads=2 'examples.ir[_,vta_config].check'
