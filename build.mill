@@ -410,7 +410,12 @@ object `package` extends Module with SpotlessModule {
     * Note that the run Module is not a Cross model module, re-runs with
     * different models will delete previous results.
     */
-  object run extends Cross[OnnxConfigPipeline](configNames)
+  object run extends Cross[OnnxConfigPipeline](configNames) {
+    // Default cross segment, mirrors the default config.
+    def defaultCrossSegment = activeConfigKey
+  }
+  
+   
 
   /** The Vivado build, one independently cached instance per (config, board):
     * an FPGA build is identified by both.
@@ -420,6 +425,8 @@ object `package` extends Module with SpotlessModule {
     * modules/fpga/boards/. Each pair keeps its own project and XSA, so
     * switching board does not re-synthesize the other one.
     */
-  object targets extends Cross[TargetModule](build.fpgaTargets)
+  object targets extends Cross[TargetModule](fpgaTargets){
+    def defaultCrossSegment = Seq(activeConfigKey,defaultBoardName)
+  }
 
 }

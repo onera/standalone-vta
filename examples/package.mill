@@ -95,7 +95,9 @@ object `package` extends Module {
     * address it as `examples.onnx[<model>,<config>]`, e.g. `./mill
     * "examples.onnx[lenet5,vta_w8b].fsim"`.
     */
-  object onnx extends Cross[ExampleModule](build.examplePairs)
+  object onnx extends Cross[ExampleModule](build.examplePairs){
+    override def defaultCrossSegments: Seq[String] = Seq("lenet5",build.activeConfigKey)
+  }
 
   /** End-to-end runs for every (raw VTA IR fixture, config) pair.
     *
