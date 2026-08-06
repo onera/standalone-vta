@@ -245,7 +245,10 @@ def main():
         "--export-tcl", type=str, default="", help="export variables to tcl file"
     )
     parser.add_argument(
-        "--export-header", type=str, default="", help="write macro definitions to a C header file"
+        "--export-header",
+        type=str,
+        default="",
+        help="write macro definitions to a C header file",
     )
     args = parser.parse_args()
 
@@ -256,7 +259,7 @@ def main():
     # Path to vta config
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
 
-    project_root = os.path.abspath(os.path.join(curr_path, "../../../../"))
+    project_root = os.path.abspath(os.path.join(curr_path, "../../../"))
 
     path_list = [
         "vta_config.json",
