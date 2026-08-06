@@ -68,7 +68,9 @@ object `package` extends Module with SpotlessModule {
     /** Default verilator threads for verilator simulation. */
     "vta.verilator.threads" -> "4",
     /** Default jobs for vivado synthesis */
-    "vta.vivado.jobs" -> "4"
+    "vta.vivado.jobs" -> "4",
+    /** Default onnx file, for run flow */
+    "vta.onnx.file" -> (BuildCtx.workspaceRoot /"examples" / "onnx" / "lenet5.onnx").toString
   )
 
   def getVtaArg(name: String) = sys.props.getOrElse(name, defaultOpts(name))
@@ -105,6 +107,10 @@ object `package` extends Module with SpotlessModule {
     * vta.verilator.threads=<N>`
     */
   def verilatorThreads = getVtaArg("vta.verilator.threads")
+
+  /** Path to the default onnx file, for use in the non Cross model flow
+   */
+  def defaultOnnxFile = getVtaArg("vta.onnx.file")
 
   /* Python command
    * Pixi is called explicitly in the sub process. If you do not use pixi,
@@ -389,17 +395,16 @@ object `package` extends Module with SpotlessModule {
     )
   }
   trait OnnxConfigPipeline
-      extends Cross.Module[String]
+      extends Cross.Module2[String,String]
       with build.modules.VtaPipelineModule {
-    def modelPath = BuildCtx.workspaceRoot / os.RelPath(
-      sys.props.getOrElse("vta.onnx.file", "examples/onnx/lenet5.onnx")
-    )
-    def configKey = crossValue
-    def modelKey = modelPath.baseName
-    def onnxRoot = modelPath / os.up
+    def configKey = crossValue2
+    def modelKey = crossValue
 
+    def onnxRoot = defaultOnnxPath / os.up
   }
 
+  private def defaultOnnxPath = os.Path(defaultOnnxFile,BuildCtx.workspaceRoot) 
+  val pairsDefaultModel = configNames.map(s => (defaultOnnxPath.baseName,s))
   /** Cross Config module for running the compilation pipeline on any given onnx
     * model.
     *
@@ -410,10 +415,11 @@ object `package` extends Module with SpotlessModule {
     * Note that the run Module is not a Cross model module, re-runs with
     * different models will delete previous results.
     */
-  object run extends Cross[OnnxConfigPipeline](configNames) {
+  object run extends Cross[OnnxConfigPipeline](pairsDefaultModel) {
     // Default cross segment, mirrors the default config.
     def defaultCrossSegment = activeConfigKey
   }
+  def default = run(defaultOnnxPath.baseName,activeConfigKey)
   
    
 
