@@ -5,6 +5,7 @@ front end over Mill: every target is one `./mill` invocation with a few
 `-Dvta.*` flags. This document covers everything the Makefile does not expose:
 the module layout, the full task list, per-model caching, the FPGA and Vitis
 tasks, the global options and tab completion.
+For more information using mill, refer to the [official documentation](https://mill-build.org/mill/index.html).
 
 Run the commands below from the repository root, inside the Pixi environment
 (`pixi shell`, or prefix each one with `pixi run`).
@@ -26,18 +27,41 @@ Run the commands below from the repository root, inside the Pixi environment
 
 ## Invoking Mill
 
+A mill build is made of Modules and Tasks, which can be invoked with a dot-notation.
+For example to compile the module `modules/hardware` we run:
+
+```bash
+./mill modules.hardware.compile
+```
+
+In this build, cross modules are defined to cleanly separate cached artifacts alongside several axis: model, VTA hardware config, FPGA board.
+For example, the module run is a cross configuration module. To access it you call `./mill` with the `run[configKey]` notation:
+
 ```bash
 ./mill "run[vta_config].fsim"
 ```
+
+The dot-notation also works:
+
+```bash
+./mill run.vta_config.fsim
+```
+
+> [!note]
+> Cross modules have default keys, so the following command is valid and equivalent.
+>
+> ```bash
+> ./mill run[].fsim
+> ```
 
 - **Quote the task path.** The `[...]` cross selector is glob syntax in most
   shells.
 - **Use `-i` (or `--no-daemon`) in scripts.** Mill runs a long-lived daemon by
   default, which may be killed during a long invocation such as an FPGA
   synthesis. The root Makefile passes `-i` for that reason.
-- **Chain tasks in one invocation** by separating them with ` + `:
+- **Chain tasks in one invocation** by separating them with `+`:
   `./mill "run[vta_config].fsim" + "run[vta_config].vsim"`.
-- **`_` matches one cross axis, `__` matches recursively.** Add `--keep-going`
+- **`_` matches one segment, `__` matches several segments.** Add `--keep-going`
   (`-k`) to see every failure rather than only the first.
 - **Trailing arguments go to the underlying tool** for tasks declared as
   commands (`fsim`, `vsim`, `createVitisProject`, ...).
@@ -51,13 +75,13 @@ Two introspection commands are worth knowing:
 
 ## Build layout
 
-| Address | What it is |
-| --- | --- |
-| `run[<config>]` | The full ONNX pipeline for the model named by `-Dvta.onnx.file`, built for `<config>`. What the root Makefile drives. |
-| `examples.onnx[<model>,<config>]` | The same pipeline, but keyed by both the model and the config, for models under `examples/onnx/`. |
-| `examples.ir[<fixture>,<config>]` | Compile and simulate a hand-written VTA IR fixture from `examples/vta_ir/`. |
-| `targets[<config>,<board>]` | The Vivado build: IP packaging, project, synthesis, XSA, Vitis platform. |
-| `modules.hardware`, `modules.simulator[<config>]`, `modules.compiler`, `modules.fpga.*` | The per-module tasks the pipelines are built from. |
+| Address                                                                                 | What it is                                                                                                            |
+| --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `run[<config>]`                                                                         | The full ONNX pipeline for the model named by `-Dvta.onnx.file`, built for `<config>`. What the root Makefile drives. |
+| `examples.onnx[<model>,<config>]`                                                       | The same pipeline, but keyed by both the model and the config, for models under `examples/onnx/`.                     |
+| `examples.ir[<fixture>,<config>]`                                                       | Compile and simulate a hand-written VTA IR fixture from `examples/vta_ir/`.                                           |
+| `targets[<config>,<board>]`                                                             | The Vivado build: IP packaging, project, synthesis, XSA, Vitis platform.                                              |
+| `modules.hardware`, `modules.simulator[<config>]`, `modules.compiler`, `modules.fpga.*` | The per-module tasks the pipelines are built from.                                                                    |
 
 The cross keys are read from the filesystem, so **adding a config to `config/`,
 a model to `examples/onnx/`, a fixture to `examples/vta_ir/` or a board JSON to
@@ -96,21 +120,21 @@ behaviour.
 
 ## Pipeline tasks
 
-| Task | Kind | What it does |
-| --- | --- | --- |
-| `compile` | cached | `nn_compiler` + `vta_compiler`: the `.bin` / `.csv` streams. |
-| `reference` | cached | The ONNX reference: `input_nn.bin` (network input) + `reference.bin` (golden output). |
-| `fsim` | command | Run the functional (C++) simulator, then check against the reference. |
-| `vsim` | command | Run the Verilated RTL simulator, then check against the reference. |
-| `layerDumps` | cached | Per-layer fsim goldens (`--dump-layers`), shared by the debug and post-synth flows. |
-| `genBaremetal` | cached | The baremetal PS headers (`nn_exec_plan.h`, `nn_ddr_map.h`, ...). No Vivado needed. |
-| `genBaremetalDebug` | cached | `genBaremetal` plus the debug maps, wired to `layerDumps`. |
-| `sdCard` / `sdCardDebug` | command | Stage the `.bin` set (and, for `Debug`, the goldens) for a FAT32 card. |
-| `createVitisProject` | command | Add this model's app components to the (config, board) Vitis workspace. |
-| `createVitisProjectFromXsa` | command | Same, from an XSA you already have, with no Vivado run. |
-| `addVitisDebugApps` | command | Add the on-board isolation apps (`run_nn_debug`, `run_nn_cpu_debug`). |
-| `runUart` | command | Drive a board running `run_nn_uart` over a serial port and check its output. |
-| `postSynth` | command | Gate-level xsim check of a layer subset against the fsim goldens. |
+| Task                        | Kind    | What it does                                                                          |
+| --------------------------- | ------- | ------------------------------------------------------------------------------------- |
+| `compile`                   | cached  | `nn_compiler` + `vta_compiler`: the `.bin` / `.csv` streams.                          |
+| `reference`                 | cached  | The ONNX reference: `input_nn.bin` (network input) + `reference.bin` (golden output). |
+| `fsim`                      | command | Run the functional (C++) simulator, then check against the reference.                 |
+| `vsim`                      | command | Run the Verilated RTL simulator, then check against the reference.                    |
+| `layerDumps`                | cached  | Per-layer fsim goldens (`--dump-layers`), shared by the debug and post-synth flows.   |
+| `genBaremetal`              | cached  | The baremetal PS headers (`nn_exec_plan.h`, `nn_ddr_map.h`, ...). No Vivado needed.   |
+| `genBaremetalDebug`         | cached  | `genBaremetal` plus the debug maps, wired to `layerDumps`.                            |
+| `sdCard` / `sdCardDebug`    | command | Stage the `.bin` set (and, for `Debug`, the goldens) for a FAT32 card.                |
+| `createVitisProject`        | command | Add this model's app components to the (config, board) Vitis workspace.               |
+| `createVitisProjectFromXsa` | command | Same, from an XSA you already have, with no Vivado run.                               |
+| `addVitisDebugApps`         | command | Add the on-board isolation apps (`run_nn_debug`, `run_nn_cpu_debug`).                 |
+| `runUart`                   | command | Drive a board running `run_nn_uart` over a serial port and check its output.          |
+| `postSynth`                 | command | Gate-level xsim check of a layer subset against the fsim goldens.                     |
 
 ```bash
 # Compile (both compiler stages) and produce the ONNX reference
@@ -159,14 +183,14 @@ board (which fixes the pinout and XSA), so each pair is independently
 addressable and cached. Flipping between boards does not re-synthesize the
 other one.
 
-| Task | What it does |
-| --- | --- |
-| `ipRepo` | Package the emitted Xilinx shell as a Vivado IP. Fast, and cached on the RTL and board part only. |
-| `fpgaProject` | Create the Vivado project, stopping before synthesis. Persistent, so GUI edits survive. |
-| `synth` | Synthesize and implement: bitstream, XSA, reports and `manifest.json`. Slow. |
-| `oocNetlist` | OOC-synthesize the debug shell to a gate-level netlist, the DUT of `postSynth`. |
-| `vitisPlatform` | Create/refresh the Vitis workspace and hardware platform from the synthesized XSA. |
-| `boardJson` | The board definition this target reads (content-tracked). |
+| Task            | What it does                                                                                      |
+| --------------- | ------------------------------------------------------------------------------------------------- |
+| `ipRepo`        | Package the emitted Xilinx shell as a Vivado IP. Fast, and cached on the RTL and board part only. |
+| `fpgaProject`   | Create the Vivado project, stopping before synthesis. Persistent, so GUI edits survive.           |
+| `synth`         | Synthesize and implement: bitstream, XSA, reports and `manifest.json`. Slow.                      |
+| `oocNetlist`    | OOC-synthesize the debug shell to a gate-level netlist, the DUT of `postSynth`.                   |
+| `vitisPlatform` | Create/refresh the Vitis workspace and hardware platform from the synthesized XSA.                |
+| `boardJson`     | The board definition this target reads (content-tracked).                                         |
 
 ```bash
 ./mill "targets[vta_w8b,zcu104].synth"         # bitstream + XSA
@@ -220,8 +244,9 @@ of those flags to override them, since the script keeps the last occurrence.
 Everything else is yours, including `--cpu` for a non-ZynqMP board (the script
 defaults to `psu_cortexa53_0`).
 
-The XSA is _not_ checked against the active config: a bitstream synthesized for
-a different block size than the compiled binaries will run and produce garbage.
+> [!warning]
+> The XSA is _not_ checked against the active config: a bitstream synthesized for
+> a different block size than the compiled binaries will run and produce garbage.
 
 ## SD-card file sets
 
@@ -321,15 +346,15 @@ selection through their own `CONFIG` variables; see `make help` in each.
 
 Options that are not cross axes are passed as JVM properties:
 
-| Property | Default | Effect |
-| --- | --- | --- |
-| `vta.onnx.file` | `examples/onnx/lenet5.onnx` | Model compiled by `run[<config>]`. |
-| `vta.config.file` | `vta_config.json` | Config for the flat, non-crossed tasks. |
-| `vta.board.name` | `zcu104` | Board for the pipeline tasks that need one. |
-| `vta.ddr.base` | `0x0` | DDR base address baked into the baremetal codegen. Must match the board. |
-| `vta.verilator.threads` | `4` | Verilator build threads. Changing it invalidates the `vsim` tasks. |
-| `vta.vivado.jobs` | `4` | Vivado parallel jobs. A runtime flag: changing it does not invalidate anything. |
-| `vta.xil.out` | unset | Shallow root for the heavy Vivado/Vitis trees (`<dir>/<config>/<board>/`), for Windows long-path limits. |
+| Property                | Default                     | Effect                                                                                                   |
+| ----------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `vta.onnx.file`         | `examples/onnx/lenet5.onnx` | Model compiled by `run[<config>]`.                                                                       |
+| `vta.config.file`       | `vta_config.json`           | Config for the flat, non-crossed tasks.                                                                  |
+| `vta.board.name`        | `zcu104`                    | Board for the pipeline tasks that need one.                                                              |
+| `vta.ddr.base`          | `0x0`                       | DDR base address baked into the baremetal codegen. Must match the board.                                 |
+| `vta.verilator.threads` | `4`                         | Verilator build threads. Changing it invalidates the `vsim` tasks.                                       |
+| `vta.vivado.jobs`       | `4`                         | Vivado parallel jobs. A runtime flag: changing it does not invalidate anything.                          |
+| `vta.xil.out`           | unset                       | Shallow root for the heavy Vivado/Vitis trees (`<dir>/<config>/<board>/`), for Windows long-path limits. |
 
 ### Pinning options between runs
 
