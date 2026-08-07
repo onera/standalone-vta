@@ -117,28 +117,6 @@ object `package` extends Module with SpotlessModule {
    * change this. TODO: add a fallback python if pixi is not installed?
    */
   def python: os.Shellable = Seq("pixi", "run", "python")
-  // -------------------------------------------------------------------------
-  // Forked-JVM environment
-  // -------------------------------------------------------------------------
-
-  /** Env vars forwarded to the forked JVMs (forkEnv): an explicit whitelist,
-    * because forkEnv is hashed into every runner-dependent task - anything
-    * session-volatile captured here (XDG_*, PWD, terminal vars, ...) would
-    * invalidate the cached Vivado tasks on every new shell. Whitelisted are
-    * only what the forks actually consume: the tool lookup (PATH and the Python
-    * env selection: pixi/conda/venv), HOME + locale, and the Xilinx
-    * install/license roots. Tasks that need the *live* session env (Vivado GUI,
-    * DISPLAY) already pass propagateEnv = true at the run() call.
-    */
-  val forkEnvVars: Set[String] =
-    Set("PATH", "HOME", "USER", "SHELL", "LANG", "VIRTUAL_ENV")
-  val forkEnvPrefixes: Seq[String] =
-    Seq("PIXI_", "CONDA_", "XILINX", "LM_LICENSE", "LC_")
-
-  def stableEnv(env: Map[String, String]): Map[String, String] =
-    env.filter { case (k, _) =>
-      forkEnvVars(k) || forkEnvPrefixes.exists(k.startsWith)
-    }
 
   /** The base every Scala/Chisel module in this build extends. */
   trait VtaScalaModule extends SbtModule with ScalafixModule {
@@ -162,10 +140,7 @@ object `package` extends Module with SpotlessModule {
       Seq(s"-Dvta.config.file=${vtaConfigFile()}")
     }
 
-    // stableEnv: see forkEnvVars above - forkEnv is hashed into every
-    // runner-dependent task, so only the whitelisted vars are captured.
     def forkEnv =
-      // stableEnv(Task.env) ++ Map("VTA_ROOT" -> BuildCtx.workspaceRoot.toString)
       Map("VTA_ROOT" -> BuildCtx.workspaceRoot.toString)
   }
 
