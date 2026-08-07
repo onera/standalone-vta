@@ -478,14 +478,7 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
       )
   }
 
-  /** Run the uart com script (run_nn_uart application must be running on the
-    * FPGA board before launch, build [[createVitisProject]] with `--runner
-    * run_nn_uart`, then build and run with vitis)
-    */
-  def runUart(
-    @arg(doc = "port name (ex: /dev/tty0,COM1)") port: String,
-    args: Args
-  ) = Task.Command {
+  def uartRunner(port: String,args: Args) = Task.Anon {
     val refOut = referenceDir().getOrElse(
       sys.error("the uart runner needs a reference (ONNX front end only)")
     )
@@ -496,6 +489,18 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
       port,
       args.value
     )
+    Task.dest
+  }
+
+  /** Run the uart com script (run_nn_uart application must be running on the
+    * FPGA board before launch, build [[createVitisProject]] with `--runner
+    * run_nn_uart`, then build and run with vitis)
+    */
+  def runUart(
+    @arg(doc = "port name (ex: /dev/tty0,COM1)") port: String,
+    args: Args
+  ) = Task.Command {
+    uartRunner(port,args)()
     checkUartOutput()
     Task.dest
   }
