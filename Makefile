@@ -3,7 +3,7 @@ ONNX ?= examples/onnx/qyolo_pattern.onnx
 CONFIG ?= vta_config
 BOARD ?= zcu104
 DDR_BASE ?= 0x100000
-MILL_FLAGS = -i --ticker false
+MILL_FLAGS = 
 DEFINES = -Dvta.onnx.file=$(ONNX) -Dvta.board.name=$(BOARD) -Dvta.ddr.base=$(DDR_BASE) -Dvta.config.file=$(CONFIG)
 CMD = $(MILL) $(MILL_FLAGS) $(DEFINES)
 
@@ -31,10 +31,10 @@ baremetal: ## Create vitis workspace with baremetal apps
 	@$(CMD) default.createVitisProject --runner $(RUNNER) --data-loader $(DATA_LOADER)
 
 check_onnx: ## Run all example in simulation on default config (may fail on qyolo)
-	@$(MILL) -i -k examples.onnx[_,vta_config].fsim
+	@$(MILL) -k examples.onnx[_,vta_config].fsim
 
 check_irs: ## Run raw vta ir in both simulators on $CONFIG
-	@$(MILL) -i -k examples.ir[_,_].check
+	@$(MILL) -k examples.ir[_,_].check
 
 tests: ## Run all test suites (slow ~20min)
 	@$(MILL) -k modules.hardware.test.unittest + modules.fpga.synthesis.test + modules.fpga.software.test

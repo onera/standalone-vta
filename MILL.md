@@ -56,9 +56,6 @@ The dot-notation also works:
 
 - **Quote the task path.** The `[...]` cross selector is glob syntax in most
   shells.
-- **Use `-i` (or `--no-daemon`) in scripts.** Mill runs a long-lived daemon by
-  default, which may be killed during a long invocation such as an FPGA
-  synthesis. The root Makefile passes `-i` for that reason.
 - **Chain tasks in one invocation** by separating them with `+`:
   `./mill "run[vta_config].fsim" + "run[vta_config].vsim"`.
 - **`_` matches one segment, `__` matches several segments.** Add `--keep-going`

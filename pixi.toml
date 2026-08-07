@@ -28,7 +28,7 @@ LDFLAGS = "-L$CONDA_PREFIX/lib"
 [dependencies]
 # --- Base Languages and Runtimes ---
 python = "3.12.*"
-openjdk = "17.*"
+openjdk = "21.*"
 verilator = "==5.048"
 
 # --- System Tools and Hardware Compilation Toolchain ---
@@ -42,7 +42,7 @@ make = "*"
 curl = "*"         # Required by Mill to download its jars
 ccache = "*"
 zlib = "*"
-fzf = "*"    # fzf-powered mill tab-completion (tools/completions/mill-completion.{fish,sh})
+fzf = "*"          # fzf-powered mill tab-completion (tools/completions/mill-completion.{fish,sh})
 
 # --- Host / FPGA serial comms ---
 pyserial = ">=3.5"
