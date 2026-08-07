@@ -30,16 +30,16 @@ synthesis: ## Run vivado synthesis
 baremetal: ## Create vitis workspace with baremetal apps
 	@$(CMD) default.createVitisProject --runner $(RUNNER) --data-loader $(DATA_LOADER)
 
-check_onnx: ## Run all example in simulation on default config
-	@$(CMD) examples.onnx[_,vta_config].fsim
+check_onnx: ## Run all example in simulation on default config (may fail on qyolo)
+	@$(MILL) -i -k examples.onnx[_,vta_config].fsim
 
 check_irs: ## Run raw vta ir in both simulators on $CONFIG
-	@$(MILL) -i -k examples.irs[_,_].check
+	@$(MILL) -i -k examples.ir[_,_].check
 
 tests: ## Run all test suites (slow ~20min)
 	@$(MILL) -k modules.hardware.test.unittest + modules.fpga.synthesis.test + modules.fpga.software.test
 
-inspect: ## Run mill inspect on default target
+inspect: ## Run mill inspect on default target, pipe this in a pager (less,more,...)
 	@$(CMD) inspect default._
 
 clean: ## Clean only the current config run artifacts (out/run/<MODEL>)
@@ -52,8 +52,11 @@ clean-target: ## Clean fpga target cache
 	@$(CMD) clean targets[$(CONFIG),$(BOARD)]
 
 help: ## Show this help
-	@echo "Convenient helper for compiling, simulating and executing an ONNX model on the VTA"
-	@echo "Wrap mill commands for the default run pipeline. For more advanced usage, use ./mill directly (see MILL.md)."
+	@echo "Convenient helper for compiling, simulating and implementing an ONNX model on the VTA"
+	@echo "This makefile wraps mill commands for the default run pipeline." 
+	@echo ""
+	@echo "Options passed here bypass the mill defaults, as well as the content of .mill-jvm-opts; for more options and"
+	@echo "advanced usage, use ./mill directly (see MILL.md)."
 	@grep -E '^[a-zA-Z0-9_-]+:.*?##' $(MAKEFILE_LIST) \
 	  | awk 'BEGIN {FS = ":[^#]*##[ \t]*"}; {printf "\033[36m%-28s\033[0m %s\n", $$1, $$2}'
 	@echo " Current target:"
