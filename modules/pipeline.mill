@@ -5,7 +5,7 @@ import build.HasFpgaBoard
 import build.HasVtaConfig
 import mill.api.BuildCtx
 import mainargs.arg
-import build.modules.{simulator,compiler,fpga,hardware}
+import build.modules.{simulator, compiler, fpga, hardware}
 
 /** The per-(model, config) pipeline, split by domain so a module can compose
   * the parts it needs instead of inheriting all of them.
@@ -217,16 +217,10 @@ trait SimTasks extends HasCompilableModel {
     *   (waveform per layer), `--layer 3`, `--dump-layers`.
     */
   def vsim(args: Args) = Task.Command {
-    simRun(
-      simulator(configKey).vsimBinary,
-      args.value,
-      isRtl = true
-    )()
+    simRun(simulator(configKey).vsimBinary, args.value, isRtl = true)()
   }
 
-
   /** Run both simulators on this fixture and byte-compare their outputs.
-    *
     */
   def check() = Task.Command {
     val compOut = compile().path
@@ -247,7 +241,10 @@ trait SimTasks extends HasCompilableModel {
       Seq("--comp-dir", compOut.toString, "--output", vsimOut.toString)
         ++ defaultSimFlags ++ Seq("--no-timeout")
     )
-    compare.runCompare(fsimOut / "final_output.bin", vsimOut / "final_output_rtl.bin")
+    compare.runCompare(
+      fsimOut / "final_output.bin",
+      vsimOut / "final_output_rtl.bin"
+    )
     PathRef(Task.dest)
   }
 }
@@ -478,7 +475,7 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
       )
   }
 
-  def uartRunner(port: String,args: Args) = Task.Anon {
+  def uartRunner(port: String, args: Args) = Task.Anon {
     val refOut = referenceDir().getOrElse(
       sys.error("the uart runner needs a reference (ONNX front end only)")
     )
@@ -500,7 +497,7 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
     @arg(doc = "port name (ex: /dev/tty0,COM1)") port: String,
     args: Args
   ) = Task.Command {
-    uartRunner(port,args)()
+    uartRunner(port, args)()
     checkUartOutput()
     Task.dest
   }

@@ -70,7 +70,7 @@ object `package` extends Module with SpotlessModule {
     /** Default jobs for vivado synthesis */
     "vta.vivado.jobs" -> "4",
     /** Default onnx file, for run flow */
-    "vta.onnx.file" -> (BuildCtx.workspaceRoot /"examples" / "onnx" / "lenet5.onnx").toString
+    "vta.onnx.file" -> (BuildCtx.workspaceRoot / "examples" / "onnx" / "lenet5.onnx").toString
   )
 
   def getVtaArg(name: String) = sys.props.getOrElse(name, defaultOpts(name))
@@ -109,7 +109,7 @@ object `package` extends Module with SpotlessModule {
   def verilatorThreads = getVtaArg("vta.verilator.threads")
 
   /** Path to the default onnx file, for use in the non Cross model flow
-   */
+    */
   def defaultOnnxFile = getVtaArg("vta.onnx.file")
 
   /* Python command
@@ -185,8 +185,6 @@ object `package` extends Module with SpotlessModule {
     os.list(configDirPath).filter(_.ext == "json").map(_.baseName).sorted
   )
 
-
-
   /** Plain (non-Task) path to the FPGA board definitions. */
   def boardsDirPath = BuildCtx.workspaceRoot / "modules" / "fpga" / "boards"
 
@@ -226,7 +224,6 @@ object `package` extends Module with SpotlessModule {
 
     /** Content hash of this module's config JSON: depend on it to re-run when
       * the config file is edited in place.
-      *
       */
     def configSignature = Task.Input { configSig(configPath) }
   }
@@ -368,7 +365,7 @@ object `package` extends Module with SpotlessModule {
     )
   }
   trait OnnxConfigPipeline
-      extends Cross.Module2[String,String]
+      extends Cross.Module2[String, String]
       with build.modules.VtaPipelineModule {
     def configKey = crossValue2
     def modelKey = crossValue
@@ -376,8 +373,9 @@ object `package` extends Module with SpotlessModule {
     def onnxRoot = defaultOnnxPath / os.up
   }
 
-  private def defaultOnnxPath = os.Path(defaultOnnxFile,BuildCtx.workspaceRoot) 
-  val pairsDefaultModel = configNames.map(s => (defaultOnnxPath.baseName,s))
+  private def defaultOnnxPath = os.Path(defaultOnnxFile, BuildCtx.workspaceRoot)
+  val pairsDefaultModel = configNames.map(s => (defaultOnnxPath.baseName, s))
+
   /** Cross Config module for running the compilation pipeline on any given onnx
     * model.
     *
@@ -392,9 +390,7 @@ object `package` extends Module with SpotlessModule {
     // Default cross segment, mirrors the default config.
     def defaultCrossSegment = activeConfigKey
   }
-  def default = run(defaultOnnxPath.baseName,activeConfigKey)
-  
-   
+  def default = run(defaultOnnxPath.baseName, activeConfigKey)
 
   /** The Vivado build, one independently cached instance per (config, board):
     * an FPGA build is identified by both.
@@ -404,8 +400,8 @@ object `package` extends Module with SpotlessModule {
     * modules/fpga/boards/. Each pair keeps its own project and XSA, so
     * switching board does not re-synthesize the other one.
     */
-  object targets extends Cross[TargetModule](fpgaTargets){
-    def defaultCrossSegment = Seq(activeConfigKey,defaultBoardName)
+  object targets extends Cross[TargetModule](fpgaTargets) {
+    def defaultCrossSegment = Seq(activeConfigKey, defaultBoardName)
   }
 
 }
