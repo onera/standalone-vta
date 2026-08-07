@@ -220,7 +220,13 @@ trait SimTasks extends HasCompilableModel {
     simRun(simulator(configKey).vsimBinary, args.value, isRtl = true)()
   }
 
-  /** Run both simulators on this fixture and byte-compare their outputs.
+  /** Run both simulators on this example and byte-compare their outputs.
+    *
+    * Compares fsim against vsim directly instead of each against the ONNX
+    * reference: this is what isolates a C++/RTL divergence, and it is the only
+    * check available for a model with no golden. Both legs run off the one
+    * cached compile and write to fsim/ and vsim/ in this task's dest; any
+    * difference fails the build. Always simulates.
     */
   def check() = Task.Command {
     val compOut = compile().path

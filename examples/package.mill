@@ -137,5 +137,8 @@ object `package` extends Module {
     */
   object ir extends Cross[IrExampleModule](exampleIrPairs) {
     override def moduleDir = vtaIrDir
+
+    override def defaultCrossSegments: Seq[String] =
+      Seq("matmul_16x16", build.activeConfigKey)
   }
 }
