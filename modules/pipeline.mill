@@ -220,7 +220,7 @@ trait SimTasks extends HasCompilableModel {
     simRun(simulator(configKey).vsimBinary, args.value, isRtl = true)()
   }
 
-  def compareSim(fName:String,vName: String) = Task.Anon {
+  def compareSim(fName: String, vName: String) = Task.Anon {
     val compOut = compile().path
     val fsimBin = build.modules.simulator(configKey).fsimBinary().path
     val vsimBin = build.modules.simulator(configKey).vsimBinary().path
@@ -239,13 +239,12 @@ trait SimTasks extends HasCompilableModel {
       Seq("--comp-dir", compOut.toString, "--output", vsimOut.toString)
         ++ defaultSimFlags ++ Seq("--no-timeout")
     )
-    compare.runCompare(
-      fsimOut / fName,
-      vsimOut / vName
-    )
+    compare.runCompare(fsimOut / fName, vsimOut / vName)
     PathRef(Task.dest)
   }
-  def checker() = Task.Anon{compareSim("final_output.bin","final_output_rtl.bin")()}
+  def checker() = Task.Anon {
+    compareSim("final_output.bin", "final_output_rtl.bin")()
+  }
 
   /** Run both simulators on this example and byte-compare their outputs.
     *
