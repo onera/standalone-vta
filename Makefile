@@ -12,7 +12,8 @@ DATA_LOADER ?= elf sd
 
 all: help
 
-.PHONY: all compile fsim vsim synthesis baremetal inspect help clean cleaner clean-target check_onnx check_irs
+.PHONY: all compile fsim vsim synthesis baremetal inspect help \
+        clean cleaner clean-run clean-target check_onnx check_irs tests
 
 compile: ## Compile the ONNX to VTA binaries
 	@$(CMD) default.compile

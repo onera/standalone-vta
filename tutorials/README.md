@@ -1,6 +1,6 @@
 # Tutorials
 
-We present here two Jupyter notebooks, which aim to explain how to use the standalone-vta, and illustrate the data generation and manipulation in the standalone-vta/src/compiler/vta_compiler, to be used in standalone-vta/src/simulators.
+We present here two Jupyter notebooks, which aim to explain how to use the standalone-vta, and illustrate the data generation and manipulation in the standalone-vta/modules/compiler/vta_compiler, to be used in standalone-vta/modules/simulator.
 
 - [Tutorial 1 : data_definition](https://mybinder.org/v2/gh/onera/standalone-vta/main?urlpath=%2Fdoc%2Ftree%2Ftutorials%2Ftutorial1_data_definition.ipynb)
 - [Tutorial 2 : operations_definition](https://mybinder.org/v2/gh/onera/standalone-vta/main?urlpath=%2Fdoc%2Ftree%2Ftutorials%2Ftutorial2_operations_definition.ipynb)

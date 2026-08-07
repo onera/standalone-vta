@@ -114,7 +114,7 @@ The `Makefile` wraps the common invocations, and is the easiest way in:
 
 | Target          | What it generates                                                             |
 | --------------- | ----------------------------------------------------------------------------- |
-| `gen` / `gen-nn`| `gen/` from compiler output (headers + Tcl + `.incbin` artifacts)             |
+| `gen` / `gen-nn`| `gen/` from compiler output (headers + Tcl + `.incbin` artifacts); picks up `REFERENCE_OUTPUT` when it holds an `input_nn.bin` |
 | `gen-sd`        | `gen-nn` + `nn_sd_manifest.h` and the staged `gen/sd_card/` file set (needs `REFERENCE_OUTPUT`) |
 | `gen-sd-debug`  | `gen-sd` + the isolation-check goldens on the card (needs `REF_DIR` and `REFERENCE_OUTPUT`) |
 | `gen-test_gemm` | `gen/init_dram.h` for `test_gemm` (no compiler output needed)                 |
@@ -131,12 +131,20 @@ Variables: `COMPILER_OUTPUT` (default `../../../compiler_output`), `CONFIG`,
 (`../../../simulators_output`, the fsim golden-dump dir passed as
 `--golden-dir`; `gen-sd-debug` only), `REFERENCE_OUTPUT`
 (`../../../reference_output`, passed as `--ref-dir` so `load_nn.tcl` /
-`load_input.tcl` / the SD manifest resolve `input_nn.bin`; `gen-sd` and
-`gen-sd-debug`), `RUNNER`, `DATA_LOADER`, `XSA`, `CPU`. `gen-sd` and
-`gen-sd-debug` now require the `REFERENCE_OUTPUT` directory to already exist -
-`GenNnBaremetal` validates `--ref-dir` with `os.isDir` and hard-fails if it is
-missing, so run the compiler's ONNX reference stage (or `mkdir -p` an empty
-one if you knowingly want the "not found" placeholder branch) first.
+`load_input.tcl` / the SD manifest resolve `input_nn.bin`; every gen target),
+`RUNNER`, `DATA_LOADER`, `XSA`, `CPU`.
+
+`gen-sd` and `gen-sd-debug` pass `--ref-dir` unconditionally and so require the
+`REFERENCE_OUTPUT` directory to already exist - `GenNnBaremetal` validates it
+with `os.isDir` and hard-fails if it is missing, so run the compiler's ONNX
+reference stage (or `mkdir -p` an empty one if you knowingly want the "not
+found" placeholder branch) first.
+
+`gen-nn` passes it only when `$(REFERENCE_OUTPUT)/input_nn.bin` exists, so a
+compile-only tree still generates. Note that the flag is not cosmetic there:
+the raw-input region is sized from the real `input_nn.bin`, and every CPU
+scratch address sits above it. Generating without it and then loading a
+multi-megabyte `input_nn.bin` by hand would overwrite the scratch regions.
 
 Calling the Mill task directly gives the full flag set (run from the repo root;
 the active hardware config is selected by its file name via `-Dvta.config.file`):

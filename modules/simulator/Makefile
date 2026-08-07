@@ -50,7 +50,8 @@ ifdef CONDA_PREFIX
   CFLAGS           += $(CONDA_INCLUDE)
   VERILATED_CFLAGS += $(CONDA_INCLUDE)
 endif
-# VTA hardware configuration, defaults to ../../../config/vta_config.json
+# VTA hardware configuration. Empty means config/vta_config.py picks its own
+# default ($(ROOTDIR)/config/vta_config.json).
 # Override at build time: make CONFIG=path/to/config.json [target]
 CONFIG          ?=
 USE_CFG_FLAG     = $(if $(CONFIG),--use-cfg $(CONFIG),)
@@ -193,7 +194,8 @@ VERIFICATION_FLAGS = --assert $(VERIFICATION_INCDIRS) $(VERIFICATION_CONDS) $(VE
 # ==============================================================================
 
 .PHONY: all config compile_only lib_tvm \
-        fsim vsim vsim-debug vsim-hazard \
+        fsim vsim fsim_single_layer vsim_single_layer \
+        vsim-debug vsim-hazard compile-fsim compile-vsim \
         clean depend FORCE
 
 # ==============================================================================
@@ -284,7 +286,8 @@ $(BUILD_DIR)/fsim: $(addprefix $(BUILD_DIR)/,$(FSIM_ENTRY_OBJS)) $(FSIM_SHARED_O
 # RTL SIMULATOR - VERILATE + LINK
 #
 # Workflow:
-#   1. cd ../cycle_accurate_simulator && ./mill emitVtaSimConfig
+#   1. from the repo root: ./mill modules.hardware.emitVtaSimConfig
+#      (writes VTASHELL_DIR, i.e. <root>/build/emitted/vta-sim-shell)
 #   2. make build/vsim
 # ==============================================================================
 

@@ -20,8 +20,10 @@
 /**/simulators_output/*
 /**/reference_output/
 /**/reference_output/*
-/**/vta/fpga/software/gen/*
-/**/vta/fpga/software/vitis_workspace/*
+/**/modules/fpga/software/gen/
+/**/modules/fpga/software/gen/*
+/**/modules/fpga/software/vitis_workspace/
+/**/modules/fpga/software/vitis_workspace/*
 /**/log_output/
 /**/log_output/*
 

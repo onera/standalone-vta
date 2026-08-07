@@ -46,8 +46,16 @@ The same configuration must be used to compile the network, build the simulator,
 
 ## Changing Configuration
 
-If you change `vta_config.json`, you must:
+Under Mill there is nothing to do by hand: the config is a cross key, not a
+flag, so artifacts are cached per config and everything downstream of a changed
+config is re-run on the next invocation.
 
-1. Recompile any test networks using `src/compiler`.
-2. Re-run `make all` in `src/simulators/functional_simulator` if C++ macros need to sync. The generated header is produced by `src/simulators/functional_simulator/config/vta_config.py`, and every object file depends on it, so changing `CONFIG` triggers a rebuild.
-3. Clean and rebuild the Chisel simulators using `mill` or `sbt`.
+```sh
+./mill "examples.onnx[lenet5,vta_w8b].fsim"
+```
+
+On the standalone per-module Makefile path the three steps are yours:
+
+1. Recompile any test networks using `modules/compiler` (`make -C examples nn_compiler vta_compiler CONFIG_FILE=<name>.json`).
+2. Rebuild the functional simulator so the C++ macros sync: `make -C modules/simulator CONFIG=<path> build/fsim`. The generated header is produced by `modules/simulator/config/vta_config.py`, and every object file depends on it, so changing `CONFIG` triggers a rebuild.
+3. Re-emit the SystemVerilog the Chisel-backed simulator is built from: `./mill -Dvta.config.file=<name>.json modules.hardware.emitVtaSimConfig`.

@@ -1,7 +1,7 @@
 all:
 	@echo "Targets:"
 	@echo "  gen           - alias for gen-nn (compiler-output driven)"
-	@echo "  gen-nn        - generate $(OUTDIR)/ from compiler output (CONFIG, DDR_BASE, OUTDIR)"
+	@echo "  gen-nn        - generate $(OUTDIR)/ from compiler output (CONFIG, DDR_BASE, OUTDIR; REFERENCE_OUTPUT if it holds input_nn.bin)"
 	@echo "  gen-sd        - gen-nn + nn_sd_manifest.h and $(OUTDIR)/sd_card/ (runtime SD loader; REFERENCE_OUTPUT)"
 	@echo "  gen-sd-debug  - gen-sd + isolation-check goldens on the card (REF_DIR, REFERENCE_OUTPUT; for run_nn_debug/run_nn_cpu_debug DATA_LOADER=sd)"
 	@echo "  gen-test_gemm - generate $(OUTDIR)/init_dram.h for the test_gemm unit test (no compiler output needed)"
@@ -25,10 +25,6 @@ XSA ?=
 CPU ?=
 GEN = $(wildcard $(OUTDIR)/*)
 
-# The baremetal codegen is the Scala GenNnBaremetal task, run through Mill from
-# the repo root. Mill resolves paths against the repo root, so the gen targets
-# pass absolute paths; the active hardware config is selected by its file name
-# via -Dvta.config.file (Mill reads config/<name>).
 REPO_ROOT   := $(abspath ../../..)
 MILL        := cd $(REPO_ROOT) && ./mill
 CONFIG_NAME  = $(notdir $(CONFIG))
@@ -36,6 +32,8 @@ CONFIG_NAME  = $(notdir $(CONFIG))
 # Pass --sd-dir only when SD_DIR is set, so an empty value doesn't swallow the
 # positional compiler-output argument.
 SD_DIR_FLAG = $(if $(strip $(SD_DIR)),--sd-dir $(SD_DIR),)
+
+REF_DIR_FLAG = $(if $(wildcard $(REFERENCE_OUTPUT)/input_nn.bin),--ref-dir $(abspath $(REFERENCE_OUTPUT)),)
 
 # Default `gen` keeps the historical compiler-output driven pipeline so existing
 # invocations from CI / users keep working.
@@ -45,6 +43,7 @@ gen-nn: $(COMPILER_OUTPUTS) $(CONFIG)
 	$(MILL) -Dvta.config.file=$(CONFIG_NAME) modules.fpga.software.genNnBaremetal \
 		$(abspath $(COMPILER_OUTPUT)) \
 		--ddr-base $(DDR_BASE)        \
+		$(REF_DIR_FLAG)               \
 		--outdir   $(abspath $(OUTDIR))
 
 # gen-sd: gen-nn plus the runtime SD-card loader artifacts - nn_sd_manifest.h
@@ -92,7 +91,7 @@ gen-test_gemm:
 # the real ops with host stubs (test/host/) and checks them against the
 # functional simulator's header-only reference (cpu_functions.h) on synthetic
 # inputs. Needs no compiler output, no board, no fsim run - just g++.
-FSIM_INC = ../../simulators/functional_simulator/include
+FSIM_INC = ../../simulator/include
 test-cpu-ops:
 	@mkdir -p build
 	$(CXX) -std=c++17 -O2 -Wall -Wno-unused \

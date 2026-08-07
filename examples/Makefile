@@ -10,19 +10,14 @@ MAKEFILE_DIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 PROJECT_DIR  := $(abspath $(MAKEFILE_DIR)/..)
 
 COMPILER_OUTPUT_DIR  := $(PROJECT_DIR)/compiler_output
+REFERENCE_OUTPUT_DIR := $(PROJECT_DIR)/reference_output
 SIMULATOR_OUTPUT_DIR := $(PROJECT_DIR)/simulators_output
 HW_OUTPUT_DIR := $(PROJECT_DIR)/build
 MILL=cd $(PROJECT_DIR) && ./mill
 
-# The compiler scripts resolve their output dir from VTA_COMPILER_OUT (no '.git'
-# walk). make runs them from examples/, so pin it to the project-level dir; this
-# covers every invocation, including the ones without an '-o' flag (reference,
-# check, random_raw_binary_generator).
+# The compiler scripts resolve their output dirs from the environment
 export VTA_COMPILER_OUT := $(COMPILER_OUTPUT_DIR)
-# The simulators write final_output*.bin to the simulator output dir; pin it so
-# the checker (check_bin.py) reads the result from the same place. The simulator
-# binaries bake in this same default (see modules/simulator/Makefile), so a plain
-# run and the checker agree without extra flags.
+export VTA_REFERENCE_OUT := $(REFERENCE_OUTPUT_DIR)
 export VTA_SIMULATOR_OUT := $(SIMULATOR_OUTPUT_DIR)
 
 SRC_DIR          := $(PROJECT_DIR)/modules
@@ -34,6 +29,8 @@ NN_COMPILER_DIR  := $(COMPILER_DIR)/nn_compiler
 FSIM_DIR         := $(SRC_DIR)/simulator
 TSIM_DIR         := $(SRC_DIR)/hardware
 CONFIG_DIR       := $(PROJECT_DIR)/config
+FPGA_HW_DIR      := $(SRC_DIR)/fpga/synthesis
+FPGA_SW_DIR      := $(SRC_DIR)/fpga/software
 
 # ==============================================================================
 # CONFIGURATION
@@ -93,8 +90,8 @@ ONNX_FILE ?= onnx/qyolo_pattern.onnx
         reference check check_vsim \
         fsim_inference fsim_single_layer vsim_single_layer vsim_inference tsim \
         run execute compile_and_run compile_all run_all \
-        test_gemm test_alu custom_insn \
-        clean force_clean cleaner clean_bin clean_csv clean_hw \
+        test_gemm test_alu test_bias_expansion custom_insn \
+        clean force_clean cleaner clean_bin clean_csv clean_hw clean_fpga \
         debug help FORCE
 
 # ==============================================================================
@@ -165,7 +162,7 @@ vsim_compile_single_layer: exported_sv ## Generate Verilated C++ model and build
 # REFERENCE
 # ==============================================================================
 
-reference: ## Compute ONNX reference output
+reference: | $(REFERENCE_OUTPUT_DIR) ## Compute ONNX reference output (input_nn.bin + reference.bin)
 	@echo "Computing reference..."
 	python $(COMPILER_DIR)/reference_computation/reference_onnx.py \
 	$(DEBUG) \
@@ -298,8 +295,9 @@ custom_insn: ## Generate custom instruction test
 # CLEAN
 # ==============================================================================
 
-clean: | $(COMPILER_OUTPUT_DIR) $(SIMULATOR_OUTPUT_DIR) $(LOG_OUTPUT_DIR) ## Delete generated compiler and simulator output files
+clean: | $(COMPILER_OUTPUT_DIR) $(REFERENCE_OUTPUT_DIR) $(SIMULATOR_OUTPUT_DIR) $(LOG_OUTPUT_DIR) ## Delete generated compiler, reference and simulator output files
 	-rm $(COMPILER_OUTPUT_DIR)/*.*
+	-rm $(REFERENCE_OUTPUT_DIR)/*.*
 	-rm $(LOG_OUTPUT_DIR)/*.*
 	-rm $(SIMULATOR_OUTPUT_DIR)/*.*
 
@@ -325,7 +323,7 @@ clean_fpga: ## Clean Vitis and Vivado workspaces
 # OUTPUT DIRECTORIES
 # ==============================================================================
 
-$(COMPILER_OUTPUT_DIR) $(SIMULATOR_OUTPUT_DIR) $(LOG_OUTPUT_DIR):
+$(COMPILER_OUTPUT_DIR) $(REFERENCE_OUTPUT_DIR) $(SIMULATOR_OUTPUT_DIR) $(LOG_OUTPUT_DIR):
 	mkdir -p $@
 
 # ==============================================================================
@@ -335,6 +333,7 @@ $(COMPILER_OUTPUT_DIR) $(SIMULATOR_OUTPUT_DIR) $(LOG_OUTPUT_DIR):
 debug: ## Print all resolved paths and active configuration
 	@echo "PROJECT_DIR:          $(PROJECT_DIR)"
 	@echo "COMPILER_OUTPUT_DIR:  $(COMPILER_OUTPUT_DIR)"
+	@echo "REFERENCE_OUTPUT_DIR: $(REFERENCE_OUTPUT_DIR)"
 	@echo "SIMULATOR_OUTPUT_DIR: $(SIMULATOR_OUTPUT_DIR)"
 	@echo "LOG_OUTPUT_DIR:       $(LOG_OUTPUT_DIR)"
 	@echo "SRC_DIR:              $(SRC_DIR)"
