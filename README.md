@@ -139,31 +139,34 @@ root, inside the Pixi environment.
 make            # or `make help`: list every target and the current settings
 ```
 
-| Target           | What it does                                                                 |
-| ---------------- | ---------------------------------------------------------------------------- |
-| `make compile`   | Compile the ONNX model to VTA binaries (`nn_compiler` + `vta_compiler`).     |
-| `make fsim`      | Run the functional (C++) simulation and check it against the ONNX reference. |
-| `make vsim`      | Run the cycle-accurate (Verilated RTL) simulation and check it the same way. |
-| `make synthesis` | Run the Vivado synthesis for the target board (bitstream + XSA).             |
-| `make baremetal` | Create the Vitis workspace with the baremetal applications.                  |
-| `make inspect`   | Show every task available for the current config, with its description.      |
+| Target            | What it does                                                                            |
+| ----------------- | --------------------------------------------------------------------------------------- |
+| `make compile`    | Compile the ONNX model to VTA binaries (`nn_compiler` + `vta_compiler`).                |
+| `make fsim`       | Run the functional (C++) simulation and check it against the ONNX reference.            |
+| `make vsim`       | Run the cycle-accurate (Verilated RTL) simulation and check it the same way.            |
+| `make synthesis`  | Run the Vivado synthesis for the target board (bitstream + XSA).                        |
+| `make baremetal`  | Create the Vitis workspace with the baremetal applications.                             |
+| `make inspect`    | Show every task available for the current model and config, with its description.       |
+| `make check_onnx` | Run every model in `examples/onnx/` through the functional simulation, on `vta_config`. |
+| `make check_irs`  | Run every raw VTA IR fixture through both simulators and compare them.                  |
+| `make tests`      | Run the Chisel, synthesis and baremetal-codegen test suites (slow, ~20 min).            |
 
 Each target compiles whatever it depends on if it is stale, so `make fsim` on a
 fresh clone compiles the model first. A typical first run:
 
 ```bash
-make fsim     # LeNet-5 on the default config, functional simulation
+make fsim     # the default model and config, functional simulation
 make vsim     # the same model through the Chisel RTL
 ```
 
 Four variables select what is being built:
 
-| Variable   | Default                     | Meaning                                                                  |
-| ---------- | --------------------------- | ------------------------------------------------------------------------ |
-| `ONNX`     | `examples/onnx/lenet5.onnx` | The ONNX model to compile and run.                                       |
-| `CONFIG`   | `vta_config`                | The hardware configuration, from `config/<CONFIG>.json`.                 |
-| `BOARD`    | `zcu104`                    | The FPGA board, from `modules/fpga/boards/<BOARD>.json`.                 |
-| `DDR_BASE` | `0x100000`                  | DDR base address baked into the baremetal codegen. Must match the board. |
+| Variable   | Default                            | Meaning                                                                  |
+| ---------- | ---------------------------------- | ------------------------------------------------------------------------ |
+| `ONNX`     | `examples/onnx/qyolo_pattern.onnx` | The ONNX model to compile and run. Its basename is a cache key.          |
+| `CONFIG`   | `vta_config`                       | The hardware configuration, from `config/<CONFIG>.json`.                 |
+| `BOARD`    | `zcu104`                           | The FPGA board, from `modules/fpga/boards/<BOARD>.json`.                 |
+| `DDR_BASE` | `0x100000`                         | DDR base address baked into the baremetal codegen. Must match the board. |
 
 ```bash
 make CONFIG=vta_w8b fsim
@@ -171,27 +174,31 @@ make ONNX=examples/onnx/qyolo.onnx CONFIG=vta_w8b vsim
 make BOARD=vek280 CONFIG=vta_w8b synthesis
 ```
 
-`make apps` additionally takes `RUNNER` (default `run_nn run_nn_uart`) and
+`make baremetal` additionally takes `RUNNER` (default `run_nn run_nn_uart`) and
 `DATA_LOADER` (default `elf sd`), which choose the baremetal applications and
 how the model data reaches DDR:
 
 ```bash
-make RUNNER=run_nn DATA_LOADER=tcl apps
+make RUNNER=run_nn DATA_LOADER=tcl baremetal
 ```
 
 The available values are read from the filesystem: any `.onnx` under
-`examples/onnx/`, any `config/*.json`, any `modules/fpga/boards/*.json`.
-Artifacts are cached per config and per (config, board), so switching `CONFIG`
-or `BOARD` does not rebuild what the other one already produced. `ONNX` is not
-part of that key, though: switching model reuses the same directories and
-overwrites the previous model's results. To keep several models side by side,
-use the Mill entry points described in [MILL.md](MILL.md).
+`examples/onnx/` (or anywhere else - `ONNX` takes any path), any
+`config/*.json`, any `modules/fpga/boards/*.json`.
+
+Artifacts are cached per (model, config) and per (config, board), so switching
+`ONNX`, `CONFIG` or `BOARD` does not rebuild what the others already produced:
+each model keeps its own directory under `out/run/<model>/<config>/`. Only one
+model is addressable at a time, though - the one `ONNX` names - so building a
+set of models in one command needs the Mill entry points described in
+[MILL.md](MILL.md). Switching `ONNX`, `CONFIG` or `BOARD` between two `make` runs
+needs no cleaning or restart: switching back finds the earlier results cached.
 
 To drop the cached artifacts:
 
 ```bash
-make clean          # this config's run artifacts only
-make cleaner        # every config's
+make clean          # the current (model, config) run artifacts only
+make cleaner        # every model's, every config's (the whole out/run tree)
 make clean-target   # this (config, board) FPGA cache
 ```
 

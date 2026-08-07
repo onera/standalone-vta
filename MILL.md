@@ -35,47 +35,55 @@ For example to compile the module `modules/hardware` we run:
 ```
 
 In this build, cross modules are defined to cleanly separate cached artifacts alongside several axis: model, VTA hardware config, FPGA board.
-For example, the module run is a cross configuration module. To access it you call `./mill` with the `run[configKey]` notation:
+For example, the module run is crossed on the model and the config. To access it you call `./mill` with the `run[modelKey,configKey]` notation:
 
 ```bash
-./mill "run[vta_config].fsim"
+./mill "run[lenet5,vta_config].fsim"
 ```
 
 The dot-notation also works:
 
 ```bash
-./mill run.vta_config.fsim
+./mill run.lenet5.vta_config.fsim
 ```
 
 > [!note]
-> Cross modules have default keys, so the following command is valid and equivalent.
+> Cross modules have default keys, taken from the `-Dvta.*` options, so the
+> following commands are valid and equivalent to the ones above (with the
+> default `vta.onnx.file` and `vta.config.file`):
 >
 > ```bash
-> ./mill run[].fsim
+> ./mill "run[].fsim"      # the default (model, config) instance
+> ./mill default.fsim      # `default` is an alias for that same instance
+> ./mill _.fsim            # `_` select any segment at level 1: this is also equivalent
 > ```
 
 - **Quote the task path.** The `[...]` cross selector is glob syntax in most
   shells.
 - **Chain tasks in one invocation** by separating them with `+`:
-  `./mill "run[vta_config].fsim" + "run[vta_config].vsim"`.
-- **`_` matches one segment, `__` matches several segments.** Add `--keep-going`
-  (`-k`) to see every failure rather than only the first.
+  `./mill "run[lenet5,vta_config].fsim" + "run[lenet5,vta_config].vsim"`.
+- **`_` matches one segment, `__` matches several segments.** A cross selector
+  needs one entry per axis, so `run[_,_]` matches every instance while `run[_]`
+  resolves nothing. Add `--keep-going` (`-k`) to see every failure rather than
+  only the first.
 - **Trailing arguments go to the underlying tool** for tasks declared as
   commands (`fsim`, `vsim`, `createVitisProject`, ...).
 
 Two introspection commands are worth knowing:
 
 ```bash
-./mill resolve "run[vta_config]._"   # what tasks exist here
-./mill inspect "run[vta_config].fsim" # what a task does, and its arguments
+./mill resolve "run[_,_]"                    # what instances exist
+./mill resolve "run[lenet5,vta_config]._"    # what tasks exist here
+./mill inspect "run[lenet5,vta_config].fsim" # what a task does, and its arguments
 ```
 
 ## Build layout
 
 | Address                                                                                 | What it is                                                                                                            |
 | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `run[<config>]`                                                                         | The full ONNX pipeline for the model named by `-Dvta.onnx.file`, built for `<config>`. What the root Makefile drives. |
-| `examples.onnx[<model>,<config>]`                                                       | The same pipeline, but keyed by both the model and the config, for models under `examples/onnx/`.                     |
+| `run[<model>,<config>]`                                                                 | The full ONNX pipeline for the model named by `-Dvta.onnx.file`, built for `<config>`. What the root Makefile drives. |
+| `default`                                                                               | Alias for the `run[...]` instance selected by the current `-Dvta.onnx.file` / `-Dvta.config.file`, i.e. `run[]`.      |
+| `examples.onnx[<model>,<config>]`                                                       | The same pipeline, for models under `examples/onnx/`: every model is a cross key, not only the selected one.          |
 | `examples.ir[<fixture>,<config>]`                                                       | Compile and simulate a hand-written VTA IR fixture from `examples/vta_ir/`.                                           |
 | `targets[<config>,<board>]`                                                             | The Vivado build: IP packaging, project, synthesis, XSA, Vitis platform.                                              |
 | `modules.hardware`, `modules.simulator[<config>]`, `modules.compiler`, `modules.fpga.*` | The per-module tasks the pipelines are built from.                                                                    |
@@ -85,35 +93,48 @@ a model to `examples/onnx/`, a fixture to `examples/vta_ir/` or a board JSON to
 `modules/fpga/boards/` adds its cross entries with no build-file edit.**
 
 ```bash
+./mill resolve "run[_,_]"                # the selected model, every config
 ./mill resolve "examples.onnx[_,_]"      # every (model, config) pair
 ./mill resolve "targets[_,_]"            # every (config, board) pair
 ```
 
 ## `run` vs `examples.onnx`: what gets cached
 
-Both expose exactly the same tasks (they are the same pipeline traits), and
-they differ only in what identifies an instance:
+Both expose exactly the same tasks (they are the same pipeline traits) and both
+are crossed on **(model, config)**, so in both cases every pair is
+independently cached under `out/.../<model>/<config>/` and none of them
+invalidates the others. They differ only in **which model keys exist**:
 
-- `run[<config>]` is crossed on the **config only**. The model comes from the
-  global `-Dvta.onnx.file` property, so it can be any `.onnx` file anywhere in
-  the repository, but **switching model overwrites the previous model's results**
-  in the same task directories.
-- `examples.onnx[<model>,<config>]` is crossed on **both**. Each pair is
-  independently cached, so several models and configs coexist and none of them
-  invalidates the others. Restricted to the models in `examples/onnx/`.
+- `run[<model>,<config>]` has exactly **one model key at a time**: the basename
+  of `-Dvta.onnx.file`. The model can be any `.onnx` file anywhere on disk, but
+  only the selected one is addressable, so `run[_,_]` means "the selected model,
+  every config". Results of previously selected models stay in `out/run/`
+  untouched.
+- `examples.onnx[<model>,<config>]` has **one key per model** in
+  `examples/onnx/`, all addressable at once, so a single command can build a set
+  of models. Restricted to that directory.
 
-Use `run[...]` (or the Makefile) for a single model you iterate on; use
-`examples.onnx[...]` when you are moving between models, or want to build a set
-in one command:
+Use `run[...]` (or the Makefile) for a single model you iterate on, including
+one outside `examples/onnx/`; use `examples.onnx[...]` when you are moving
+between example models, or want to build several in one command:
 
 ```bash
 ./mill "examples.onnx[_,vta_config].fsim"   # every model, one config
 ./mill "examples.onnx[_,_].fsim"            # every (model, config) pair
 ```
 
+Switching model needs nothing beyond the flag: the model key is a watched value
+(`BuildCtx.watchValue` in `build.mill`), so a changed `-Dvta.onnx.file` makes the
+daemon re-instantiate the build and re-list the axis. Each model keeps its own
+directory, so switching back finds the previous results cached:
+
+```bash
+./mill -Dvta.onnx.file=path/to/other.onnx "run[].fsim"
+```
+
 Everything below is written with `examples.onnx[lenet5,vta_config]`; substitute
-`run[vta_config]` (plus `-Dvta.onnx.file=<path>`) to get the Makefile's
-behaviour.
+`run[lenet5,vta_config]` (plus `-Dvta.onnx.file=<path>`), or just `default`, to
+get the Makefile's behaviour.
 
 ## Pipeline tasks
 
@@ -165,8 +186,8 @@ byte-compares their outputs instead, failing the build on any difference:
 ./mill "examples.ir[_,_].check"                       # every fixture, every config
 ```
 
-`fsim` and `vsim` exist here too, and run the fixture's single layer. There is
-no Makefile target for these: IR fixtures are Mill-only.
+`fsim` and `vsim` exist here too, and run the fixture's single layer. The root
+Makefile exposes only the sweep, as `make check_irs`.
 
 The baremetal, Vitis and post-synthesis tasks are deliberately absent from
 `examples.ir`: they consume full-network artifacts, namely `dependency.csv`,
@@ -343,15 +364,15 @@ selection through their own `CONFIG` variables; see `make help` in each.
 
 Options that are not cross axes are passed as JVM properties:
 
-| Property                | Default                     | Effect                                                                                                   |
-| ----------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `vta.onnx.file`         | `examples/onnx/lenet5.onnx` | Model compiled by `run[<config>]`.                                                                       |
-| `vta.config.file`       | `vta_config.json`           | Config for the flat, non-crossed tasks.                                                                  |
-| `vta.board.name`        | `zcu104`                    | Board for the pipeline tasks that need one.                                                              |
-| `vta.ddr.base`          | `0x0`                       | DDR base address baked into the baremetal codegen. Must match the board.                                 |
-| `vta.verilator.threads` | `4`                         | Verilator build threads. Changing it invalidates the `vsim` tasks.                                       |
-| `vta.vivado.jobs`       | `4`                         | Vivado parallel jobs. A runtime flag: changing it does not invalidate anything.                          |
-| `vta.xil.out`           | unset                       | Shallow root for the heavy Vivado/Vitis trees (`<dir>/<config>/<board>/`), for Windows long-path limits. |
+| Property                | Default                     | Effect                                                                                                    |
+| ----------------------- | --------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `vta.onnx.file`         | `examples/onnx/lenet5.onnx` | Model run by `run[...]` / `default`; its basename is the model cross key. The root Makefile overrides it. |
+| `vta.config.file`       | `vta_config.json`           | Config for the flat, non-crossed tasks, and the config segment of `run[]` / `targets[]`.                  |
+| `vta.board.name`        | `zcu104`                    | Board for the pipeline tasks that need one, and the board segment of `targets[]`.                         |
+| `vta.ddr.base`          | `0x0`                       | DDR base address baked into the baremetal codegen. Must match the board.                                  |
+| `vta.verilator.threads` | `4`                         | Verilator build threads. Changing it invalidates the `vsim` tasks.                                        |
+| `vta.vivado.jobs`       | `4`                         | Vivado parallel jobs. A runtime flag: changing it does not invalidate anything.                           |
+| `vta.xil.out`           | unset                       | Shallow root for the heavy Vivado/Vitis trees (`<dir>/<config>/<board>/`), for Windows long-path limits.  |
 
 ### Pinning options between runs
 
@@ -384,7 +405,7 @@ there, such as an `-Xmx` setting for the build JVM, is preserved across
 Every task writes into its own directory under `out/`, mirroring the task path:
 
 ```text
-out/run/<config>/                       compile.dest/, fsim.dest/, vsim.dest/, ...
+out/run/<model>/<config>/               compile.dest/, fsim.dest/, vsim.dest/, ...
 out/examples/onnx/<model>/<config>/     same set, one per (model, config)
 out/examples/ir/<fixture>/<config>/     compile.dest/, check.dest/{fsim,vsim}/
 out/targets/<config>/<board>/           ipRepo.dest/, fpgaProject.dest/, synth.dest/, ...
@@ -392,14 +413,16 @@ out/modules/simulator/<config>/         fsimBinary.dest/, vsimBinary.dest/
 ```
 
 The C++/Verilator simulator is built once per config and cached, and the FPGA
-bitstream once per (config, board) pair, so switching config, board, or adding a
-new example model does not rebuild everything.
+bitstream once per (config, board) pair, so switching config, board, model, or
+adding a new example model does not rebuild everything.
 
 Clean selectively rather than deleting `out/`:
 
 ```bash
-./mill clean "run[vta_config]"           # one config's run artifacts
-./mill clean "run._"                     # every config's
+./mill clean "run[lenet5,vta_config]"    # one (model, config) instance
+./mill clean "run[]"                     # the same, for the current defaults
+./mill clean "run[_,_]"                  # the selected model, every config
+./mill clean run                         # everything under out/run, all models
 ./mill clean "targets[vta_config,zcu104]"
 ```
 

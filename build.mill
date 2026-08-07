@@ -108,7 +108,7 @@ object `package` extends Module with SpotlessModule {
     */
   def verilatorThreads = getVtaArg("vta.verilator.threads")
 
-  /** Path to the default onnx file, for use in the non Cross model flow
+  /** Path to the default onnx file, for use in the [[run]] cross module
     */
   def defaultOnnxFile = getVtaArg("vta.onnx.file")
 
@@ -349,23 +349,42 @@ object `package` extends Module with SpotlessModule {
   }
 
   private def defaultOnnxPath = os.Path(defaultOnnxFile, BuildCtx.workspaceRoot)
-  val pairsDefaultModel = configNames.map(s => (defaultOnnxPath.baseName, s))
 
-  /** Cross Config module for running the compilation pipeline on any given onnx
-    * model.
+  /** The single key of the `run` model axis: the basename of -Dvta.onnx.file.
+    *
+    * Watched, not merely read. Cross keys are computed once, when the daemon
+    * instantiates the build, and a changed -D does not invalidate that instance
+    * by itself; the watch does, so switching model re-lists the axis instead of
+    * leaving a stale key behind.
+    */
+  val defaultModelKey: String = BuildCtx.watchValue(defaultOnnxPath.baseName)
+
+  val pairsDefaultModel = configNames.map(s => (defaultModelKey, s))
+
+  /** Cross Model x Config module for running the compilation pipeline on any
+    * given onnx model.
     *
     * Pass the onnx path with `-Dvta.onnx.file=<path>` to all ./mill commands,
     * or add it to the jvm opts, through `./mill configure vta.onnx.file=<path>`
     * for persistence.
     *
-    * Note that the run Module is not a Cross model module, re-runs with
-    * different models will delete previous results.
+    * The model axis holds exactly one key at a time, the basename of that path,
+    * so results are cached per (model, config) - switching model does not
+    * overwrite the previous one - but only the selected model is addressable.
     */
   object run extends Cross[OnnxConfigPipeline](pairsDefaultModel) {
-    // Default cross segment, mirrors the default config.
-    def defaultCrossSegment = activeConfigKey
+    // Default cross segments, mirroring the default model and config.
+    override def defaultCrossSegments: Seq[String] =
+      Seq(defaultModelKey, activeConfigKey)
   }
-  def default = run(defaultOnnxPath.baseName, activeConfigKey)
+
+  /** Alias for `run[]`, the default pipeline running on every default values.
+    * Defaults can be overriden through global jvm opts, i.e. -Dvta.* flags
+    *
+    * As it is a pure alias, the outputs are still cached in the run[]
+    * destinations, (out/run/<model>/<config>)
+    */
+  def default: OnnxConfigPipeline = run(defaultModelKey, activeConfigKey)
 
   /** The Vivado build, one independently cached instance per (config, board):
     * an FPGA build is identified by both.
@@ -376,7 +395,8 @@ object `package` extends Module with SpotlessModule {
     * switching board does not re-synthesize the other one.
     */
   object targets extends Cross[TargetModule](fpgaTargets) {
-    def defaultCrossSegment = Seq(activeConfigKey, defaultBoardName)
+    override def defaultCrossSegments: Seq[String] =
+      Seq(activeConfigKey, defaultBoardName)
   }
 
 }

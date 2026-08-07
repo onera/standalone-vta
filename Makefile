@@ -3,7 +3,7 @@ ONNX ?= examples/onnx/qyolo_pattern.onnx
 CONFIG ?= vta_config
 BOARD ?= zcu104
 DDR_BASE ?= 0x100000
-MILL_FLAGS = 
+MILL_FLAGS ?= 
 DEFINES = -Dvta.onnx.file=$(ONNX) -Dvta.board.name=$(BOARD) -Dvta.ddr.base=$(DDR_BASE) -Dvta.config.file=$(CONFIG)
 CMD = $(MILL) $(MILL_FLAGS) $(DEFINES)
 
@@ -13,7 +13,6 @@ DATA_LOADER ?= elf sd
 all: help
 
 .PHONY: all compile fsim vsim synthesis baremetal inspect help clean cleaner clean-target check_onnx check_irs
-
 
 compile: ## Compile the ONNX to VTA binaries
 	@$(CMD) default.compile
@@ -30,8 +29,9 @@ synthesis: ## Run vivado synthesis
 baremetal: ## Create vitis workspace with baremetal apps
 	@$(CMD) default.createVitisProject --runner $(RUNNER) --data-loader $(DATA_LOADER)
 
-check_onnx: ## Run all example in simulation on default config (may fail on qyolo)
-	@$(MILL) -k examples.onnx[_,vta_config].fsim
+# --keep-going/-k: continue build even if previous tasks fails
+check_onnx: ## Run all examples in simulation on default config (may fail on qyolo)
+	@$(MILL) --keep-going examples.onnx[_,vta_config].fsim
 
 check_irs: ## Run raw vta ir in both simulators on $CONFIG
 	@$(MILL) -k examples.ir[_,_].check
@@ -42,11 +42,14 @@ tests: ## Run all test suites (slow ~20min)
 inspect: ## Run mill inspect on default target, pipe this in a pager (less,more,...)
 	@$(CMD) inspect default._
 
-clean: ## Clean only the current config run artifacts (out/run/<MODEL>)
+clean: ## Clean only the current (model, config) run artifacts
 	@$(CMD) clean run[]
 
-cleaner: ## Clean all cached artifacts (out/run)
-	@$(CMD) clean run[_]
+cleaner: ## Clean all configs run artifacts for the current model
+	@$(CMD) clean run[_,_]
+
+clean-run: ## Clean every run artifacts
+	@$(CMD) clean run
 
 clean-target: ## Clean fpga target cache
 	@$(CMD) clean targets[$(CONFIG),$(BOARD)]
@@ -60,8 +63,8 @@ help: ## Show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?##' $(MAKEFILE_LIST) \
 	  | awk 'BEGIN {FS = ":[^#]*##[ \t]*"}; {printf "\033[36m%-28s\033[0m %s\n", $$1, $$2}'
 	@echo " Current target:"
-	@echo "  ONNX: $(ONNX) (onnx model)"
-	@echo "  CONFIG: $(CONFIG) (target config)"
-	@echo "  BOARD: $(BOARD) (target FPGA board name)"
+	@echo "  ONNX: $(ONNX) (path to the onnx model)"
+	@echo "  CONFIG: $(CONFIG) (target config key: config/$(CONFIG).json)"
+	@echo "  BOARD: $(BOARD) (target FPGA board name: modules/fpga/boards/$(BOARD).json)"
 	@echo "  DDR_BASE: $(DDR_BASE) (DDR offset for baremetal)"
 
