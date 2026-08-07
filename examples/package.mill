@@ -3,6 +3,7 @@ package build.examples
 import mill._
 import build.modules.VtaPipelineModule
 import build.modules.{HasRawIrModel, SimTasks}
+import mill.api.BuildCtx
 
 /** One example model built for one config: the full pipeline, keyed by both.
   *
@@ -35,6 +36,7 @@ trait IrExampleModule
     with HasRawIrModel
     with SimTasks {
 
+  override def moduleDir = super.moduleDir / os.up / "vta_ir" 
   def configKey = crossValue2
 
   /** This fixture's name: the first cross value. */
@@ -42,11 +44,8 @@ trait IrExampleModule
 
   /** The fixtures live in examples/vta_ir.
     *
-    * Taken from build.vtaIrDir rather than moduleDir so the directory and the
-    * task name (`examples.ir`) can differ without silently resolving to an
-    * empty directory; it is also the same value the cross keys are listed from.
     */
-  def irRoot: os.Path = build.vtaIrDir
+  def irRoot: os.Path = moduleDir
 
   /** Run both simulators on this fixture and byte-compare their outputs.
     *
@@ -55,7 +54,7 @@ trait IrExampleModule
     * compile, so they see identical operands. Writes each run to its own
     * subdirectory of this task's dest. Fails the build on a mismatch.
     */
-  def check() = Task.Command {
+  override def check() = Task.Command {
     val compOut = compile().path
     // Resolved off the module, not off a local val: the Task macro cannot lift
     // a Task#apply() whose receiver is a local val of this block.
@@ -88,6 +87,22 @@ trait IrExampleModule
   */
 object `package` extends Module {
 
+  private def onnxDir = moduleDir / "onnx"
+
+  /** The example models under examples/onnx, as cross keys (path relative to
+    * onnxDir, extension stripped).
+    */
+  private def exampleModels = BuildCtx.watchValue(
+    os.list(onnxDir)
+      .filter(_.ext == "onnx")
+      .map(_.relativeTo(onnxDir).toString.stripSuffix(".onnx"))
+      .sorted
+  )
+
+  /** Every (example model, config) pair - the Cross keys for `examples.onnx`.
+   */
+  private def examplePairs = exampleModels.flatMap(m => build.configNames.map(c => (m, c)))
+
   /** End-to-end pipelines for every (model, config) pair: compile, simulate,
     * check, generate baremetal.
     *
@@ -95,9 +110,23 @@ object `package` extends Module {
     * address it as `examples.onnx[<model>,<config>]`, e.g. `./mill
     * "examples.onnx[lenet5,vta_w8b].fsim"`.
     */
-  object onnx extends Cross[ExampleModule](build.examplePairs){
+  object onnx extends Cross[ExampleModule](examplePairs){
     override def defaultCrossSegments: Seq[String] = Seq("lenet5",build.activeConfigKey)
   }
+
+  /** Plain (non-Task) path to the raw VTA IR fixtures. */
+  def vtaIrDir: os.Path = moduleDir / "vta_ir"
+
+  /** The hand-written VTA IR fixtures under examples/vta_ir, as cross keys
+    * (extension stripped).
+    */
+  private def exampleIrModels = BuildCtx.watchValue(
+    os.list(vtaIrDir).filter(_.ext == "json").map(_.baseName).sorted
+  )
+
+  /** Every (IR fixture, config) pair - the Cross keys for `examples.ir`. */
+  private def exampleIrPairs =
+    exampleIrModels.flatMap(m => build.configNames.map(c => (m, c)))
 
   /** End-to-end runs for every (raw VTA IR fixture, config) pair.
     *
@@ -105,5 +134,7 @@ object `package` extends Module {
     * address it as `examples.ir[<fixture>,<config>]`, e.g. `./mill
     * "examples.ir[matmul_16x16,vta_config].check"`.
     */
-  object ir extends Cross[IrExampleModule](build.exampleIrPairs)
+  object ir extends Cross[IrExampleModule](exampleIrPairs){
+    override def moduleDir = vtaIrDir
+  }
 }

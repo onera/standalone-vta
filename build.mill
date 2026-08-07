@@ -177,18 +177,6 @@ object `package` extends Module with SpotlessModule {
   // these directories update the cross entries with no build-file edit.
   // -------------------------------------------------------------------------
 
-  def onnxDir = BuildCtx.workspaceRoot / "examples" / "onnx"
-
-  /** The example models under examples/onnx, as cross keys (path relative to
-    * onnxDir, extension stripped).
-    */
-  def exampleModels = BuildCtx.watchValue(
-    os.list(onnxDir)
-      .filter(_.ext == "onnx")
-      .map(_.relativeTo(onnxDir).toString.stripSuffix(".onnx"))
-      .sorted
-  )
-
   /** Plain (non-Task) path to config/, listed eagerly like onnxDir. */
   def configDirPath = BuildCtx.workspaceRoot / "config"
 
@@ -197,23 +185,7 @@ object `package` extends Module with SpotlessModule {
     os.list(configDirPath).filter(_.ext == "json").map(_.baseName).sorted
   )
 
-  /** Every (example model, config) pair - the Cross keys for `examples.onnx`.
-    */
-  def examplePairs = exampleModels.flatMap(m => configNames.map(c => (m, c)))
 
-  /** Plain (non-Task) path to the raw VTA IR fixtures. */
-  def vtaIrDir = BuildCtx.workspaceRoot / "examples" / "vta_ir"
-
-  /** The hand-written VTA IR fixtures under examples/vta_ir, as cross keys
-    * (extension stripped).
-    */
-  def exampleIrModels = BuildCtx.watchValue(
-    os.list(vtaIrDir).filter(_.ext == "json").map(_.baseName).sorted
-  )
-
-  /** Every (IR fixture, config) pair - the Cross keys for `examples.ir`. */
-  def exampleIrPairs =
-    exampleIrModels.flatMap(m => configNames.map(c => (m, c)))
 
   /** Plain (non-Task) path to the FPGA board definitions. */
   def boardsDirPath = BuildCtx.workspaceRoot / "modules" / "fpga" / "boards"
@@ -254,8 +226,9 @@ object `package` extends Module with SpotlessModule {
 
     /** Content hash of this module's config JSON: depend on it to re-run when
       * the config file is edited in place.
+      *
       */
-    def configSignature = Task { configSig(configPath) }
+    def configSignature = Task.Input { configSig(configPath) }
   }
 
   /** The FPGA board a board-dependent module targets: the other identity axis

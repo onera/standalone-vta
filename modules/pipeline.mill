@@ -5,6 +5,7 @@ import build.HasFpgaBoard
 import build.HasVtaConfig
 import mill.api.BuildCtx
 import mainargs.arg
+import build.modules.{simulator,compiler,fpga,hardware}
 
 /** The per-(model, config) pipeline, split by domain so a module can compose
   * the parts it needs instead of inheriting all of them.
@@ -87,7 +88,7 @@ trait HasOnnxModel extends HasCompilableModel {
   def compile = Task {
     configSignature() // invalidate on config-content change
     val compOut = Task.dest
-    build.modules.compiler
+    compiler
       .runner()
       .compileModel(onnxPath().path, configPath, compOut)
     PathRef(compOut, quick = true)
@@ -102,7 +103,7 @@ trait HasOnnxModel extends HasCompilableModel {
     * instances would corrupt the memory map silently rather than failing.
     */
   def reference = Task {
-    build.modules.compiler
+    compiler
       .runner()
       .runReference(onnxPath().path, compile().path, Task.dest)
     PathRef(Task.dest)
@@ -147,7 +148,7 @@ trait HasRawIrModel extends HasCompilableModel {
     */
   def compile = Task {
     configSignature() // invalidate on config-content change
-    build.modules.compiler
+    compiler
       .runner()
       .compileIr(irPath().path, configPath, Task.dest)
     PathRef(Task.dest, quick = true)
@@ -176,18 +177,16 @@ trait SimTasks extends HasCompilableModel {
     val compOut = compile().path
     val simOut = Task.dest
     val refDir = referenceDir()
-    build.modules
-      .simulator(configKey)
+    simulator(configKey)
       .runner()
       .launch(
         binary().path,
         Seq("--comp-dir", compOut.toString, "--output", simOut.toString)
           ++ referenceArgs() ++ defaultSimFlags ++ flags
       )
-    // A fixture without a golden has nothing to check against; the caller
-    // compares the two simulators instead.
+    // A fixture without a golden has nothing to check against
     if (check)
-      build.modules.compiler
+      compiler
         .runner()
         .runCheck(compOut, refDir.get, simOut, rtl = isRtl)
     PathRef(simOut)
@@ -204,7 +203,7 @@ trait SimTasks extends HasCompilableModel {
     *   run and print a single VTA layer.
     */
   def fsim(args: Args) = Task.Command {
-    simRun(build.modules.simulator(configKey).fsimBinary, args.value)()
+    simRun(simulator(configKey).fsimBinary, args.value)()
   }
 
   /** Run the Verilated RTL (Chisel) simulator on this example and check its
@@ -219,12 +218,38 @@ trait SimTasks extends HasCompilableModel {
     */
   def vsim(args: Args) = Task.Command {
     simRun(
-      build.modules.simulator(configKey).vsimBinary,
+      simulator(configKey).vsimBinary,
       args.value,
       isRtl = true
     )()
   }
 
+
+  /** Run both simulators on this fixture and byte-compare their outputs.
+    *
+    */
+  def check() = Task.Command {
+    val compOut = compile().path
+    val fsimBin = build.modules.simulator(configKey).fsimBinary().path
+    val vsimBin = build.modules.simulator(configKey).vsimBinary().path
+    val sim = build.modules.simulator(configKey).runner()
+    val compare = build.modules.compiler.runner()
+    val fsimOut = Task.dest / "fsim"
+    val vsimOut = Task.dest / "vsim"
+
+    sim.launch(
+      fsimBin,
+      Seq("--comp-dir", compOut.toString, "--output", fsimOut.toString)
+        ++ defaultSimFlags
+    )
+    sim.launch(
+      vsimBin,
+      Seq("--comp-dir", compOut.toString, "--output", vsimOut.toString)
+        ++ defaultSimFlags ++ Seq("--no-timeout")
+    )
+    compare.runCompare(fsimOut / "final_output.bin", vsimOut / "final_output_rtl.bin")
+    PathRef(Task.dest)
+  }
 }
 
 /** The per-layer fsim goldens, and so the NN-mode half of the pipeline.
@@ -252,7 +277,7 @@ trait LayerDumpTasks extends SimTasks {
   // are produced the way the runs checked against them are.
   def layerDumps = Task {
     simRun(
-      build.modules.simulator(configKey).fsimBinary,
+      simulator(configKey).fsimBinary,
       Seq("--dump-layers"),
       check = false
     )()
@@ -321,8 +346,8 @@ trait BaremetalTasks extends LayerDumpTasks {
         g.path.toString
       )
     )
-    build.modules.fpga.software.runGenNnBaremetal(
-      build.modules.fpga.software.runner(),
+    fpga.software.runGenNnBaremetal(
+      fpga.software.runner(),
       compileDir,
       refDir,
       configKey,
@@ -422,12 +447,12 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
       .targets(configKey, fpgaBoard)
       .synth()
       .path / "manifest.json"
-    build.modules.fpga.software
+    fpga.software
       .vitisRunner()
       .addApps(
         workspace = ws,
         namePrefix = modelKey,
-        cpu = Some(build.modules.fpga.readManifestField(manifest, "cpu")),
+        cpu = Some(fpga.readManifestField(manifest, "cpu")),
         genDir = Some(gen),
         extraArgs = extraArgs
       )
@@ -438,7 +463,7 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
     val refOut = referenceDir().getOrElse(
       sys.error("the uart check needs a reference (ONNX front end only)")
     )
-    build.modules.fpga.software
+    fpga.software
       .runner()
       .run(
         args = (
@@ -464,7 +489,7 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
     val refOut = referenceDir().getOrElse(
       sys.error("the uart runner needs a reference (ONNX front end only)")
     )
-    build.modules.fpga.software.runUartScript(
+    fpga.software.runUartScript(
       refOut / "input_nn.bin",
       Task.dest,
       compile().path,
@@ -499,7 +524,7 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
       s"${modelKey}_$configKey"
     val xsaPath = os.Path(xsa, BuildCtx.workspaceRoot)
     // No --cpu: on this path it comes from `args`, along with --xsa.
-    build.modules.fpga.software
+    fpga.software
       .vitisRunner()
       .addApps(
         workspace = ws,
@@ -571,7 +596,7 @@ trait PostSynthTasks extends LayerDumpTasks with HasFpgaBoard {
     // runGenNnBaremetal does). simOutDir is where the TB reads the per-layer
     // input<layer>.bin dumps the fsim run above just wrote; without it the
     // emitter falls back to a stale relative default and cannot find them.
-    build.modules.hardware
+    hardware
       .runner()
       .run(
         args = Seq(
@@ -587,7 +612,7 @@ trait PostSynthTasks extends LayerDumpTasks with HasFpgaBoard {
 
     // Hand the inputs to the flow, which owns the stage sequencing and the
     // verdicts (propagateEnv so xsim sees XILINX_*).
-    build.modules.fpga.synthesis
+    fpga.synthesis
       .runner()
       .run(
         args = Seq(
