@@ -69,11 +69,12 @@ This step compiles the neural network model into VTA instructions and configures
    underlying Mill task from the repo root):
    ```bash
    make gen CONFIG=../../../config/vta_config.json DDR_BASE=0x200000
-   # equivalently, from the repo root:
-   ./mill -Dvta.config.file=vta_config.json modules.fpga.software.genNnBaremetal ../../../compiler_output/ \
+   # equivalently, from the repo root (paths are relative to the repo root
+   # there, not to this directory):
+   ./mill -Dvta.config.file=vta_config.json modules.fpga.software.genNnBaremetal compiler_output/ \
        --ddr-base    0x200000      \
        --max-addr    0x1ff00000    \
-       --outdir      gen
+       --outdir      modules/fpga/software/gen
    ```
 
 4. **Initialize the Vitis baremetal workspace:**
