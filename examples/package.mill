@@ -46,35 +46,8 @@ trait IrExampleModule
     */
   def irRoot: os.Path = moduleDir
 
-  /** Run both simulators on this fixture and byte-compare their outputs.
-    *
-    * The check that replaces the reference comparison for a fixture with no
-    * golden: fsim and vsim must agree byte for byte. Both read the same cached
-    * compile, so they see identical operands. Writes each run to its own
-    * subdirectory of this task's dest. Fails the build on a mismatch.
-    */
-  override def check() = Task.Command {
-    val compOut = compile().path
-    // Resolved off the module, not off a local val: the Task macro cannot lift
-    // a Task#apply() whose receiver is a local val of this block.
-    val fsimBin = build.modules.simulator(configKey).fsimBinary().path
-    val vsimBin = build.modules.simulator(configKey).vsimBinary().path
-    val sim = build.modules.simulator(configKey).runner()
-    val compare = build.modules.compiler.runner()
-    val fsimOut = Task.dest / "fsim"
-    val vsimOut = Task.dest / "vsim"
-
-    sim.launch(
-      fsimBin,
-      Seq("--comp-dir", compOut.toString, "--output", fsimOut.toString)
-        ++ defaultSimFlags
-    )
-    sim.launch(
-      vsimBin,
-      Seq("--comp-dir", compOut.toString, "--output", vsimOut.toString)
-        ++ defaultSimFlags ++ Seq("--no-timeout")
-    )
-    compare.runCompare(fsimOut / layerOutputName, vsimOut / layerOutputName)
+  override def checker() = Task.Anon {
+    compareSim(layerOutputName, layerOutputName)()
     PathRef(Task.dest)
   }
 }

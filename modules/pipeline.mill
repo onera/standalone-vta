@@ -220,15 +220,7 @@ trait SimTasks extends HasCompilableModel {
     simRun(simulator(configKey).vsimBinary, args.value, isRtl = true)()
   }
 
-  /** Run both simulators on this example and byte-compare their outputs.
-    *
-    * Compares fsim against vsim directly instead of each against the ONNX
-    * reference: this is what isolates a C++/RTL divergence, and it is the only
-    * check available for a model with no golden. Both legs run off the one
-    * cached compile and write to fsim/ and vsim/ in this task's dest; any
-    * difference fails the build. Always simulates.
-    */
-  def check() = Task.Command {
+  def compareSim(fName:String,vName: String) = Task.Anon {
     val compOut = compile().path
     val fsimBin = build.modules.simulator(configKey).fsimBinary().path
     val vsimBin = build.modules.simulator(configKey).vsimBinary().path
@@ -248,9 +240,23 @@ trait SimTasks extends HasCompilableModel {
         ++ defaultSimFlags ++ Seq("--no-timeout")
     )
     compare.runCompare(
-      fsimOut / "final_output.bin",
-      vsimOut / "final_output_rtl.bin"
+      fsimOut / fName,
+      vsimOut / vName
     )
+    PathRef(Task.dest)
+  }
+  def checker() = Task.Anon{compareSim("final_output.bin","final_output_rtl.bin")()}
+
+  /** Run both simulators on this example and byte-compare their outputs.
+    *
+    * Compares fsim against vsim directly instead of each against the ONNX
+    * reference: this is what isolates a C++/RTL divergence, and it is the only
+    * check available for a model with no golden. Both legs run off the one
+    * cached compile and write to fsim/ and vsim/ in this task's dest; any
+    * difference fails the build. Always simulates.
+    */
+  def check() = Task.Command {
+    checker()()
     PathRef(Task.dest)
   }
 }
