@@ -666,8 +666,6 @@ int run_nn(const FsimOptions &opts) {
       // Save the result
       ctx.value = float_res;
 
-    } else {
-      NULL;
     }
 
     // E. RESCALE THE RESULT
@@ -683,6 +681,14 @@ int run_nn(const FsimOptions &opts) {
                           scale,    // rescale_factor (float)
                           offsetC   // offset
       );
+    }
+
+    // Dump rescaled NCHW output if requested
+    if (dump_layers && !ctx.res.empty()) {
+      output_tensor(
+          ctx.res, block_size, 1, out_tensor_channel, out_tensor_height,
+          out_tensor_width,
+          construct_sim_output_path("fsim_out_" + ctx.suffix + ".bin"));
     }
   }
 
