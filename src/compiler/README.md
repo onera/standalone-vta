@@ -19,13 +19,29 @@ the FPGA consume. Both are normally driven from `examples/Makefile`
     *   `operations_definition/`: instruction and UOP generation. Owns the ISA
         bitfield layout (`structures.py`). See the
         [dedicated README](vta_compiler/operations_definition/README.md).
-    *   `matrix_partitioning/`: overfit detection and GEMM tiling strategies.
+    *   `matrix_partitioning/`: overfit detection, GEMM tiling, and stable ACC
+        SRAM placement for ALU reductions. See the
+        [partitioning and ACC addressing guide](vta_compiler/matrix_partitioning/README.md).
     *   `dram_allocation/`: DRAM byte/logical address assignment.
     *   `toolbox/`: block-index helpers.
 *   `reference_computation/`: the golden reference path. `reference_onnx.py` computes
     the ONNX reference output; `check_bin.py` compares a simulator's
     `final_output.bin` against it.
 *   `utils/`: configuration parsing, JSON parsing, and output-path helpers.
+
+## ACC SRAM partitioning
+
+Accumulator ALU reductions use vector-level SRAM addresses. A logical vector is
+identified as `(block_idx, row_inside_block)`, while its physical ACC address is
+its position in `step[3]` (`sram_status`). Reordering that logical state does not
+move hardware data, so values that remain live across partition steps must keep
+stable positions.
+
+The [matrix partitioning guide](vta_compiler/matrix_partitioning/README.md)
+documents the seven fields of a strategy step, the distinction between a
+`16 x 16` matrix block and an ACC vector slot, instruction/UOP generation, and a
+worked VGG16 `MaxPool3` example including the historical destination-renumbering
+bug.
 
 ## Usage
 

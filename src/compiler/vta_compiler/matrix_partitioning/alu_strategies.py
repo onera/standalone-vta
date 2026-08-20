@@ -1,130 +1,191 @@
-# IMPORT PACKAGES
-# ---------------
-import numpy as np
+"""Partition VTA ALU operations while preserving accumulator SRAM locations."""
 
-from matrix_partitioning.utils_strategies import *
+from typing import Any, Dict, List, Sequence, Tuple
 
-###############################################
+from matrix_partitioning.utils_strategies import get_dst_src_vectors
 
-# ALU Strategy Generation
-# -----------------------
-def alu_strategy(sorted_alu_ops, acc_buffer_size, idx_to_store):
+
+# TODO: Move these shared partitioning types to a dedicated strategy_types
+# module. Replace the positional seven-list tuple with a StrategyStep NamedTuple
+# used consistently by all partitioning strategies and instruction generation.
+AluOperation = List[Any]
+VectorIndex = Tuple[int, int]
+StrategyStep = Tuple[
+    List[Any],
+    List[Any],
+    List[VectorIndex],
+    List[VectorIndex],
+    List[VectorIndex],
+    List[VectorIndex],
+    List[AluOperation],
+]
+
+
+def _unique_vectors(vectors: Sequence[VectorIndex]) -> List[VectorIndex]:
+    """Returns vectors in first-seen order without duplicates.
+
+    Args:
+        vectors: SRAM vector identifiers to deduplicate.
+
+    Returns:
+        Ordered list containing each vector identifier once.
     """
-    Generates a loading and execution strategy for ALU operations based on a limited buffer size.
-    This version enforces a strict sequential execution order for operations targeting the same destination.
+    return list(dict.fromkeys(vectors))
 
-    Inputs:
-        - sorted_alu_ops (list): A list of ALU operations, pre-sorted by destination vector.
-        - acc_buffer_size (int): The number of vectors that fit the accumulator SRAM buffer.
 
-    Outputs:
-        - strategy (list of tuple): Each tuple represents a computation step.
-          The tuple is composed of several lists: ([Ai], [Bi], [Xi], [Mi], [Ti], [Ci], [Operations]).
-            1. [Ai]: The A input elements to load (empty for ALU).
-            2. [Bi]: The B weight elements to load (empty for ALU).
-            3. [Xi]: The X accumulator elements to load for this step.
-            4. [Mi]: The current elements within the SRAM ACC buffer (memory status).
-            5. [Ti]: The elements that have been computed and stored back to DRAM so far.
-            6. [Ci]: The C output elements to store in DRAM in this step.
-            7. [Operations]: The ALU operations to perform in this step.
+def _split_vector_operation(
+    operation: AluOperation,
+    source_capacity: int,
+) -> List[Tuple[AluOperation, List[VectorIndex]]]:
+    """Splits one ALU operation into source sets that fit beside its destination.
+
+    Operation order and repeated sources are preserved because repetitions are
+    significant for operations such as ADD. Only the SRAM load list is
+    deduplicated.
+
+    Args:
+        operation: Lowered ALU operation containing exactly one destination.
+        source_capacity: Maximum number of distinct source vectors in one step.
+
+    Returns:
+        Operation fragments paired with the distinct sources they require.
+
+    Raises:
+        ValueError: If no source slot is available for a vector-vector operation.
     """
-    # Init the strategy [([], [], [Xi], [SRAM], [DRAM], [Ci], [Ops])]
-    strategy = []
-    load_X = []
-    sram_status = []
-    # dram_status = []
-    dram_status = idx_to_store # To filter
-    store_C = []
-    ops = []
+    destination, sources = get_dst_src_vectors(operation)
+    if not sources:
+        return [(operation, [])]
+    if source_capacity < 1:
+        raise ValueError("An ALU vector-vector operation requires one source slot")
 
-    if (acc_buffer_size < 2):
-        raise Exception(f"ERROR: The capacity of the buffer is {acc_buffer_size} but it must be at least 2 (to load a DST vector and a SRC vector)! \n\n")
+    fragments: List[Tuple[AluOperation, List[VectorIndex]]] = []
+    current_sources: List[VectorIndex] = []
+    current_unique_sources: List[VectorIndex] = []
 
-    # Nb of ALU operations
-    nb_alu = len(sorted_alu_ops)
-    
-    # Iterate over all the alu_operations, each ALU contains a single DST vector
-    for alu_idx, alu_ops in enumerate(sorted_alu_ops):
-        # Get the DST and SRC vectors
-        dst_vector, src_vectors = get_dst_src_vectors(alu_ops=alu_ops)
+    for source in sources:
+        candidate_unique = _unique_vectors(current_unique_sources + [source])
 
-        # Append ops
-        ops.append(alu_ops)
+        # Close the current fragment before an additional distinct source would
+        # exceed the SRAM slots available beside the live destination vector.
+        if current_sources and len(candidate_unique) > source_capacity:
+            fragment = [operation[0], operation[1], [(destination, current_sources)]]
+            fragments.append((fragment, current_unique_sources))
+            current_sources = []
+            current_unique_sources = []
 
-        # Check if the DST_vector is in SRAM
-        if (not dst_vector in sram_status):
-            # Load the DST vector 
-            load_X.append(dst_vector)
-            sram_status.append(dst_vector)
-        if (not dst_vector in store_C):
-            store_C.append(dst_vector)
+        current_sources.append(source)
+        current_unique_sources = _unique_vectors(current_unique_sources + [source])
 
-        # Iterate over the SRC vectors
-
-        for src_idx, src_vector in enumerate(src_vectors):
-            if (len(sram_status) >= acc_buffer_size):
-                # Filter the ops
-                filtered_ops = filter_op_for_step(alu_ops=ops, sram_status=sram_status)
-                # Append the strategy [([], [], [Xi], [SRAM], [DRAM], [Ci], [Ops])]
-                strategy.append( ([], [], load_X, sram_status, dram_status, [], filtered_ops) )
-
-                # Reset the lists (SRAM maintains DST vector)
-                load_X = []
-                # load_X = store_C.copy()
-                sram_status = store_C.copy()
-
-            # Update load and SRAM
-            load_X.append(src_vector)
-            sram_status.append(src_vector)
-
-        # Check if it is the last ALU
-        if (alu_idx < nb_alu - 1):
-            # Check if the next ALU uses the same DST vector
-            next_dst, next_src = get_dst_src_vectors(sorted_alu_ops[alu_idx+1])
-
-            # Check if the next ALU is a vector-scalar operation
-            if (sorted_alu_ops[alu_idx+1][0].endswith("_IMM") or sorted_alu_ops[alu_idx+1][0] == "RELU"):
-                if (next_dst in sram_status):
-                    continue
-            
-            # Vector-vector operation
-            else: 
-                # Check the size of the next ALU_ops
-                if ( (next_dst in sram_status) and (len(next_src)+len(sram_status) < acc_buffer_size - 1) ):
-                    # If the next ALU fit the buffer, continue the step
-                    continue
-                elif (len(next_src)+len(sram_status) < acc_buffer_size - 1):
-                    # If the next ALU fit the buffer, continue the step
-                    continue
-
-                # If it the same DST vector but it does not fit, finalise the step but do not store
-                elif (next_dst in sram_status):
-                    # Filter the ops
-                    filtered_ops = filter_op_for_step(alu_ops=ops, sram_status=sram_status)
-                    # Append the strategy [([], [], [Xi], [SRAM], [DRAM], [Ci], [Ops])]
-                    strategy.append( ([], [], load_X, sram_status, dram_status, [], filtered_ops) )
-                    # Reset
-                    load_X = []
-                    sram_status = store_C.copy()
-                    ops = []
-                    continue
+    fragment = [operation[0], operation[1], [(destination, current_sources)]]
+    fragments.append((fragment, current_unique_sources))
+    return fragments
 
 
-        # Else, finalise the step
+def _group_operations_by_destination(
+    sorted_alu_ops: Sequence[AluOperation],
+) -> List[Tuple[VectorIndex, List[AluOperation]]]:
+    """Groups consecutive, pre-sorted ALU operations by destination vector.
 
-        # Update the DRAM
-        # dram_status = dram_status + store_C
-        # Filter the ops
-        filtered_ops = filter_op_for_step(alu_ops=ops, sram_status=sram_status)
-        # Append the strategy [([], [], [Xi], [SRAM], [DRAM], [Ci], [Ops])]
-        strategy.append( ([], [], load_X, sram_status, dram_status, store_C, filtered_ops) )
+    Args:
+        sorted_alu_ops: Operations sorted stably by destination vector.
 
-        # Reset the lists
-        load_X = []
-        sram_status = []
-        store_C = []
-        ops = []
+    Returns:
+        Destination vectors paired with their ordered operations.
+    """
+    grouped: List[Tuple[VectorIndex, List[AluOperation]]] = []
+    operations_by_destination: Dict[VectorIndex, List[AluOperation]] = {}
 
-    # Return the strategy
+    for operation in sorted_alu_ops:
+        destination, _ = get_dst_src_vectors(operation)
+        if destination not in operations_by_destination:
+            operations_by_destination[destination] = []
+
+            # Preserve first-seen destination order so strategy generation and
+            # the resulting dense DRAM store order remain deterministic.
+            grouped.append((destination, operations_by_destination[destination]))
+        operations_by_destination[destination].append(operation)
+
+    return grouped
+
+
+def alu_strategy(
+    sorted_alu_ops: Sequence[AluOperation],
+    acc_buffer_size: int,
+    idx_to_store: Sequence[VectorIndex],
+) -> List[StrategyStep]:
+    """Builds an ALU partition strategy with stable SRAM destination addresses.
+
+    A reduction such as MaxPool updates one destination several times. When the
+    reduction spans multiple strategy steps, that destination must retain the
+    same SRAM address until its final store. Each destination is therefore kept
+    at slot zero, while source vectors occupy the remaining slots and may be
+    replaced between steps.
+
+    Args:
+        sorted_alu_ops: Lowered ALU operations, stably sorted by destination.
+        acc_buffer_size: Number of accumulator vectors available in SRAM.
+        idx_to_store: Ordered output vectors used to derive dense DRAM addresses.
+
+    Returns:
+        Strategy steps in ``(A, B, X, SRAM, DRAM, C, operations)`` form.
+
+    Raises:
+        ValueError: If the accumulator cannot hold a destination and a source.
+    """
+    if acc_buffer_size < 2:
+        raise ValueError(
+            "The accumulator buffer must hold at least one destination and one source"
+        )
+
+    strategy: List[StrategyStep] = []
+    dram_status = list(idx_to_store)
+    source_capacity = acc_buffer_size - 1
+
+    for destination, destination_operations in _group_operations_by_destination(
+        sorted_alu_ops
+    ):
+        segments: List[Tuple[List[AluOperation], List[VectorIndex]]] = []
+        segment_operations: List[AluOperation] = []
+        segment_sources: List[VectorIndex] = []
+
+        for operation in destination_operations:
+            for fragment, fragment_sources in _split_vector_operation(
+                operation, source_capacity
+            ):
+                combined_sources = _unique_vectors(segment_sources + fragment_sources)
+
+                # Operations sharing a destination can execute in one segment
+                # only while all their distinct sources fit in ACC SRAM.
+                if segment_operations and len(combined_sources) > source_capacity:
+                    segments.append((segment_operations, segment_sources))
+                    segment_operations = []
+                    segment_sources = []
+
+                segment_operations.append(fragment)
+                segment_sources = _unique_vectors(segment_sources + fragment_sources)
+
+        if segment_operations:
+            segments.append((segment_operations, segment_sources))
+
+        for segment_index, (operations, sources) in enumerate(segments):
+            # Reserve SRAM slot zero for the destination throughout the complete
+            # reduction; replace only the source slots between partial segments.
+            sram_status = [destination] + [
+                source for source in sources if source != destination
+            ]
+
+            # Load the destination once. Later segments reuse its partial result
+            # already held in slot zero and load only their new source vectors.
+            load_acc = list(sram_status) if segment_index == 0 else sram_status[1:]
+            is_final_segment = segment_index == len(segments) - 1
+
+            # Expose the destination to STORE only after every source fragment
+            # contributing to the reduction has executed.
+            store_acc = [destination] if is_final_segment else []
+
+            strategy.append(
+                ([], [], load_acc, sram_status, dram_status, store_acc, operations)
+            )
+
     return strategy
-
