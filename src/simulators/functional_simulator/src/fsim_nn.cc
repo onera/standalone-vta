@@ -300,7 +300,7 @@ int run_nn(const FsimOptions &opts) {
     // C. RE-ORGANISE THE DATA
     // ---
     // Perform chaining and data reorganisation
-    if (reshape_info == "int32") {
+    if (processor == "vta" && reshape_info == "int32") {
       // If there is a single input
       if (nb_inp == 1) {
         // Get the previous layer
@@ -497,34 +497,37 @@ int run_nn(const FsimOptions &opts) {
       if (debug)
         printf("\t -> Processing QAdd (CPU)\n");
 
-      // Sanity checks
-      if (ctx.accX.size() != ctx.accY.size()) {
-        std::cerr << "ERROR: QAdd input mismatch size (accX: "
-                  << ctx.accX.size() << ", accY: " << ctx.accY.size() << ")"
-                  << std::endl;
-        return EXIT_FAILURE;
-      } else if (scaleC == 0.0f) {
-        std::cerr << "ERROR: ScaleC is zero for QAdd layer" << std::endl;
-        return EXIT_FAILURE;
-      }
+      // Define the layers
+      LayerContext &dep_ctx = layers_map[name_dep];
+      LayerContext &dep2_ctx = layers_map[name_dep2];
 
-      // Set the output size
-      ctx.outC.resize(ctx.accX.size());
+      // Get the previous layers
+      std::vector<out_dtype> dep_out =
+          convert_vector_type<out_dtype>(dep_ctx.res);
+      std::vector<out_dtype> dep2_out =
+          convert_vector_type<out_dtype>(dep2_ctx.res);
+
+      // Define the shape
+      std::vector<int> shape = {1, tensor_channel, tensor_height, tensor_width};
 
       // Perform the addition
-      for (size_t k = 0; k < ctx.accX.size(); ++k) {
-        // out = (Sa/Sc)*X + (Sb/Sc)*Y
-        // -> Computation decomposed to have semantic equivalence in floatting
-        // point
-        float valX = (float)ctx.accX[k] * scaleA;
-        float valY = (float)ctx.accY[k] * scaleB;
-        float val = (valX + valY) / scaleC;
-        // Round
-        ctx.outC[k] = (inp_dtype)std::nearbyint(val); // round vs nearbyint
-      }
+      ctx.outC = qlinear_add<out_dtype>(
+          dep_out,
+          dep2_out,
+          shape,
+          shape,
+          scaleA,
+          offsetA,
+          scaleB,
+          offsetB,
+          scaleC,
+          offsetC,
+          block_size
+      );
 
-      // Fix scale to 1.0
+      // Fix scale to 1.0 and offset to 0 (already applied in qlinear_add)
       scale = 1.0;
+      offsetC = 0;
     }
     // CONCATENATION
     else if (processor == "concat") {

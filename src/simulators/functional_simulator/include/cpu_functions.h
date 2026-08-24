@@ -1052,6 +1052,98 @@
       return data_formatting(flat_vector, m_rows, n_cols, block_size, isSquare);
   }
 
+  // qlinear_add
+  /**
+   * Quantized Linear Addition: adds two quantized tensors with different scales and zero-points.
+   * ONNX QLinearAdd formula:
+   * out = clamp(nearbyint(((A - zA) * sA + (B - zB) * sB) / sC) + zC, -128, 127)
+   *
+   * Args:
+   *   inputA: First input vector in VTA block format.
+   *   inputB: Second input vector in VTA block format.
+   *   shapeA: Shape of first tensor [N, C, H, W].
+   *   shapeB: Shape of second tensor [N, C, H, W].
+   *   scaleA: Scale for input A.
+   *   zpA: Zero-point for input A.
+   *   scaleB: Scale for input B.
+   *   zpB: Zero-point for input B.
+   *   scaleC: Scale for output C.
+   *   zpC: Zero-point for output C.
+   *   block_size: Architecture block size (default 16).
+   *
+   * Returns:
+   *   Formatted output vector in VTA block layout.
+   */
+  template <typename T>
+  std::vector<T> qlinear_add(
+      const std::vector<T>& inputA,
+      const std::vector<T>& inputB,
+      const std::vector<int>& shapeA,
+      const std::vector<int>& shapeB,
+      float scaleA,
+      int32_t zpA,
+      float scaleB,
+      int32_t zpB,
+      float scaleC,
+      int32_t zpC,
+      int block_size = 16
+  ) {
+      if (scaleC == 0.0f) {
+          throw std::invalid_argument("ERROR: Output scale cannot be zero for QLinearAdd.");
+      }
+      if (inputA.empty() || inputB.empty()) return {};
+
+      int N = shapeA[0];
+      int C = shapeA[1];
+      int H = shapeA[2];
+      int W = shapeA[3];
+
+      // 1. RECONSTRUCT TENSOR A
+      int matrix_hA = H * W * N;
+      int matrix_wA = C;
+      int block_colA = (matrix_wA + block_size - 1) / block_size;
+      auto list_blocksA = to_blocks(inputA, block_colA, block_size);
+      auto matrixA = unsplit(list_blocksA, block_size, matrix_hA, matrix_wA);
+      auto tensorA = mat_to_tensor(matrixA, N, C, H, W);
+
+      // 2. RECONSTRUCT TENSOR B
+      int matrix_hB = shapeB[2] * shapeB[3] * shapeB[0];
+      int matrix_wB = shapeB[1];
+      int block_colB = (matrix_wB + block_size - 1) / block_size;
+      auto list_blocksB = to_blocks(inputB, block_colB, block_size);
+      auto matrixB = unsplit(list_blocksB, block_size, matrix_hB, matrix_wB);
+      auto tensorB = mat_to_tensor(matrixB, shapeB[0], shapeB[1], shapeB[2], shapeB[3]);
+
+      // 3. COMPUTE SUM & REQUANTIZE TO OUTPUT TENSOR
+      std::vector<std::vector<std::vector<std::vector<T>>>> output_tensor(
+          N, std::vector<std::vector<std::vector<T>>>(
+              C, std::vector<std::vector<T>>(
+                  H, std::vector<T>(W, T{}))));
+
+      for (int b = 0; b < N; ++b) {
+          for (int c = 0; c < C; ++c) {
+              for (int h = 0; h < H; ++h) {
+                  for (int w = 0; w < W; ++w) {
+                      float valA = (static_cast<float>(tensorA[b][c][h][w]) - static_cast<float>(zpA)) * scaleA;
+                      float valB = (static_cast<float>(tensorB[b][c][h][w]) - static_cast<float>(zpB)) * scaleB;
+                      int32_t val_rec = static_cast<int32_t>(std::nearbyint((valA + valB) / scaleC)) + zpC;
+                      val_rec = std::clamp(val_rec, -128, 127);
+                      output_tensor[b][c][h][w] = static_cast<T>(val_rec);
+                  }
+              }
+          }
+      }
+
+      // 4. FLATTEN OUTPUT TENSOR
+      auto flat_vector = tensor_to_flat_matrix_rows(output_tensor);
+
+      // 5. APPLY DATA FORMATTING
+      int m_rows = N * H * W;
+      int n_cols = C;
+      bool isSquare = true;
+      return data_formatting(flat_vector, m_rows, n_cols, block_size, isSquare);
+  }
+
   // dequantize_linear
   /**
     * Dequantizes a vector of integers to floating point values.
