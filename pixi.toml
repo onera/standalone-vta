@@ -10,7 +10,7 @@ channels = ["conda-forge", "pytorch", "nvidia"]
 platforms = ["linux-64", "win-64"]
 
 [activation.env]
-MILL_VERSION = "1.1.7-jvm"
+MILL_VERSION = "1.1.8-jvm"
 MILL_COMPLETION_FZF = "yes" # enables fzf in the mill-completion shell script, switch to no for basic tab completion
 # Verilator (from conda-forge) bakes CXX = <conda c++> into verilated.mk, and
 # that compiler uses a conda sysroot that does not search /usr/include. Point it
