@@ -771,7 +771,9 @@ object `package` extends Module {
           "--ip-repo",
           ipRepo.toString,
           "--out",
-          outDir.toString
+          outDir.toString,
+          "--jobs",
+          build.vivadoJobs
         ) ++ stageFlags,
         mainClass = "fpga.synthesis.BuildFpga",
         workingDir = BuildCtx.workspaceRoot,
