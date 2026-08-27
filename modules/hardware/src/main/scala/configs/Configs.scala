@@ -32,6 +32,7 @@ import vta.util.config._
 class DefaultPynqConfig(core: Config) extends Config(core ++ new PynqConfig) {
   def this() = this(new CoreConfig)
 }
+class DefaultFpgaConfig extends Config(new CoreConfig ++ new FpgaExtWidthConfig)
 class DefaultF1Config extends Config(new CoreConfig ++ new F1Config)
 class DefaultDe10Config extends Config(new CoreConfig ++ new De10Config)
 

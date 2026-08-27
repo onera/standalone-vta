@@ -23,8 +23,8 @@ import vta.util.SimulationUtils.verilatorWithWaveDump
   *   the AXI parameters configuration
   */
 class MultiMemAxiClient(
-  memoryConfigs: Seq[MemoryConfig],
-  enforceOutBounds: Boolean = true
+    memoryConfigs: Seq[MemoryConfig],
+    enforceOutBounds: Boolean = true
 )(implicit val param: AXIParams)
     extends Module {
   val io = IO(new AXIClient(param))
@@ -34,24 +34,36 @@ class MultiMemAxiClient(
   val readHandle = io.readHandler(readEnable)
   val writeHandle = io.writeHandler(writeEnable)
 
-  // AXI AxADDR is a *byte* address. The memories below are 64-bit-word
-  // wide and word-indexed, so a byte address must be divided by the data-bus
-  // byte width to obtain a word index. baseAddress/words64 are likewise the
-  // byte base and the 64-bit-word count of each region.
+  // AXI AxADDR is a *byte* address. The backing stores below are always
+  // 64-bit-word wide and 64-bit-word indexed, because that is the format of
+  // the `.mem` files $readmemh'd into them (MemHexExporter/TestBenchLayout
+  // emit 16-hex-char lines) and the unit `words64` counts region sizes in.
+  // A data bus wider than 64 bits therefore covers `wordsPerBeat` consecutive
+  // 64-bit words per beat, which are concatenated on read and split on write.
+  require(
+    param.dataBits % 64 == 0,
+    s"MultiMemAxiClient: dataBits (${param.dataBits}) must be a multiple of 64"
+  )
   val bytesPerWord = param.dataBits / 8
   val wordShift = log2Ceil(bytesPerWord)
+  val bytesPerWord64 = 8
+  val wordsPerBeat = param.dataBits / 64
 
   def enCondition(bAddr: BigInt, hAddr: BigInt, addressW: UInt) =
     bAddr.U <= addressW && addressW < (hAddr).U
   val memories = memoryConfigs.map { p =>
-    val m = Mem(p.words64, UInt(param.dataBits.W))
+    // Round the depth up so the last beat of a region never indexes past the
+    // end when words64 is not a multiple of wordsPerBeat.
+    val depth64 =
+      ((p.words64 + wordsPerBeat - 1) / wordsPerBeat) * wordsPerBeat
+    val m = Mem(depth64, UInt(64.W))
       .suggestName(s"memory_${p.name}")
 
     if (p.path.trim().nonEmpty) {
       loadMemoryFromFileInline(m, p.path)
     }
 
-    val highByteAddr = p.baseAddress + p.words64 * bytesPerWord
+    val highByteAddr = p.baseAddress + p.words64 * bytesPerWord64
     (
       enCondition(p.baseAddress, highByteAddr, writeHandle),
       enCondition(p.baseAddress, highByteAddr, readHandle),
@@ -74,7 +86,7 @@ class MultiMemAxiClient(
     val awEndAddr = io.aw.bits.addr + (io.aw.bits.len << wordShift)
     val anyOutHit = outEntries
       .map { r =>
-        val high = r.baseAddress + r.words64 * bytesPerWord
+        val high = r.baseAddress + r.words64 * bytesPerWord64
         (r.baseAddress.U <= io.aw.bits.addr) && (awEndAddr < high.U)
       }
       .reduce(_ || _)
@@ -111,18 +123,25 @@ class MultiMemAxiClient(
     // stores drive partial strobes (e.g. 0x0f/0xf0) and must leave the masked
     // bytes untouched - matching dpi_mem.cc.
     when(io.w.fire && isSelForWrite) {
-      val idx = (writeHandle - p.baseAddress.U) >> wordShift
-      val curBytes = mem(idx).asTypeOf(Vec(bytesPerWord, UInt(8.W)))
+      // Byte address -> index of the FIRST 64-bit word the beat covers.
+      val idx0 =
+        (writeHandle - p.baseAddress.U) >> log2Ceil(bytesPerWord64)
       val newBytes = io.w.bits.data.asTypeOf(Vec(bytesPerWord, UInt(8.W)))
-      val merged = VecInit((0 until bytesPerWord).map { b =>
-        Mux(io.w.bits.strb(b), newBytes(b), curBytes(b))
-      }).asUInt
-      mem(idx) := merged
+      for (w <- 0 until wordsPerBeat) {
+        val idx = idx0 + w.U
+        val curBytes = mem(idx).asTypeOf(Vec(bytesPerWord64, UInt(8.W)))
+        val merged = VecInit((0 until bytesPerWord64).map { b =>
+          val beatByte = w * bytesPerWord64 + b
+          Mux(io.w.bits.strb(beatByte), newBytes(beatByte), curBytes(b))
+        }).asUInt
+        mem(idx) := merged
+      }
     }
-    (
-      isSelForRead,
-      Mux(isSelForRead, mem((readHandle - p.baseAddress.U) >> wordShift), 0.U)
-    )
+    val rdIdx0 = (readHandle - p.baseAddress.U) >> log2Ceil(bytesPerWord64)
+    val beat = VecInit(
+      (0 until wordsPerBeat).map(w => mem(rdIdx0 + w.U))
+    ).asUInt
+    (isSelForRead, Mux(isSelForRead, beat, 0.U))
 
   }
 

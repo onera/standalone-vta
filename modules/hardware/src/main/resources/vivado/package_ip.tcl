@@ -81,9 +81,33 @@ set_property display_name        $ip_display_name  [ipx::current_core]
 set_property description         $ip_description [ipx::current_core]
 set_property vendor_display_name "VTA"        [ipx::current_core]
 
-# Associate clock and reset to both AXI bus interfaces.
-ipx::associate_bus_interfaces -busif m_axi_gmem -clock ap_clk [ipx::current_core]
-ipx::associate_bus_interfaces -busif s_axi_control -clock ap_clk [ipx::current_core]
+# Associate ap_clk with every AXI bus interface Vivado inferred.
+#
+# The interfaces are discovered rather than named: the single-master shell
+# infers one m_axi_gmem, while the split shell infers m_axi_gmem_0..N-1, and
+# naming them explicitly would silently associate nothing the day the inferred
+# names differ. $expected_axi_count (emitted by XilinxIpPackager) is the guard:
+# a mismatch means inference did not produce the interfaces this shell was
+# packaged for, which must fail the run rather than yield an IP whose clocks
+# are unassociated.
+set axi_bus_ifs [list]
+foreach bif [ipx::get_bus_interfaces -of_objects [ipx::current_core]] {
+    set bif_name [get_property NAME $bif]
+    if {[string match "m_axi*" $bif_name] || [string match "s_axi*" $bif_name]} {
+        lappend axi_bus_ifs $bif_name
+    }
+}
+
+foreach bif_name $axi_bus_ifs {
+    puts "Associating ap_clk with AXI interface: $bif_name"
+    ipx::associate_bus_interfaces -busif $bif_name -clock ap_clk [ipx::current_core]
+}
+
+if {[llength $axi_bus_ifs] != $expected_axi_count} {
+    error [concat "package_ip.tcl: expected $expected_axi_count AXI interface(s)" \
+                  "for $ip_module_top but Vivado inferred [llength $axi_bus_ifs]:" \
+                  "$axi_bus_ifs. The packaged IP would have unassociated clocks."]
+}
 # Set IPI design rule check, and ignore frequency
 set_property ipi_drc {ignore_freq_hz true} [ipx::current_core]
 # ---------------------------------------------------------------------------

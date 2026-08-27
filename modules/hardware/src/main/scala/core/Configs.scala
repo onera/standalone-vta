@@ -33,14 +33,6 @@ import scala.math.pow
 class CoreConfig
     extends Config((site, here, up) => { case CoreKey =>
       DefaultCoreConfig.config
-    // val configFileName =
-    //   System.getProperty("vta.config.file", "vta_config.json")
-    // val useResources =
-    //   System.getProperty("vta.config.fromResources", "false").toBoolean
-    // val decodedJson = parseConfigJson(configFileName, fromResources = useResources).get
-    // val target = decodedJson("TARGET")
-    // val params = getConfigParametersFromMap(decodedJson)
-    // CoreConfig.coreParams(params, target)
     })
 
 object DefaultCoreConfig {

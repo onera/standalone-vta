@@ -150,6 +150,7 @@ object `package` extends build.VtaScalaModule with PublishModule { m =>
         Task.dest,
         s"$configKey.json",
         "vta.exporters.TestDefaultPynqConfigEmitter"
+        // "vta.exporters.Test128bBusConfigEmitter"
       )
     }
 

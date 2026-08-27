@@ -46,6 +46,29 @@ class PynqConfig
       )
     })
 
+class FpgaExtWidthConfig
+    extends Config((site, here, up) => { case ShellKey =>
+      ShellParams(
+        hostParams = AXIParams(
+          coherent = false,
+          addrBits = 16,
+          dataBits = 32,
+          lenBits = 8,
+          userBits = 0
+        ),
+        memParams = AXIParams(
+          coherent = true, // enable for coherent memory access
+          addrBits = 32,
+          idBits = 8,
+          dataBits = 128,
+          lenBits = 8,
+          userBits = 0
+        ),
+        vcrParams = VCRParams(),
+        vmeParams = VMEParams()
+      )
+    })
+
 /** F1Config. Shell configuration for F1 */
 class F1Config
     extends Config((site, here, up) => { case ShellKey =>

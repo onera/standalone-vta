@@ -166,7 +166,7 @@ class AXIMaster(params: AXIParams) extends AXIBase(params) {
     aw.bits.user := 0.U
     aw.bits.len := 0.U
     aw.bits.size := 0.U
-    aw.bits.burst := 0.U
+    aw.bits.burst := BurstType.fixed
     aw.bits.lock := 0.U
     aw.bits.cache := 0.U
     aw.bits.prot := 0.U
@@ -185,7 +185,7 @@ class AXIMaster(params: AXIParams) extends AXIBase(params) {
     ar.bits.user := 0.U
     ar.bits.len := 0.U
     ar.bits.size := 0.U
-    ar.bits.burst := 0.U
+    ar.bits.burst := BurstType.fixed
     ar.bits.lock := 0.U
     ar.bits.cache := 0.U
     ar.bits.prot := 0.U

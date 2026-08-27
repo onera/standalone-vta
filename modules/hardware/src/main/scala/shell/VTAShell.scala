@@ -55,3 +55,20 @@ class VTAShell(implicit p: Parameters) extends Module {
   vcr.io.host <> io.host
   io.mem <> vme.io.mem
 }
+class VTAShellSplit(implicit p: Parameters) extends Module {
+
+  val io = IO(new Bundle {
+    val host = new AXILiteClient(p(ShellKey).hostParams)
+    val mem = Vec(
+      p(ShellKey).vmeParams.nReadClients,
+      new AXIMaster(p(ShellKey).memParams)
+    )
+  })
+  val vcr = Module(new VCR)
+  val vme = Module(VMESplit.perClient)
+  val core = Module(new Core)
+  core.io.vcr <> vcr.io.vcr
+  vme.io.vme <> core.io.vme
+  vcr.io.host <> io.host
+  io.mem <> vme.io.mem
+}

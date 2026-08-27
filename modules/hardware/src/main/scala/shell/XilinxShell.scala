@@ -49,6 +49,29 @@ class XilinxShell(implicit p: Parameters) extends RawModule {
   shell.io.host <> s_axi_control.viewAs[AXILiteClient]
 }
 
+class XilinxSplitShell(implicit p: Parameters) extends RawModule {
+
+  override def desiredName: String = "VTAXilinxShell"
+  val hp = p(ShellKey).hostParams
+  val mp = p(ShellKey).memParams
+
+  val ap_clk = IO(Input(Clock()))
+  val ap_rst_n = IO(Input(Bool()))
+  val m_axi_gmem = IO(
+    Vec(p(ShellKey).vmeParams.nReadClients, new XilinxAXIMaster(mp))
+  )
+  val s_axi_control = IO(new XilinxAXILiteClient(hp))
+
+  val shell = withClockAndReset(clock = ap_clk, reset = ~ap_rst_n) {
+    Module(new VTAShellSplit)
+  }
+
+  shell.io.mem.zip(m_axi_gmem).foreach { case (l, r) =>
+    l <> r.viewAs[AXIMaster]
+  }
+  shell.io.host <> s_axi_control.viewAs[AXILiteClient]
+}
+
 class XilinxDebugShell(implicit p: Parameters) extends RawModule {
 
   override def desiredName: String = "VTAXilinxShell"

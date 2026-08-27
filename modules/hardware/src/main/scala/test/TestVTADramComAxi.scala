@@ -11,7 +11,6 @@ import chisel3.simulator.{
 import chisel3.testing.HasTestingDirectory
 import chisel3.util.experimental.BoringUtils
 import vta.configs.DefaultPynqConfig
-import vta.core.Fetch64Bit
 import vta.interface.axi.AXILiteClient
 import vta.models.MemoryConfig
 import vta.shell.{ShellKey, VTAShell}
@@ -49,9 +48,6 @@ class VTAShellTestFull(
       val vcrLaunch = Output(Bool())
       val fetchInstCoValid = Output(Bool())
       val fetchInstCoReady = Output(Bool())
-      // Fetch64Bit has 5 states (sIdle, sReadCmd, sReadLSB, sReadMSB, sDrain)
-      val fetchState = Output(UInt(3.W))
-      val fetchInstQCount = Output(UInt(8.W))
       val vcrInsCount = Output(UInt(16.W))
       // True for one cycle when Compute's FNSH instr fires (state === sExe &
       // done & isFinish). If this never pulses across the whole layer we know
@@ -86,8 +82,6 @@ class VTAShellTestFull(
     RegNext(BoringUtils.tapAndRead(vta.core.compute.tensorGemm.inflight))
   io.dbg.computeState :=
     RegNext(BoringUtils.tapAndRead(vta.core.compute.state))
-  io.dbg.vmeAvailEntries :=
-    RegNext(BoringUtils.tapAndRead(vta.vme.availableEntries))
   io.dbg.instQDeqValid :=
     RegNext(BoringUtils.tapAndRead(vta.core.compute.inst_q.io.deq.valid))
   io.dbg.computeIsGemm :=
@@ -100,14 +94,6 @@ class VTAShellTestFull(
     BoringUtils.tapAndRead(vta.core.fetch.io.inst.co.valid)
   io.dbg.fetchInstCoReady :=
     BoringUtils.tapAndRead(vta.core.fetch.io.inst.co.ready)
-  // Fetch FSM state. Cast through asUInt because the enum type may not match
-  // the 2-bit width exactly; tapAndRead returns whatever the source bits are.
-  io.dbg.fetchState :=
-    BoringUtils.tapAndRead(vta.core.fetch.asInstanceOf[Fetch64Bit].state)
-  io.dbg.fetchInstQCount :=
-    BoringUtils.tapAndRead(
-      vta.core.fetch.asInstanceOf[Fetch64Bit].inst_q.io.count
-    )
   io.dbg.vcrInsCount :=
     BoringUtils.tapAndRead(vta.vcr.io.vcr.vals(0))
   io.dbg.computeFinish :=

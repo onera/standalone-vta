@@ -153,6 +153,16 @@ object TestDefaultPynqConfigEmitter extends EmitterApp(new DefaultPynqConfig) {
 
   println(s"[EmitVTAShell] Simulation files written to $outputDir/")
 }
+object Test128bBusConfigEmitter extends EmitterApp(new DefaultFpgaConfig) {
+  override val defaultDir = os.RelPath("build/emitted/vta-sim-shell")
+
+  ChiselStage.emitSystemVerilogFile(
+    new Test,
+    args = Array("--target-dir", outputDir.toString())
+  )
+
+  println(s"[EmitVTAShell] Simulation files written to $outputDir/")
+}
 
 /** Emit the self-driving multi-layer post-synthesis testbench (VTAPostSynthTb)
   * to SystemVerilog plus the per-layer .mem files.
@@ -220,4 +230,30 @@ object TestDefaultF1Config extends EmitterApp(new DefaultF1Config) {
 object TestDefaultDe10Config extends EmitterApp(new DefaultF1Config) {
   implicit val p: Parameters = new DefaultDe10Config
   ChiselStage.emitSystemVerilog(new Test, args)
+}
+
+object XilinxSplitShellEmitter extends EmitterApp(new DefaultPynqConfig) {
+
+  override val defaultDir =
+    os.RelPath("build") / "emitted" / "vta-xilinx-split-shell"
+  ChiselStage.emitSystemVerilogFile(
+    new XilinxSplitShell,
+    args = Array("--target-dir", outputDir.toString(), "--split-verilog"),
+    firtoolOpts = Array(
+      "--lowering-options=disallowLocalVariables,disallowPackedArrays,mitigateVivadoArrayIndexConstPropBug"
+    )
+  )
+
+  writeTclScript(
+    target = outputDir,
+    vendor = "onera",
+    name = "VTA_split",
+    version = "0.2.0",
+    topModule = "VTAXilinxShell",
+    displayName = "VTA_split_" + params(CoreKey).target,
+    description =
+      "Versatile Tensor Accelerator - Xilinx shell (AXI4-Lite ctrl + AXI4 DRAM)" + getConfig,
+    // XilinxSplitShell exposes one m_axi_gmem_<i> per read client.
+    nMemPorts = params(ShellKey).vmeParams.nReadClients
+  )
 }

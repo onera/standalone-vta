@@ -57,16 +57,16 @@ class FetchWideVME(implicit val p: Parameters) extends Fetch {
 
   // sample start
   val s1_launch = RegNext(io.launch, init = false.B)
-  val start = io.launch & ~s1_launch
+  val start = io.launch && !s1_launch
 
   val xrem = Reg(chiselTypeOf(io.ins_count))
   // fit instruction into 64bit chunks
   val elemsInInstr = INST_BITS / 64
-  val xsize = io.ins_count << log2Ceil(elemsInInstr)
+  val xsize = (io.ins_count << log2Ceil(elemsInInstr)).asUInt
   // max size of transfer is limited by a buffer size
   val xmax =
     (((1 << mp.lenBits) << log2Ceil(tp.clSizeRatio)).min(tp.memDepth)).U
-  val elemNb = Reg(xsize)
+  val elemNb = RegInit(xsize)
 
   val sIdle :: sRead :: sDrain :: Nil = Enum(3)
   val state = RegInit(sIdle)
@@ -77,15 +77,15 @@ class FetchWideVME(implicit val p: Parameters) extends Fetch {
   val dramOffset = RegInit(UInt(mp.addrBits.W), init = 0.U)
   val vmeCmd = Module(new GenVMECmdWideFetch)
   vmeCmd.io.start := vmeStart
-  vmeCmd.io.isBusy := isBusy & ~vmeStart
+  vmeCmd.io.isBusy := isBusy && !vmeStart
   vmeCmd.io.ins_baddr := Mux(
     start,
     io.ins_baddr,
-    io.ins_baddr + (dramOffset << log2Ceil(tp.tensorSizeBits / 8))
+    io.ins_baddr + (dramOffset << log2Ceil(tp.tensorSizeBits / 8)).asUInt
   )
   vmeCmd.io.vmeCmd <> io.vme_rd.cmd
   val readLen = vmeCmd.io.readLen
-  val vmeCmdDone = vmeCmd.io.done & ~vmeStart
+  val vmeCmdDone = vmeCmd.io.done && !vmeStart
 
   vmeCmd.io.xsize := elemNb
   vmeCmd.io.sram_offset := 0.U // this is a queue we reload
@@ -95,7 +95,7 @@ class FetchWideVME(implicit val p: Parameters) extends Fetch {
   val pipeDelayQueueDeqF = pipeDelayQueueDeqV // fire
   val pipeDelayQueueDeqB = RegNext(io.vme_rd.data.bits)
 
-  // Nb of CLs requestd, not received.
+  // Nb of CLs requested, not received.
   val clCntIdxWdth = log2Ceil(tp.memDepth / tensorsInClNb) + 1
   val clInFlight = Reg(UInt(clCntIdxWdth.W))
   when(start) {
@@ -197,7 +197,33 @@ class FetchWideVME(implicit val p: Parameters) extends Fetch {
     1.U
   }
 
+  val canRead = queueCount >= elemsInInstr.U && state === sDrain
+  // instruction queues
+
+  // use 2-enty queue to create one pipe stage for valid-ready interface
+  val readInstrPipe = Module(new Queue(UInt(INST_BITS.W), 2))
+
+  // inst_q is a SyncReadMem: the data of a read issued this cycle lands on the
+  // output next cycle, and queueHead reads one instruction ahead accordingly.
+  // A read may therefore only be issued when readInstrPipe is guaranteed to
+  // accept its result next cycle, otherwise the result is dropped while
+  // queueHead has already advanced past it (skipping an instruction), or the
+  // stale memory output is enqueued as if it were one.
+  //
+  // Reserving the slot at issue time is what makes that guarantee: with
+  // count + readValid < entries this cycle, the pipe has room next cycle even
+  // if it accepts nothing in between. Gating on enq.fire/enq.ready instead is
+  // only self-consistent while enqueues run back to back, so it survives the
+  // small single-refill layers and breaks on the first backpressure stall of a
+  // multi-refill one.
   val deqElem = Wire(Bool())
+  val readValid = RegInit(false.B)
+  val issueRead =
+    canRead && ((readInstrPipe.io.count +& readValid.asUInt) < 2.U)
+  // forceRead primes the pipeline on the sRead -> sDrain transition; its result
+  // is a real instruction and must be enqueued like any other.
+  readValid := issueRead || forceRead
+
   val rdataVec = for (i <- 0 until tensorsInClNb) yield {
     // expand mask to select all elems of instruction
     val maskShift = i % elemsInInstr
@@ -205,7 +231,7 @@ class FetchWideVME(implicit val p: Parameters) extends Fetch {
       rIdx,
       VecInit((rMask << maskShift).asTypeOf(rMask).asBools)(
         i
-      ) && (deqElem || forceRead)
+      ) && (issueRead || forceRead)
     )
 
   }
@@ -218,18 +244,16 @@ class FetchWideVME(implicit val p: Parameters) extends Fetch {
     rdata(i) := Mux1H(RegNext((rMask << i).asTypeOf(rMask)), rdataVec)
   }
 
-  val canRead = queueCount >= elemsInInstr.U && state === sDrain
-  // instruction queues
-
-  // use 2-enty queue to create one pipe stage for valid-ready interface
-  val readInstrPipe = Module(new Queue(UInt(INST_BITS.W), 2))
-
   // decode
   val dec = Module(new FetchDecode)
   dec.io.inst := readInstrPipe.io.deq.bits
-  readInstrPipe.io.enq.valid := canRead
+  readInstrPipe.io.enq.valid := readValid
   readInstrPipe.io.enq.bits := rdata.asTypeOf(UInt(INST_BITS.W))
-  deqElem := readInstrPipe.io.enq.fire
+  assert(
+    !readValid || readInstrPipe.io.enq.ready,
+    "-F- Fetch instruction dropped: pipe full when read data arrived"
+  )
+  deqElem := issueRead
   readInstrPipe.io.deq.ready := ((dec.io.isLoad & io.inst.ld.ready) ||
     (dec.io.isCompute & io.inst.co.ready) ||
     (dec.io.isStore & io.inst.st.ready))

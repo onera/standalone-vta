@@ -25,6 +25,11 @@ object XilinxIpPackager {
     *   a quick description of the IP
     * @param displayName
     *   name of the IP as displayed in Vivado block design
+    * @param nMemPorts
+    *   number of AXI4 memory master ports the shell exposes: 1 for
+    *   [[vta.shell.XilinxShell]], one per read client for
+    *   [[vta.shell.XilinxSplitShell]]. Only used to tell the generated script
+    *   how many AXI interfaces Vivado must infer, control port included.
     * @param config
     */
   def writeTclScript(
@@ -37,8 +42,16 @@ object XilinxIpPackager {
     lib: String = "user",
     description: String =
       "Versatile Tensor Accelerator - Xilinx shell (AXI4-Lite ctrl + AXI4 DRAM)",
-    displayName: String = "VTA"
+    displayName: String = "VTA",
+    nMemPorts: Int = 1
   ) = {
+    require(
+      nMemPorts >= 1,
+      s"[VTA] [XilinxIpPackager] nMemPorts must be >= 1, got $nMemPorts"
+    )
+    // Every memory master plus the single AXI4-Lite control slave.
+    val expectedAxiCount = nMemPorts + 1
+
     val header =
       s"""|${"#" * 80}
           |# package_ip.tcl
@@ -72,6 +85,9 @@ object XilinxIpPackager {
          |set ip_module_top "${topModule}"
          |set ip_description "${description}"
          |set ip_display_name "${displayName}"
+         |# AXI interfaces Vivado is expected to infer for this shell:
+         |# ${nMemPorts} memory master(s) + 1 control slave.
+         |set expected_axi_count ${expectedAxiCount}
       """.stripMargin
 
     val scriptResource = os.resource / "vivado" / "package_ip.tcl"
