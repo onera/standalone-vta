@@ -14,29 +14,134 @@ This project aims to improve VTA's usability and applicability, particularly in 
 
 ## Architecture & System Flow
 
-The `standalone-vta` ecosystem is designed with a clear separation of concerns, moving from high-level models to low-level hardware simulation.
+The `standalone-vta` ecosystem is designed with a clear separation of concerns:
+one compiler front-end feeding three interchangeable execution back-ends (a fast
+C++ model, the real Chisel RTL, and silicon on an FPGA), all parameterised by a
+single hardware configuration file.
 
-```text
-+-----------------------+      +---------------------------+      +-----------------------------------+
-|      Input Model      |      |   Standalone VTA Compiler |      |         VTA Simulators            |
-|  (ONNX or custom JSON)| ---> |       (modules/compiler/) | ---> |   Functional (C++) for fast       |
-|                       |      |  Parses, partitions, and  |      |   validation (modules/simulator)  |
-|                       |      |  generates instructions.  |      | Cycle-Accurate (modules/hardware) |
-+-----------------------+      +---------------------------+      +-----------------------------------+
-                                             |                                  ^
-                                             v                                  |
-                                +-------------------------+                     |
-                                |     Generated Artifacts |---------------------+
-                                | - instructions.bin      |
-                                | - uop.bin               |
-                                | - input.bin / weight.bin|
-                                | - dram_state.json       |
-                                +-------------------------+
+```mermaid
+flowchart TB
+    subgraph inputs ["Inputs"]
+        onnx["ONNX model<br/>examples/onnx/*.onnx"]
+        ir["Raw VTA IR fixture<br/>examples/vta_ir/*.json"]
+        cfg[("VTA hardware configuration<br/>config/NAME.json")]
+    end
+
+    subgraph comp ["modules/compiler - Python, TVM-free"]
+        nnc["NN compiler<br/>qONNX to VTA IR<br/>+ per-node CPU params"]
+        vtac["VTA compiler<br/>partitioning, DRAM allocation,<br/>ISA encoding"]
+        nnc --> vtac
+    end
+
+    art["VTA binaries"]
+
+    subgraph hw ["modules/hardware - Chisel"]
+        rtl["VTA RTL"]
+        catest["Cycle-accurate<br/>ScalaTest"]
+        sv["Emitted<br/>SystemVerilog"]
+        rtl --> catest
+        rtl --> sv
+    end
+
+    subgraph simg ["modules/simulator - C++"]
+        fsim["fsim - FunctionalDevice<br/>behavioural C++ model"]
+        vsim["vsim - VerilatedDevice<br/>Verilator + DPI over the real RTL"]
+    end
+
+    subgraph fpga ["modules/fpga"]
+        synth["synthesis - Vivado<br/>IP packaging, bitstream, XSA"]
+        bmgen["software - baremetal codegen<br/>run_nn steps + Vitis apps"]
+    end
+
+    board(["FPGA board<br/>zcu104, vek280, vck190"])
+
+    ref["ONNX reference<br/>input_nn.bin + reference.bin"]
+    check{{"check<br/>against reference.bin, or fsim vs vsim"}}
+
+    onnx --> nnc
+    onnx --> ref
+    art -.-> ref
+    ir --> vtac
+    vtac --> art
+
+    cfg -.-> comp
+    cfg -.-> hw
+    cfg -.-> simg
+    cfg -.-> fpga
+
+    art --> fsim
+    art --> vsim
+    art --> bmgen
+    sv --> vsim
+    sv --> synth
+    synth --> board
+    bmgen --> board
+
+    fsim --> check
+    vsim --> check
+    board --> check
+    ref --> check
+
+
+    classDef input fill:#eef1f5,stroke:#7a8698,stroke-width:1px,color:#1e2733
+    classDef step fill:#ffffff,stroke:#7a8698,stroke-width:1px,color:#1e2733
+    classDef data fill:#dde6f4,stroke:#3d6299,stroke-width:1.5px,color:#122744
+    classDef result fill:#eef1f5,stroke:#3d6299,stroke-width:1.5px,color:#122744
+
+    class onnx,ir,cfg input
+    class nnc,vtac,rtl,catest,fsim,vsim,synth,bmgen step
+    class art,ref,sv data
+    class board,check result
+
+    style inputs fill:none,stroke:#aab3c0,stroke-dasharray:4 4
+    style comp fill:none,stroke:#aab3c0
+    style hw fill:none,stroke:#aab3c0
+    style simg fill:none,stroke:#aab3c0
+    style fpga fill:none,stroke:#aab3c0
 ```
 
-1. **Compiler Phase**: The standalone Python compiler (`modules/compiler`) reads a neural network representation (ONNX or a custom JSON VTA IR). It performs matrix partitioning, DRAM allocation, and generates VTA-specific instructions and micro-ops.
-2. **Artifact Generation**: The compiler outputs binary files (`.bin`) and memory initialization files (`.json`) into the `compiler_output/` directory (or, when driven by Mill, into the task's own output directory under `out/`).
-3. **Simulation Phase**: The simulators (`modules/simulator` for the functional and Verilated/DPI backends, `modules/hardware` for the Chisel cycle-accurate one) read these artifacts to simulate the VTA execution, validating the compiler's output either functionally or cycle-accurately.
+1. **Configuration** - `config/<name>.json` is the single source of truth for the
+   hardware parameters (block size, buffer depths, data widths, in log2 notation).
+   The same file parameterises the compiler, the generated C++ config header, the
+   Chisel elaboration and the synthesised bitstream, and all four must agree. Mill
+   enforces that by construction: the config is a cross key, not a flag, so
+   artifacts are cached per config and per (config, board). The one path it cannot
+   check is `createVitisProjectFromXsa`, where an XSA synthesised for a different
+   block size will run and produce garbage. See
+   [config/README.md](config/README.md).
+2. **Front-end** - two entry points. A quantised ONNX model goes through
+   `nn_compiler`, which emits the VTA IR plus the per-node CPU parameters and
+   `dependency.csv`. A hand-written VTA IR fixture (`examples/vta_ir/`) is already
+   IR and skips that stage, so it has no golden output.
+3. **Compiler** - `vta_compiler` applies the configuration: it pads and partitions
+   the matrices into `block_size x block_size` tiles, allocates DRAM addresses and
+   encodes the 128-bit VTA instructions and 32-bit micro-ops. Its output is the
+   set of `.bin` streams and address/metadata CSVs that every back-end consumes.
+4. **Reference** - for ONNX models, a separate task runs the model with ONNX
+   Runtime to produce `input_nn.bin` (the randomly generated network input) and
+   `reference.bin` (the golden output). It is kept out of the compiler output on
+   purpose, to keep one source of non-reproducibility out of the way.
+5. **Functional simulation** (`modules/simulator`) - `fsim` executes the binaries
+   against a behavioural C++ model of VTA. Fast, and the usual first check.
+6. **Cycle-accurate simulation** (`modules/hardware` + `modules/simulator`) - the
+   Chisel sources are both the actual hardware and the cycle-accurate model. They
+   run directly under ScalaTest, and they are emitted as SystemVerilog that
+   `vsim` drives through Verilator and DPI, so `vsim` runs the same binaries as
+   `fsim` against the real RTL.
+7. **FPGA** (`modules/fpga`) - the same RTL is emitted for the Xilinx IP flow and
+   synthesised by Vivado into a bitstream and XSA, while the baremetal codegen
+   turns the compiled model into an ARM PS application that copies the binaries
+   into DDR and drives VTA through its control registers. The board runs the same
+   `.bin` streams as both simulators.
+
+The instruction and micro-op streams are the contract between these components:
+the compiler encodes them, the Chisel RTL and the C++ functional model decode
+them, and the PS software treats them as opaque bytes. Their bit layout is fixed
+by the ISA and must match across all three.
+
+Mill orchestrates the whole flow and caches it per (model, config) and per
+(config, board), so switching any axis reuses what the others already produced.
+See [MILL.md](MILL.md).
 
 ## Repository Map
 
