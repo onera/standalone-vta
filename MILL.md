@@ -1,41 +1,24 @@
 # Advanced usage: driving the build with Mill
 
-The root `Makefile` (see the [Quickstart](README.md#3-quickstart)) is a thin
+The root `Makefile` (see the [Quickstart](README.md#2-quickstart)) is a thin
 front end over Mill: every target is one `./mill` invocation with a few
 `-Dvta.*` flags. This document covers everything the Makefile does not expose:
 the module layout, the full task list, per-model caching, the FPGA and Vitis
 tasks, the global options and tab completion.
 
-No prior Mill knowledge is assumed. If you want extended information about the tool itself,
-the [official documentation](https://mill-build.org/mill/index.html) is the reference.
+No prior Mill knowledge is assumed. For the tool itself, the
+[official documentation](https://mill-build.org/mill/index.html) is the
+reference.
 
 Run the commands below from the repository root, inside the Pixi environment
 (`pixi shell`, or prefix each one with `pixi run`).
 
-1. [Mill essentials](#1-mill-essentials)
-   - [How this build is put together](#how-this-build-is-put-together)
-   - [Calling Mill](#calling-mill)
-   - [Finding tasks](#finding-tasks)
-2. [What the build contains](#2-what-the-build-contains)
-   - [The module map](#the-module-map)
-   - [Global options](#global-options)
-3. [Running a model](#3-running-a-model)
-   - [The pipeline tasks](#the-pipeline-tasks)
-   - [`run` or `examples.onnx`: which entry point](#run-or-examplesonnx-which-entry-point)
-   - [Raw VTA IR fixtures](#raw-vta-ir-fixtures)
-4. [FPGA, Vitis and baremetal](#4-fpga-vitis-and-baremetal)
-   - [FPGA targets](#fpga-targets)
-   - [Vitis workspaces](#vitis-workspaces)
-   - [SD-card file sets](#sd-card-file-sets)
-   - [On-board isolation debugging](#on-board-isolation-debugging)
-   - [Post-synthesis gate-level check](#post-synthesis-gate-level-check)
+1. [Mill essentials](#1-mill-essentials) - modules, tasks, caching, how to call them
+2. [What the build contains](#2-what-the-build-contains) - the module map and the global options
+3. [Running a model](#3-running-a-model) - compile, simulate, check
+4. [FPGA, Vitis and baremetal](#4-fpga-vitis-and-baremetal) - synthesis through to the board
 5. [Working on a single module](#5-working-on-a-single-module)
-   - [Per-module tasks](#per-module-tasks)
-   - [Flat pass-through commands](#flat-pass-through-commands)
-   - [The per-module Makefiles](#the-per-module-makefiles)
-6. [Reference](#6-reference)
-   - [Where the outputs land](#where-the-outputs-land)
-   - [Tab completion](#tab-completion)
+6. [Reference](#6-reference) - output layout, cleaning, tab completion
 
 ## 1. Mill essentials
 
@@ -252,33 +235,27 @@ The remaining tasks in the table are the baremetal and FPGA flows, covered in
 
 ### `run` or `examples.onnx`: which entry point
 
-Both expose exactly the same tasks and both are crossed on **(model, config)**,
-so in both cases every pair is independently cached under
-`out/.../<model>/<config>/` and none of them invalidates the others. They differ
+Both expose the same tasks, both are crossed on **(model, config)**, and both
+cache every pair independently under `out/.../<model>/<config>/`. They differ
 only in **which model keys exist**:
 
-- `run[<model>,<config>]` has exactly **one model key at a time**: the basename
-  of `-Dvta.onnx.file`. The model can be any `.onnx` file anywhere on disk, but
-  only the selected one is addressable, so `run[_,_]` means "the selected model,
-  every config". Results of previously selected models stay in `out/run/`
-  untouched.
+- `run[<model>,<config>]` has **one model key at a time**, the basename of
+  `-Dvta.onnx.file`, which may point anywhere on disk. Use it (or the Makefile)
+  for a single model you iterate on, including one outside `examples/onnx/`.
+  `run[_,_]` therefore means "the selected model, every config".
 - `examples.onnx[<model>,<config>]` has **one key per model** in
-  `examples/onnx/`, all addressable at once, so a single command can build a set
-  of models. Restricted to that directory.
+  `examples/onnx/`, all addressable at once. Use it to move between example
+  models, or to build several in one command:
 
-Use `run[...]` (or the Makefile) for a single model you iterate on, including one
-outside `examples/onnx/`; use `examples.onnx[...]` when you are moving between
-example models, or want to build several in one command:
-
-```bash
-./mill "examples.onnx[_,vta_config].fsim"   # every model, one config
-./mill "examples.onnx[_,_].fsim"            # every (model, config) pair
-```
+  ```bash
+  ./mill "examples.onnx[_,vta_config].fsim"   # every model, one config
+  ./mill "examples.onnx[_,_].fsim"            # every (model, config) pair
+  ```
 
 Switching model needs nothing beyond the flag: the model key is a watched value
-(`BuildCtx.watchValue` in `build.mill`), so a changed `-Dvta.onnx.file` makes the
-daemon re-instantiate the build and re-list the axis. Each model keeps its own
-directory, so switching back finds the previous results cached:
+(`BuildCtx.watchValue` in `build.mill`), so the daemon re-instantiates the build
+and re-lists the axis. Each model keeps its own directory, so switching back
+finds the previous results cached:
 
 ```bash
 ./mill -Dvta.onnx.file=path/to/other.onnx "run[].fsim"
@@ -378,13 +355,12 @@ hands the file straight to `create_vitis_workspace.py`:
     --xsa vta_zcu104.xsa --runner run_nn --data-loader elf
 ```
 
-The two commands share only the generated headers; nothing in this one's task
-graph reaches Vivado. Mill fills in the workspace directory
-(`build/vitis/<model>_<config>` here, kept across runs so the platform is not
-rebuilt), this model's `genBaremetal` output and the app-name prefix. Repeat any
-of those flags to override them, since the script keeps the last occurrence.
-Everything else is yours, including `--cpu` for a non-ZynqMP board (the script
-defaults to `psu_cortexa53_0`).
+Nothing in this command's task graph reaches Vivado. Mill fills in the workspace
+directory (`build/vitis/<model>_<config>`, kept across runs so the platform is
+not rebuilt), this model's `genBaremetal` output and the app-name prefix; repeat
+any of those flags to override them, since the script keeps the last occurrence.
+Everything else is yours, including `--cpu` for a non-ZynqMP board (it defaults
+to `psu_cortexa53_0`).
 
 > [!warning]
 > The XSA is _not_ checked against the active config: a bitstream synthesized for
@@ -447,7 +423,12 @@ Vivado and xsim on `PATH`.
 
 Below the pipelines, each module exposes its own tasks. These are what you want
 when working on one component in isolation, without dragging a whole model
-through it.
+through it. The commands below are the common ones; for the full set, and for
+what each module actually does, read its own README:
+[compiler](modules/compiler/README.md), [simulator](modules/simulator/README.md),
+[hardware](modules/hardware/README.md), [fpga](modules/fpga/README.md)
+([synthesis](modules/fpga/synthesis/README.md),
+[software](modules/fpga/software/README.md)).
 
 ### Per-module tasks
 
@@ -473,20 +454,13 @@ The Chisel tests run against the bundled
 
 ### Flat pass-through commands
 
-A set of flat commands sits beside the crossed modules. Each takes its config
-from the global `-Dvta.config.file` and forwards its arguments to the underlying
-Scala or Python entry point:
-
-`modules.hardware.emitVtaSimConfig`, `modules.hardware.emitVtaFpgaConfig`,
-`modules.hardware.emitVtaPostSynthTb`, `modules.fpga.synthesis.buildFpga`,
-`modules.fpga.synthesis.packageIp`, `modules.fpga.synthesis.oocNetlist`,
-`modules.fpga.synthesis.runXsim`, `modules.fpga.synthesis.compareOut`,
-`modules.fpga.software.genNnBaremetal`,
-`modules.fpga.software.createVitisWorkspace`,
-`modules.fpga.software.checkOutput`, `modules.fpga.software.auditDram`.
-
-These are uncached escape hatches, for reaching a tool directly with unusual
-arguments. Prefer the crossed tasks above, which cache.
+Beside the crossed modules sits a set of flat, uncached commands
+(`modules.hardware.emitVta*`, `modules.fpga.synthesis.*`,
+`modules.fpga.software.*`). Each takes its config from the global
+`-Dvta.config.file` and forwards its arguments to the underlying Scala or Python
+entry point. They are escape hatches for reaching a tool with unusual arguments:
+prefer the crossed tasks above, which cache. The module READMEs linked above
+document the ones each owns, with the arguments they accept.
 
 ### The per-module Makefiles
 
@@ -529,11 +503,10 @@ under `build/` (or under `-Dvta.xil.out` when set).
 
 ### Tab completion
 
-`./mill <Tab>` can complete task names and show each task's description (its
-`/** ... */` doc comment in the `*.mill` build files). Completion is a shell
-hook that calls `mill --tab-complete` live on every keypress, so the candidate
-list always matches the current build. Enable it once per clone by sourcing the
-script for your shell (use your clone's path):
+`./mill <Tab>` completes task names and shows each task's description (its
+`/** ... */` doc comment in the `*.mill` files). The hook calls
+`mill --tab-complete` on every keypress, so the candidates always match the
+current build. Enable it once per clone, with your clone's path:
 
 ```bash
 # bash / zsh - add to ~/.bashrc or ~/.zshrc
@@ -545,16 +518,14 @@ source /path/to/standalone-vta/tools/completions/mill-completion.fish
 
 Restart the shell (or re-`source` the rc file) and press `<Tab>` after `./mill`.
 
-If [`fzf`](https://github.com/junegunn/fzf) is installed (it ships in the pixi
-env), `<Tab>` opens a drill-down picker instead of the plain menu: the full
-description shows in a preview pane, `<Tab>` descends into a module's sub-tasks
-(e.g. `examples` -> `onnx` -> model -> config), `<Left>` goes back up, and
-`<Enter>` accepts the highlighted path. Without fzf it falls back to a native
-single-line menu. Both rely on the `mill-fzf-level` helper beside these scripts,
-so keep the three `tools/completions/` files together.
+With [`fzf`](https://github.com/junegunn/fzf) (it ships in the pixi env),
+`<Tab>` opens a drill-down picker instead of a plain menu: descriptions show in a
+preview pane, `<Tab>` descends into a module's sub-tasks (`examples` -> `onnx` ->
+model -> config), `<Left>` goes back up, `<Enter>` accepts. Without fzf it falls
+back to a single-line menu. Both need the `mill-fzf-level` helper, so keep the
+three `tools/completions/` files together.
 
-Mill also ships an installer that writes the bash/zsh hook and edits your rc
-files for you: `./mill mill.tabcomplete/install`.
+Mill also ships an installer for the bash/zsh hook:
+`./mill mill.tabcomplete/install`.
 
-A task shows a description only if it has a doc comment; add a `/** ... */`
-above a `def ... = Task { ... }` to describe it.
+A task shows a description only if it has a doc comment.

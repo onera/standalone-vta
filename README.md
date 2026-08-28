@@ -6,9 +6,10 @@ A maintained, unified, and extended Versatile Tensor Accelerator (VTA) ecosystem
 
 This repository addresses the limitations of the original VTA project by providing:
 
+- **Standalone Compiler:** An open-source, TVM-independent compiler for generating VTA binaries from JSON/ONNX representations.
 - **Unified Simulation:** A consistent input format (raw binary files) for both functional (C++) and cycle-accurate (CHISEL) simulators.
 - **Extended Cycle-Accurate Simulation:** Enriched cycle-accurate simulation with multiple test cases for different submodules.
-- **Standalone Compiler:** An open-source, TVM-independent compiler for generating VTA binaries from JSON/ONNX representations.
+- **FPGA Implementation:** A one-command Vivado flow from the same Chisel sources to a bitstream and XSA for several Xilinx boards, with a baremetal ARM runtime that executes the same binaries on hardware.
 
 This project aims to improve VTA's usability and applicability, particularly in safety-critical systems like aeronautics. VTA is an open-source hardware accelerator designed to efficiently execute matrix multiplications, a core operation in Convolutional Neural Networks (CNNs).
 
@@ -16,7 +17,7 @@ This project aims to improve VTA's usability and applicability, particularly in 
 
 The `standalone-vta` ecosystem is designed with a clear separation of concerns:
 one compiler front-end feeding three interchangeable execution back-ends (a fast
-C++ model, the real Chisel RTL, and silicon on an FPGA), all parameterised by a
+C++ model, the real Chisel RTL, and silicon on an FPGA), all parameterized by a
 single hardware configuration file.
 
 ```mermaid
@@ -44,7 +45,7 @@ flowchart TB
     end
 
     subgraph simg ["modules/simulator - C++"]
-        fsim["fsim - FunctionalDevice<br/>behavioural C++ model"]
+        fsim["fsim - FunctionalDevice<br/>behavioral C++ model"]
         vsim["vsim - VerilatedDevice<br/>Verilator + DPI over the real RTL"]
     end
 
@@ -100,102 +101,70 @@ flowchart TB
     style fpga fill:none,stroke:#aab3c0
 ```
 
-1. **Configuration** - `config/<name>.json` is the single source of truth for the
-   hardware parameters (block size, buffer depths, data widths, in log2 notation).
-   The same file parameterises the compiler, the generated C++ config header, the
-   Chisel elaboration and the synthesised bitstream. See
-   [config/README.md](config/README.md).
-2. **Front-end** - two entry points. A quantised ONNX model goes through
-   `nn_compiler`, which emits the VTA IR plus the per-node CPU parameters and
-   `dependency.csv`. A hand-written VTA IR fixture (`examples/vta_ir/`) is already
-   IR and skips that stage, so it has no golden output.
-3. **Compiler** - `vta_compiler` applies the configuration: it pads and partitions
-   the matrices into `block_size x block_size` tiles, allocates DRAM addresses and
-   encodes the 128-bit VTA instructions and 32-bit micro-ops. Its output is the
-   set of `.bin` streams and address/metadata CSVs that every back-end consumes.
-4. **Reference** - for ONNX models, a separate task runs the model with ONNX
-   Runtime to produce `input_nn.bin` (the randomly generated network input) and
-   `reference.bin` (the golden output).
-5. **Functional simulation** (`modules/simulator`) - `fsim` executes the binaries
-   against a behavioural C++ model of VTA. Fast, and the usual first check.
-6. **Cycle-accurate simulation** (`modules/hardware` + `modules/simulator`) - the
-   Chisel sources are both the actual hardware and the cycle-accurate model. They
-   run directly under ScalaTest, and they are emitted as SystemVerilog that
-   `vsim` drives through Verilator and DPI, so `vsim` runs the same binaries as
-   `fsim` against the real RTL.
-7. **FPGA** (`modules/fpga`) - the same RTL is emitted for the Xilinx IP flow and
-   synthesised by Vivado into a bitstream and XSA, while the baremetal codegen
-   turns the compiled model into an ARM PS application that copies the binaries
-   into DDR and drives VTA through its control registers. The board runs the same
-   `.bin` streams as both simulators.
+Three things the diagram does not show:
 
-The instruction and micro-op streams are the contract between these components:
-the compiler encodes them, the Chisel RTL and the C++ functional model decode
-them, and the PS software treats them as opaque bytes. Their bit layout is fixed
-by the ISA and must match across all three.
-
-Mill orchestrates the whole flow and caches it per (model, config) and per
-(config, board), so switching any axis reuses what the others already produced.
-See [MILL.md](MILL.md).
+- **`config/<name>.json` is the single source of truth.** The same file
+  parameterizes the compiler, the generated C++ config header, the Chisel
+  elaboration and the synthesized bitstream, and all four must agree. Mill
+  enforces that by construction, since the config is a cross key rather than a
+  flag (the exception is importing a pre-built XSA, which it cannot check).
+- **The instruction and micro-op streams are the contract.** The compiler
+  encodes them, the Chisel RTL and the C++ model decode them, and the PS
+  software copies them verbatim. Their bit layout is fixed by the ISA and must
+  match across all three.
+- **All three back-ends run the same binaries.** `fsim` is the fast check,
+  `vsim` runs them through the real RTL under Verilator, and the board runs them
+  on silicon. ONNX models also get a golden output from ONNX Runtime to check
+  against; the raw IR fixtures have no golden, so `fsim` is compared to `vsim`
+  instead.
 
 ## Repository Map
 
-- `modules/`: Core source code, one directory per module. Each has its own
-  `package.mill` and is addressable as a Mill module (`modules.compiler`,
-  `modules.simulator`, ...).
-  - `compiler/`: Python-based VTA compiler (TVM-independent).
-  - `simulator/`: Fast C++ functional simulator (and the Verilated/DPI backend).
-  - `hardware/`: Chisel hardware sources - the cycle-accurate simulator, and the SystemVerilog emitted for the Verilated and FPGA flows.
-  - `fpga/`: FPGA synthesis flow and the PS-side baremetal runtime software.
-- `Makefile`: Root Makefile - the quickstart front end over Mill (see [Quickstart](#3-quickstart)).
-- `build.mill`: Root Mill build - the shared config plumbing and the cross keys the pipeline modules are built from. Advanced usage: [MILL.md](MILL.md).
-- `modules/pipeline.mill`: The per-(model, config) pipeline traits (compile, simulate, baremetal, Vitis, post-synthesis) that the pipeline modules mix in.
-- `config/`: Contains `vta_config.json` defining the VTA hardware parameters, plus alternative configurations. See [Config Documentation](config/README.md).
-- `examples/`: Sample inputs and their Mill module (`examples/package.mill`), plus a per-module Makefile predating the Mill build.
-  - `onnx/`: Full ONNX models, driven by `examples.onnx[<model>,<config>]`.
-  - `vta_ir/`: Hand-written raw VTA IR fixtures, driven by `examples.ir[<fixture>,<config>]`.
-- `tutorials/`: Jupyter notebooks detailing the compiler components.
-- `out/`: Mill's output tree - each task writes into its own dest directory here.
-- `compiler_output/`, `reference_output/`, `simulators_output/`, `log_output/`: Default directories for compiler artifacts, the ONNX reference (`input_nn.bin` + `reference.bin`), simulation results and run logs when driving the flow through the per-module Makefiles rather than Mill (the root Makefile goes through Mill, so its artifacts land in `out/`). The reference is kept out of `compiler_output/` on purpose: `input_nn.bin` is randomly generated, and separating it removes one source of non-reproducibility from `compiler_output/`. `compile` is still not byte-reproducible on its own, though: `nn_compiler` also seeds placeholder accumulator data for MaxPool/Relu/QLinearAdd nodes from an unseeded RNG, straight into `compiler_output/`.
+| Path                                              | What it is                                                                                            | Docs                                                                             |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `modules/compiler/`                               | ONNX or VTA IR to VTA binaries. Python, TVM-independent.                                              | [readme](modules/compiler/README.md)                                             |
+| `modules/simulator/`                              | `fsim` (C++ model) and `vsim` (Verilator + DPI over the RTL).                                         | [readme](modules/simulator/README.md)                                            |
+| `modules/hardware/`                               | Chisel RTL: the cycle-accurate tests, and the SystemVerilog emitted for `vsim` and the FPGA.          | [readme](modules/hardware/README.md)                                             |
+| `modules/fpga/`                                   | Vivado synthesis and the ARM PS baremetal runtime.                                                    | [synthesis](modules/fpga/README.md), [software](modules/fpga/software/README.md) |
+| `config/`                                         | Hardware parameters: `vta_config.json` and alternatives.                                              | [readme](config/README.md)                                                       |
+| `examples/`                                       | `onnx/` models and `vta_ir/` fixtures, the axes the pipelines are crossed over.                       |                                                                                  |
+| `tutorials/`                                      | Notebooks walking through the compiler internals.                                                     | [readme](tutorials/README.md)                                                    |
+| `Makefile`, `build.mill`, `modules/pipeline.mill` | The build: a `make` front end over Mill, the cross keys, and the per-(model, config) pipeline traits. | [MILL.md](MILL.md)                                                               |
+| `out/`                                            | Mill's output tree, one directory per task.                                                           |                                                                                  |
 
-## Documentation Index
+Each module is addressable as a Mill module (`modules.compiler`,
+`modules.simulator`, ...). The `compiler_output/`, `reference_output/`,
+`simulators_output/` and `log_output/` directories only appear when driving the
+per-module Makefiles instead of Mill; everything Mill builds lands in `out/`.
 
-Explore the detailed documentation for each component of the `standalone-vta` ecosystem:
-
-- **Root Documentation**
-  - [Project Overview & Quickstart](README.md)
-  - [Advanced Usage: the Mill build](MILL.md)
-  - [Configuration (`vta_config.json`)](config/README.md)
-
-- **Compiler (`modules/compiler/`)**
-  - [Standalone VTA Compiler](modules/compiler/vta_compiler/operations_definition/README.md)
-
-- **Simulator (`modules/simulator/`)**
-  - [Functional Simulator (C++)](modules/simulator/README.md)
-- **Hardware (`modules/hardware/`)**
-  - [Hardware (Chisel)](modules/hardware/README.md)
-  - [Simulator Test Documentation](modules/hardware/src/test/documentation/test_documentation.md)
-  - [Simulator Testbench README](modules/hardware/src/test/scala/simulatorTest/README.md)
-  - [Formal Verification README](modules/hardware/src/test/scala/formal/README.md)
-
-- **FPGA (`modules/fpga/`)**
-  - [FPGA Implementation & IP Generation](modules/fpga/README.md)
-  - [FPGA Runtime Software](modules/fpga/software/README.md)
-- **Tutorials**
-  - [Tutorials Overview](tutorials/README.md)
+Going deeper on the hardware: [test documentation](modules/hardware/src/test/documentation/test_documentation.md),
+[testbench](modules/hardware/src/test/scala/simulatorTest/README.md),
+[formal verification](modules/hardware/src/test/scala/formal/README.md).
 
 ## Getting Started
 
-### 1. Prerequisites
+### 1. Setup
 
-Before setting up the environment, ensure you have the following installed on your host machine:
+The only prerequisite is [Pixi](https://pixi.prefix.dev/latest/installation/),
+which pins the whole toolchain:
 
-- **Pixi** installed on your host machine ([Installation Guide](https://pixi.prefix.dev/latest/installation/)).
-- **Vivado/Vitis 2025.2** installed on your host machine (only required for FPGA synthesis/implementation). Refer to the [Vitis Toolchain Setup Guide](https://toulouse-embedded-accel.github.io/HEAT/quickstarts/vitis-toolchain-setup/) for toolchain installation details.
+```bash
+git clone https://github.com/onera/standalone-vta.git
+cd standalone-vta
+pixi shell
+```
 
-#### Working Behind a Corporate Proxy
+The FPGA flows additionally need Vivado/Vitis 2025.2 on the host
+([setup guide](https://toulouse-embedded-accel.github.io/HEAT/quickstarts/vitis-toolchain-setup/)),
+sourced before use, plus a license for Versal boards:
 
-If you are working behind a corporate proxy, make sure to export the proxy settings and JVM options:
+```bash
+source /opt/Xilinx/Vitis/2025.2/settings64.sh
+export XILINXD_LICENSE_FILE=<port>@<server>   # or path/to/license.lic
+```
+
+<details>
+<summary>Behind a corporate proxy</summary>
 
 ```bash
 export http_proxy="http://<PROXY_HOST>:<PORT>"
@@ -203,37 +172,12 @@ export https_proxy="http://<PROXY_HOST>:<PORT>"
 export JAVA_TOOL_OPTIONS="-Dhttp.proxyHost=<PROXY_HOST> -Dhttp.proxyPort=<PORT> -Dhttps.proxyHost=<PROXY_HOST> -Dhttps.proxyPort=<PORT>"
 ```
 
-### 2. Environment Setup
+</details>
 
-Clone the repository and activate the Pixi environment:
+### 2. Quickstart
 
-```bash
-# Clone the repository
-git clone https://github.com/onera/standalone-vta.git
-cd standalone-vta
-
-# Start the environment shell
-pixi shell
-```
-
-#### Hardware Implementation
-
-If you are using the hardware implementation, you need to source the Vitis 2025.2 settings script and optionally configure your Xilinx license (especially if targeting a Versal board):
-
-```bash
-# Source Vitis 2025.2 settings
-source /opt/Xilinx/Vitis/2025.2/settings64.sh
-
-# Configure Xilinx License (if required)
-export XILINXD_LICENSE_FILE=<port>@<server> # or path/to/license.lic
-```
-
-### 3. Quickstart
-
-The root `Makefile` is the entry point: it wraps the Mill build for the common
-flow (compile a model, simulate it, synthesize a bitstream, build the baremetal
-apps) so a first run needs no knowledge of Mill. Run it from the repository
-root, inside the Pixi environment.
+The root `Makefile` wraps the Mill build, so a first run needs no knowledge of
+Mill. Run it from the repository root, inside the Pixi environment.
 
 ```bash
 make            # or `make help`: list every target and the current settings
@@ -287,12 +231,9 @@ The available values are read from the filesystem: any `.onnx` under
 `config/*.json`, any `modules/fpga/boards/*.json`.
 
 Artifacts are cached per (model, config) and per (config, board), so switching
-`ONNX`, `CONFIG` or `BOARD` does not rebuild what the others already produced:
-each model keeps its own directory under `out/run/<model>/<config>/`. Only one
-model is addressable at a time, though - the one `ONNX` names - so building a
-set of models in one command needs the Mill entry points described in
-[MILL.md](MILL.md). Switching `ONNX`, `CONFIG` or `BOARD` between two `make` runs
-needs no cleaning or restart: switching back finds the earlier results cached.
+any of the three never rebuilds what the others produced, and switching back
+finds the earlier results. Only one model is addressable at a time; building
+several in one command needs the Mill entry points in [MILL.md](MILL.md).
 
 To drop the cached artifacts:
 
@@ -302,11 +243,10 @@ make cleaner        # every model's, every config's (the whole out/run tree)
 make clean-target   # this (config, board) FPGA cache
 ```
 
-### 4. Going further
+### 3. Going further
 
 The Makefile covers one model through the default pipeline. Everything else -
-running several models or configs side by side, the raw VTA IR fixtures, the
-individual FPGA and Vitis tasks, the on-board isolation runners, the
-post-synthesis gate-level check, the Chisel test suites, and how the build
-caches all of it - is driven directly with `./mill` and documented in
+several models or configs side by side, the raw VTA IR fixtures, the individual
+FPGA and Vitis tasks, the on-board runners, the post-synthesis gate-level check
+and the Chisel test suites - is driven with `./mill` and documented in
 [MILL.md](MILL.md).
