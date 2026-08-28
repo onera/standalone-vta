@@ -103,11 +103,7 @@ flowchart TB
 1. **Configuration** - `config/<name>.json` is the single source of truth for the
    hardware parameters (block size, buffer depths, data widths, in log2 notation).
    The same file parameterises the compiler, the generated C++ config header, the
-   Chisel elaboration and the synthesised bitstream, and all four must agree. Mill
-   enforces that by construction: the config is a cross key, not a flag, so
-   artifacts are cached per config and per (config, board). The one path it cannot
-   check is `createVitisProjectFromXsa`, where an XSA synthesised for a different
-   block size will run and produce garbage. See
+   Chisel elaboration and the synthesised bitstream. See
    [config/README.md](config/README.md).
 2. **Front-end** - two entry points. A quantised ONNX model goes through
    `nn_compiler`, which emits the VTA IR plus the per-node CPU parameters and
@@ -119,8 +115,7 @@ flowchart TB
    set of `.bin` streams and address/metadata CSVs that every back-end consumes.
 4. **Reference** - for ONNX models, a separate task runs the model with ONNX
    Runtime to produce `input_nn.bin` (the randomly generated network input) and
-   `reference.bin` (the golden output). It is kept out of the compiler output on
-   purpose, to keep one source of non-reproducibility out of the way.
+   `reference.bin` (the golden output).
 5. **Functional simulation** (`modules/simulator`) - `fsim` executes the binaries
    against a behavioural C++ model of VTA. Fast, and the usual first check.
 6. **Cycle-accurate simulation** (`modules/hardware` + `modules/simulator`) - the
