@@ -12,6 +12,9 @@
   "ps_preset_config": "apply_board_preset 1",
 
   "cpu": "psu_cortexa53_0",
+
+  "comment_uart_baud_choices": "Baud rates offered for run_nn_uart, bounded by the USB-UART bridge; the first is the default.",
+  "uart_baud_choices": [115200, 460800, 921600, 1500000, 2000000],
   "pl_clock_mhz": 100,
   "pl_clock_property": "PSU__CRL_APB__PL0_REF_CTRL__FREQMHZ",
 

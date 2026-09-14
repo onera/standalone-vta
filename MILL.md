@@ -154,6 +154,10 @@ the default cross keys, which is why they matter before you run anything:
 | `vta.config.file`       | `vta_config.json`           | Config for the flat, non-crossed tasks, and the config segment of `run[]` / `targets[]`.                  |
 | `vta.board.name`        | `zcu104`                    | Board for the pipeline tasks that need one, and the board segment of `targets[]`.                         |
 | `vta.ddr.base`          | `0x0`                       | DDR base address baked into the baremetal codegen. Must match the board.                                  |
+| `vta.sd.drive`          | `0:/`                       | FatFs volume the `sd` data loader reads from.                                                             |
+| `vta.sd.dir`            | model name                  | Folder on the SD card holding the model's files.                                                          |
+| `vta.heap.size`         | `0x800000`                  | Heap size written into a generated app's linker script.                                                   |
+| `vta.uart.baud`         | `115200`                    | PS UART rate of both the app and `uart_nn.py`. A change needs `buildVitisApp` + `flashBoard`.             |
 | `vta.verilator.threads` | `4`                         | Verilator build threads. Changing it invalidates the `vsim` tasks.                                        |
 | `vta.vivado.jobs`       | `4`                         | Vivado parallel jobs. A runtime flag: changing it does not invalidate anything.                           |
 | `vta.xil.out`           | unset                       | Shallow root for the heavy Vivado/Vitis trees (`<dir>/<config>/<board>/`), for Windows long-path limits.  |
@@ -163,7 +167,7 @@ the default cross keys, which is why they matter before you run anything:
 Rather than repeating `-Dvta.*` flags on every invocation, persist them:
 
 ```bash
-./mill configure vta.board.name=te0803 vta.ddr.base=0x10000000
+./mill configure vta.board.name=zcu104 vta.ddr.base=0x10000000
 ```
 
 This writes a generated, git-ignored `.mill-jvm-opts` at the repository root,
@@ -199,6 +203,7 @@ of these tasks exist on `run[...]`, on `default`, and on
 | `fsim`                      | command | Run the functional (C++) simulator, then check against the reference.                 |
 | `vsim`                      | command | Run the Verilated RTL simulator, then check against the reference.                    |
 | `check`                     | command | Run both simulators on the same cached compile and byte-compare their outputs.        |
+| `runFsim` / `runVsim`       | command | Run one simulator on `--input` and write its output to `--output`. No reference check. |
 | `layerDumps`                | cached  | Per-layer fsim goldens (`--dump-layers`), shared by the debug and post-synth flows.   |
 | `genBaremetal`              | cached  | The baremetal PS headers (`nn_exec_plan.h`, `nn_ddr_map.h`, ...). No Vivado needed.   |
 | `genBaremetalDebug`         | cached  | `genBaremetal` plus the debug maps, wired to `layerDumps`.                            |
@@ -206,6 +211,8 @@ of these tasks exist on `run[...]`, on `default`, and on
 | `createVitisProject`        | command | Add this model's app components to the (config, board) Vitis workspace.               |
 | `createVitisProjectFromXsa` | command | Same, from an XSA you already have, with no Vivado run.                               |
 | `addVitisDebugApps`         | command | Add the on-board isolation apps (`run_nn_debug`, `run_nn_cpu_debug`).                 |
+| `buildVitisApp`             | command | Add the app component for a runner/loader and build its ELF.                          |
+| `flashBoard`                | command | Program the bitstream and a built app over JTAG and start it.                         |
 | `runUart`                   | command | Drive a board running `run_nn_uart` over a serial port and check its output.          |
 | `postSynth`                 | command | Gate-level xsim check of a layer subset against the fsim goldens.                     |
 

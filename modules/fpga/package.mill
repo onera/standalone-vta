@@ -477,6 +477,7 @@ object `package` extends Module {
       workingDir: os.Path,
       refDir: os.Path,
       port: String,
+      baud: String,
       extraArgs: Seq[String]
     ) = {
       os.proc(
@@ -484,6 +485,8 @@ object `package` extends Module {
         uartScript,
         "--port",
         port,
+        "--baud",
+        baud,
         "--input",
         input.toString,
         "--output",

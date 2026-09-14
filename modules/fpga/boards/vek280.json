@@ -12,6 +12,9 @@
   "ps_preset_config": "",
 
   "cpu": "psv_cortexa72_0",
+
+  "comment_uart_baud_choices": "board_init() does not reprogram the Versal UART, so only the BSP rate is available.",
+  "uart_baud_choices": [115200],
   "pl_clock_mhz": 100,
   "pl_clock_property": "",
 

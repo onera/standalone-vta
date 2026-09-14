@@ -4,7 +4,7 @@
 #include <cstdint>
 
 #ifndef VTA_UART_BAUD
-#define VTA_UART_BAUD 921600u
+#define VTA_UART_BAUD 115200u
 #endif
 
 namespace vta {

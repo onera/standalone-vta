@@ -57,6 +57,8 @@ elf sd`. Addressed directly, per (model, config):
 | `examples.onnx[<model>,<config>].createVitisProject`        | App components in the shared workspace of `targets[<config>,<board>]`            |
 | `examples.onnx[<model>,<config>].createVitisProjectFromXsa` | The same from an XSA you already have, with no Vivado run                        |
 | `examples.onnx[<model>,<config>].addVitisDebugApps`         | Goldens + debug headers + debug app in one step                                  |
+| `examples.onnx[<model>,<config>].buildVitisApp`             | The app component for a runner/loader, and its ELF                               |
+| `examples.onnx[<model>,<config>].flashBoard`                | Bitstream and ELF programmed over JTAG (`host/program_board.sh`), app started    |
 | `examples.onnx[<model>,<config>].runUart`                   | Drives `run_nn_uart` on the board and checks the result                          |
 
 The board comes from `-Dvta.board.name` and the DDR base from
@@ -229,6 +231,7 @@ the active hardware config is selected by its file name via `-Dvta.config.file`)
 | `--emit-sd-manifest`  | off               | Emit `nn_sd_manifest.h` and stage the `.bin` set into `<outdir>/sd_card/` for the `sd` data loader                                                                                                                                                                                                                                                                                                   |
 | `--no-stage-sd-files` | off               | With `--emit-sd-manifest`: emit the header only, do not copy the `.bin` set. What the Mill `genBaremetal` task passes, so an `sd` app builds without every cached gen dir carrying a copy of the model                                                                                                                                                                                               |
 | `--sd-dir NAME`       | root              | Subfolder on the card to read from (e.g. `qyolo_pattern`), so several models can share one card                                                                                                                                                                                                                                                                                                      |
+| `--sd-drive VOL`      | `0:/`             | FatFs volume to read from (e.g. `1:/` for the second SD controller)                                                                                                                                                                                                                                                                                                                                  |
 | `--emit-layer-check`  | off               | Emit per-layer isolation-check artifacts (`nn_debug_map.h` + golden in/out) for `run_nn_debug`. Requires `--golden-dir`. Off by default; normal images are unaffected.                                                                                                                                                                                                                               |
 | `--emit-cpu-check`    | off               | Emit `nn_cpu_debug_map.h` for `run_nn_cpu_debug`; reuses the same golden regions and implies `--emit-layer-check`                                                                                                                                                                                                                                                                                    |
 | `--golden-dir DIR`    | -                 | Directory with fsim golden dumps (`--dump-layers`): `input<SUFFIX>.bin` / `output<SUFFIX>.bin`. Required with `--emit-layer-check`.                                                                                                                                                                                                                                                                  |
@@ -311,6 +314,8 @@ vitis -s host/create_vitis_workspace.py \
 | `--name-prefix PREFIX`       | `vta`                                 | Prefix of the app component names (`<prefix>_<runner>[_<loader>]`). The pipeline passes the model name, so several models coexist in one workspace                                                                                                      |
 | `--app-name NAME`            | `<prefix>_<runner>_<loader>`          | Override the app component name outright (single runner only)                                                                                                                                                                                           |
 | `--baud N`                   | `115200`                              | UART baud rate compiled into the firmware (`VTA_UART_BAUD`)                                                                                                                                                                                             |
+| `--heap-size SIZE`           | BSP default                           | Heap size written into the app's `lscript.ld`                                                                                                                                                                                                           |
+| `--build APPNAME...`         | -                                     | Build the ELF of existing app component(s) and exit                                                                                                                                                                                                     |
 | `--pl-reset-between-layers`  | off                                   | `run_nn_debug` only: pulse a PL-only fabric reset (ZynqMP `pl_resetn0`, GPIO pin 173) before each layer, so every layer runs on pristine VTA state. Adds `NN_PL_RESET_BETWEEN_LAYERS`.                                                                  |
 | `--dry-run`                  | -                                     | Print files that would be copied without calling Vitis APIs                                                                                                                                                                                             |
 
@@ -639,7 +644,7 @@ loader.
 ### Multiple models on one card
 
 `--sd-dir NAME` (`SD_DIR=NAME`) bakes a subfolder into the manifest as
-`NN_SD_DIR`, so the app opens `0:/NAME/<file>` and several models can share a
+`NN_SD_DIR`, so the app opens `<drive>NAME/<file>` and several models can share a
 card. It is also the staging subfolder, and regenerating clears only that
 folder, leaving sibling models intact. Default is the card root. Because the
 folder is compiled into the ELF, each model still needs its own build.
@@ -713,6 +718,10 @@ so `vta_board.cc` gates the whole body on `XPAR_XUARTPS_0_BASEADDR &&
 !versal && !VERSAL_NET`. There the BSP-configured baud rate stands, and the
 `--baud` passed to `create_vitis_workspace.py` must match it.
 
+Through Mill, `-Dvta.uart.baud` sets both `VTA_UART_BAUD` and `uart_nn.py
+--baud`. The usable rates depend on the board's USB-UART bridge and are listed
+as `uart_baud_choices` in `modules/fpga/boards/<board>.json`.
+
 `run_nn.cc`, `run_nn_uart.cc`, `run_nn_debug.cc` and `run_nn_cpu_debug.cc` all
 call it as their first statement.
 
@@ -735,6 +744,14 @@ interpreter:
 
 Both are also invoked by the Mill tasks - `createVitisProject` and `runUart`
 respectively - so calling them by hand is for the standalone path only.
+
+`program_board.sh` (with `program_board.tcl`) is what `flashBoard` runs: xsdb
+resets the PS, runs the FSBL, programs the bitstream, releases the PL, then
+downloads and starts the ELF. It takes the artifact paths explicitly
+(`--bit`, `--elf`, `--fsbl`, `--psinit`).
+
+`model_io.py`, `board_discovery.py` and `digit_canvas.py` support the UART
+inference notebooks in [`tutorials/`](../../../tutorials/README.md).
 
 The former standalone Python helpers have been ported to Scala and are now run
 through Mill from the repo root (they share the same code the codegen and the

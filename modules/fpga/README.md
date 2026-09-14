@@ -95,6 +95,7 @@ This step compiles the neural network model into VTA instructions and configures
    *Where:*
    - `<BOARD>`: The target board (`zcu104`, `vck190`, or `vek280`).
    - `<CPU>`: Use `psv_cortexa72_0` for Versal architectures (`vck190` or `vek280`), and `psu_cortexa53_0` for UltraScale+ architectures (`zcu104`).
+   - `--baud`: must match the host side (`uart_nn.py --baud`). Versal boards stay at 115200.
 
 For further details and configuration options, see the [software/README.md](software/README.md).
 
@@ -241,7 +242,7 @@ This generates `modules/fpga/software/gen/init_dram.h`.
    - In the Vitis **Flow** panel, click **Build** under your application component.
 7. **Connect the Board:**
    - Connect the power, JTAG, and UART cables of your board. Refer to the [setup diagram](https://vitisai.docs.amd.com/en/latest/_images/target_board_updated.png) for cabling details.
-   - Open a serial terminal configured for the board's UART interface (baud rate: `115200`, e.g., using `/dev/ttyUSB0` or as explained in the [VEK280 setup guide](https://toulouse-embedded-accel.github.io/HEAT/quickstarts/vek280-setup/)).
+   - Open a serial terminal configured for the board's UART interface (baud rate: `115200` or the app's `--baud`, e.g., using `/dev/ttyUSB0` or as explained in the [VEK280 setup guide](https://toulouse-embedded-accel.github.io/HEAT/quickstarts/vek280-setup/)).
    - Power on the target board.
 8. **Run the Application:**
    - **Via Vitis GUI:** In the Flow panel, select your application and click **Run**.

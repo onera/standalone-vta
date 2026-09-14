@@ -71,6 +71,8 @@ object `package` extends Module with SpotlessModule {
     "vta.sd.dir" -> "",
     /** Heap size written into a generated app's linker script. */
     "vta.heap.size" -> "0x800000",
+    /** PS UART baud rate, used by both the app (VTA_UART_BAUD) and uart_nn.py. */
+    "vta.uart.baud" -> "115200",
     /** Default verilator threads for verilator simulation. */
     "vta.verilator.threads" -> "4",
     /** Default jobs for vivado synthesis */
@@ -117,6 +119,13 @@ object `package` extends Module with SpotlessModule {
   /** Path to the default onnx file, for use in the [[run]] cross module
     */
   def defaultOnnxFile = getVtaArg("vta.onnx.file")
+
+  def uartBaud: String = {
+    val v = getVtaArg("vta.uart.baud")
+    require(v.nonEmpty && v.forall(_.isDigit) && v.toLong > 0,
+      s"vta.uart.baud must be a positive integer, got '$v'")
+    v
+  }
 
   /* Python command
    * Pixi is called explicitly in the sub process. If you do not use pixi,

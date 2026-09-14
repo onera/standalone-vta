@@ -90,6 +90,19 @@ torchao = "==0.17.*"
 [feature.training.pypi-options]
 extra-index-urls = ["https://pypi.ngc.nvidia.com"]
 
+# --- Notebooks feature ----------------------------------------------------
+# marimo notebooks for the FPGA host flow (tutorials/).
+
+[feature.notebooks]
+platforms = ["linux-64"]
+
+[feature.notebooks.dependencies]
+marimo = ">=0.9"
+pillow = ">=10"
+anywidget = ">=0.9"
+
 [environments]
 # `pixi run -e training <cmd>` when training / quantizing neural networks.
 training = ["training"]
+# `pixi run -e notebooks marimo edit <notebook>` for the FPGA host notebooks.
+notebooks = ["notebooks"]

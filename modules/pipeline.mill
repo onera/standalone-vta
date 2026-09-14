@@ -290,6 +290,99 @@ trait LayerDumpTasks extends SimTasks {
       check = false
     )()
   }
+
+  /** Run a simulator on a caller-supplied network input (flat INT8 `[H*W][C]`,
+    * as in `input_nn.bin`) and copy its flat NCHW INT8 output to `output`. No
+    * reference check.
+    */
+  protected def simRunInput(
+    binary: Task[PathRef],
+    outputName: String,
+    input: String,
+    output: String,
+    flags: Seq[String]
+  ): Task[PathRef] = Task.Anon {
+    val compOut = compile().path
+    val inPath = os.Path(input, BuildCtx.workspaceRoot)
+    if (!os.exists(inPath))
+      sys.error(s"input file not found: $inPath")
+
+    val expected = expectedInputBytes(compOut)
+    val got = os.size(inPath)
+    if (expected.exists(_ != got))
+      sys.error(
+        s"$inPath is $got bytes, but $modelKey expects ${expected.get}"
+      )
+
+    val refDir = Task.dest / "ref"
+    os.makeDir.all(refDir)
+    os.copy.over(inPath, refDir / "input_nn.bin")
+
+    val simOut = Task.dest / "sim"
+    simulator(configKey)
+      .runner()
+      .launch(
+        binary().path,
+        Seq("--comp-dir", compOut.toString, "--output", simOut.toString,
+            "--ref-dir", refDir.toString) ++ defaultSimFlags ++ flags
+      )
+
+    val produced = simOut / outputName
+    if (!os.exists(produced))
+      sys.error(s"the simulator wrote no $outputName in $simOut")
+    os.copy.over(
+      produced,
+      os.Path(output, BuildCtx.workspaceRoot),
+      createFolders = true
+    )
+    PathRef(simOut)
+  }
+
+  /** Input size from dependency.csv's `image,<H*W>,<C>` row, if readable. */
+  private def expectedInputBytes(compDir: os.Path): Option[Long] = {
+    val dep = compDir / "dependency.csv"
+    if (!os.exists(dep)) None
+    else
+      os.read
+        .lines(dep)
+        .collectFirst { case l if l.startsWith("image,") => l.split(",") }
+        .collect { case Array(_, rows, cols, _*) =>
+          (rows.trim.toLongOption, cols.trim.toLongOption)
+        }
+        .collect { case (Some(r), Some(c)) => r * c }
+  }
+
+  /** Run fsim on one input file. */
+  def runFsim(
+    @arg(doc = "flat INT8 [H*W][C] network input file") input: String,
+    @arg(doc = "file the flat NCHW INT8 output is written to") output: String,
+    args: Args
+  ) = Task.Command {
+    simRunInput(
+      simulator(configKey).fsimBinary,
+      "final_output.bin",
+      input,
+      output,
+      args.value
+    )()
+  }
+
+  /** Run vsim on one input file; `--timeout-cycles` in `args` overrides the
+    * default `--no-timeout`.
+    */
+  def runVsim(
+    @arg(doc = "flat INT8 [H*W][C] network input file") input: String,
+    @arg(doc = "file the flat NCHW INT8 output is written to") output: String,
+    args: Args
+  ) = Task.Command {
+    simRunInput(
+      simulator(configKey).vsimBinary,
+      "final_output_rtl.bin",
+      input,
+      output,
+      Seq("--no-timeout") ++ args.value
+    )()
+  }
 }
 
 /** Baremetal PS codegen and the SD-card file sets. */
@@ -513,7 +606,8 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
         namePrefix = modelKey,
         cpu = Some(fpga.readManifestField(manifest, "cpu")),
         genDir = Some(gen),
-        extraArgs = Seq("--heap-size", heapSize()) ++ extraArgs
+        extraArgs =
+          Seq("--heap-size", heapSize(), "--baud", uartBaud()) ++ extraArgs
       )
     ws.toString
   }
@@ -521,6 +615,13 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
   /** Heap size for the generated app's linker script, from -Dvta.heap.size. */
   def heapSize = Task.Input {
     build.getVtaArg("vta.heap.size")
+  }
+
+  /** PS UART baud rate from -Dvta.uart.baud. A change needs [[buildVitisApp]]
+    * and [[flashBoard]] before the next [[runUart]].
+    */
+  def uartBaud = Task.Input {
+    build.uartBaud
   }
 
   def checkUartOutput = Task.Anon {
@@ -551,6 +652,7 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
       Task.dest,
       compile().path,
       port,
+      uartBaud(),
       args.value
     )
     Task.dest
