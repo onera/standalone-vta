@@ -554,7 +554,7 @@ def step_compute(ops, load_A, load_B, load_X, sram_state, uop_addr, uop_buffer_s
                     # UOP
                     uop_buffer.append(VTAUop( 
                         dst_idx=dst_vector_idx, 
-                        src_idx=0,
+                        src_idx=dst_vector_idx,
                         wgt_idx=0
                     ))
                     nb_uop += 1

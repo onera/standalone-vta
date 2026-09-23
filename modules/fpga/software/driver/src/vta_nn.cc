@@ -9,11 +9,42 @@ extern "C" {
 #include "xil_cache.h"
 #include "xil_printf.h"
 #include "xparameters.h"
+// XTime: xiltimer on newer BSPs, xtime_l on older ones.
+#if __has_include("xiltimer.h")
+#include "xiltimer.h"
+#include "xtimer_config.h"
+#else
+#include "xtime_l.h"
+#endif
 }
+
+// Progress output, off by default: UART writes block and distort the timings.
+#ifdef NN_VERBOSE_STEPS
+#define VTA_LOG(...) xil_printf(__VA_ARGS__)
+#else
+#define VTA_LOG(...) ((void)0)
+#endif
 
 namespace vta {
 
-int run_layer(std::uintptr_t vcr_base, const LayerDesc &layer, int timeout) {
+namespace {
+
+struct StepTimer {
+  XTime start;
+  StepTimer() { XTime_GetTime(&start); }
+  std::uint32_t elapsed_us() const {
+    XTime now;
+    XTime_GetTime(&now);
+    // Scale before dividing: COUNTS_PER_SECOND need not be a whole number of MHz.
+    return static_cast<std::uint32_t>(((now - start) * 1000000ull) /
+                                      COUNTS_PER_SECOND);
+  }
+};
+
+} // namespace
+
+int run_layer(std::uintptr_t vcr_base, const LayerDesc &layer, int timeout,
+              std::uint32_t *ecnt_out, std::uint32_t *ucnt_out) {
   // 1. Program VCR registers.
   //    ptr[0] = insn_addr (absolute), ptr[1..5] = ddr_base (offsets in
   //    instructions).
@@ -54,9 +85,14 @@ int run_layer(std::uintptr_t vcr_base, const LayerDesc &layer, int timeout) {
     // sleep before polling
     usleep(100);
     if (read_reg(vcr_base, REG_CTRL) & CTRL_DONE) {
-      xil_printf("[vta] done after %d polls\r\n", count);
-      // Get the number of compute cycles from the VTA
+      VTA_LOG("[vta] done after %d polls\r\n", count);
+#ifdef NN_VERBOSE_STEPS
       print_cycles(vcr_base);
+#endif
+      if (ecnt_out)
+        *ecnt_out = read_reg(vcr_base, REG_ECNT);
+      if (ucnt_out)
+        *ucnt_out = read_reg(vcr_base, REG_UCNT);
       done = true;
       break;
     }
@@ -118,9 +154,17 @@ float *run_nn(std::uintptr_t vcr_base, const NnExecStep *steps,
                            static_cast<INTPTR>(ld.acc_bytes));
   }
 
+  std::uint32_t vta_us = 0u, cpu_us = 0u;
+  // Steps past the cap still count towards the totals.
+  constexpr unsigned kMaxTimedSteps = 512u;
+  static std::uint32_t step_us[kMaxTimedSteps];
+  static std::uint32_t step_ecnt[kMaxTimedSteps];
+  static std::uint32_t step_ucnt[kMaxTimedSteps];
+
   for (unsigned i = 0u; i < num_steps; ++i) {
     const NnExecStep &s = steps[i];
-    xil_printf("[vta] step %u/%u: %s\r\n", i, num_steps - 1u, s.name);
+    VTA_LOG("[vta] step %u/%u: %s\r\n", i, num_steps - 1u, s.name);
+    const StepTimer step_timer;
 
     switch (s.type) {
     case NN_STEP_VTA:
@@ -132,7 +176,9 @@ float *run_nn(std::uintptr_t vcr_base, const NnExecStep *steps,
         *ok = false;
         return nullptr;
       }
-      if (run_layer(vcr_base, layers[s.vta.layer_idx]) != 0) {
+      if (run_layer(vcr_base, layers[s.vta.layer_idx], 500000,
+                    i < kMaxTimedSteps ? &step_ecnt[i] : nullptr,
+                    i < kMaxTimedSteps ? &step_ucnt[i] : nullptr) != 0) {
         xil_printf("=== VTA layer failed at step %u ===\r\n", i);
         std::free(float_buf);
         *ok = false;
@@ -240,7 +286,31 @@ float *run_nn(std::uintptr_t vcr_base, const NnExecStep *steps,
       break;
     }
     }
+
+    const std::uint32_t elapsed = step_timer.elapsed_us();
+    if (s.type == NN_STEP_VTA)
+      vta_us += elapsed;
+    else
+      cpu_us += elapsed;
+    if (i < kMaxTimedSteps)
+      step_us[i] = elapsed;
   }
+
+  for (unsigned i = 0u; i < num_steps && i < kMaxTimedSteps; ++i) {
+    if (steps[i].type == NN_STEP_VTA)
+      xil_printf("[time] %2u %-28s %6u us  vta %u cyc (%u compute)\r\n", i,
+                 steps[i].name, step_us[i], step_ecnt[i], step_ucnt[i]);
+    else
+      xil_printf("[time] %2u %-28s %6u us  cpu\r\n", i, steps[i].name,
+                 step_us[i]);
+  }
+  const std::uint32_t total_us = vta_us + cpu_us;
+  const std::uint32_t cpu_pct =
+      total_us ? static_cast<std::uint32_t>(static_cast<std::uint64_t>(cpu_us) *
+                                            100ull / total_us)
+               : 0u;
+  xil_printf("[time] TOTAL %u us = VTA %u us + CPU %u us (CPU %u%%)\r\n",
+             total_us, vta_us, cpu_us, cpu_pct);
 
   return float_buf;
 }

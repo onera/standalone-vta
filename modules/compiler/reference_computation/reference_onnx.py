@@ -52,6 +52,9 @@ def reference_onnx(model_path, mode="ort", debug=False):
     high_bound = 127 # Exclusive
     
     # Create random tensor matching the input shape from CSV
+    seed = os.environ.get("VTA_REF_SEED")
+    if seed:
+        np.random.seed(int(seed))
     input_data = np.random.randint(low_bound, high_bound, size=shape).astype(dtype)
     
     # Initialize output container

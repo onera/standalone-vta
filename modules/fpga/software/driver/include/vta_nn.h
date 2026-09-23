@@ -49,10 +49,13 @@ struct LayerDesc {
  * @param vcr_base  AXI base address of the VTA VCR peripheral
  * @param layer     Layer descriptor (addresses and sizes)
  * @param timeout   Maximum poll iterations before giving up (0 = unlimited)
+ * @param ecnt_out  If non-null, receives the VTA total-cycle counter
+ * @param ucnt_out  If non-null, receives the VTA compute-cycle counter
  * @return 0 on success, -1 on timeout
  */
 int run_layer(std::uintptr_t vcr_base, const LayerDesc &layer,
-              int timeout = 500000);
+              int timeout = 500000, std::uint32_t *ecnt_out = nullptr,
+              std::uint32_t *ucnt_out = nullptr);
 
 // Scans the supplied step array for the FORMAT_INPUT step.  Fills *raw_addr
 // with the scratch DDR address and *input_n_bytes with tensor_ch * tensor_h *

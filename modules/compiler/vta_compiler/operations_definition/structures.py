@@ -16,6 +16,14 @@ class VTAUop(LittleEndianStructure):
         ("wgt_idx", ctypes.c_uint32, 10) 
     ]
 
+    def __init__(self, **kwargs):
+        # ctypes silently truncates a value that overflows its bitfield.
+        for name, _, bits in self._fields_:
+            value = kwargs.get(name, 0)
+            if not (0 <= value < (1 << bits)):
+                raise Exception(f"ERROR: uop {name}={value} does not fit its {bits}-bit field! \n\n")
+        super().__init__(**kwargs)
+
 
 # Create the instruction structures
 class VTAMemInsn(LittleEndianStructure):
