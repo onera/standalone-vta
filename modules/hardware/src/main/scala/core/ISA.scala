@@ -61,7 +61,7 @@ trait ISAConstants {
   val OP_A = 4.asUInt(OP_BITS.W)
   val OP_X = 5.asUInt(OP_BITS.W)
 
-  val ALU_OP_NUM = 5
+  val ALU_OP_NUM = 6
   val ALU_OP = Enum(ALU_OP_NUM)
 
   val M_ID_U = 0.asUInt(M_ID_BITS.W)
@@ -108,7 +108,8 @@ object ISA {
       ("minpool", "000"),
       ("maxpool", "001"),
       ("add", "010"),
-      ("shift", "011")
+      ("shift", "011"),
+      ("mul", "100")
     )
 
   private def dontCare(bits: Int): String = "?" * bits
@@ -155,5 +156,6 @@ object ISA {
   def VMAX = alu("maxpool")
   def VADD = alu("add")
   def VSHX = alu("shift")
+  def VMUL = alu("mul")
   def FNSH = finish
 }

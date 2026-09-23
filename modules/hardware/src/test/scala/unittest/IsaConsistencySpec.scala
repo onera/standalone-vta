@@ -151,7 +151,15 @@ class IsaConsistencySpec extends AnyFlatSpecSim with Matchers {
       CAlu,
       Some(BigInt(2))
     ),
-    Case("VSHX", word(ISA.VSHX), OP_A.litValue, RCompute, CAlu, Some(BigInt(3)))
+    Case(
+      "VSHX",
+      word(ISA.VSHX),
+      OP_A.litValue,
+      RCompute,
+      CAlu,
+      Some(BigInt(3))
+    ),
+    Case("VMUL", word(ISA.VMUL), OP_A.litValue, RCompute, CAlu, Some(BigInt(4)))
   )
 
   it should "decode every ISA instruction consistently with the decode Bundles" in {

@@ -256,25 +256,15 @@ object `package` extends build.VtaScalaModule with PublishModule { m =>
     def testSandboxWorkingDir = true
     def testParallelism = true
 
-    /** Config the tests run against, from -Dvta.config.file. None means the
-      * in-resources vta_config_test.json.
+    /** The -Dvta.config.* JVM args handed to the forked test JVM. Always the
+      * in-resources vta_config_test.json: the test fixtures were generated
+      * against it, so -Dvta.config.file is deliberately ignored here.
       */
-    def vtaConfigFile = Task.Input {
-      sys.props.get("vta.config.file")
-    }
-
-    /** The -Dvta.config.* JVM args handed to the forked test JVM. */
     def getConfigArgs = Task {
-      (for {
-        file <- vtaConfigFile()
-      } yield {
-        Seq(s"-Dvta.config.file=${file}")
-      }).getOrElse {
-        Seq(
-          "-Dvta.config.file=vta_config_test.json",
-          "-Dvta.config.fromResources=true"
-        )
-      }
+      Seq(
+        "-Dvta.config.file=vta_config_test.json",
+        "-Dvta.config.fromResources=true"
+      )
     }
     override def forkArgs: Simple[Seq[String]] =
       super.forkArgs() ++ getConfigArgs()

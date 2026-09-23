@@ -41,12 +41,13 @@ class Alu(implicit p: Parameters) extends Module {
   val m = ~ub(width - 1, 0) + 1.U
 
   val n = ub(width - 1, 0)
-  // opcode - min:0, max:1, add:2, shr:3, shl:4
+  // opcode - min:0, max:1, add:2, shr:3, mul:4, shl:5
   val fop = Seq(
     Mux(io.a < io.b, io.a, io.b),
     Mux(io.a < io.b, io.b, io.a),
     io.a + io.b,
     io.a >> n,
+    io.a * io.b,
     io.a << m
   )
 
@@ -407,7 +408,7 @@ class TensorAluPipelined(implicit p: Parameters) extends TensorAluIfc {
     val neg_shift = isSHR & tensorImmBits_piped(C_ALU_IMM_BITS - 1)
     val fixme_alu_op = Mux(
       neg_shift,
-      ALU_OP(4), // use opcode = 4 for left shift
+      ALU_OP(5), // use opcode = 5 (internal-only) for left shift
       tensorOpBits_piped
     )
     alu.io.opcode := fixme_alu_op

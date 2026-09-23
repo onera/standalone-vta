@@ -88,6 +88,7 @@ class GemmDecode extends Bundle {
   *   - VMAX
   *   - VADD
   *   - VSHX
+  *   - VMUL
   */
 class AluDecode extends Bundle {
   val alu_imm = UInt(C_ALU_IMM_BITS.W)
@@ -146,7 +147,8 @@ class FetchDecode extends Module {
         VMIN -> List(Y, OP_G),
         VMAX -> List(Y, OP_G),
         VADD -> List(Y, OP_G),
-        VSHX -> List(Y, OP_G)
+        VSHX -> List(Y, OP_G),
+        VMUL -> List(Y, OP_G)
       )
     )
 
@@ -218,7 +220,7 @@ class ComputeDecode extends Module {
   io.isLoadAcc := io.inst === LACC & dec.xsize =/= 0.U
   io.isLoadUop := io.inst === LUOP & dec.xsize =/= 0.U
   io.isSync := (io.inst === LACC | io.inst === LUOP) & dec.xsize === 0.U
-  io.isAlu := io.inst === VMIN | io.inst === VMAX | io.inst === VADD | io.inst === VSHX
+  io.isAlu := io.inst === VMIN | io.inst === VMAX | io.inst === VADD | io.inst === VSHX | io.inst === VMUL
   io.isGemm := io.inst === GEMM
   io.isFinish := io.inst === FNSH
 }

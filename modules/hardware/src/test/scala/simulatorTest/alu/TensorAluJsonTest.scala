@@ -140,7 +140,7 @@ class TensorAluJsonTest(
   c.io.dec.src_0.poke(src_0)
   // SRC_IDX_FACTOR_1 (X1)
   c.io.dec.src_1.poke(src_1)
-  // ALU_OP (opcode: min:0, max:1, add:2, shr:3, shl:4)
+  // ALU_OP (opcode: min:0, max:1, add:2, shr:3, mul:4, shl:5)
   c.io.dec.alu_op.poke(alu_op)
   // USE_IMM
   c.io.dec.alu_use_imm.poke(use_imm)
@@ -159,7 +159,7 @@ class TensorAluJsonTest(
     print(s"\t SRC_0: ${c.io.dec.src_0.peek()} \n")
     print(s"\t SRC_1: ${c.io.dec.src_1.peek()} \n")
     print(
-      s"\t ALU_OP: ${c.io.dec.alu_op.peek()} \t (0 = MIN / 1 = MAX / 2 = ADD / 3 = SHR / 4 = SHL) \n"
+      s"\t ALU_OP: ${c.io.dec.alu_op.peek()} \t (0 = MIN / 1 = MAX / 2 = ADD / 3 = SHR / 4 = MUL / 5 = SHL) \n"
     )
     print(s"\t USE_IMM: ${c.io.dec.alu_use_imm.peek()} \n")
     print(s"\t IMM: ${c.io.dec.alu_imm.peek()} \n\n")
@@ -503,13 +503,17 @@ class TensorAluJsonTester extends AnyFlatSpecSim {
   it should "compute ReLU activation" in {
     runFixture("/examples_alu/relu_activation.json")
   }
+  it should "compute VMUL" in { runFixture("/examples_alu/mul.json") }
+  it should "compute VMUL with immediate" in {
+    runFixture("/examples_alu/mul_imm.json")
+  }
 
   // shift_left.json / shift_left_imm.json are ignored: their lane-15 expected
   // value disagrees with the hardware. The Alu SHL path is one combinational
   // expression replicated identically across all 16 lanes, so no hardware path
   // can differ at lane 15 while matching the other odd lanes - the fixture's
   // lane-15 value is a typo (should be 0x80000000). Re-enable once fixed.
-  ignore should "compute VSHL (alu_op=4) - IGNORED: shift_left.json lane-15 expected typo" in {
+  ignore should "compute VSHL (alu_op=5) - IGNORED: shift_left.json lane-15 expected typo" in {
     runFixture("/examples_alu/shift_left.json")
   }
   ignore should "compute VSHL with immediate - IGNORED: shift_left_imm.json lane-15 expected typo" in {

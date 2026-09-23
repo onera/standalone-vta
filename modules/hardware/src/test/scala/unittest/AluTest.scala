@@ -53,9 +53,13 @@ object Alu_ref {
       for (i <- 0 until size) {
         res(i) = a(i) >> (b(i) & mask).toInt
       }
-    } else if (opcode == 4) { // left shift
+    } else if (opcode == 4) { // multiply (Int arithmetic wraps like SInt truncation)
+      for (i <- 0 until size) {
+        res(i) = a(i) * b(i)
+      }
+    } else if (opcode == 5) { // left shift
       // HLS shift left by >> negative number
-      // b always < 0 when opcode == 4
+      // b always < 0 when opcode == 5
       for (i <- 0 until size) {
         res(i) = a(i) << ((-1 * b(i)) & mask).toInt
       }
@@ -83,7 +87,7 @@ class AluTest extends AnyFlatSpecSim {
         val bits = c.io.acc_a.tensorElemBits
         val dataGen = new RandomArray(c.blockOut, bits, r)
         val in_a = dataGen.any
-        val in_b = if (op != 4) dataGen.any else dataGen.negative
+        val in_b = if (op != 5) dataGen.any else dataGen.negative
         val mask = Helper.getMask(bits)
         val res = Alu_ref.alu(op, in_a, in_b, bits)
 

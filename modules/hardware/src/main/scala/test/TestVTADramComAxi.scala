@@ -82,6 +82,8 @@ class VTAShellTestFull(
     RegNext(BoringUtils.tapAndRead(vta.core.compute.tensorGemm.inflight))
   io.dbg.computeState :=
     RegNext(BoringUtils.tapAndRead(vta.core.compute.state))
+  io.dbg.vmeAvailEntries :=
+    RegNext(BoringUtils.tapAndRead(vta.vme.availableEntries))
   io.dbg.instQDeqValid :=
     RegNext(BoringUtils.tapAndRead(vta.core.compute.inst_q.io.deq.valid))
   io.dbg.computeIsGemm :=
