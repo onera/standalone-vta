@@ -71,7 +71,7 @@ int main() {
 #ifdef NN_SD_LOADER
   // Load static model data from the SD card; the raw input still arrives over
   // UART each iteration (so NN_SD_HAS_INPUT is intentionally ignored here).
-  if (vta::sd_load_files("0:/" NN_SD_DIR, nn_sd_static_files,
+  if (vta::sd_load_files(NN_SD_DRIVE NN_SD_DIR, nn_sd_static_files,
                          NN_SD_NUM_STATIC) != 0) {
     xil_printf("ERROR: SD static-model load failed\r\n");
     return -1;

@@ -10,6 +10,7 @@ What this script does:
   3. Builds the platform.
   4. Creates a bare-metal application component with an empty template.
   5. Copies all VTA driver sources + the chosen runner into the app src directory.
+  6. --build <appname> (a separate mode): builds the ELF of an existing app.
 
 The platform depends only on the XSA (config/board); the applications depend on
 the model too. The two halves can run separately:
@@ -19,6 +20,7 @@ the model too. The two halves can run separately:
   --name-prefix <model>    app components named <model>_<runner>[_<loader>]
                            instead of the default vta_<runner>[_<loader>], so
                            several models coexist in one workspace
+  --build <appname>...     build existing app component(s) only
 
 Runners (--runner)
 ------------------
@@ -84,8 +86,10 @@ Note on the vitis Python module
 """
 
 import argparse
+import re
 import shutil
 import sys
+import time
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -203,7 +207,7 @@ def collect_sources(
     from the repository via absolute paths written into UserConfig.cmake by
     _patch_user_config().  Only runner-specific files are copied:
 
-      <runner>.cc   - runner entry point (root; picked up by aux_source_directory)
+      <runner>.cc   - runner entry point (root; listed in USER_COMPILE_SOURCES)
       <extras>      - e.g. init_dram.h for test_gemm (root)
       <generated>   - nn_ddr_map.h, nn_exec_plan.h, nn_bin_data.S, ... (root)
 
@@ -370,7 +374,10 @@ def create_app(
 
 
 def _patch_user_config(
-    app_src: Path, baud: int = 115200, extra_defines: list[str] | None = None
+    app_src: Path,
+    runner_cc: str,
+    baud: int = 115200,
+    extra_defines: list[str] | None = None,
 ) -> None:
     """Append driver paths and compile definitions to UserConfig.cmake.
 
@@ -378,6 +385,9 @@ def _patch_user_config(
     copied.  Appending at the end overrides the empty USER_* declarations
     that Vitis wrote earlier in the file; CMakeLists.txt reads the final
     values after the full include() of UserConfig.cmake completes.
+
+    The runner .cc and the app src dir (generated headers) are listed
+    explicitly: some Vitis versions do not scan the app src dir.
 
     extra_defines are added to USER_COMPILE_DEFINITIONS (e.g. NN_CHECK_LAYERS
     for the run_nn_debug isolation app).
@@ -387,9 +397,11 @@ def _patch_user_config(
         print(f"[copy] WARNING: UserConfig.cmake not found at {cfg}.")
         return
     marker = "# VTA driver - referenced in-place from the repository"
-    if marker in cfg.read_text():
-        print("[copy] UserConfig.cmake already patched, skipping.")
-        return
+    text = cfg.read_text()
+    if marker in text:
+        # The block is appended last, so dropping it restores the original.
+        cfg.write_text(text[: text.index(marker)].rstrip("\n") + "\n")
+        print("[copy] UserConfig.cmake already patched, rewriting the VTA block.")
     # Absolute paths work fine here; only the separator style matters, since
     # CMake wants forward slashes even on Windows.
     include_dir = INCLUDE_DIR.as_posix()
@@ -399,12 +411,13 @@ def _patch_user_config(
     with cfg.open("a") as f:
         f.write(
             "\n# VTA driver - referenced in-place from the repository\n"
-            f'set(USER_INCLUDE_DIRECTORIES "{include_dir}")\n'
+            f'set(USER_INCLUDE_DIRECTORIES "{include_dir}" "${{CMAKE_CURRENT_SOURCE_DIR}}")\n'
             f'file(GLOB _drv_sources "{src_dir}/*.cc")\n'
             # Also glob *.S at the app root: picks up nn_bin_data.S for the ELF
             # data-loader; empty glob is harmless for the TCL loader.
             'file(GLOB _asm_sources "${CMAKE_CURRENT_SOURCE_DIR}/*.S")\n'
-            "set(USER_COMPILE_SOURCES ${_drv_sources} ${_asm_sources})\n"
+            f'set(USER_COMPILE_SOURCES "${{CMAKE_CURRENT_SOURCE_DIR}}/{runner_cc}" '
+            "${_drv_sources} ${_asm_sources})\n"
             f'set(USER_COMPILE_DEFINITIONS "{defines_str}")\n'
         )
     print(
@@ -435,6 +448,28 @@ def _patch_linker_script(app_src: Path, ld_fragment: str) -> None:
     print(f"[ld] Added '{include_line}' to lscript.ld.")
 
 
+def _patch_heap_size(app_src: Path, heap_size: str) -> None:
+    """Rewrite the _HEAP_SIZE default in the Vitis-generated linker script.
+
+    Edited in place rather than appended: SECTIONS consumes _HEAP_SIZE before
+    the end of the file.
+    """
+    lscript = app_src / "lscript.ld"
+    if not lscript.exists():
+        print(f"[ld] WARNING: lscript.ld not found at {lscript}.")
+        return
+    pattern = re.compile(
+        r"(_HEAP_SIZE\s*=\s*DEFINED\(_HEAP_SIZE\)\s*\?\s*_HEAP_SIZE\s*:\s*)"
+        r"(0x[0-9A-Fa-f]+|\d+)(\s*;)"
+    )
+    text, n = pattern.subn(rf"\g<1>{heap_size}\g<3>", lscript.read_text())
+    if n == 0:
+        print(f"[ld] WARNING: no _HEAP_SIZE assignment in {lscript}.")
+        return
+    lscript.write_text(text)
+    print(f"[ld] Set _HEAP_SIZE to {heap_size} in lscript.ld.")
+
+
 def copy_sources(
     app_src: Path,
     runner: str,
@@ -442,6 +477,7 @@ def copy_sources(
     gen_dir: Path,
     baud: int = 115200,
     extra_defines: list[str] | None = None,
+    heap_size: str | None = None,
 ) -> None:
     sources = collect_sources(runner, data_loader, gen_dir)
     print(f"[copy] Copying files to {app_src}")
@@ -460,6 +496,8 @@ def copy_sources(
         except ValueError:
             rel = src_path
         print(f"       {rel} -> {dest_rel}")
+    if heap_size:
+        _patch_heap_size(app_src, heap_size)
     if runner in STANDALONE_RUNNERS:
         # Standalone app: only its own .cc, compiled against the BSP (xilffs).
         # No VTA driver sources/includes, so UserConfig.cmake is left as-is.
@@ -474,7 +512,7 @@ def copy_sources(
         # Activates the guarded SD-load path in run_nn / run_nn_uart and the
         # body of driver/src/vta_sd.cc (compiled to empty otherwise).
         defines.append("NN_SD_LOADER")
-    _patch_user_config(app_src, baud, defines)
+    _patch_user_config(app_src, RUNNER_SOURCE[runner].name, baud, defines)
     if data_loader == "elf":
         # nn_bin_data.S already carries absolute POSIX .incbin paths from the
         # codegen, so it is copied in as-is.
@@ -809,11 +847,65 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--heap-size",
+        metavar="HEX",
+        default=None,
+        help="Heap size written into the app's linker script (e.g. 0x800000).",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Print what would be done without calling Vitis APIs.",
     )
+    parser.add_argument(
+        "--build",
+        nargs="+",
+        metavar="APPNAME",
+        help=(
+            "Build these existing app component(s) and exit. Only --workspace "
+            "is used in this mode."
+        ),
+    )
     args = parser.parse_args()
+
+    if args.build:
+        workspace = Path(args.workspace).resolve()
+        if args.dry_run:
+            print("=== DRY RUN ===")
+            print(f"  Workspace:   {workspace}")
+            for name in args.build:
+                print(f"  Build:       {name}")
+            return
+        vitis = _import_vitis()
+        _clear_stale_workspace_lock(workspace)
+        client = vitis.create_client()
+        results: dict[str, bool] = {}
+        try:
+            client.set_workspace(path=str(workspace))
+            for name in args.build:
+                print(f"[vitis] Building {name} ...")
+                client.get_component(name=name).build()
+                # .buildstatus can be written shortly after build() returns.
+                status_file = workspace / name / "build" / ".buildstatus"
+                status = ""
+                for _ in range(20):
+                    if status_file.exists():
+                        status = status_file.read_text()
+                        if status.strip():
+                            break
+                    time.sleep(0.25)
+                results[name] = "hw=SUCCESS" in status
+        finally:
+            client.close()
+            vitis.dispose()
+        print()
+        print("=== Done ===")
+        print(f"  Workspace : {workspace}")
+        for name, ok in results.items():
+            print(f"  Built     : {name}  ({'OK' if ok else 'FAILED'})")
+        if not all(results.values()):
+            sys.exit(f"ERROR: build failed for {[n for n, ok in results.items() if not ok]}")
+        return
 
     if args.platform_only:
         if args.xsa is None:
@@ -981,7 +1073,13 @@ def main() -> None:
 
     for (runner, dl), app_src in app_srcs.items():
         copy_sources(
-            app_src, runner, dl, gen_dir, args.baud, _extra_defines_for(runner)
+            app_src,
+            runner,
+            dl,
+            gen_dir,
+            args.baud,
+            _extra_defines_for(runner),
+            args.heap_size,
         )
 
     print()

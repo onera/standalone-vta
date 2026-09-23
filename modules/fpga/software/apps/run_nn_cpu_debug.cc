@@ -51,19 +51,19 @@ int main() {
   // Load the static model, the raw network input (format_input's golden source),
   // and the per-layer goldens from the SD card into DDR. They land at the same
   // addresses nn_cpu_debug[] / nn_debug[] reference, so the checker is unchanged.
-  if (vta::sd_load_files("0:/" NN_SD_DIR, nn_sd_static_files,
+  if (vta::sd_load_files(NN_SD_DRIVE NN_SD_DIR, nn_sd_static_files,
                          NN_SD_NUM_STATIC) != 0) {
     xil_printf("ERROR: SD static-model load failed\r\n");
     return -1;
   }
 #if NN_SD_HAS_INPUT
-  if (vta::sd_load_files("0:/" NN_SD_DIR, &nn_sd_input_file, 1) != 0) {
+  if (vta::sd_load_files(NN_SD_DRIVE NN_SD_DIR, &nn_sd_input_file, 1) != 0) {
     xil_printf("ERROR: SD input load failed\r\n");
     return -1;
   }
 #endif
 #if NN_SD_HAS_REFS
-  if (vta::sd_load_files("0:/" NN_SD_DIR, nn_sd_ref_files, NN_SD_NUM_REF) != 0) {
+  if (vta::sd_load_files(NN_SD_DRIVE NN_SD_DIR, nn_sd_ref_files, NN_SD_NUM_REF) != 0) {
     xil_printf("ERROR: SD golden-ref load failed\r\n");
     return -1;
   }

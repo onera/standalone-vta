@@ -95,6 +95,7 @@ final case class SdManifest(
   compDir: String,
   sdCardDir: String,
   sdDir: String = "",
+  sdDrive: String = "0:/",
   emitRefs: Boolean = false,
   extraBlobs: Seq[ExtraBlob] = Nil,
   stageFiles: Boolean = true,

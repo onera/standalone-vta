@@ -40,7 +40,9 @@ extern "C" {
 // Tunables
 // ---------------------------------------------------------------------------
 
-#define SD_DRIVE "0:/"                // logical drive 0 = first SD controller
+#ifndef SD_DRIVE
+#define SD_DRIVE "0:/" // logical drive 0 = first SD controller
+#endif
 #define TEST_FILE SD_DRIVE "test.bin" // 8.3 name -> no long-filename support
 #define DDR_DEST 0x10000000u        // safe on Zynq-7000 (clear of OCM) + ZCU104
 #define CHUNK_BYTES (64u * 1024u)   // f_read transfer size

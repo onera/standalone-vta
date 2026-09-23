@@ -9,8 +9,11 @@
 #include "vta_sd.h"
 
 /* SD subfolder the files live in (path prefix, trailing slash); empty
- * = card root. The app opens "0:/" NN_SD_DIR <filename>. */
+ * = card root. The app opens NN_SD_DRIVE NN_SD_DIR <filename>. */
 #define NN_SD_DIR ""
+
+/* FatFs volume the card is on. */
+#define NN_SD_DRIVE "0:/"
 
 static const vta::SdFile nn_sd_static_files[] = {
     {"instructionsQLinearConv1.bin", 0x13DFA000u, 867280u},

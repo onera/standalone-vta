@@ -39,6 +39,7 @@ object GenNnBaremetal {
     goldenDir: Option[String] = None,
     refDir: Option[String] = None,
     sdDir: String = "",
+    sdDrive: String = "0:/",
     maxAddr: Option[Long] = None,
     verbose: Boolean = false
   ): Unit = {
@@ -175,6 +176,7 @@ object GenNnBaremetal {
         compDir,
         sdCardDir = out("sd_card").toString,
         sdDir = sdDir,
+        sdDrive = sdDrive,
         emitRefs = emitCheck,
         extraBlobs = ctBlobs,
         stageFiles = stageSdFiles,
@@ -227,7 +229,8 @@ object GenNnBaremetal {
     stageSdFiles: Boolean = true,
     goldenDir: Option[String] = None,
     refDir: Option[String] = None,
-    sdDir: String = ""
+    sdDir: String = "",
+    sdDrive: String = "0:/"
   )
 
   /** Get repo root absolute path from VTA_ROOT env variable, fallback to
@@ -307,7 +310,10 @@ object GenNnBaremetal {
         ),
       opt[String]("sd-dir")
         .action((x, c) => c.copy(sdDir = x))
-        .text("SD-card subfolder for the staged files")
+        .text("SD-card subfolder for the staged files"),
+      opt[String]("sd-drive")
+        .action((x, c) => c.copy(sdDrive = x))
+        .text("FatFs volume the card is on, \"0:/\" (default) or \"1:/\"")
     )
   }
 
@@ -330,6 +336,7 @@ object GenNnBaremetal {
               o.goldenDir.map(gd => new java.io.File(gd).getAbsolutePath),
             refDir = o.refDir.map(rd => new java.io.File(rd).getAbsolutePath),
             sdDir = o.sdDir,
+            sdDrive = o.sdDrive,
             maxAddr = o.maxAddr.map(parseAddr),
             verbose = o.verbose
           )

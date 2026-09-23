@@ -306,11 +306,22 @@ trait BaremetalTasks extends LayerDumpTasks {
     build.getVtaArg("vta.ddr.base")
   }
 
-  /** SD-card subfolder this model's files live in: the model name, so several
-    * models can share one card (`0:/<model>/instructions_L0.bin`). Emitted into
+  /** SD-card subfolder this model's files live in, from -Dvta.sd.dir; defaults
+    * to the model name, so several models can share one card. Emitted into
     * nn_sd_manifest.h as NN_SD_DIR.
     */
-  def sdDir: String = modelKey
+  def sdDir: String =
+    build.getVtaArg("vta.sd.dir") match {
+      case "" => modelKey
+      case d  => d
+    }
+
+  /** FatFs volume the SD data loader reads from, from -Dvta.sd.drive. Emitted
+    * into nn_sd_manifest.h as NN_SD_DRIVE.
+    */
+  def sdDrive = Task.Input {
+    build.getVtaArg("vta.sd.drive")
+  }
 
   /** Generate the baremetal PS headers (nn_exec_plan.h, nn_ddr_map.h, ...) for
     * this example into this task's dest.
@@ -360,7 +371,8 @@ trait BaremetalTasks extends LayerDumpTasks {
       refDir,
       configKey,
       vtaDdrBase(),
-      Seq("--emit-sd-manifest", "--sd-dir", sdDir) ++ debugArgs ++ extraArgs
+      Seq("--emit-sd-manifest", "--sd-dir", sdDir, "--sd-drive", sdDrive()) ++
+        debugArgs ++ extraArgs
     )
   }
 
@@ -437,6 +449,45 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
     vitisApps(genBaremetal, args.value)()
   }
 
+  /** Add the app component for (runner, dataLoader) and build its ELF.
+    * Requires Vitis.
+    */
+  def buildVitisApp(runner: String, dataLoader: Option[String] = None) =
+    Task.Command {
+      vitisApps(
+        genBaremetal,
+        Seq("--runner", runner) ++ dataLoader.toSeq.flatMap(dl =>
+          Seq("--data-loader", dl)
+        )
+      )()
+      val ws = os.Path(build.targets(configKey, fpgaBoard).vitisPlatform())
+      val appName = vitisAppName(runner, dataLoader)
+      fpga.software.vitisRunner().build(ws, appName)
+      appName
+    }
+
+  /** App component name, as create_vitis_workspace.py derives it. */
+  private def vitisAppName(runner: String, dataLoader: Option[String]): String =
+    dataLoader.fold(s"${modelKey}_$runner")(dl => s"${modelKey}_${runner}_$dl")
+
+  /** Program the bitstream and the ELF built by [[buildVitisApp]] over JTAG
+    * and start the app. Requires a JTAG connection and Vitis.
+    */
+  def flashBoard(runner: String, dataLoader: Option[String] = None) =
+    Task.Command {
+      val synthDir = build.targets(configKey, fpgaBoard).synth().path
+      val ws = os.Path(build.targets(configKey, fpgaBoard).vitisPlatform())
+      val appName = vitisAppName(runner, dataLoader)
+      fpga.software.runProgramBoard(
+        bitstream = synthDir / s"vta_$fpgaBoard.bit",
+        elf = ws / appName / "build" / s"$appName.elf",
+        fsbl =
+          ws / "vta_platform" / "export" / "vta_platform" / "sw" / "boot" / "fsbl.elf",
+        psuInit = ws / appName / "_ide" / "psinit" / "psu_init.tcl"
+      )
+      Task.dest
+    }
+
   /** Add app components for this example to the shared Vitis workspace of its
     * (config, board), building the platform first if stale.
     *
@@ -462,9 +513,14 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
         namePrefix = modelKey,
         cpu = Some(fpga.readManifestField(manifest, "cpu")),
         genDir = Some(gen),
-        extraArgs = extraArgs
+        extraArgs = Seq("--heap-size", heapSize()) ++ extraArgs
       )
     ws.toString
+  }
+
+  /** Heap size for the generated app's linker script, from -Dvta.heap.size. */
+  def heapSize = Task.Input {
+    build.getVtaArg("vta.heap.size")
   }
 
   def checkUartOutput = Task.Anon {
@@ -500,9 +556,8 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
     Task.dest
   }
 
-  /** Run the uart com script (run_nn_uart application must be running on the
-    * FPGA board before launch, build [[createVitisProject]] with `--runner
-    * run_nn_uart`, then build and run with vitis)
+  /** Run the uart com script. The run_nn_uart app must be running on the
+    * board: [[buildVitisApp]]("run_nn_uart", ...) then [[flashBoard]].
     */
   def runUart(
     @arg(doc = "port name (ex: /dev/tty0,COM1)") port: String,

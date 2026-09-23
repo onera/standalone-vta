@@ -126,6 +126,10 @@ object `package` extends Module {
           ++ genDir.toSeq.flatMap(d => Seq("--gen-dir", d.toString))
           ++ extraArgs
       )
+
+    /** Build the ELF of an app component created by a prior [[addApps]]. */
+    def build(workspace: os.Path, appName: String): Unit =
+      run(Seq("--workspace", workspace.toString, "--build", appName))
   }
 
   /** Read a string field out of a BuildFpga manifest.json (xsa, cpu, board,
@@ -491,6 +495,28 @@ object `package` extends Module {
         extraArgs
       ).call(stdout = os.Inherit, stderr = os.Inherit, cwd = workingDir)
     }
+
+    def programBoardScript = moduleDir / "host" / "program_board.sh"
+
+    /** Flash an already-built app over JTAG (see program_board.tcl). */
+    def runProgramBoard(
+      bitstream: os.Path,
+      elf: os.Path,
+      fsbl: os.Path,
+      psuInit: os.Path
+    ): Unit =
+      os.proc(
+        "bash",
+        programBoardScript,
+        "--bit",
+        bitstream,
+        "--elf",
+        elf,
+        "--fsbl",
+        fsbl,
+        "--psinit",
+        psuInit
+      ).call(stdout = os.Inherit, stderr = os.Inherit)
 
     /** Add app components for the active config to its shared Vitis workspace,
       * building the platform first if stale ([[TargetModule.vitisPlatform]]).

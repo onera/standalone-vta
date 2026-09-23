@@ -31,6 +31,12 @@ private[exporters] object SdRender {
     val sub = t.sdDir.stripPrefix("/").stripSuffix("/")
     val nnSdDir = if (sub.nonEmpty) sub + "/" else ""
 
+    // Normalise "1", "1:" or "1:/" to the "<n>:/" form f_mount expects.
+    val drive = {
+      val d = t.sdDrive.trim.stripSuffix("/").stripSuffix(":")
+      if (d.isEmpty) "0:/" else s"$d:/"
+    }
+
     // Build static buffer entries and staged paths together.
     val staticAndPaths: Seq[((String, Long, Long), String)] =
       Model
@@ -109,8 +115,11 @@ private[exporters] object SdRender {
       "#include \"vta_sd.h\"",
       "",
       "/* SD subfolder the files live in (path prefix, trailing slash); empty",
-      " * = card root. The app opens \"0:/\" NN_SD_DIR <filename>. */",
+      " * = card root. The app opens NN_SD_DRIVE NN_SD_DIR <filename>. */",
       s"""#define NN_SD_DIR "$nnSdDir"""",
+      "",
+      "/* FatFs volume the card is on. */",
+      s"""#define NN_SD_DRIVE "$drive"""",
       "",
       "static const vta::SdFile nn_sd_static_files[] = {"
     )

@@ -65,6 +65,12 @@ object `package` extends Module with SpotlessModule {
     "vta.ddr.base" -> "0x0",
     /** Default fpga board used by synthesis flows. */
     "vta.board.name" -> "zcu104",
+    /** Default FatFs volume the SD data loader reads from ("0:/" or "1:/"). */
+    "vta.sd.drive" -> "0:/",
+    /** SD-card subfolder of the model's files; empty for the model name. */
+    "vta.sd.dir" -> "",
+    /** Heap size written into a generated app's linker script. */
+    "vta.heap.size" -> "0x800000",
     /** Default verilator threads for verilator simulation. */
     "vta.verilator.threads" -> "4",
     /** Default jobs for vivado synthesis */

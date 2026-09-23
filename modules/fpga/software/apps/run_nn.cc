@@ -35,13 +35,13 @@ int main() {
 #ifdef NN_SD_LOADER
   // Load static model data (and the raw input) from the SD card into DDR,
   // replacing the XSDB/.incbin pre-load. See driver/src/vta_sd.cc.
-  if (vta::sd_load_files("0:/" NN_SD_DIR, nn_sd_static_files,
+  if (vta::sd_load_files(NN_SD_DRIVE NN_SD_DIR, nn_sd_static_files,
                          NN_SD_NUM_STATIC) != 0) {
     xil_printf("ERROR: SD static-model load failed\r\n");
     return -1;
   }
 #if NN_SD_HAS_INPUT
-  if (vta::sd_load_files("0:/" NN_SD_DIR, &nn_sd_input_file, 1) != 0) {
+  if (vta::sd_load_files(NN_SD_DRIVE NN_SD_DIR, &nn_sd_input_file, 1) != 0) {
     xil_printf("ERROR: SD input load failed\r\n");
     return -1;
   }
