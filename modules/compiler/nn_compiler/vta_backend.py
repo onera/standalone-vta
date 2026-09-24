@@ -33,6 +33,7 @@ import nn_compiler.nodes.node_cpu as Ncpu
 def vta_backend(vta_config_dict, onnx_model_path, 
                 doExpandBiasAtCompilation=False,
                 directConv=False, directConvMaxWork=1.0,
+                foldInpZp=False,
                 debug=True):
 
     # GET CONFIGURATION
@@ -154,7 +155,7 @@ def vta_backend(vta_config_dict, onnx_model_path,
         if (op_type == "QLinearConv"): 
             # Get data from the node
             vta_ir, node_info = \
-                Nconv.node_conv(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, doExpandBiasAtCompilation=doExpandBiasAtCompilation, directConv=directConv, directConvMaxWork=directConvMaxWork, block_size=block_size, inp_buffer_size=inp_buffer_size, wgt_buffer_size=wgt_buffer_size, acc_buffer_size=acc_buffer_size, uop_buffer_size=uop_buffer_size, debug=debug)
+                Nconv.node_conv(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, doExpandBiasAtCompilation=doExpandBiasAtCompilation, directConv=directConv, directConvMaxWork=directConvMaxWork, block_size=block_size, inp_buffer_size=inp_buffer_size, wgt_buffer_size=wgt_buffer_size, acc_buffer_size=acc_buffer_size, uop_buffer_size=uop_buffer_size, foldInpZp=foldInpZp, debug=debug)
 
         # ---
 
@@ -162,7 +163,7 @@ def vta_backend(vta_config_dict, onnx_model_path,
         elif (op_type == "QLinearMul"): 
             # Get data from the node
             vta_ir, node_info = \
-                Nconv.node_mulconstant(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, debug=False)
+                Nconv.node_mulconstant(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, foldInpZp=foldInpZp, debug=False)
 
         # ---
 
@@ -368,6 +369,19 @@ def vta_backend(vta_config_dict, onnx_model_path,
             # Write the second line
             writer.writerow(dep_list)
 
+    # Value a spatially padded input position holds, for layers whose input
+    # zero point was folded into the bias (0 for every layer not listed).
+    pad_values = [(dep['node_name'], dep['padValueA'])
+                  for dep in execution_order if dep.get('padValueA', 0) != 0]
+    pad_file_path = filepath_definition(output_dir, 'pad_values.csv')
+    if pad_values:
+        with open(pad_file_path, 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(["Layer name", "padValueA"])
+            writer.writerows(pad_values)
+    elif os.path.exists(pad_file_path):
+        os.remove(pad_file_path)
+
 
     # ---------------------------------------------
     # DEBUG
@@ -426,6 +440,12 @@ if __name__ == "__main__":
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--expand-bias", action="store_true")
     parser.add_argument(
+        "--fold-inp-zp",
+        action="store_true",
+        help="Fold the input zero point into the bias, so INP carries raw "
+             "activations.",
+    )
+    parser.add_argument(
         "--direct-conv",
         action="store_true",
         help="Lower convolutions onto the GEMM loop nest instead of a GEMM over "
@@ -452,4 +472,4 @@ if __name__ == "__main__":
 
     vta_config_dict = parse_json_to_dict(args.config)
 
-    result = vta_backend(vta_config_dict, args.onnx, doExpandBiasAtCompilation=args.expand_bias, directConv=args.direct_conv, directConvMaxWork=args.direct_conv_max_work, debug=args.debug)
+    result = vta_backend(vta_config_dict, args.onnx, doExpandBiasAtCompilation=args.expand_bias, directConv=args.direct_conv, directConvMaxWork=args.direct_conv_max_work, foldInpZp=args.fold_inp_zp, debug=args.debug)

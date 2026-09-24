@@ -24,6 +24,14 @@ else. The width is a config rather than a flag so that the two coexist: as
 so synthesizing one silently discarded the other. Passing that flag is now an
 error rather than being ignored.
 
+The 8-bit input config needs `-Dvta.fold.inp.zp=true`: the compiler then folds
+each layer's input zero point into its bias, so INP holds raw activations rather
+than `x - z`, which needs nine bits when the zero point is -128.
+
+A micro-op addresses INP and ACC with 11 bits and WGT with 10, so no scratchpad
+is reachable past 2048, 2048 and 1024 entries respectively; [[VTAUop]] rejects
+indices beyond them.
+
 Every config except `vta_8b_block32` shares `LOG_ACC_WIDTH=5`, `LOG_OUT_WIDTH=5`
 and `LOG_BLOCK=4`.
 

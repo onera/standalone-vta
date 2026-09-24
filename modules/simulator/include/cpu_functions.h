@@ -666,7 +666,8 @@
       const std::vector<int>& padding = {0, 0, 0, 0},
       bool isSquare = false,
       int offset = 0,
-      int stride_w = -1
+      int stride_w = -1,
+      int pad_value = 0
     ) {
       if (stride_w < 0) stride_w = stride_h; 
 
@@ -714,7 +715,11 @@
       }
       
       // 3.5 - APPLY PADDING
-      auto padded_tensor = pad_tensor(tensor, padding, static_cast<T>(0));
+      // The offset above has already been applied, so a pad normally holds 0.
+      // When the zero point was folded into the bias instead, the activations
+      // are raw and a pad has to hold the zero point itself.
+      auto padded_tensor =
+          pad_tensor(tensor, padding, static_cast<T>(pad_value));
 
 
       // 4 - TENSOR -> NEW MATRIX (unpad)

@@ -98,6 +98,8 @@ struct NnFormatInputStep {
   std::uint32_t out_h;    /* output height after im2row                       */
   std::uint32_t out_w;    /* output width  after im2row                       */
   std::uint32_t block;    /* VTA block size (BLOCK_IN = BLOCK_OUT)            */
+  /* What a spatially padded position holds; see NnIm2RowStep::pad_value. */
+  std::int32_t pad_value;
 };
 
 /* Apply im2row to a previous VTA layer's OUT buffer (VTA block-tiled int8)
@@ -125,6 +127,11 @@ struct NnIm2RowStep {
   /* Layout of the *source* activation. The im2row matrix this writes is always
      block-tiled - it is consumed by a GEMM, not by a convolution. */
   std::uint32_t src_layout;
+  /* What a spatially padded position holds. Zero while offset_a is still being
+     subtracted here - a pad then means "0 in the offset-adjusted space" - and
+     the zero point itself once offset_a has been folded into the bias at
+     compile time and the activations travel raw. */
+  std::int32_t pad_value;
 };
 
 /* In-place INT32→INT8 rescale of a VTA OUT buffer.

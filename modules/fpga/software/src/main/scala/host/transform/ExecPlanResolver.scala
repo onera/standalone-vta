@@ -122,7 +122,8 @@ object ExecPlanResolver {
             ld.pad,
             ld.offsetA,
             outH,
-            outW
+            outW,
+            padValueA = ld.padValueA
           )
         } else {
           val depName = ld.deps.headOption.getOrElse("")
@@ -156,7 +157,8 @@ object ExecPlanResolver {
             outH,
             outW,
             rs,
-            ro
+            ro,
+            ld.padValueA
           )
         }
       }).toMap

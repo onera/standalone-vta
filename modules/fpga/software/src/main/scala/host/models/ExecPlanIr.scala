@@ -48,7 +48,13 @@ final case class ReshapeStep(
   outH: Int,
   outW: Int,
   rescaleScale: Double = 0.0,
-  rescaleOffset: Int = 0
+  rescaleOffset: Int = 0,
+  /** What a spatially padded position holds. Zero while `offsetA` is still
+    * subtracted here - a pad then means "0 in the offset-adjusted space" - and
+    * the zero point itself once `offsetA` has been folded into the bias at
+    * compile time and the activations travel raw.
+    */
+  padValueA: Int = 0
 ) extends PlanStep
 
 /** Convert one activation between the block-tiled and flat layouts.

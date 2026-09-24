@@ -162,6 +162,9 @@ never synthesis:
 | `vta.heap.size`         | `0x800000`                  | Heap size written into a generated app's linker script.                                                   |
 | `vta.app.opt`           | `O0`                        | Optimization level of the generated app (O0, O1, O2, O3, Os). Above O0 adds `-ffp-contract=off`, so results stay bit-identical to fsim. O2 runs the CPU steps ~4x faster. |
 | `vta.uart.baud`         | `115200`                    | PS UART rate of both the app and `uart_nn.py`. A change needs `buildVitisApp` + `flashBoard`.             |
+| `vta.fold.inp.zp`       | `false`                     | Fold the input zero point into the bias. Needed by 8-bit input configs.                                   |
+| `vta.direct.conv`       | `false`                     | Lower eligible convolutions directly onto the GEMM loop nest instead of a CPU-built im2row matrix.        |
+| `vta.direct.conv.max.work`| `1.0`                       | Largest direct/im2row GEMM-work ratio a direct convolution may take.                                      |
 | `vta.verilator.threads` | `4`                         | Verilator build threads. Changing it invalidates the `vsim` tasks.                                        |
 | `vta.vivado.jobs`       | `4`                         | Vivado parallel jobs. A runtime flag: changing it does not invalidate anything.                           |
 | `vta.xil.out`           | unset                       | Shallow root for the heavy Vivado/Vitis trees (`<dir>/<config>/<board>/`), for Windows long-path limits.  |

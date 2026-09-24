@@ -16,7 +16,7 @@ static const struct NnExecStep nn_exec_steps[NN_NUM_STEPS] = {
         5u, 5u, 1u, 1u,
         { 2, 2, 2, 2 },
         -128,
-        28u, 28u, 16u
+        28u, 28u, 16u, 0
     } } },
     /* step 0 */
     { NN_STEP_VTA, "QLinearConv1", { .vta = { 0 } } },
@@ -37,7 +37,7 @@ static const struct NnExecStep nn_exec_steps[NN_NUM_STEPS] = {
         5u, 5u, 1u, 1u,
         { 0, 0, 0, 0 },
         -128,
-        10u, 10u, 16u, 1.0f, 0
+        10u, 10u, 16u, 1.0f, 0, NN_LAYOUT_BLOCKED, 0
     } } },
     /* step 2 */
     { NN_STEP_VTA, "QLinearConv3", { .vta = { 2 } } },
@@ -58,7 +58,7 @@ static const struct NnExecStep nn_exec_steps[NN_NUM_STEPS] = {
         5u, 5u, 1u, 1u,
         { 0, 0, 0, 0 },
         -128,
-        1u, 1u, 16u, 1.0f, 0
+        1u, 1u, 16u, 1.0f, 0, NN_LAYOUT_BLOCKED, 0
     } } },
     /* step 4 */
     { NN_STEP_VTA, "QLinearConv5", { .vta = { 4 } } },
@@ -69,7 +69,7 @@ static const struct NnExecStep nn_exec_steps[NN_NUM_STEPS] = {
         1u, 1u, 1u, 1u,
         { 0, 0, 0, 0 },
         -128,
-        1u, 1u, 16u, 0.0011669474188238382f, -128
+        1u, 1u, 16u, 0.0011669474188238382f, -128, NN_LAYOUT_BLOCKED, 0
     } } },
     /* step 5 */
     { NN_STEP_VTA, "QLinearConv6", { .vta = { 5 } } },
@@ -80,7 +80,7 @@ static const struct NnExecStep nn_exec_steps[NN_NUM_STEPS] = {
         1u, 1u, 1u, 1u,
         { 0, 0, 0, 0 },
         -128,
-        1u, 1u, 16u, 0.0016434737481176853f, -128
+        1u, 1u, 16u, 0.0016434737481176853f, -128, NN_LAYOUT_BLOCKED, 0
     } } },
     /* step 6 */
     { NN_STEP_VTA, "QLinearConv7", { .vta = { 6 } } },

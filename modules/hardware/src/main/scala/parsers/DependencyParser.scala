@@ -42,6 +42,7 @@ object Dependency {
       .getOrElse("")
 
     val skipKeys = Set("nb_steps", "image", "output")
+    val padValues = readPairs(file, "pad_values.csv")
     val layers = rows.collect {
       case row
           if scala.util.Try(row(0).toInt).isFailure &&
@@ -78,6 +79,7 @@ object Dependency {
           offsetC = toInt(row(25)),
           scaleC = toDouble(row(26)),
           scale = toDouble(row(27)),
+          padValueA = padValues.get(key).map(toInt(_)).getOrElse(0),
           nbInp = nbInp,
           deps = deps
         )
@@ -90,5 +92,26 @@ object Dependency {
       imageW = imageW,
       outputLayer = outputLayer
     )
+  }
+
+  /** Rows of a two-column CSV next to `dependency.csv`, header skipped: the
+    * compiler writes `aliases.csv` and `pad_values.csv` only when non-empty.
+    */
+  private def readPairs(depFile: String, name: String): Map[String, String] = {
+    val f = new java.io.File(new java.io.File(depFile).getParentFile, name)
+    if (!f.isFile) Map.empty
+    else {
+      val src = Source.fromFile(f)
+      try
+        src
+          .getLines()
+          .drop(1)
+          .map(_.split(",", -1).map(_.trim))
+          .collect {
+            case Array(k, v, _*) if k.nonEmpty && v.nonEmpty => k -> v
+          }
+          .toMap
+      finally src.close()
+    }
   }
 }

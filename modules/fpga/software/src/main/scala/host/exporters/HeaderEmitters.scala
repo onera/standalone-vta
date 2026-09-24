@@ -167,10 +167,13 @@ private[exporters] object HeaderRender {
     val (comment, tag, member, namePrefix, tail) = s.kind match {
       case ReshapeKind.FormatInput =>
         ("format_input for", "NN_STEP_FORMAT_INPUT", ".format_input", "format_",
-         "")
+         s", ${s.padValueA}")
       case ReshapeKind.Im2Row =>
+        // src_layout is spelled out rather than left to the aggregate's zero
+        // fill because pad_value sits behind it.
         ("im2row for", "NN_STEP_IM2ROW", ".im2row", "im2row_",
-         s", ${PyFmt.float(s.rescaleScale)}f, ${s.rescaleOffset}")
+         s", ${PyFmt.float(s.rescaleScale)}f, ${s.rescaleOffset}, " +
+           s"NN_LAYOUT_BLOCKED, ${s.padValueA}")
     }
     s"""
        |    /* $comment ${s.layer} */

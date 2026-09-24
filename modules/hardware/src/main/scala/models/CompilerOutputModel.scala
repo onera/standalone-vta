@@ -63,6 +63,10 @@ object CompilerOutputModel {
     offsetC: Int,
     scaleC: Double,
     scale: Double,
+    /** Value of a spatially padded input position (`pad_values.csv`): the
+      * zero point once it is folded into the bias, else 0.
+      */
+    padValueA: Int,
     nbInp: Int,
     deps: Seq[String]
   )

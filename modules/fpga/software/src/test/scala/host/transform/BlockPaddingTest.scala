@@ -60,6 +60,7 @@ class BlockPaddingTest extends AnyFlatSpec with Matchers with OptionValues {
     offsetC = 0,
     scaleC = 1.0,
     scale = 1.0,
+    padValueA = 0,
     nbInp = nbInp,
     deps = deps
   )

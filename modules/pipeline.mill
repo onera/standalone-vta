@@ -92,7 +92,8 @@ trait HasOnnxModel extends HasCompilableModel {
       .runner()
       .compileModel(onnxPath().path, configPath, compOut,
                     directConv = directConv(),
-                    directConvMaxWork = directConvMaxWork())
+                    directConvMaxWork = directConvMaxWork(),
+                    foldInpZp = foldInpZp())
     PathRef(compOut, quick = true)
   }
 
@@ -110,6 +111,14 @@ trait HasOnnxModel extends HasCompilableModel {
     */
   def directConvMaxWork = Task.Input {
     build.getVtaArg("vta.direct.conv.max.work").toDouble
+  }
+
+  /** Fold each layer's input zero point into its bias, so INP carries raw
+    * activations, from -Dvta.fold.inp.zp (default off). Required by the 8-bit
+    * input configs.
+    */
+  def foldInpZp = Task.Input {
+    build.getVtaArg("vta.fold.inp.zp").toLowerCase == "true"
   }
 
   /** Run the ONNX reference for this model: input_nn.bin (the network input)

@@ -83,6 +83,12 @@ int run_nn(const FsimOptions &opts) {
   std::string fileDependencyPath = construct_path("dependency.csv");
   CsvMap dependency_map = load_csv_to_map(fileDependencyPath);
 
+  // Pad fill of the layers whose input zero point was folded (optional file)
+  std::string filePadValuesPath = construct_path("pad_values.csv");
+  CsvMap pad_values_map;
+  if (std::ifstream(filePadValuesPath).good())
+    pad_values_map = load_csv_to_map(filePadValuesPath);
+
   // Input file
   std::string fileInputNNPath = construct_reference_path("input_nn.bin");
 
@@ -298,6 +304,12 @@ int run_nn(const FsimOptions &opts) {
     int p2 = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 20));
     int p3 = strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 21));
 
+    // Value of a spatially padded input position: the zero point once it is
+    // folded into the bias, else 0.
+    const std::string padValueStr =
+        get_csv_value(pad_values_map, ctx.suffix.c_str(), 1);
+    int padValueA = padValueStr.empty() ? 0 : strToInt(padValueStr);
+
     // Nb of inputs
     int nb_inp =
         strToInt(get_csv_value(dependency_map, ctx.suffix.c_str(), 29));
@@ -512,7 +524,8 @@ int run_nn(const FsimOptions &opts) {
                          {p0, p1, p2, p3}, // padding (vector)
                          true,             // isSquare
                          offsetA,          // offset
-                         sw                // stride_w
+                         sw,               // stride_w
+                         padValueA         // spatial pad fill
       );
 
       // Copy the data
@@ -596,8 +609,8 @@ int run_nn(const FsimOptions &opts) {
         float valX = (float)ctx.accX[k] * scaleA;
         float valY = (float)ctx.accY[k] * scaleB;
         float val = (valX + valY) / scaleC;
-        // Round
-        ctx.outC[k] = (inp_dtype)std::nearbyint(val); // round vs nearbyint
+        // Round to out_dtype: the clamp to int8 belongs to the rescaling below.
+        ctx.outC[k] = (out_dtype)std::nearbyint(val);
       }
 
       // Fix scale to 1.0

@@ -299,8 +299,9 @@ void run_format_input(const NnFormatInputStep &d) {
               v -= d.offset_a;
               val = static_cast<vta_inp_t>(v);
             } else {
-              /* spatial padding: 0 in the offset-adjusted space */
-              val = static_cast<vta_inp_t>(0);
+              /* spatial padding: 0 in the offset-adjusted space, or the zero
+                 point itself once the offset has been folded into the bias */
+              val = static_cast<vta_inp_t>(d.pad_value);
             }
           }
           blk[r * B + t] = val;
@@ -385,7 +386,7 @@ void run_im2row(const NnIm2RowStep &d) {
               v -= d.offset_a;
               val = static_cast<vta_inp_t>(v);
             } else {
-              val = static_cast<vta_inp_t>(0); /* spatial padding */
+              val = static_cast<vta_inp_t>(d.pad_value); /* spatial padding */
             }
           }
           blk[r * B + t] = val;
