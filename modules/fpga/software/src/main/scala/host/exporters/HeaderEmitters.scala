@@ -228,7 +228,8 @@ private[exporters] object HeaderRender {
        |        { ${PyFmt.float(s.scaleA)}f, ${PyFmt.float(s.scaleB)}f, ${PyFmt
         .float(s.scaleU)}f, ${PyFmt.float(s.scaleV)}f },
        |        { ${s.offsetA}, ${s.offsetB}, ${s.offsetU}, ${s.offsetV} },
-       |        ${PyFmt.float(s.scaleC)}f, ${s.offsetC}, ${blockSize}u
+       |        ${PyFmt.float(s.scaleC)}f, ${s.offsetC}, ${blockSize}u,
+       |        ${s.nRowsValid}u, ${s.compactMask}u
        |    } } }""".stripMargin
 
   private def renderDequant(s: DequantStep): String =

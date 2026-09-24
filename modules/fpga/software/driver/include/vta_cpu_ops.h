@@ -14,13 +14,18 @@ struct NnConcatStep {
   std::uint32_t out;
   std::uint32_t n_rows; /* H * W spatial positions (multiple of block) */
   std::uint32_t
-      n_ch_per_inp; /* channels per input branch (multiple of block) */
+      n_ch_per_inp; /* channels per input branch, not padded */
   int nb_inp;
   float scales[4];
   std::int32_t zps[4];
   float out_scale;
   std::int32_t out_zp;
   std::uint32_t block; /* VTA block size (BLOCK_IN = BLOCK_OUT) */
+  /* Unpadded row count, read by compact branches; 0 means n_rows. */
+  std::uint32_t n_rows_valid;
+  /* Bit p set when branch p stores its final partial row-block compactly, as
+     (n_rows_valid mod block) x block blocks, instead of padding it. */
+  std::uint32_t compact_mask;
 };
 
 struct NnDequantStep {

@@ -36,6 +36,19 @@ static inline std::int64_t rescaled_src(std::uintptr_t base, std::uint32_t i,
                   offset);
 }
 
+/* Offset of (row, ch) inside one concat branch. A `compact` branch stores its
+   final partial row-block as (n_valid mod B) x B blocks instead of B x B. */
+static inline std::uint32_t branch_off(std::uint32_t row, std::uint32_t ch,
+                                       std::uint32_t cblk, std::uint32_t B,
+                                       std::uint32_t n_valid, bool compact) {
+  const std::uint32_t full = (n_valid / B) * B;
+  if (!compact || row < full)
+    return ((row / B) * cblk + ch / B) * B * B + (row % B) * B + (ch % B);
+  const std::uint32_t tail = n_valid - full;
+  return (n_valid / B) * cblk * B * B + ((ch / B) * tail + (row - full)) * B +
+         (ch % B);
+}
+
 namespace vta {
 
 void run_qadd(const NnQaddStep &d) {
@@ -78,32 +91,61 @@ void run_concat(const NnConcatStep &d) {
 
   const float inv_out_scale = 1.0f / d.out_scale;
   const std::uint32_t blk = d.block;
-  const std::uint32_t blk2 = blk * blk;
-  const std::uint32_t n_rb = d.n_rows / blk;
-  const std::uint32_t n_cb = d.n_ch_per_inp / blk;
-  const std::uint32_t tot_cb = n_cb * static_cast<std::uint32_t>(d.nb_inp);
 
-  for (std::uint32_t rb = 0u; rb < n_rb; ++rb) {
-    for (int p = 0; p < d.nb_inp; ++p) {
-      const float rescale_p = d.scales[p] * inv_out_scale;
-      const auto *src = reinterpret_cast<const std::int8_t *>(
-                            static_cast<std::uintptr_t>(d.inp[p])) +
-                        rb * n_cb * blk2;
-      std::int8_t *dst =
-          out + (rb * tot_cb + static_cast<std::uint32_t>(p) * n_cb) * blk2;
-      for (std::uint32_t cb = 0u; cb < n_cb; ++cb) {
-        const std::int8_t *s_blk = src + cb * blk2;
-        std::int8_t *d_blk = dst + cb * blk2;
-        for (std::uint32_t e = 0u; e < blk2; ++e) {
-          std::int64_t q =
-              static_cast<std::int64_t>(std::nearbyintf(
-                  rescale_p *
-                  static_cast<float>(static_cast<std::int32_t>(s_blk[e]) -
-                                     d.zps[p]))) +
-              d.out_zp;
-          d_blk[e] = clamp_i8(q);
-        }
+  for (int p = 0; p < d.nb_inp; ++p) {
+    const float rescale_p = d.scales[p] * inv_out_scale;
+    const std::int32_t zp = d.zps[p];
+    const auto *src = reinterpret_cast<const std::int8_t *>(
+        static_cast<std::uintptr_t>(d.inp[p]));
+
+    const std::uint32_t n_valid = d.n_rows_valid ? d.n_rows_valid : d.n_rows;
+    const bool compact_p =
+        ((d.compact_mask >> static_cast<std::uint32_t>(p)) & 1u) != 0u &&
+        (n_valid % blk) != 0u;
+
+    /* One requantized element, the arithmetic being identical either way. */
+    auto conv = [&](std::int8_t v) {
+      const std::int64_t q =
+          static_cast<std::int64_t>(std::nearbyintf(
+              rescale_p *
+              static_cast<float>(static_cast<std::int32_t>(v) - zp))) +
+          d.out_zp;
+      return clamp_i8(q);
+    };
+
+    if (!compact_p && d.n_ch_per_inp % blk == 0u) {
+      /* Block-tiled: within each row-block the branches follow one another a
+         channel-block at a time, so a whole blk*blk block is contiguous in
+         both source and destination. */
+      const std::uint32_t blk2 = blk * blk;
+      const std::uint32_t n_rb = d.n_rows / blk;
+      const std::uint32_t n_cb = d.n_ch_per_inp / blk;
+      const std::uint32_t tot_cb = n_cb * static_cast<std::uint32_t>(d.nb_inp);
+      for (std::uint32_t rb = 0u; rb < n_rb; ++rb) {
+        const std::int8_t *s = src + rb * n_cb * blk2;
+        std::int8_t *o =
+            out + (rb * tot_cb + static_cast<std::uint32_t>(p) * n_cb) * blk2;
+        for (std::uint32_t e = 0u; e < n_cb * blk2; ++e)
+          o[e] = conv(s[e]);
       }
+    } else {
+      /* Block-tiled with branch boundaries inside a block: gather element by
+         element. */
+      const std::uint32_t cblk_in = (d.n_ch_per_inp + blk - 1u) / blk;
+      const std::uint32_t tot_ch =
+          d.n_ch_per_inp * static_cast<std::uint32_t>(d.nb_inp);
+      const std::uint32_t cblk_out = (tot_ch + blk - 1u) / blk;
+      const std::uint32_t ch0 = static_cast<std::uint32_t>(p) * d.n_ch_per_inp;
+      auto blk_off = [blk](std::uint32_t row, std::uint32_t ch,
+                           std::uint32_t cblk) {
+        return ((row / blk) * cblk + ch / blk) * blk * blk + (row % blk) * blk +
+               (ch % blk);
+      };
+      const std::uint32_t rows = compact_p ? n_valid : d.n_rows;
+      for (std::uint32_t row = 0u; row < rows; ++row)
+        for (std::uint32_t c = 0u; c < d.n_ch_per_inp; ++c)
+          out[blk_off(row, ch0 + c, cblk_out)] =
+              conv(src[branch_off(row, c, cblk_in, blk, n_valid, compact_p)]);
     }
   }
 }

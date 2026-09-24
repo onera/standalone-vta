@@ -275,7 +275,7 @@ object ExecPlanResolver {
             resolvedCpuOut
           )
           val out = resolvedCpuOut.getOrElse(layerName, 0L)
-          val n = ld.outCh.toLong * ld.outH * ld.outW
+          val n = roundUp((ld.outH * ld.outW).toLong) * roundUp(ld.outCh.toLong)
           Seq(
             QaddStep(
               stepIdx,
@@ -305,7 +305,44 @@ object ExecPlanResolver {
             )
           }
           val out = resolvedCpuOut.getOrElse(layerName, 0L)
-          val nRows = ld.tensorH.toLong * ld.tensorW
+          // An im2row producer pads its final partial row-block; an int32 or
+          // direct one stores it compactly, and a concat can mix both.
+          val outElemBytes = HwConfig.elemBytes(logOutWidth)
+          val densePerBranch = ld.tensorCh.toLong * ld.tensorH * ld.tensorW
+          val paddedPerBranch =
+            roundUp((ld.tensorH * ld.tensorW).toLong) * roundUp(ld.tensorCh.toLong)
+          def branchIsPadded(dep_ : String): Boolean =
+            resolvedSuffixToIdx.get(dep_) match {
+              // A VTA producer: its OUT allocation says which convention it used.
+              case Some(i) =>
+                layers(i).mem("OUT").byteSize / outElemBytes >= paddedPerBranch
+              // A CPU-op producer writes scratch sized by buildCpuOutAddrs,
+              // which is padded.
+              case None => true
+            }
+          val branchPad = ld.deps.take(ld.nbInp).map(branchIsPadded)
+          val compactMask =
+            branchPad.zipWithIndex.foldLeft(0) { case (m, (padded, i)) =>
+              if (padded) m else m | (1 << i)
+            }
+          if (compactMask != 0 && paddedPerBranch != densePerBranch)
+            println(
+              s"[gen] concat '$layerName': " +
+                s"${branchPad.count(!_)}/${branchPad.length} branch(es) store" +
+                s" the final partial row-block compactly (H*W=" +
+                s"${ld.tensorH * ld.tensorW} is not a multiple of $blockSize)" +
+                s" - run_concat will read those with the compact stride"
+            )
+          val nRows = roundUp(ld.tensorH.toLong * ld.tensorW)
+          val nRowsValid = ld.tensorH.toLong * ld.tensorW
+          // n_ch_per_inp stays unpadded: branches are packed densely, and
+          // run_concat gathers element-wise when a boundary falls mid-block.
+          if (ld.tensorCh % blockSize != 0)
+            println(
+              s"[gen] concat '$layerName': ${ld.tensorCh} channels per branch" +
+                s" is not a multiple of $blockSize - run_concat will use the" +
+                s" element-wise gather path"
+            )
           Seq(
             ConcatStep(
               stepIdx,
@@ -324,7 +361,9 @@ object ExecPlanResolver {
               ld.offsetU,
               ld.offsetV,
               ld.scaleC,
-              ld.offsetC
+              ld.offsetC,
+              nRowsValid,
+              compactMask
             )
           )
         } else if (processor == "dequant" && ldOpt.isDefined) {
@@ -337,12 +376,14 @@ object ExecPlanResolver {
             resolvedSuffixToIdx,
             resolvedCpuOut
           )
-          val n = ld.tensorCh.toLong * ld.tensorH * ld.tensorW
+          val n =
+            roundUp((ld.tensorH * ld.tensorW).toLong) * roundUp(ld.tensorCh.toLong)
           Seq(DequantStep(stepIdx, layerName, inp, n, ld.scaleA, ld.offsetA))
         } else if (processor == "quant" && ldOpt.isDefined) {
           val ld = ldOpt.get
           val out = resolvedCpuOut.getOrElse(layerName, 0L)
-          val n = ld.outCh.toLong * ld.outH * ld.outW
+          // Block-tiled: both dims round up to the block.
+          val n = roundUp((ld.outH * ld.outW).toLong) * roundUp(ld.outCh.toLong)
           Seq(QuantStep(stepIdx, layerName, out, n, ld.scaleA, ld.offsetA))
         } else if (processor == "convtranspose" && ldOpt.isDefined) {
           val ld = ldOpt.get

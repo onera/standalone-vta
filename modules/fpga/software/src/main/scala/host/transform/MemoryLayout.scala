@@ -59,7 +59,9 @@ object MemoryLayout {
     ddrBase: Long,
     suffixToIdx: Map[String, Int],
     compDir: String,
-    refDir: Option[String]
+    refDir: Option[String],
+    // Used to size every block-tiled scratch region.
+    blockSize: Int = 16
   ): (Map[String, Long], Long, Seq[(String, Long, Long)]) = {
     val rawPhys = scratchAddr(layers, ddrBase)
     val rawSize = Model
@@ -90,7 +92,10 @@ object MemoryLayout {
               // writes its int8 output to a real, readable address rather than 0.
               // Its output is consumed either by a downstream VTA layer (via im2row
               // from this scratch) or read back as the network output.
-              val nBytes = ld.outCh.toLong * ld.outH * ld.outW
+              // Block-tiled, so both dims are padded to the block.
+              val nBytes =
+                (((ld.outH.toLong * ld.outW + blockSize - 1) / blockSize) * blockSize) *
+                  (((ld.outCh.toLong + blockSize - 1) / blockSize) * blockSize)
               println(
                 s"[gen] CPU scratch alloc: $layerName -> " +
                   s"${Model.hex32(allocPtr)} ($nBytes bytes)"

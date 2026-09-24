@@ -74,7 +74,8 @@ object GenNnBaremetal {
         ddrBase,
         suffixToIdx,
         compDir,
-        refDir
+        refDir,
+        cfg.blockSize
       )
     val (ctParams, ctBlobs, allocTop2) =
       MemoryLayout.buildCpuParamAddrs(dep, compDir, allocTop)

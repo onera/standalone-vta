@@ -116,7 +116,11 @@ final case class ConcatStep(
   offsetU: Int,
   offsetV: Int,
   scaleC: Double,
-  offsetC: Int
+  offsetC: Int,
+  // Unpadded row count, read by compact branches.
+  nRowsValid: Long = 0L,
+  // Bit p set when branch p stores its final partial row-block compactly.
+  compactMask: Int = 0
 ) extends PlanStep
 
 final case class DequantStep(
