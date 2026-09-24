@@ -8,6 +8,11 @@ import numpy as np
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.find_project_root import *
 import utils.tensor_matrix_converter as TM
+from utils.conv_layout import (
+    direct_conv_geometry,
+    direct_conv_supported,
+    direct_conv_work_ratio,
+)
 
 import nn_compiler.shape_data.shape_data as SD
 
@@ -20,7 +25,11 @@ import nn_compiler.shape_data.shape_data as SD
 # -------------
 def node_conv(node, param={}, node_mapping={}, node_info={}, filename='', 
               inp_dtype=np.int8, wgt_dtype=np.int8, acc_dtype=np.int32,
-              doExpandBiasAtCompilation=False, debug=False):
+              doExpandBiasAtCompilation=False, directConv=False,
+              directConvMaxWork=1.0, block_size=16,
+              inp_buffer_size=None, wgt_buffer_size=None,
+              acc_buffer_size=None, uop_buffer_size=None,
+              producersFlat=True, debug=False):
     # Reset the vta_ir
     vta_ir = {}
 
@@ -240,6 +249,60 @@ def node_conv(node, param={}, node_mapping={}, node_info={}, filename='',
 
 
     # ---
+    # DIRECT CONVOLUTION
+    # ------------------
+    # Lower onto the GEMM loop nest instead of a GEMM over a CPU-built im2row
+    # matrix, when that does not cost more GEMM work than im2row does. The
+    # ratio is 1.0 whenever the input channel count is a multiple of the block
+    # and grows as the channels get sparser, so this declines the first layer
+    # of an image model (C=1 or 3) and takes the rest of the network.
+    if directConv and op_type != 'MatMul':
+        work = direct_conv_work_ratio(nc, fh, fw, block_size)
+        # Activations stay block-tiled between layers; a direct convolution
+        # reads and writes flat, so it is bracketed by two layout conversions.
+        # That is two passes over the activation where the im2row it replaces
+        # writes kh*kw times as much - a clear win for a real kernel, and a
+        # loss for 1x1, whose im2row is already just a copy. So decline 1x1
+        # rather than make it slower.
+        if fh * fw <= 1:
+            if debug:
+                print(f"[direct-conv] {filename}: declined - 1x1, whose im2row "
+                      f"is already a single pass")
+            directConv = False
+        # A layer fed by the network input reads raw HWC bytes delivered at
+        # run time, not a block-tiled activation, so what it needs is
+        # format_input - there is no flat equivalent, and a relayout would have
+        # no producer buffer to point at. The runner also requires exactly one
+        # FORMAT_INPUT step to know where to put the incoming image.
+        if "image" in node_info.get("input_nodes", []):
+            if debug:
+                print(f"[direct-conv] {filename}: declined - reads the network "
+                      f"input, which arrives as raw HWC and needs format_input")
+            directConv = False
+        # Both halves of the compiler have to reach the same verdict: if this
+        # emits a CONV section vta_compiler cannot lower, the build fails late
+        # with a geometry error instead of quietly using im2row. So ask the
+        # same direct_conv_supported() the lowering will ask.
+        geom = direct_conv_geometry(nc, nh, nw, mc, fh, fw, sh, sw,
+                                    (ph[0], pw[0], ph[1], pw[1]), block_size)
+        fits, why = direct_conv_supported(
+            geom, fh, fw, sh, sw, nh, nw,
+            inp_buffer_size=inp_buffer_size, wgt_buffer_size=wgt_buffer_size,
+            acc_buffer_size=acc_buffer_size, uop_buffer_size=uop_buffer_size)
+        if debug and not fits:
+            print(f"[direct-conv] {filename}: declined - {why}")
+        if directConv and fits and work <= directConvMaxWork:
+            return _direct_conv_ir(
+                filename=filename, nc=nc, nh=nh, nw=nw, mc=mc,
+                fh=fh, fw=fw, sh=sh, sw=sw, ph=ph, pw=pw,
+                wgt_tensor=wgt_tensor, acc_tensor=acc_tensor, isBias=isBias,
+                inp_tensor_shape=inp_tensor_shape,
+                out_tensor_shape=out_tensor_shape,
+                wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, block_size=block_size,
+                A_zp=A_zp, A_scale=A_scale, B_zp=B_zp, B_scale=B_scale,
+                C_zp=C_zp, C_scale=C_scale, node_info=node_info, work=work)
+
+    # ---
     # WRITE VTA IR
     # ------------
     if (doExpandBiasAtCompilation == False):
@@ -319,6 +382,98 @@ def node_conv(node, param={}, node_mapping={}, node_info={}, filename='',
 
     return vta_ir, node_info
 
+
+
+###############################################
+
+
+# DIRECT CONVOLUTION IR
+# ---------------------
+def _direct_conv_ir(filename, nc, nh, nw, mc, fh, fw, sh, sw, ph, pw,
+                    wgt_tensor, acc_tensor, isBias,
+                    inp_tensor_shape, out_tensor_shape,
+                    wgt_dtype, acc_dtype, block_size,
+                    A_zp, A_scale, B_zp, B_scale, C_zp, C_scale,
+                    node_info, work):
+    """Emit a CONV section instead of the im2row GEMM triple.
+
+    The two lowerings differ in what the VTA is handed, so the buffers differ
+    too: weights are packed OIHWio rather than ker2col, the bias is always
+    expanded to one tensor per output position (the GEMM accumulates straight
+    onto ACC, so there is no separate broadcast step), and the activations stay
+    in the flat spatial layout the previous layer already wrote.
+
+    node_info["reshape"] = "direct" is what tells the runtime there is no CPU
+    pass between the producer and this layer at all.
+    """
+    oH = (nh + ph[0] + ph[1] - fh) // sh + 1
+    oW = (nw + pw[0] + pw[1] - fw) // sw + 1
+    ic_pad = ((nc + block_size - 1) // block_size) * block_size
+    oc_pad = ((mc + block_size - 1) // block_size) * block_size
+
+    # WGT: OIHWio, flattened to a 2D (blocks*block, block) matrix on disk
+    if B_zp != 0:
+        wgt_tensor = wgt_tensor - B_zp
+    wgt_blocks = SD.ker2oihwio(wgt_tensor, block_size=block_size, dtype=wgt_dtype)
+    wgt_matrix = wgt_blocks.reshape(-1, block_size)
+
+    # ACC: bias broadcast across every output position
+    acc_matrix = np.zeros((oH * oW, oc_pad), dtype=acc_dtype)
+    if isBias:
+        for oc in range(mc):
+            acc_matrix[:, oc] = acc_tensor[oc]
+
+    wgt_name = filename + "weight_" + str(wgt_matrix.shape[0]) + "x" + \
+        str(wgt_matrix.shape[1]) + ".bin"
+    acc_name = filename + "accumulator_" + str(oH * oW) + "x" + str(oc_pad) + ".bin"
+
+    vta_ir = {
+        "NAME": filename,
+        "MATRICES": {
+            "A": [nh * nw, ic_pad, "input"],
+            "B": [wgt_matrix.shape[0], wgt_matrix.shape[1],
+                  "../compiler_output/" + wgt_name],
+            "X": [oH * oW, oc_pad, "../compiler_output/" + acc_name],
+            "C": [oH * oW, oc_pad, "output"],
+        },
+        "LOAD": {"INP": ["A"], "WGT": ["B"], "ACC": ["X"]},
+        "CONV": {
+            "output": "C", "input": "A", "weight": "B", "acc": "X",
+            "in_shape": [nc, nh, nw],
+            "out_channels": mc,
+            "kernel": [fh, fw],
+            "stride": [sh, sw],
+            "pad": [ph[0], pw[0], ph[1], pw[1]],
+        },
+        "STORE": {"C": ["C"]},
+    }
+
+    output_dir = compiler_output_setup()
+    with open(filepath_definition(output_dir, wgt_name), "wb") as f:
+        wgt_matrix.tofile(f)
+    with open(filepath_definition(output_dir, acc_name), "wb") as f:
+        acc_matrix.tofile(f)
+
+    node_info.update({
+        "matrix_shape": (oH * oW, ic_pad, oc_pad),
+        "processor": "vta",
+        "reshape": "direct",
+        "offsetA": A_zp,
+        "scaleA": A_scale,
+        "offsetB": B_zp,
+        "scaleB": B_scale,
+        "input_shape": inp_tensor_shape,
+        "kernel": (fh, fw),
+        "stride": (sh, sw),
+        "padding": (ph[0], pw[0], ph[1], pw[1]),
+        "output_shape": out_tensor_shape,
+        "offsetC": C_zp,
+        "scaleC": C_scale,
+        "rescaling": (A_scale * B_scale) / C_scale,
+        "direct_conv_work": work,
+    })
+
+    return vta_ir, node_info
 
 
 ###############################################

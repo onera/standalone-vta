@@ -161,6 +161,59 @@ object ExecPlanResolver {
         }
       }).toMap
 
+    // relayout pre/post for each VTA layer with reshape "direct". The layer
+    // reads and writes the flat layout while everything around it uses the
+    // block-tiled one, so it is bracketed: convert the producer's output into
+    // this layer's INP, and convert this layer's OUT into a scratch buffer
+    // that MemoryLayout.outAddr hands to consumers (a permutation cannot be
+    // done in place).
+    def chPad(c: Int): Int =
+      (((c + blockSize - 1) / blockSize) * blockSize).toInt
+
+    val relayoutIn: Map[String, RelayoutStep] =
+      (for {
+        (_, processor, layerName) <- dep.executionOrder
+        if processor == "vta"
+        ld <- dep.layers.get(layerName)
+        if ld.reshapeInfo == "direct"
+        lidx <- resolvedSuffixToIdx.get(layerName)
+      } yield {
+        val srcAddr = MemoryLayout.outAddr(
+          ld.deps.headOption.getOrElse(""),
+          dep,
+          layers,
+          ddrBase,
+          resolvedSuffixToIdx,
+          resolvedCpuOut
+        )
+        layerName -> RelayoutStep(
+          layerName,
+          srcAddr,
+          ddrBase + layers(lidx).mem("INP").offset,
+          ld.tensorH * ld.tensorW,
+          chPad(ld.tensorCh),
+          toFlat = true,
+          ld.offsetA
+        )
+      }).toMap
+
+    val relayoutOut: Map[String, RelayoutStep] =
+      (for {
+        (_, processor, layerName) <- dep.executionOrder
+        if processor == "vta"
+        ld <- dep.layers.get(layerName)
+        if ld.reshapeInfo == "direct"
+        lidx <- resolvedSuffixToIdx.get(layerName)
+        scratch <- resolvedCpuOut.get(layerName)
+      } yield layerName -> RelayoutStep(
+        layerName,
+        ddrBase + layers(lidx).mem("OUT").offset,
+        scratch,
+        ld.outH * ld.outW,
+        chPad(ld.outCh),
+        toFlat = false
+      )).toMap
+
     // int32_chain pre-step for each VTA layer with reshape "int32" (maxpool/ALU).
     val int32Pre: Map[String, Int32ChainStep] =
       (for {
@@ -226,6 +279,8 @@ object ExecPlanResolver {
         val pre: Seq[PlanStep] =
           if (processor == "vta" && reshapePre.contains(layerName))
             Seq(reshapePre(layerName))
+          else if (processor == "vta" && relayoutIn.contains(layerName))
+            Seq(relayoutIn(layerName))
           else if (processor == "vta" && int32Pre.contains(layerName))
             Seq(int32Pre(layerName))
           else Seq.empty
@@ -255,7 +310,9 @@ object ExecPlanResolver {
                 )
               )
             } else Seq.empty
-          vta +: rescale
+          val post: Seq[PlanStep] =
+            relayoutOut.get(layerName).toSeq
+          (vta +: rescale) ++ post
         } else if (processor == "qadd" && ldOpt.isDefined) {
           val ld = ldOpt.get
           val inpA = MemoryLayout.outAddr(

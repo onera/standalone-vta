@@ -51,6 +51,24 @@ final case class ReshapeStep(
   rescaleOffset: Int = 0
 ) extends PlanStep
 
+/** Convert one activation between the block-tiled and flat layouts.
+  *
+  * Activations are block-tiled between layers; a direct convolution reads and
+  * writes flat, so it is bracketed by two of these. The conversion is a
+  * permutation and cannot be done in place, so the "out" direction writes to a
+  * scratch buffer that consumers resolve to instead of the VTA OUT.
+  */
+final case class RelayoutStep(
+  layer: String,
+  srcAddr: Long,
+  dstAddr: Long,
+  nRows: Int,
+  nCh: Int,
+  toFlat: Boolean,
+  /* Zero point removed while widening to the INP type; unused the other way. */
+  offsetA: Int = 0
+) extends PlanStep
+
 /** int32-chain pre-step feeding a maxpool/ALU layer's ACC buffer.
   *
   * `rescaleScale` / `rescaleOffset`: see [[ReshapeStep]] - fuses the producer's

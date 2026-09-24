@@ -33,9 +33,16 @@ object MemoryLayout {
     suffixToIdx: Map[String, Int],
     cpuOut: Map[String, Long]
   ): Long = {
-    suffixToIdx.get(layerName) match {
-      case Some(idx) => ddrBase + layers(idx).mem("OUT").offset
-      case None      => cpuOut.getOrElse(layerName, 0L)
+    // cpuOut first: a direct convolution is a VTA layer that nonetheless
+    // publishes its result from a scratch buffer, because its own OUT is in
+    // the flat layout and the relayout post-step converts it out of there.
+    cpuOut.get(layerName) match {
+      case Some(addr) => addr
+      case None =>
+        suffixToIdx.get(layerName) match {
+          case Some(idx) => ddrBase + layers(idx).mem("OUT").offset
+          case None      => 0L
+        }
     }
   }
 
@@ -79,8 +86,32 @@ object MemoryLayout {
       ) { case ((cpuOut, allocPtr, cpuScratch), (_, processor, layerName)) =>
         // dequant/convtranspose produce a CPU-allocated float* (the run_nn
         // float_buf), not a DDR buffer, so they need no DDR output address.
-        if (Set("vta", "dequant", "convtranspose").contains(processor)) {
+        if (Set("dequant", "convtranspose").contains(processor)) {
           (cpuOut, allocPtr, cpuScratch)
+        } else if (processor == "vta") {
+          // A direct convolution stores its OUT flat, and everything
+          // downstream reads block-tiled. Its relayout post-step converts into
+          // this scratch, which is what outAddr then hands to consumers - a
+          // permutation cannot be done in place.
+          dep.layers.get(layerName) match {
+            case Some(ld) if ld.reshapeInfo == "direct" =>
+              // Block-tiled, so both dims are padded to the block.
+              val chPad =
+                ((ld.outCh.toLong + blockSize - 1) / blockSize) * blockSize
+              val rowPad =
+                ((ld.outH.toLong * ld.outW + blockSize - 1) / blockSize) * blockSize
+              val nBytes = chPad * rowPad
+              println(
+                s"[gen] relayout scratch alloc: $layerName -> " +
+                  s"${Model.hex32(allocPtr)} ($nBytes bytes)"
+              )
+              (
+                cpuOut + (layerName -> allocPtr),
+                allocPtr + alignPage(nBytes),
+                cpuScratch :+ ((layerName, allocPtr, nBytes))
+              )
+            case _ => (cpuOut, allocPtr, cpuScratch)
+          }
         } else {
           dep.layers.get(layerName) match {
             case Some(ld)

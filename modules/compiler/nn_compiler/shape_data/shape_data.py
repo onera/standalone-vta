@@ -53,6 +53,58 @@ def ker2col(K, dtype=np.int8):
 
 ###############################################
 
+# KER2OIHWIO
+# ----------
+def ker2oihwio(K, block_size=16, dtype=np.int8):
+    """Pack convolution weights for the direct-convolution lowering.
+
+    ker2col flattens (ic, kh, kw) into one reduction axis because the im2row
+    GEMM reduces over it in one go. The direct lowering instead treats each
+    kernel tap as its own reduction step, so the taps have to stay separate and
+    each (output-channel block, input-channel block, tap) needs its own
+    16x16 weight block - upstream TVM VTA's OIHWio layout.
+
+    Block order is the one direct_conv.conv_uops() computes as wgt_idx:
+
+        blk = ((ocb * IC_blocks + icb) * kh + dy) * kw + dx
+
+    Each block is stored [out-channel][in-channel], matching the orientation
+    the GEMM wants (acc[16] += WGT[16][16] . INP[16]); note this is already
+    transposed relative to the ker2col path, where main_vta_compiler transposes
+    on the way out instead.
+
+    Arguments:
+    K -- kernel weights, shape (out_channels, in_channels, kernel_h, kernel_w)
+
+    Returns:
+    Array of shape (OC_blocks * IC_blocks * kh * kw, block_size, block_size).
+    Channel padding is zero-filled, which contributes nothing to the sum.
+    """
+    out_channels, in_channels, kernel_height, kernel_width = K.shape
+    ic_blocks = (in_channels + block_size - 1) // block_size
+    oc_blocks = (out_channels + block_size - 1) // block_size
+
+    blocks = np.zeros(
+        (oc_blocks * ic_blocks * kernel_height * kernel_width, block_size, block_size),
+        dtype=dtype,
+    )
+
+    for oc in range(out_channels):
+        for ic in range(in_channels):
+            for dy in range(kernel_height):
+                for dx in range(kernel_width):
+                    blk = (
+                        ((oc // block_size) * ic_blocks + ic // block_size)
+                        * kernel_height
+                        + dy
+                    ) * kernel_width + dx
+                    blocks[blk, oc % block_size, ic % block_size] = K[oc, ic, dy, dx]
+
+    return blocks
+
+
+###############################################
+
 # FLATTEN
 # -------
 def flatten_conv_output(Y):

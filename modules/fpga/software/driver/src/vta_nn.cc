@@ -243,6 +243,13 @@ float *run_nn(std::uintptr_t vcr_base, const NnExecStep *steps,
                                                sizeof(vta_inp_t)));
       break;
 
+    case NN_STEP_RELAYOUT:
+      run_relayout(s.relayout);
+      Xil_DCacheFlushRange(
+          static_cast<UINTPTR>(s.relayout.dst_addr),
+          static_cast<INTPTR>(s.relayout.n_rows * s.relayout.n_ch));
+      break;
+
     case NN_STEP_RESCALE:
       run_rescale(s.rescale);
       Xil_DCacheFlushRange(static_cast<UINTPTR>(s.rescale.addr),

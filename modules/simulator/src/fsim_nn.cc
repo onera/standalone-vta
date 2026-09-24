@@ -8,6 +8,50 @@
 /********************
     FSIM_NN
 *********************/
+
+namespace {
+
+/* Convert an activation between the two layouts.
+
+   Every operator in this file works on the block-tiled form; a direct
+   convolution reads and writes the flat one. Rather than propagate a layout
+   through the graph, fsim keeps block-tiled as the canonical inter-layer form
+   and converts at each direct convolution's two boundaries. That is more
+   copying than the board does - the baremetal plan skips the conversion
+   between adjacent direct convolutions - but a relayout is a lossless
+   permutation, so both produce the same values, and this keeps the reference
+   free of layout bookkeeping.
+
+   The blocked side pads the row count out to whole row-blocks; the flat side
+   is dense. Sizes therefore differ whenever rows is not a block multiple. */
+template <typename T>
+std::vector<T> relayout_activation(const std::vector<T> &src, int rows,
+                                   int n_ch, int block, bool to_flat) {
+  if (rows <= 0 || n_ch <= 0 || block <= 0)
+    return src;
+  const int cblk = (n_ch + block - 1) / block;
+  const int rblk = (rows + block - 1) / block;
+  const std::size_t n_flat = (std::size_t)rows * n_ch;
+  const std::size_t n_blocked = (std::size_t)rblk * block * cblk * block;
+
+  std::vector<T> dst(to_flat ? n_flat : n_blocked, T(0));
+  for (int r = 0; r < rows; ++r)
+    for (int c = 0; c < n_ch; ++c) {
+      const std::size_t flat = (std::size_t)r * n_ch + c;
+      const std::size_t blocked =
+          ((std::size_t)(r / block) * cblk + c / block) * (std::size_t)block *
+              block +
+          (std::size_t)(r % block) * block + (c % block);
+      const std::size_t from = to_flat ? blocked : flat;
+      const std::size_t to = to_flat ? flat : blocked;
+      if (from < src.size() && to < dst.size())
+        dst[to] = src[from];
+    }
+  return dst;
+}
+
+} // namespace
+
 int run_nn(const FsimOptions &opts) {
   // Variable to print results
   bool doPrint = false;
@@ -411,6 +455,37 @@ int run_nn(const FsimOptions &opts) {
       }
     }
 
+    else if (reshape_info == "direct") {
+      // Direct convolution: no CPU pass between the producer and this layer at
+      // all. The producer wrote its output in the flat spatial layout this
+      // layer consumes, with the same shape (its oH*oW x OC_pad is this
+      // layer's H*W x C_pad), so the only work is widening to the input type
+      // and removing the zero point. The spatial padding this layer needs is
+      // added by the LOAD's pad fields, not materialised here - which is the
+      // whole point of the lowering.
+      std::vector<int8_t> dep_out;
+      if (name_dep == "image") {
+        dep_out = input_nn;
+      } else {
+        LayerContext &dep_ctx = layers_map[name_dep];
+        dep_out = dep_ctx.res;
+      }
+
+      /* The producer stored block-tiled, this layer reads flat. Adjacent
+         direct convolutions make this a round trip, which is wasteful but
+         exact; only the board's plan bothers to elide it. */
+      const int in_ch_pad =
+          ((tensor_channel + block_size - 1) / block_size) * block_size;
+      dep_out = relayout_activation(dep_out, tensor_height * tensor_width,
+                                    in_ch_pad, block_size, /*to_flat=*/true);
+
+      ctx.inpA = subtract_offset(convert_vector_type<inp_dtype>(dep_out),
+                                 static_cast<inp_dtype>(offsetA));
+
+      VTAMemCopyFromHost(ctx.mem_inpA, ctx.inpA.data(),
+                         ctx.inpA.size() * sizeof(inp_dtype));
+    }
+
     else if (reshape_info == "im2row") {
       // Get the previous layers
       std::vector<int8_t> dep_out;
@@ -453,7 +528,7 @@ int run_nn(const FsimOptions &opts) {
       if (dump_layers) {
         const std::string in_path =
             construct_sim_output_path("input" + ctx.suffix + ".bin");
-        if (reshape_info == "im2row") {
+        if (reshape_info == "im2row" || reshape_info == "direct") {
           write_binary_file(in_path, ctx.inpA);
         } else if (reshape_info == "int32") {
           write_binary_file(in_path, ctx.accX);
@@ -685,6 +760,17 @@ int run_nn(const FsimOptions &opts) {
                           scale,    // rescale_factor (float)
                           offsetC   // offset
       );
+
+      /* A direct convolution's OUT is flat; hand it on in the canonical
+         block-tiled form so no consumer needs to know. Rescaling is
+         elementwise, so converting after it is equivalent to before. */
+      if (reshape_info == "direct") {
+        const int out_ch_pad =
+            ((out_tensor_channel + block_size - 1) / block_size) * block_size;
+        ctx.res = relayout_activation(
+            ctx.res, out_tensor_height * out_tensor_width, out_ch_pad,
+            block_size, /*to_flat=*/false);
+      }
     }
   }
 

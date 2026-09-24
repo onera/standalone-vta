@@ -90,8 +90,26 @@ trait HasOnnxModel extends HasCompilableModel {
     val compOut = Task.dest
     compiler
       .runner()
-      .compileModel(onnxPath().path, configPath, compOut)
+      .compileModel(onnxPath().path, configPath, compOut,
+                    directConv = directConv(),
+                    directConvMaxWork = directConvMaxWork())
     PathRef(compOut, quick = true)
+  }
+
+  /** Lower convolutions with the direct GEMM-loop-nest lowering rather than a
+    * GEMM over a CPU-built im2row matrix, from -Dvta.direct.conv (default
+    * off). A Task.Input, so flipping it invalidates the compile.
+    */
+  def directConv = Task.Input {
+    build.getVtaArg("vta.direct.conv").toLowerCase == "true"
+  }
+
+  /** Largest direct/im2row GEMM-work ratio [[directConv]] will accept, from
+    * -Dvta.direct.conv.max.work (default 1.0: never do more GEMM work than
+    * im2row would).
+    */
+  def directConvMaxWork = Task.Input {
+    build.getVtaArg("vta.direct.conv.max.work").toDouble
   }
 
   /** Run the ONNX reference for this model: input_nn.bin (the network input)

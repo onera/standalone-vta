@@ -80,7 +80,16 @@ def nop_stage_instruction(module="COMPUTE", pop_prev_dep=0, pop_next_dep=0, push
 def load_store_instruction(buffer_type="UOP", pop_prev_dep=0, pop_next_dep=0, push_prev_dep=0, push_next_dep=0,
                            sram_base=0, dram_base=0,
                            y_size=0, x_size=0, x_stride=0,
+                           y_pad_top=0, y_pad_bottom=0, x_pad_left=0, x_pad_right=0,
                            semaphore={}):
+    """Emit one LOAD/STORE instruction.
+
+    The y_pad_* / x_pad_* fields make the hardware zero-fill a border around the
+    loaded region instead of the caller materialising it (see the LOAD
+    pseudo-code in the operations_definition README). They default to 0, which
+    is what every caller other than the direct-convolution lowering wants. The
+    RTL path is covered by hardware TensorLoadPadSpec.
+    """
     if (len(semaphore) == 0):
         raise Exception(f"ERROR: no semaphore given! \n\n")
     
@@ -137,13 +146,13 @@ def load_store_instruction(buffer_type="UOP", pop_prev_dep=0, pop_next_dep=0, pu
         y_size=y_size,
         x_size=x_size,
         x_stride=x_stride,
-        y_pad_top=0,
-        y_pad_bottom=0,
-        x_pad_left=0,
-        x_pad_right=0
+        y_pad_top=y_pad_top,
+        y_pad_bottom=y_pad_bottom,
+        x_pad_left=x_pad_left,
+        x_pad_right=x_pad_right
     )
 
-    return load_store_insn, semaphore 
+    return load_store_insn, semaphore
 
 # ---------------------------------------------
 

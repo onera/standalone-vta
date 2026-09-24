@@ -18,6 +18,7 @@ import data_definition.accumulator_blocks as ACCB
 import dram_allocation.dram_allocation as DA
 import matrix_partitioning.matrix_partitioning as MP
 import operations_definition.operations_definition as OP
+import main_direct_conv as DC
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.find_project_root import *
@@ -39,6 +40,21 @@ def main(
     debug=True,
     summary=True,
 ):
+
+    # A convolution carrying a CONV section is lowered directly onto the GEMM
+    # loop nest instead of as a GEMM over a CPU-built im2row matrix. That path
+    # shares none of the block-tiling machinery below, so dispatch before any
+    # of it runs.
+    if "CONV" in operations_dict:
+        return DC.compile_direct_conv(
+            vta_config_dict=vta_config_dict,
+            operations_dict=operations_dict,
+            base_address=base_address,
+            dram_offset=dram_offset,
+            dram_state_dictionary=dram_state_dictionary,
+            debug=debug,
+            summary=summary,
+        )
 
     if debug:
         print(

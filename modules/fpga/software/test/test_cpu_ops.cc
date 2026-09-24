@@ -431,6 +431,207 @@ void test_convtranspose(const ConvTCfg &c, std::mt19937 &rng) {
   check_f(nm, ref);
 }
 
+// ---- flat activation layout ------------------------------------------------
+// The direct-convolution lowering reads and writes activations flat, while
+// every other op uses the block-tiled form. These check the flat paths against
+// the blocked ones, which the tests above already tie to the fsim reference:
+// converting the input and running the flat path must reproduce, byte for
+// byte, what the blocked path produces from the same data. A pure round-trip
+// would not catch an op that reads a consistent but wrong layout.
+
+void report(const std::string &name, std::size_t n, std::size_t bad) {
+  std::printf("  %-44s ref=%-6zu mm=%-5zu %s\n", name.c_str(), n, bad,
+              bad ? "FAIL" : "PASS");
+  if (bad)
+    ++g_failures;
+}
+
+std::uint32_t blocked_off(std::uint32_t row, std::uint32_t ch,
+                          std::uint32_t n_ch, std::uint32_t B) {
+  const std::uint32_t cblk = (n_ch + B - 1u) / B;
+  return ((row / B) * cblk + ch / B) * B * B + (row % B) * B + (ch % B);
+}
+
+void test_relayout(std::uint32_t rows, std::uint32_t ch, std::mt19937 &rng) {
+  const std::uint32_t B = VTA_BLOCK_SIZE;
+  // The blocked side pads the rows out to whole row-blocks - the producer's
+  // OUT always does - while the flat side is dense, so the two sides differ in
+  // size whenever the row count is not a block multiple.
+  const std::uint32_t n_flat = rows * ch;
+  const std::uint32_t n_blocked = ((rows + B - 1u) / B) * B * ch;
+  const std::int32_t off = -7;
+
+  std::vector<std::int8_t> blocked(n_blocked);
+  for (auto &v : blocked)
+    v = static_cast<std::int8_t>(rng() % 251) - 125;
+
+  auto *src = reinterpret_cast<std::int8_t *>(kSrc);
+  std::copy(blocked.begin(), blocked.end(), src);
+
+  NnRelayoutStep fwd{};
+  fwd.src_addr = kSrc;
+  fwd.dst_addr = kDst;
+  fwd.n_rows = rows;
+  fwd.n_ch = ch;
+  fwd.block = B;
+  fwd.to_flat = 1u;
+  fwd.offset_a = off;
+  vta::run_relayout(fwd);
+
+  // to_flat feeds a convolution's INP: it widens to vta_inp_t and removes the
+  // zero point, exactly as the im2row it stands in for does.
+  std::size_t bad = 0;
+  const auto *wide = reinterpret_cast<const vta_inp_t *>(kDst);
+  for (std::uint32_t r = 0; r < rows; ++r)
+    for (std::uint32_t c = 0; c < ch; ++c) {
+      const vta_inp_t want = static_cast<vta_inp_t>(
+          static_cast<std::int32_t>(blocked[blocked_off(r, c, ch, B)]) - off);
+      if (wide[r * ch + c] != want)
+        ++bad;
+    }
+
+  // The other direction publishes the layer's already-rescaled int8 OUT, so it
+  // is int8 both sides and takes no offset. Feed it the flat image of the same
+  // data and require the original blocked buffer back.
+  for (std::uint32_t r = 0; r < rows; ++r)
+    for (std::uint32_t c = 0; c < ch; ++c)
+      src[r * ch + c] = blocked[blocked_off(r, c, ch, B)];
+  NnRelayoutStep back{};
+  back.src_addr = kSrc;
+  back.dst_addr = kDst;
+  back.n_rows = rows;
+  back.n_ch = ch;
+  back.block = B;
+  back.to_flat = 0u;
+  auto *narrow = reinterpret_cast<std::int8_t *>(kDst);
+  std::fill(narrow, narrow + n_blocked, static_cast<std::int8_t>(0));
+  vta::run_relayout(back);
+  for (std::uint32_t r = 0; r < rows; ++r)
+    for (std::uint32_t c = 0; c < ch; ++c) {
+      const std::uint32_t o = blocked_off(r, c, ch, B);
+      if (narrow[o] != blocked[o])
+        ++bad;
+    }
+
+  char nm[96];
+  std::snprintf(nm, sizeof(nm), "relayout %ux%u (%u channel blocks)", rows, ch,
+                (ch + B - 1u) / B);
+  report(nm, n_flat * 2, bad);
+}
+
+void test_concat_flat(std::uint32_t rows, std::uint32_t ch_per, int nb,
+                      std::mt19937 &rng) {
+  const std::uint32_t B = VTA_BLOCK_SIZE;
+  const std::uint32_t tot = ch_per * static_cast<std::uint32_t>(nb);
+  const std::uint32_t per = rows * ch_per;
+
+  std::vector<std::vector<std::int8_t>> branch(nb,
+                                               std::vector<std::int8_t>(per));
+  for (auto &b : branch)
+    for (auto &v : b)
+      v = static_cast<std::int8_t>(rng() % 251) - 125;
+
+  NnConcatStep st{};
+  st.out = kDst;
+  st.n_rows = rows;
+  st.n_ch_per_inp = ch_per;
+  st.nb_inp = nb;
+  st.out_scale = 0.5f;
+  st.out_zp = -3;
+  st.block = B;
+  for (int i = 0; i < nb; ++i) {
+    st.inp[i] = static_cast<std::uint32_t>(kSrc + i * per);
+    st.scales[i] = 0.25f * static_cast<float>(i + 1);
+    st.zps[i] = i - 1;
+  }
+
+  // blocked reference
+  auto *src = reinterpret_cast<std::int8_t *>(kSrc);
+  for (int i = 0; i < nb; ++i)
+    std::copy(branch[i].begin(), branch[i].end(), src + i * per);
+  st.layout = NN_LAYOUT_BLOCKED;
+  vta::run_concat(st);
+  std::vector<std::int8_t> ref(reinterpret_cast<std::int8_t *>(kDst),
+                               reinterpret_cast<std::int8_t *>(kDst) +
+                                   rows * tot);
+
+  // same data converted to flat, through the flat path
+  for (int i = 0; i < nb; ++i)
+    for (std::uint32_t r = 0; r < rows; ++r)
+      for (std::uint32_t c = 0; c < ch_per; ++c)
+        src[i * per + r * ch_per + c] =
+            branch[i][blocked_off(r, c, ch_per, B)];
+  st.layout = NN_LAYOUT_FLAT;
+  vta::run_concat(st);
+
+  const auto *got = reinterpret_cast<const std::int8_t *>(kDst);
+  std::size_t bad = 0;
+  for (std::uint32_t r = 0; r < rows; ++r)
+    for (std::uint32_t c = 0; c < tot; ++c)
+      if (got[r * tot + c] != ref[blocked_off(r, c, tot, B)])
+        ++bad;
+
+  char nm[96];
+  std::snprintf(nm, sizeof(nm), "concat flat %ux%u x%d", rows, ch_per, nb);
+  report(nm, rows * tot, bad);
+}
+
+void test_im2row_flat(const ConvCfg &c, std::mt19937 &rng) {
+  const std::uint32_t B = VTA_BLOCK_SIZE;
+  const std::uint32_t oh = out_dim(c.H, c.pt, c.pb, c.kh, c.sh);
+  const std::uint32_t ow = out_dim(c.W, c.pl, c.pr, c.kw, c.sw);
+  const std::uint32_t cb = (c.C + B - 1u) / B;
+  const std::uint32_t rows = c.H * c.W;
+  const std::uint32_t chp = cb * B;
+  const std::uint32_t n = ((rows + B - 1u) / B) * B * chp;
+
+  std::vector<std::int8_t> blocked(n, 0);
+  for (auto &v : blocked)
+    v = static_cast<std::int8_t>(rng() % 251) - 125;
+
+  NnIm2RowStep st{};
+  st.src_addr = kSrc;
+  st.dst_addr = kDst;
+  st.tensor_ch = c.C;
+  st.tensor_h = c.H;
+  st.tensor_w = c.W;
+  st.kh = c.kh;
+  st.kw = c.kw;
+  st.sh = c.sh;
+  st.sw = c.sw;
+  st.pad[0] = c.pt; st.pad[1] = c.pl; st.pad[2] = c.pb; st.pad[3] = c.pr;
+  st.offset_a = c.off;
+  st.out_h = oh;
+  st.out_w = ow;
+  st.block = B;
+
+  auto *src = reinterpret_cast<std::int8_t *>(kSrc);
+  std::copy(blocked.begin(), blocked.end(), src);
+  st.src_layout = NN_LAYOUT_BLOCKED;
+  vta::run_im2row(st);
+  const std::uint32_t out_n =
+      ((oh * ow + B - 1u) / B) * B * (((c.C * c.kh * c.kw) + B - 1u) / B) * B;
+  std::vector<vta_inp_t> ref(reinterpret_cast<vta_inp_t *>(kDst),
+                             reinterpret_cast<vta_inp_t *>(kDst) + out_n);
+
+  for (std::uint32_t r = 0; r < rows; ++r)
+    for (std::uint32_t ch = 0; ch < chp; ++ch)
+      src[r * chp + ch] = blocked[blocked_off(r, ch, chp, B)];
+  st.src_layout = NN_LAYOUT_FLAT;
+  vta::run_im2row(st);
+
+  const auto *got = reinterpret_cast<const vta_inp_t *>(kDst);
+  std::size_t bad = 0;
+  for (std::uint32_t i = 0; i < out_n; ++i)
+    if (got[i] != ref[i])
+      ++bad;
+
+  char nm[96];
+  std::snprintf(nm, sizeof(nm), "im2row flat-src C=%u %ux%u k%ux%u", c.C, c.H,
+                c.W, c.kh, c.kw);
+  report(nm, out_n, bad);
+}
+
 } // namespace
 
 int main() {
@@ -505,6 +706,17 @@ int main() {
   std::printf("== run_convtranspose vs fsim conv_transpose<float> ==\n");
   for (const auto &c : convt)
     test_convtranspose(c, rng);
+
+  std::printf("== flat activation layout ==\n");
+  test_relayout(16, 16, rng);
+  test_relayout(64, 48, rng);
+  test_relayout(25, 32, rng);
+  test_relayout(80, 96, rng);
+  test_concat_flat(32, 16, 2, rng);
+  test_concat_flat(64, 32, 3, rng);
+  test_concat_flat(16, 48, 2, rng);
+  for (const auto &c : conv)
+    test_im2row_flat(c, rng);
 
   std::printf("\n%s (%d failing config%s)\n",
               g_failures ? "FAILED" : "ALL PASS", g_failures,

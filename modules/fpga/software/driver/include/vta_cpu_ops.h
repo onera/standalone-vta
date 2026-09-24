@@ -9,6 +9,15 @@ struct NnQaddStep {
   std::int32_t zA, zB, zC;
 };
 
+/* Activation layout. Everything except a direct convolution reads and writes
+   the block-tiled form; a direct convolution reads and writes the flat one.
+   The two coincide when the matrix is one channel block wide, which is why
+   mixing them goes unnoticed on narrow layers. */
+enum NnLayout {
+  NN_LAYOUT_BLOCKED = 0,
+  NN_LAYOUT_FLAT = 1,
+};
+
 struct NnConcatStep {
   std::uint32_t inp[4];
   std::uint32_t out;
@@ -21,11 +30,43 @@ struct NnConcatStep {
   float out_scale;
   std::int32_t out_zp;
   std::uint32_t block; /* VTA block size (BLOCK_IN = BLOCK_OUT) */
+  /* Layout of every branch and of the output; concat is channel-wise, so it is
+     the one non-elementwise CPU op whose result depends on it. Last, so an
+     initialiser that omits it gets NN_LAYOUT_BLOCKED - which is what every
+     emitted plan wants today. */
+  std::uint32_t layout;
   /* Unpadded row count, read by compact branches; 0 means n_rows. */
   std::uint32_t n_rows_valid;
   /* Bit p set when branch p stores its final partial row-block compactly, as
      (n_rows_valid mod block) x block blocks, instead of padding it. */
   std::uint32_t compact_mask;
+};
+
+/* Convert one activation between the block-tiled and flat layouts.
+
+   Emitted only at a layout boundary - where a direct convolution meets an
+   operator that has not moved to the flat layout. It is one pass over the
+   activation, where the im2row it replaces writes kH*kW times as much, so a
+   boundary is far cheaper than the pass it displaces; back-to-back direct
+   convolutions need no step here at all. */
+struct NnRelayoutStep {
+  std::uint32_t src_addr;
+  std::uint32_t dst_addr;
+  std::uint32_t n_rows;  /* H*W, the spatial positions                       */
+  std::uint32_t n_ch;    /* channels, padded to a block multiple             */
+  std::uint32_t block;   /* VTA block size                                   */
+  std::uint32_t to_flat; /* 1: block-tiled -> flat.  0: flat -> block-tiled  */
+  /* The two directions do not move the same element type, because they sit at
+     different points in the pipeline.
+
+     to_flat feeds a convolution's INP, exactly where im2row would have: it
+     reads the producer's compact int8 activation and writes vta_inp_t,
+     subtracting the zero point on the way, so it must widen. Treating it as a
+     byte copy silently writes int8 into a 32-bit buffer.
+
+     from-flat takes the layer's own OUT after the rescale has made it int8
+     and hands it to consumers, so it is int8 to int8 and offset_a is unused. */
+  std::int32_t offset_a;
 };
 
 struct NnDequantStep {
@@ -81,6 +122,9 @@ struct NnIm2RowStep {
      rescale_offset) before use - identical to run_rescale then this step. */
   float rescale_scale;
   std::int32_t rescale_offset;
+  /* Layout of the *source* activation. The im2row matrix this writes is always
+     block-tiled - it is consumed by a GEMM, not by a convolution. */
+  std::uint32_t src_layout;
 };
 
 /* In-place INT32→INT8 rescale of a VTA OUT buffer.
@@ -158,6 +202,7 @@ enum NnStepType {
   NN_STEP_RESCALE = 7,
   NN_STEP_INT32_CHAIN = 8,
   NN_STEP_CONVTRANSPOSE = 9,
+  NN_STEP_RELAYOUT = 10,
 };
 
 struct NnVtaStep {
@@ -178,6 +223,7 @@ struct NnExecStep {
     NnRescaleStep rescale;
     NnInt32ChainStep int32_chain;
     NnConvTransposeStep convtranspose;
+    NnRelayoutStep relayout;
   };
 };
 namespace vta {
@@ -190,6 +236,7 @@ void run_format_input(const NnFormatInputStep &d);
 void run_im2row(const NnIm2RowStep &d);
 void run_rescale(const NnRescaleStep &d);
 void run_int32_chain(const NnInt32ChainStep &d);
+void run_relayout(const NnRelayoutStep &d);
 /* in/out are the runtime float_buf (block-tiled float); wgt/bias come from the
    DDR addresses in d.  out must hold d.n_out_elems floats. */
 void run_convtranspose(const NnConvTransposeStep &d, const float *in,

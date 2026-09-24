@@ -149,6 +149,7 @@ private[exporters] object HeaderRender {
   private def renderStep(step: PlanStep, blockSize: Int): String = step match {
     case s: ReshapeStep           => renderReshape(s, blockSize)
     case s: Int32ChainStep        => renderInt32Chain(s)
+    case s: RelayoutStep          => renderRelayout(s, blockSize)
     case s: VtaStep               => renderVta(s)
     case s: RescaleStep           => renderRescale(s)
     case s: QaddStep              => renderQadd(s)
@@ -180,6 +181,18 @@ private[exporters] object HeaderRender {
        |        ${fmtPad(s.pad)},
        |        ${s.offsetA},
        |        ${s.outH}u, ${s.outW}u, ${blockSize}u$tail
+       |    } } }""".stripMargin
+  }
+
+  private def renderRelayout(s: RelayoutStep, blockSize: Int): String = {
+    val dir = if (s.toFlat) "blocked -> flat" else "flat -> blocked"
+    val suffix = if (s.toFlat) "in" else "out"
+    s"""
+       |    /* relayout ($dir) for ${s.layer} */
+       |    { NN_STEP_RELAYOUT, "relayout_${suffix}_${s.layer}", { .relayout = {
+       |        ${Model.hex32(s.srcAddr)}, ${Model.hex32(s.dstAddr)},
+       |        ${s.nRows}u, ${s.nCh}u, ${blockSize}u, ${if (s.toFlat) 1 else 0}u,
+       |        ${s.offsetA}
        |    } } }""".stripMargin
   }
 
@@ -229,7 +242,7 @@ private[exporters] object HeaderRender {
         .float(s.scaleU)}f, ${PyFmt.float(s.scaleV)}f },
        |        { ${s.offsetA}, ${s.offsetB}, ${s.offsetU}, ${s.offsetV} },
        |        ${PyFmt.float(s.scaleC)}f, ${s.offsetC}, ${blockSize}u,
-       |        ${s.nRowsValid}u, ${s.compactMask}u
+       |        NN_LAYOUT_BLOCKED, ${s.nRowsValid}u, ${s.compactMask}u
        |    } } }""".stripMargin
 
   private def renderDequant(s: DequantStep): String =

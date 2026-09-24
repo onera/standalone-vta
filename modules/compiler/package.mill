@@ -76,12 +76,25 @@ object `package` extends Module { m =>
         )
 
     /** qONNX -> per-node CPU params + VTA IR JSONs, into `dest`. */
-    def nnCompile(onnx: os.Path, config: os.Path, dest: os.Path): Unit =
+    def nnCompile(
+      onnx: os.Path,
+      config: os.Path,
+      dest: os.Path,
+      directConv: Boolean = false,
+      directConvMaxWork: Double = 1.0
+    ): Unit = {
+      val directArgs =
+        if (directConv)
+          Seq("--direct-conv", "--direct-conv-max-work",
+              directConvMaxWork.toString)
+        else Seq.empty
       exec(
         nnCompilerMain,
-        Seq("--expand-bias", config.toString, onnx.toString),
+        Seq("--expand-bias") ++ directArgs ++
+          Seq(config.toString, onnx.toString),
         compDir = Some(dest)
       )
+    }
 
     /** VTA IR JSONs -> .bin streams and address CSVs, in place in `dest`. */
     def vtaCompile(config: os.Path, dest: os.Path): Unit = {
@@ -97,9 +110,15 @@ object `package` extends Module { m =>
     }
 
     /** nn + vta - the compile shared by examples and the fpga goldens. */
-    def compileModel(onnx: os.Path, config: os.Path, dest: os.Path): os.Path = {
+    def compileModel(
+      onnx: os.Path,
+      config: os.Path,
+      dest: os.Path,
+      directConv: Boolean = false,
+      directConvMaxWork: Double = 1.0
+    ): os.Path = {
       os.makeDir.all(dest)
-      nnCompile(onnx, config, dest)
+      nnCompile(onnx, config, dest, directConv, directConvMaxWork)
       vtaCompile(config, dest)
       dest
     }

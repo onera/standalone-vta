@@ -1,0 +1,28 @@
+{
+  "NAME": "",
+  "MATRICES": {
+    "A": [2304, 32, "../compiler_output/dconvtinput_2304x32.bin"],
+    "B": [576, 16, "../compiler_output/dconvtweight_576x16.bin"],
+    "X": [2304, 32, "../compiler_output/dconvtacc_2304x32.bin"],
+    "C": [2304, 32, "output"]
+  },
+  "LOAD": {
+    "INP": ["A"],
+    "WGT": ["B"],
+    "ACC": ["X"]
+  },
+  "CONV": {
+    "output": "C",
+    "input": "A",
+    "weight": "B",
+    "acc": "X",
+    "in_shape": [32, 48, 48],
+    "out_channels": 32,
+    "kernel": [3, 3],
+    "stride": [1, 1],
+    "pad": [1, 1, 1, 1]
+  },
+  "STORE": {
+    "C": ["C"]
+  }
+}

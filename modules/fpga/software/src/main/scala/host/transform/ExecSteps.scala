@@ -43,9 +43,16 @@ object ExecSteps {
         )
       }
 
+    // A direct convolution is never a fusion candidate. Fusing its rescale
+    // into the consumer would leave its OUT as raw int32, but the relayout
+    // that follows it moves int8 - it would convert the layout of the wrong
+    // element width, silently.
+    def isDirect(name: String): Boolean =
+      dep.layers.get(name).exists(_.reshapeInfo == "direct")
+
     dep.executionOrder.iterator.collect {
       case (_, "vta", pName)
-          if consumersOf.get(pName).exists(cs =>
+          if !isDirect(pName) && consumersOf.get(pName).exists(cs =>
             cs.size == 1 && isReshapeConsumer(cs.head)
           ) =>
         pName
@@ -81,6 +88,9 @@ object ExecSteps {
                 if (ld.deps.headOption.contains("image"))
                   Seq("format_input" -> layerName)
                 else Seq("im2row" -> layerName)
+              } else if (ld.reshapeInfo == "direct") {
+                // A direct convolution reads flat; its producer wrote blocked.
+                Seq("relayout_in" -> layerName)
               } else if (
                 ld.reshapeInfo == "int32" &&
                 layers(lidx).mem("ACC").byteSize != 0L
@@ -91,7 +101,16 @@ object ExecSteps {
             if (logOutWidth > 3 && !fused.contains(layerName))
               Seq("rescale" -> layerName)
             else Seq.empty
-          pre ++ Seq("vta" -> layerName) ++ rescale
+          // and back out of the flat layout afterwards, so consumers see the
+          // canonical block-tiled form. After the rescale, which is elementwise
+          // and so indifferent, and which leaves int8 to move rather than int32.
+          val relayoutOut =
+            dep.layers
+              .get(layerName)
+              .filter(_.reshapeInfo == "direct")
+              .map(_ => Seq("relayout_out" -> layerName))
+              .getOrElse(Seq.empty)
+          pre ++ Seq("vta" -> layerName) ++ rescale ++ relayoutOut
         } else {
           val kind = processor match {
             case "qadd" | "concat" | "dequant" | "quant" => processor

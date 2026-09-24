@@ -32,6 +32,7 @@ import nn_compiler.nodes.node_cpu as Ncpu
 # -------------
 def vta_backend(vta_config_dict, onnx_model_path, 
                 doExpandBiasAtCompilation=False,
+                directConv=False, directConvMaxWork=1.0,
                 debug=True):
 
     # GET CONFIGURATION
@@ -40,6 +41,19 @@ def vta_backend(vta_config_dict, onnx_model_path,
     inp_dtype = conf.data_type(vta_config_dict["LOG_INP_WIDTH"])
     wgt_dtype = conf.data_type(vta_config_dict["LOG_WGT_WIDTH"])
     acc_dtype = conf.data_type(vta_config_dict["LOG_ACC_WIDTH"])
+    block_size = 2 ** vta_config_dict["LOG_BLOCK"]
+    # Scratchpad capacities, so the per-layer lowering choice can be made
+    # against the same limits vta_compiler will enforce.
+    inp_buffer_size = conf.buffer_size(
+        vta_config_dict["LOG_INP_BUFF_SIZE"], vta_config_dict["LOG_INP_WIDTH"],
+        block_size)
+    wgt_buffer_size = conf.buffer_size(
+        vta_config_dict["LOG_WGT_BUFF_SIZE"], vta_config_dict["LOG_WGT_WIDTH"],
+        block_size * block_size)
+    acc_buffer_size = conf.buffer_size(
+        vta_config_dict["LOG_ACC_BUFF_SIZE"], vta_config_dict["LOG_ACC_WIDTH"],
+        block_size)
+    uop_buffer_size = conf.buffer_size(vta_config_dict["LOG_UOP_BUFF_SIZE"], 5, 1)
 
     # PARSING the ONNX model
     # ----------------------
@@ -140,7 +154,7 @@ def vta_backend(vta_config_dict, onnx_model_path,
         if (op_type == "QLinearConv"): 
             # Get data from the node
             vta_ir, node_info = \
-                Nconv.node_conv(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, doExpandBiasAtCompilation=doExpandBiasAtCompilation, debug=False)
+                Nconv.node_conv(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, doExpandBiasAtCompilation=doExpandBiasAtCompilation, directConv=directConv, directConvMaxWork=directConvMaxWork, block_size=block_size, inp_buffer_size=inp_buffer_size, wgt_buffer_size=wgt_buffer_size, acc_buffer_size=acc_buffer_size, uop_buffer_size=uop_buffer_size, debug=debug)
 
         # ---
 
@@ -240,6 +254,7 @@ def vta_backend(vta_config_dict, onnx_model_path,
 
         # Append the execution order
         execution_order.append( node_info.copy() )
+
 
     
     # WRITE VTA IR
@@ -410,6 +425,25 @@ if __name__ == "__main__":
     parser.add_argument("onnx")
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--expand-bias", action="store_true")
+    parser.add_argument(
+        "--direct-conv",
+        action="store_true",
+        help="Lower convolutions onto the GEMM loop nest instead of a GEMM over "
+             "a CPU-built im2row matrix, wherever that does not cost more GEMM "
+             "work (see --direct-conv-max-work).",
+    )
+    parser.add_argument(
+        "--direct-conv-max-work",
+        type=float,
+        default=1.0,
+        metavar="RATIO",
+        help="Largest direct/im2row GEMM-work ratio to accept, default 1.0 "
+             "(never do more GEMM work than im2row). The ratio is 1.0 when the "
+             "input channel count is a multiple of the block and grows as the "
+             "channels get sparser, so the default declines the first layer of "
+             "an image model and takes the rest. Raise it to trade GEMM work "
+             "for the CPU im2row pass on layers where that still pays.",
+    )
     parser.add_argument("-o", "--output-dir")
     args = parser.parse_args()
 
@@ -418,4 +452,4 @@ if __name__ == "__main__":
 
     vta_config_dict = parse_json_to_dict(args.config)
 
-    result = vta_backend(vta_config_dict, args.onnx, doExpandBiasAtCompilation=args.expand_bias, debug=args.debug)
+    result = vta_backend(vta_config_dict, args.onnx, doExpandBiasAtCompilation=args.expand_bias, directConv=args.direct_conv, directConvMaxWork=args.direct_conv_max_work, debug=args.debug)

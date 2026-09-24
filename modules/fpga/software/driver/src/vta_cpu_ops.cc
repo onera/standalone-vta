@@ -36,6 +36,26 @@ static inline std::int64_t rescaled_src(std::uintptr_t base, std::uint32_t i,
                   offset);
 }
 
+/* Byte offset of activation element (row, ch) under each layout.
+
+   blocked  ((row/B)*cblk + ch/B)*B*B + (row%B)*B + (ch%B)
+   flat     row*(cblk*B) + ch
+
+   They agree exactly when cblk == 1, which is why a mismatch stays invisible
+   until a layer is more than one channel block wide.
+
+   cblk is passed in rather than derived from a channel count, deliberately:
+   deriving it costs an integer division, B is a runtime value so the compiler
+   cannot turn that into a shift, and this sits in the innermost loop of every
+   caller. */
+static inline std::uint32_t act_off(std::uint32_t row, std::uint32_t ch,
+                                    std::uint32_t cblk, std::uint32_t B,
+                                    std::uint32_t layout) {
+  if (layout == NN_LAYOUT_FLAT)
+    return row * (cblk * B) + ch;
+  return ((row / B) * cblk + ch / B) * B * B + (row % B) * B + (ch % B);
+}
+
 /* Offset of (row, ch) inside one concat branch. A `compact` branch stores its
    final partial row-block as (n_valid mod B) x B blocks instead of B x B. */
 static inline std::uint32_t branch_off(std::uint32_t row, std::uint32_t ch,
@@ -50,6 +70,38 @@ static inline std::uint32_t branch_off(std::uint32_t row, std::uint32_t ch,
 }
 
 namespace vta {
+
+void run_relayout(const NnRelayoutStep &d) {
+  const auto *src =
+      reinterpret_cast<const std::int8_t *>(static_cast<std::uintptr_t>(d.src_addr));
+
+  /* One of the two sides is contiguous whichever way we are converting, so
+     walk that side linearly and compute the other. */
+  const std::uint32_t cblk = (d.n_ch + d.block - 1u) / d.block;
+
+  if (d.to_flat) {
+    /* Feeding a convolution's INP, in im2row's place: widen to vta_inp_t and
+       remove the zero point, exactly as run_im2row does. */
+    auto *dst =
+        reinterpret_cast<vta_inp_t *>(static_cast<std::uintptr_t>(d.dst_addr));
+    for (std::uint32_t row = 0u; row < d.n_rows; ++row)
+      for (std::uint32_t ch = 0u; ch < d.n_ch; ++ch) {
+        const std::int64_t v =
+            static_cast<std::int64_t>(
+                src[act_off(row, ch, cblk, d.block, NN_LAYOUT_BLOCKED)]) -
+            d.offset_a;
+        dst[row * d.n_ch + ch] = static_cast<vta_inp_t>(v);
+      }
+  } else {
+    /* Publishing the layer's OUT, already made int8 by the rescale. */
+    auto *dst =
+        reinterpret_cast<std::int8_t *>(static_cast<std::uintptr_t>(d.dst_addr));
+    for (std::uint32_t row = 0u; row < d.n_rows; ++row)
+      for (std::uint32_t ch = 0u; ch < d.n_ch; ++ch)
+        dst[act_off(row, ch, cblk, d.block, NN_LAYOUT_BLOCKED)] =
+            src[row * d.n_ch + ch];
+  }
+}
 
 void run_qadd(const NnQaddStep &d) {
   const auto *a = reinterpret_cast<const std::int8_t *>(
@@ -77,10 +129,13 @@ void run_qadd(const NnQaddStep &d) {
   }
 }
 
-/* Channel-concat for VTA block layout: for each row-block, copy each input's
-   channel-blocks sequentially so output has the correct [rb, cb_A, cb_B, …]
-   order. A simple flat append would be wrong for H*W > 16 (multiple
-   row-blocks). */
+/* Channel-concat.
+
+   Specialised per layout rather than sharing one act_off-driven body. Both
+   layouts have a contiguous run to copy - a whole 16x16 block under the
+   block-tiled one, a whole branch's channels within a row under the flat one -
+   and walking (row, channel) through act_off throws that away: it scatters the
+   writes and blocks vectorisation. */
 void run_concat(const NnConcatStep &d) {
   if (d.out_scale == 0.0f) {
     xil_printf("[vta] run_concat: zero output scale\r\n");
@@ -113,7 +168,18 @@ void run_concat(const NnConcatStep &d) {
       return clamp_i8(q);
     };
 
-    if (!compact_p && d.n_ch_per_inp % blk == 0u) {
+    if (d.layout == NN_LAYOUT_FLAT) {
+      /* Each branch owns a contiguous span of every output row. */
+      const std::uint32_t tot_ch =
+          d.n_ch_per_inp * static_cast<std::uint32_t>(d.nb_inp);
+      const std::uint32_t ch0 = static_cast<std::uint32_t>(p) * d.n_ch_per_inp;
+      for (std::uint32_t row = 0u; row < d.n_rows; ++row) {
+        const std::int8_t *s = src + row * d.n_ch_per_inp;
+        std::int8_t *o = out + row * tot_ch + ch0;
+        for (std::uint32_t c = 0u; c < d.n_ch_per_inp; ++c)
+          o[c] = conv(s[c]);
+      }
+    } else if (!compact_p && d.n_ch_per_inp % blk == 0u) {
       /* Block-tiled: within each row-block the branches follow one another a
          channel-block at a time, so a whole blk*blk block is contiguous in
          both source and destination. */
@@ -136,15 +202,10 @@ void run_concat(const NnConcatStep &d) {
           d.n_ch_per_inp * static_cast<std::uint32_t>(d.nb_inp);
       const std::uint32_t cblk_out = (tot_ch + blk - 1u) / blk;
       const std::uint32_t ch0 = static_cast<std::uint32_t>(p) * d.n_ch_per_inp;
-      auto blk_off = [blk](std::uint32_t row, std::uint32_t ch,
-                           std::uint32_t cblk) {
-        return ((row / blk) * cblk + ch / blk) * blk * blk + (row % blk) * blk +
-               (ch % blk);
-      };
       const std::uint32_t rows = compact_p ? n_valid : d.n_rows;
       for (std::uint32_t row = 0u; row < rows; ++row)
         for (std::uint32_t c = 0u; c < d.n_ch_per_inp; ++c)
-          out[blk_off(row, ch0 + c, cblk_out)] =
+          out[act_off(row, ch0 + c, cblk_out, blk, NN_LAYOUT_BLOCKED)] =
               conv(src[branch_off(row, c, cblk_in, blk, n_valid, compact_p)]);
     }
   }
@@ -284,7 +345,9 @@ void run_im2row(const NnIm2RowStep &d) {
      truncating C/B collapsed to 0 for C < B, aliasing every spatial row-block
      to block 0 - wrong for any layer with fewer channels than the block size.
    */
-  const std::uint32_t C_blocks = (C + B - 1u) / B; /* column-blocks in source */
+  /* The producer stores ceil(C/B) column-blocks, so the source's padded
+     channel count is C_blocks*B under either layout. */
+  const std::uint32_t C_blocks = (C + B - 1u) / B;
 
   for (std::uint32_t obr = 0u; obr < N_blocks; ++obr) {
     for (std::uint32_t obc = 0u; obc < K_blocks; ++obc) {
@@ -311,15 +374,13 @@ void run_im2row(const NnIm2RowStep &d) {
                 static_cast<std::int32_t>(w_out * sw + kj) - pl;
             if (h_in >= 0 && h_in < static_cast<std::int32_t>(H) && w_in >= 0 &&
                 w_in < static_cast<std::int32_t>(W)) {
-              /* Source VTA block layout: row = h_in*W+w_in, col = c_in */
+              /* Source activation: row = h_in*W + w_in, col = c_in, in
+                 whichever layout the producer wrote. */
               const std::uint32_t row = static_cast<std::uint32_t>(h_in) * W +
                                         static_cast<std::uint32_t>(w_in);
-              const std::uint32_t rb = row / B;
-              const std::uint32_t rr = row % B;
-              const std::uint32_t cb = c_in / B;
-              const std::uint32_t cc = c_in % B;
               std::int64_t v = rescaled_src(
-                  src_base, (rb * C_blocks + cb) * B * B + rr * B + cc,
+                  src_base,
+                  act_off(row, c_in, C_blocks, B, d.src_layout),
                   d.rescale_scale, d.rescale_offset);
               v -= d.offset_a;
               val = static_cast<vta_inp_t>(v);
