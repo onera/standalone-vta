@@ -115,6 +115,29 @@ object DefaultXilinxConfigEmitter extends EmitterApp(new DefaultPynqConfig) {
 
 }
 
+object WideXilinxConfigEmitter extends EmitterApp(new WideFpgaConfig) {
+  override val defaultDir = os.RelPath("build") / "emitted" / "vta-xilinx-shell"
+  ChiselStage.emitSystemVerilogFile(
+    new XilinxShell,
+    args = Array("--target-dir", outputDir.toString(), "--split-verilog"),
+    firtoolOpts = Array(
+      "--lowering-options=disallowLocalVariables,disallowPackedArrays,mitigateVivadoArrayIndexConstPropBug"
+    )
+  )
+
+  writeTclScript(
+    target = outputDir,
+    vendor = "onera",
+    name = "VTA",
+    version = "0.2.0",
+    topModule = "VTAXilinxShell",
+    displayName = "VTA_" + params(CoreKey).target,
+    description =
+      "Versatile Tensor Accelerator - Xilinx shell (AXI4-Lite ctrl + AXI4 DRAM)" + getConfig
+  )
+
+}
+
 /** Emit the XilinxDebugShell with probes for on-board ILA debug flow
   */
 object DebugXilinxConfigEmitter extends EmitterApp(new DefaultPynqConfig) {
@@ -153,7 +176,7 @@ object TestDefaultPynqConfigEmitter extends EmitterApp(new DefaultPynqConfig) {
 
   println(s"[EmitVTAShell] Simulation files written to $outputDir/")
 }
-object Test128bBusConfigEmitter extends EmitterApp(new DefaultFpgaConfig) {
+object Test128bBusConfigEmitter extends EmitterApp(new WideFpgaConfig) {
   override val defaultDir = os.RelPath("build/emitted/vta-sim-shell")
 
   ChiselStage.emitSystemVerilogFile(

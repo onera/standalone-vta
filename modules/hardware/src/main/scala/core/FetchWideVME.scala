@@ -117,6 +117,8 @@ class FetchWideVME(implicit val p: Parameters) extends Fetch {
   val queueHeadNext = Reg(UInt(tp.memAddrBits.W))
   val forceRead = Wire(Bool())
   forceRead := false.B
+  // True when readInstrPipe can accept an instruction next cycle.
+  val pipeHasRoom = Wire(Bool())
   // control
   switch(state) {
     is(sIdle) {
@@ -133,7 +135,9 @@ class FetchWideVME(implicit val p: Parameters) extends Fetch {
       }
     }
     is(sRead) {
-      when(vmeCmdDone && clInFlight === 0.U) {
+      // forceRead enqueues an instruction, so it needs a free pipe slot like
+      // issueRead; otherwise a refill completing on a full pipe drops it.
+      when(vmeCmdDone && clInFlight === 0.U && pipeHasRoom) {
         forceRead := true.B
         state := sDrain
       }
@@ -217,9 +221,10 @@ class FetchWideVME(implicit val p: Parameters) extends Fetch {
   // small single-refill layers and breaks on the first backpressure stall of a
   // multi-refill one.
   val deqElem = Wire(Bool())
+  val consumeElem = Wire(Bool())
   val readValid = RegInit(false.B)
-  val issueRead =
-    canRead && ((readInstrPipe.io.count +& readValid.asUInt) < 2.U)
+  pipeHasRoom := (readInstrPipe.io.count +& readValid.asUInt) < 2.U
+  val issueRead = canRead && pipeHasRoom
   // forceRead primes the pipeline on the sRead -> sDrain transition; its result
   // is a real instruction and must be enqueued like any other.
   readValid := issueRead || forceRead
@@ -254,6 +259,9 @@ class FetchWideVME(implicit val p: Parameters) extends Fetch {
     "-F- Fetch instruction dropped: pipe full when read data arrived"
   )
   deqElem := issueRead
+  // Both reads consume an instruction from inst_q, but only issueRead
+  // advances queueHead (forceRead reads at the current head).
+  consumeElem := issueRead || forceRead
   readInstrPipe.io.deq.ready := ((dec.io.isLoad & io.inst.ld.ready) ||
     (dec.io.isCompute & io.inst.co.ready) ||
     (dec.io.isStore & io.inst.st.ready))
@@ -265,14 +273,27 @@ class FetchWideVME(implicit val p: Parameters) extends Fetch {
   io.inst.co.bits := readInstrPipe.io.deq.bits
   io.inst.st.bits := readInstrPipe.io.deq.bits
 
+  // inst_q is not cleared between launches, so dispatching past ins_count
+  // would replay a previous program's instructions.
+  val insnDispatched = RegInit(0.U(vp.regBits.W))
+  when(start) {
+    insnDispatched := 0.U
+  }.elsewhen(io.inst.ld.fire || io.inst.co.fire || io.inst.st.fire) {
+    insnDispatched := insnDispatched + 1.U
+  }
+  assert(
+    insnDispatched <= io.ins_count,
+    "-F- Fetch dispatched more instructions than ins_count"
+  )
+
   when(start) {
     queueCount := 0.U
-  }.elsewhen(deqElem && pipeDelayQueueDeqF) {
+  }.elsewhen(consumeElem && pipeDelayQueueDeqF) {
     assert(queueCount > 0.U, "-F- Decrement zero counter")
     val readCount = PopCount(wmask)
     assert(readCount > 0.U, "-F- Must push something")
     queueCount := queueCount + readCount - elemsInInstr.U
-  }.elsewhen(deqElem) {
+  }.elsewhen(consumeElem) {
     assert(queueCount > 0.U, "-F- Decrement zero counter")
     queueCount := queueCount - elemsInInstr.U
   }.elsewhen(pipeDelayQueueDeqF) {

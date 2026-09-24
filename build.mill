@@ -73,6 +73,8 @@ object `package` extends Module with SpotlessModule {
     "vta.heap.size" -> "0x800000",
     /** PS UART baud rate, used by both the app (VTA_UART_BAUD) and uart_nn.py. */
     "vta.uart.baud" -> "115200",
+    /** Width of the VTA's AXI master to DRAM, in bits: 64 or 128. */
+    "vta.axi.bits" -> "64",
     /** Default verilator threads for verilator simulation. */
     "vta.verilator.threads" -> "4",
     /** Default jobs for vivado synthesis */
@@ -115,6 +117,14 @@ object `package` extends Module with SpotlessModule {
     * vta.verilator.threads=<N>`
     */
   def verilatorThreads = getVtaArg("vta.verilator.threads")
+
+  /** Width of the VTA's DRAM-side AXI master, from -Dvta.axi.bits. */
+  def axiDataBits: Int = {
+    val v = getVtaArg("vta.axi.bits")
+    require(v == "64" || v == "128",
+      s"vta.axi.bits must be 64 or 128, got '$v'")
+    v.toInt
+  }
 
   /** Path to the default onnx file, for use in the [[run]] cross module
     */
@@ -216,6 +226,9 @@ object `package` extends Module with SpotlessModule {
       * the config file is edited in place.
       */
     def configSignature = Task.Input { configSig(configPath) }
+
+    /** DRAM-side AXI width, so that changing it re-emits the RTL. */
+    def axiBits = Task.Input { axiDataBits }
   }
 
   /** The FPGA board a board-dependent module targets: the other identity axis

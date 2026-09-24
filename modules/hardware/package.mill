@@ -145,12 +145,13 @@ object `package` extends build.VtaScalaModule with PublishModule { m =>
       */
     def vtaSimConfig = Task {
       configSignature()
+      axiBits()
       m.emitConfig(
         m.runner(),
         Task.dest,
         s"$configKey.json",
-        "vta.exporters.TestDefaultPynqConfigEmitter"
-        // "vta.exporters.Test128bBusConfigEmitter"
+        if (build.axiDataBits == 128) "vta.exporters.Test128bBusConfigEmitter"
+        else "vta.exporters.TestDefaultPynqConfigEmitter"
       )
     }
 
@@ -163,11 +164,13 @@ object `package` extends build.VtaScalaModule with PublishModule { m =>
       */
     def vtaFpgaConfig = Task {
       configSignature()
+      axiBits()
       m.emitConfig(
         m.runner(),
         Task.dest,
         s"$configKey.json",
-        "vta.exporters.DefaultXilinxConfigEmitter"
+        if (build.axiDataBits == 128) "vta.exporters.WideXilinxConfigEmitter"
+        else "vta.exporters.DefaultXilinxConfigEmitter"
       )
     }
 

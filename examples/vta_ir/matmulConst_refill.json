@@ -1,0 +1,14 @@
+{
+  "NAME": "_REFILL",
+  "MATRICES" : {
+    "A": [409600, 16, "../compiler_output/inputrefill_409600x16.bin"],
+    "C": [409600, 16, "output"]
+  },
+  "LOAD": {
+    "INP": ["A"]
+  },
+  "GEMM": ["C", "A", 1],
+  "STORE": {
+    "C": ["C"]
+  }
+}

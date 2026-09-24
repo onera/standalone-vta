@@ -87,9 +87,10 @@ object CoreConfig {
       accMemDepth = (params("LOG_ACC_BUFF_SIZE") * pow(2, 3).toInt) / (params(
         "LOG_BATCH"
       ) * params("LOG_BLOCK") * params("LOG_ACC_WIDTH")),
-      outMemDepth = (params("LOG_INP_BUFF_SIZE") * pow(2, 3).toInt) / (params(
+      // OUT drains ACC, and the compiler sizes it like ACC.
+      outMemDepth = (params("LOG_ACC_BUFF_SIZE") * pow(2, 3).toInt) / (params(
         "LOG_BATCH"
-      ) * params("LOG_BLOCK") * params("LOG_INP_WIDTH")),
+      ) * params("LOG_BLOCK") * params("LOG_ACC_WIDTH")),
       instQueueEntries = 512
     )
 }
