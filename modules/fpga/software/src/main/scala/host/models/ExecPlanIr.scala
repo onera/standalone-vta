@@ -23,7 +23,14 @@ object ReshapeKind {
   case object Im2Row extends ReshapeKind
 }
 
-/** format_input / im2row pre-step feeding a VTA layer's INP buffer. */
+/** format_input / im2row pre-step feeding a VTA layer's INP buffer.
+  *
+  * `rescaleScale` / `rescaleOffset` fuse the producer's post-VTA rescale into
+  * this step: 0.0 means the producer OUT is already compact int8 (a standalone
+  * [[RescaleStep]] runs); nonzero means this step reads the raw int32 OUT and
+  * requantizes each element itself. Only [[ReshapeKind.Im2Row]] can be fused
+  * (FormatInput reads the raw image, never a VTA OUT).
+  */
 final case class ReshapeStep(
   layer: String,
   kind: ReshapeKind,
@@ -39,10 +46,16 @@ final case class ReshapeStep(
   pad: (Int, Int, Int, Int),
   offsetA: Int,
   outH: Int,
-  outW: Int
+  outW: Int,
+  rescaleScale: Double = 0.0,
+  rescaleOffset: Int = 0
 ) extends PlanStep
 
-/** int32-chain pre-step feeding a maxpool/ALU layer's ACC buffer. */
+/** int32-chain pre-step feeding a maxpool/ALU layer's ACC buffer.
+  *
+  * `rescaleScale` / `rescaleOffset`: see [[ReshapeStep]] - fuses the producer's
+  * post-VTA rescale into this step.
+  */
 final case class Int32ChainStep(
   layer: String,
   srcAddr: Long,
@@ -52,7 +65,9 @@ final case class Int32ChainStep(
   pad: (Int, Int, Int, Int),
   tensorCh: Int,
   tensorH: Int,
-  tensorW: Int
+  tensorW: Int,
+  rescaleScale: Double = 0.0,
+  rescaleOffset: Int = 0
 ) extends PlanStep
 
 /** A VTA layer launch (`nn_layers[vtaIdx]`). */

@@ -59,6 +59,31 @@ std::vector<float> rand_f(std::size_t n, std::mt19937 &rng) {
   return v;
 }
 
+// int32 producer-OUT values, in a realistic VTA accumulator range.
+std::vector<std::int32_t> rand_i32(std::size_t n, std::mt19937 &rng, int lo,
+                                   int hi) {
+  std::uniform_int_distribution<int> d(lo, hi);
+  std::vector<std::int32_t> v(n);
+  for (auto &x : v)
+    x = d(rng);
+  return v;
+}
+
+// The compact int8 a fused reshape must reproduce: exactly run_rescale
+// (double math, nearbyint, +offset, clamp to int8), matching rescaled_src().
+std::vector<std::int8_t> apply_rescale(const std::vector<std::int32_t> &s32,
+                                       float scale, int roff) {
+  std::vector<std::int8_t> out(s32.size());
+  for (std::size_t i = 0; i < s32.size(); ++i) {
+    std::int64_t q = static_cast<std::int64_t>(std::nearbyint(
+                         static_cast<double>(s32[i]) *
+                         static_cast<double>(scale))) +
+                     roff;
+    out[i] = static_cast<std::int8_t>(q < -128 ? -128 : (q > 127 ? 127 : q));
+  }
+  return out;
+}
+
 // Compare driver output (int32 at DST) against the reference vector.
 void check(const std::string &name, const std::vector<std::int32_t> &ref) {
   const auto *got = reinterpret_cast<const std::int32_t *>(kDst);
@@ -243,6 +268,99 @@ void test_chain(const ChainCfg &c, std::mt19937 &rng) {
   check(nm, ref);
 }
 
+// ---- int32_chain with the producer rescale FUSED in (src is raw int32 OUT) --
+void test_chain_fused(const ChainCfg &c, std::mt19937 &rng, float scale,
+                      int roff) {
+  const int B = VTA_BLOCK_SIZE;
+  const bool padded = c.pt || c.pl || c.pb || c.pr;
+  const std::size_t srcN =
+      static_cast<std::size_t>(ru(c.H * c.W, B)) * ru(c.C, B);
+  auto s32 = rand_i32(srcN, rng, -30000, 30000);
+
+  auto i8 = apply_rescale(s32, scale, roff);
+  std::vector<std::int32_t> ref;
+  if (!padded) {
+    ref = subtract_offset(convert_vector_type<std::int32_t>(i8), c.off);
+  } else {
+    ref = pad_matrix<std::int32_t>(
+        subtract_offset(convert_vector_type<std::int32_t>(i8), c.off), c.C, c.H,
+        c.W, B, {c.pt, c.pl, c.pb, c.pr}, -128);
+  }
+
+  auto *src = reinterpret_cast<std::int32_t *>(kSrc);
+  for (std::size_t i = 0; i < srcN; ++i)
+    src[i] = s32[i];
+  NnInt32ChainStep st{};
+  st.src_addr = static_cast<std::uint32_t>(kSrc);
+  st.dst_addr = static_cast<std::uint32_t>(kDst);
+  st.n_elems = static_cast<std::uint32_t>(ref.size());
+  st.offset_a = c.off;
+  st.pad[0] = c.pt;
+  st.pad[1] = c.pl;
+  st.pad[2] = c.pb;
+  st.pad[3] = c.pr;
+  st.tensor_ch = c.C;
+  st.tensor_h = c.H;
+  st.tensor_w = c.W;
+  st.rescale_scale = scale;
+  st.rescale_offset = roff;
+  vta::run_int32_chain(st);
+
+  char nm[96];
+  std::snprintf(nm, sizeof(nm),
+                "int32_chain+rescale C=%d %dx%d pad{%d,%d,%d,%d} s=%.4g o=%d",
+                c.C, c.H, c.W, c.pt, c.pl, c.pb, c.pr,
+                static_cast<double>(scale), roff);
+  check(nm, ref);
+}
+
+// ---- im2row with the producer rescale FUSED in (src is raw int32 OUT) ------
+void test_im2row_fused(const ConvCfg &c, std::mt19937 &rng, float scale,
+                       int roff) {
+  const int B = VTA_BLOCK_SIZE;
+  const int oH = out_dim(c.H, c.pt, c.pb, c.kh, c.sh);
+  const int oW = out_dim(c.W, c.pl, c.pr, c.kw, c.sw);
+  const std::size_t n = static_cast<std::size_t>(ru(c.H * c.W, B)) * ru(c.C, B);
+  auto s32 = rand_i32(n, rng, -30000, 30000);
+
+  // oracle: run_rescale(s32) -> int8, then the ordinary im2row reshape.
+  auto i8 = apply_rescale(s32, scale, roff);
+  auto ref = reshape<std::int32_t>(convert_vector_type<std::int32_t>(i8), B, 1,
+                                   c.C, c.H, c.W, {c.kh, c.kw}, c.sh,
+                                   {c.pt, c.pl, c.pb, c.pr}, true, c.off, c.sw);
+
+  // driver: source region holds the raw int32 OUT.
+  auto *src = reinterpret_cast<std::int32_t *>(kSrc);
+  for (std::size_t i = 0; i < n; ++i)
+    src[i] = s32[i];
+  NnIm2RowStep st{};
+  st.src_addr = static_cast<std::uint32_t>(kSrc);
+  st.dst_addr = static_cast<std::uint32_t>(kDst);
+  st.tensor_ch = c.C;
+  st.tensor_h = c.H;
+  st.tensor_w = c.W;
+  st.kh = c.kh;
+  st.kw = c.kw;
+  st.sh = c.sh;
+  st.sw = c.sw;
+  st.pad[0] = c.pt;
+  st.pad[1] = c.pl;
+  st.pad[2] = c.pb;
+  st.pad[3] = c.pr;
+  st.offset_a = c.off;
+  st.out_h = oH;
+  st.out_w = oW;
+  st.block = B;
+  st.rescale_scale = scale;
+  st.rescale_offset = roff;
+  vta::run_im2row(st);
+
+  char nm[96];
+  std::snprintf(nm, sizeof(nm), "im2row+rescale C=%d %dx%d k%dx%d s=%.4g o=%d",
+                c.C, c.H, c.W, c.kh, c.kw, static_cast<double>(scale), roff);
+  check(nm, ref);
+}
+
 // ---- convtranspose: float deconvolution vs fsim conv_transpose<float>() -----
 struct ConvTCfg {
   int Cin, Hin, Win, Cout, k, stride, pt, pl, pb, pr, bias;
@@ -358,6 +476,21 @@ int main() {
   for (const auto &c : chain)
     test_chain(c, rng);
 
+  // Fused producer-rescale path (src = raw int32 OUT). Scales/offsets from real
+  // lenet5 boundaries: conv->maxpool (~7.75e-4, -128) and the identity 1.0/0
+  // rescale a maxpool emits before the next conv's im2row.
+  std::printf("== fused rescale: run_im2row (src int32) ==\n");
+  for (const auto &c : conv) {
+    test_im2row_fused(c, rng, 7.751231e-4f, -128);
+    test_im2row_fused(c, rng, 1.0f, 0);
+    test_im2row_fused(c, rng, 1.6434737e-3f, -128);
+  }
+  std::printf("== fused rescale: run_int32_chain (src int32) ==\n");
+  for (const auto &c : chain) {
+    test_chain_fused(c, rng, 7.751231e-4f, -128);
+    test_chain_fused(c, rng, 1.0f, 0);
+  }
+
   // square stride only (fsim conv_transpose is scalar-stride); mix of
   // block-aligned / sub-block channels, with and without bias and top/left pad.
   const ConvTCfg convt[] = {
@@ -367,6 +500,7 @@ int main() {
       {8, 4, 4, 4, 2, 2, 0, 0, 0, 0, 0},   // no bias
       {20, 2, 2, 10, 4, 2, 1, 1, 1, 1, 1}, // multi-block Cin, k4 s2, pad
       {1, 4, 4, 3, 2, 2, 0, 0, 0, 0, 1},   // single input channel
+      {20, 3, 3, 24, 2, 2, 0, 0, 0, 0, 1}, // multi-block Cout, partial row block
   };
   std::printf("== run_convtranspose vs fsim conv_transpose<float> ==\n");
   for (const auto &c : convt)

@@ -161,11 +161,15 @@ private[exporters] object HeaderRender {
   }
 
   private def renderReshape(s: ReshapeStep, blockSize: Int): String = {
-    val (comment, tag, member, namePrefix) = s.kind match {
+    // FormatInput reads the raw image (never a VTA OUT), so it has no fused
+    // rescale fields; Im2Row carries rescale_scale / rescale_offset last.
+    val (comment, tag, member, namePrefix, tail) = s.kind match {
       case ReshapeKind.FormatInput =>
-        ("format_input for", "NN_STEP_FORMAT_INPUT", ".format_input", "format_")
+        ("format_input for", "NN_STEP_FORMAT_INPUT", ".format_input", "format_",
+         "")
       case ReshapeKind.Im2Row =>
-        ("im2row for", "NN_STEP_IM2ROW", ".im2row", "im2row_")
+        ("im2row for", "NN_STEP_IM2ROW", ".im2row", "im2row_",
+         s", ${PyFmt.float(s.rescaleScale)}f, ${s.rescaleOffset}")
     }
     s"""
        |    /* $comment ${s.layer} */
@@ -175,7 +179,7 @@ private[exporters] object HeaderRender {
        |        ${s.kh}u, ${s.kw}u, ${s.sh}u, ${s.sw}u,
        |        ${fmtPad(s.pad)},
        |        ${s.offsetA},
-       |        ${s.outH}u, ${s.outW}u, ${blockSize}u
+       |        ${s.outH}u, ${s.outW}u, ${blockSize}u$tail
        |    } } }""".stripMargin
   }
 
@@ -186,7 +190,8 @@ private[exporters] object HeaderRender {
        |        ${Model.hex32(s.srcAddr)}, ${Model.hex32(s.dstAddr)},
        |        ${s.nElems}u, ${s.offsetA},
        |        ${fmtPad(s.pad)},
-       |        ${s.tensorCh}u, ${s.tensorH}u, ${s.tensorW}u
+       |        ${s.tensorCh}u, ${s.tensorH}u, ${s.tensorW}u,
+       |        ${PyFmt.float(s.rescaleScale)}f, ${s.rescaleOffset}
        |    } } }""".stripMargin
 
   private def renderVta(s: VtaStep): String =

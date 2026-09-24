@@ -74,6 +74,25 @@ object ExecPlanResolver {
 
     val rawPhys = MemoryLayout.scratchAddr(layers, ddrBase)
 
+    // Producers whose post-VTA rescale folds into their single downstream
+    // im2row / int32-chain consumer (see ExecSteps.fusedRescaleProducers). The
+    // consumer then reads the raw int32 OUT and requantizes inline, so no
+    // standalone RescaleStep is emitted for these layers.
+    val fusedProducers =
+      ExecSteps.fusedRescaleProducers(
+        dep,
+        layers,
+        resolvedSuffixToIdx,
+        logOutWidth
+      )
+    def fusedScale(depName: String): (Double, Int) =
+      if (fusedProducers.contains(depName))
+        dep.layers
+          .get(depName)
+          .map(l => (l.scale, l.offsetC))
+          .getOrElse((0.0, 0))
+      else (0.0, 0)
+
     // format_input / im2row pre-step for each VTA layer with reshape "im2row".
     // Each qualifying layer maps to exactly one ReshapeStep.
     val reshapePre: Map[String, ReshapeStep] =
@@ -119,6 +138,7 @@ object ExecPlanResolver {
             println(
               s"WARNING: im2row source address for '$layerName' dep '$depName' resolved to 0"
             )
+          val (rs, ro) = fusedScale(depName)
           layerName -> ReshapeStep(
             layerName,
             ReshapeKind.Im2Row,
@@ -134,7 +154,9 @@ object ExecPlanResolver {
             ld.pad,
             ld.offsetA,
             outH,
-            outW
+            outW,
+            rs,
+            ro
           )
         }
       }).toMap
@@ -172,6 +194,7 @@ object ExecPlanResolver {
           val outW = ld.tensorW + ld.pad._2 + ld.pad._4
           val nElemsBlocked =
             roundUp((outH * outW).toLong) * roundUp(ld.tensorCh.toLong)
+          val (rs, ro) = fusedScale(depName)
           Some(
             layerName -> Int32ChainStep(
               layerName,
@@ -182,7 +205,9 @@ object ExecPlanResolver {
               ld.pad,
               ld.tensorCh,
               ld.tensorH,
-              ld.tensorW
+              ld.tensorW,
+              rs,
+              ro
             )
           )
         }
@@ -211,7 +236,10 @@ object ExecPlanResolver {
             println(s"WARNING: VTA layer '$layerName' not found in layers list")
           val vta = VtaStep(stepIdx, layerName, vtaIdx)
           val rescale: Seq[PlanStep] =
-            if (logOutWidth > 3 && vtaIdx >= 0 && ldOpt.isDefined) {
+            if (
+              logOutWidth > 3 && vtaIdx >= 0 && ldOpt.isDefined &&
+              !fusedProducers.contains(layerName)
+            ) {
               val ld = ldOpt.get
               val outBytes = layers(vtaIdx).mem("OUT").byteSize
               val nElems = outBytes / HwConfig.elemBytes(logOutWidth)

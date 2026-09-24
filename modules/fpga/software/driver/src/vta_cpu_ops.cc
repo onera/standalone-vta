@@ -10,12 +10,30 @@
 #include "vta_hw_config.h"
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 extern "C" {
 #include "xil_printf.h"
 }
 
 static inline std::int8_t clamp_i8(std::int64_t v) {
   return static_cast<std::int8_t>(v < -128 ? -128 : (v > 127 ? 127 : v));
+}
+
+/* Element `i` of a producer OUT buffer, as the compact int8 value a downstream
+   reshape consumes. scale == 0: the buffer was already compacted by a
+   NN_STEP_RESCALE, read it straight as int8. scale != 0: the buffer still holds
+   the raw int32 VTA output; requantize exactly as run_rescale would
+   (clamp_i8(nearbyint(x*scale) + offset), double math) so the fused path is
+   bit-identical to run_rescale followed by the reshape. */
+static inline std::int64_t rescaled_src(std::uintptr_t base, std::uint32_t i,
+                                        float scale, std::int32_t offset) {
+  if (scale == 0.0f)
+    return reinterpret_cast<const std::int8_t *>(base)[i];
+  const auto *s32 = reinterpret_cast<const vta_out_t *>(base);
+  return clamp_i8(static_cast<std::int64_t>(std::nearbyint(
+                      static_cast<double>(s32[i]) *
+                      static_cast<double>(scale))) +
+                  offset);
 }
 
 namespace vta {
@@ -195,8 +213,7 @@ void run_format_input(const NnFormatInputStep &d) {
    Source layout: element (h_in, w_in, c_in) is at block [row/B][col/B] at
    position [row%B][col%B], where row = h_in*W + w_in, col = c_in. */
 void run_im2row(const NnIm2RowStep &d) {
-  const auto *src = reinterpret_cast<const std::int8_t *>(
-      static_cast<std::uintptr_t>(d.src_addr));
+  const std::uintptr_t src_base = static_cast<std::uintptr_t>(d.src_addr);
   auto *out =
       reinterpret_cast<vta_inp_t *>(static_cast<std::uintptr_t>(d.dst_addr));
 
@@ -259,8 +276,9 @@ void run_im2row(const NnIm2RowStep &d) {
               const std::uint32_t rr = row % B;
               const std::uint32_t cb = c_in / B;
               const std::uint32_t cc = c_in % B;
-              std::int64_t v = static_cast<std::int64_t>(
-                  src[(rb * C_blocks + cb) * B * B + rr * B + cc]);
+              std::int64_t v = rescaled_src(
+                  src_base, (rb * C_blocks + cb) * B * B + rr * B + cc,
+                  d.rescale_scale, d.rescale_offset);
               v -= d.offset_a;
               val = static_cast<vta_inp_t>(v);
             } else {
@@ -294,8 +312,7 @@ void run_int32_chain(const NnInt32ChainStep &d) {
   // Mirrors fsim_nn.cc's convert_vector_type<acc_dtype> +
   // subtract_offset(offset_a), and (when padded) cpu_functions.h's
   // pad_matrix(..., pad_value = -128).
-  const auto *src = reinterpret_cast<const std::int8_t *>(
-      static_cast<std::uintptr_t>(d.src_addr));
+  const std::uintptr_t src_base = static_cast<std::uintptr_t>(d.src_addr);
   auto *dst =
       reinterpret_cast<vta_acc_t *>(static_cast<std::uintptr_t>(d.dst_addr));
 
@@ -306,8 +323,10 @@ void run_int32_chain(const NnInt32ChainStep &d) {
     // path (which also widens the channel/spatial block-pad slots).  n_elems
     // is the block-padded count ceil(H*W/B)*B * ceil(C/B)*B.
     for (std::uint32_t i = 0u; i < d.n_elems; ++i)
-      dst[i] = static_cast<vta_acc_t>(static_cast<std::int32_t>(src[i]) -
-                                      d.offset_a);
+      dst[i] = static_cast<vta_acc_t>(
+          static_cast<std::int32_t>(rescaled_src(
+              src_base, i, d.rescale_scale, d.rescale_offset)) -
+          d.offset_a);
     return;
   }
 
@@ -343,8 +362,10 @@ void run_int32_chain(const NnInt32ChainStep &d) {
                                      static_cast<std::uint32_t>(w_in);
           const std::uint32_t soff = ((n_in / B) * C_blocks + c / B) * B * B +
                                      (n_in % B) * B + (c % B);
-          val = static_cast<vta_acc_t>(static_cast<std::int32_t>(src[soff]) -
-                                       d.offset_a);
+          val = static_cast<vta_acc_t>(
+              static_cast<std::int32_t>(rescaled_src(
+                  src_base, soff, d.rescale_scale, d.rescale_offset)) -
+              d.offset_a);
         } else {
           val = -128; /* spatial padding (pad_matrix fill, post-offset) */
         }
@@ -365,7 +386,7 @@ void run_int32_chain(const NnInt32ChainStep &d) {
    0 from the zero-init (which reproduces data_formatting's zero padding). */
 void run_convtranspose(const NnConvTransposeStep &d, const float *in,
                        float *out) {
-  const auto *wgt =
+  const auto *onnx_wgt =
       reinterpret_cast<const float *>(static_cast<std::uintptr_t>(d.wgt_addr));
   const float *bias = d.has_bias ? reinterpret_cast<const float *>(
                                        static_cast<std::uintptr_t>(d.bias_addr))
@@ -382,10 +403,79 @@ void run_convtranspose(const NnConvTransposeStep &d, const float *in,
   const std::uint32_t out_cblk = (Cout + B - 1u) / B; /* output col-blocks */
   const std::uint32_t out_rows = Hout * Wout;
 
+  /* Repack ONNX's [Cin][Cout][KH][KW] weights to [KH][KW][Cin][Cout], so that
+     output channels, walked innermost below, are contiguous. */
+  auto *wgt =
+      static_cast<float *>(std::malloc(sizeof(float) * Cin * Cout * kh * kw));
+  if (wgt == nullptr) {
+    xil_printf("run_convtranspose: out of memory\r\n");
+    return;
+  }
+  for (std::uint32_t ci = 0u; ci < Cin; ++ci)
+    for (std::uint32_t co = 0u; co < Cout; ++co)
+      for (std::uint32_t y = 0u; y < kh; ++y)
+        for (std::uint32_t x = 0u; x < kw; ++x)
+          wgt[((y * kw + x) * Cin + ci) * Cout + co] =
+              onnx_wgt[((ci * Cout + co) * kh + y) * kw + x];
+
+  /* Gather path: with stride == kernel and no padding, each output cell has a
+     single source pixel and tap (h_in = h_out/stride, ky = h_out%stride), so
+     each output position is accumulated once in a local buffer instead of
+     being swept once per input channel. The adds happen in the same order as
+     in the scatter below, bias last, so the result is identical. */
+  constexpr std::uint32_t kCtMaxCout = 512u;
+  const bool oneToOne = (d.stride == kh && d.stride == kw && pt == 0 &&
+                         pl == 0 && d.pad[2] == 0 && d.pad[3] == 0 &&
+                         Cout <= kCtMaxCout);
+  if (oneToOne) {
+    float acc[kCtMaxCout];
+    for (std::uint32_t orow = 0u; orow < out_rows; ++orow) {
+      const std::uint32_t h_out = orow / Wout, w_out = orow % Wout;
+      const std::uint32_t h_in = h_out / stride, ky = h_out % stride;
+      const std::uint32_t w_in = w_out / stride, kx = w_out % stride;
+      const std::uint32_t srow = h_in * Win + w_in;
+
+      for (std::uint32_t j = 0u; j < Cout; ++j)
+        acc[j] = 0.0f;
+
+      for (std::uint32_t c_in = 0u; c_in < Cin; ++c_in) {
+        const std::uint32_t s_off = ((srow / B) * in_cblk + c_in / B) * B * B +
+                                    (srow % B) * B + (c_in % B);
+        const float v = in[s_off];
+        if (v == 0.0f)
+          continue;
+        const float *wp = wgt + ((ky * kw + kx) * Cin + c_in) * Cout;
+        for (std::uint32_t j = 0u; j < Cout; ++j)
+          acc[j] += v * wp[j];
+      }
+
+      float *obase = out + (orow / B) * out_cblk * B * B + (orow % B) * B;
+      for (std::uint32_t cb = 0u; cb < out_cblk; ++cb) {
+        float *op = obase + cb * B * B;
+        const std::uint32_t n = (Cout - cb * B) < B ? (Cout - cb * B) : B;
+        for (std::uint32_t j = 0u; j < n; ++j)
+          op[j] = acc[cb * B + j] + (bias ? bias[cb * B + j] : 0.0f);
+        for (std::uint32_t j = n; j < B; ++j)
+          op[j] = 0.0f;
+      }
+    }
+    const std::uint32_t padded_rows = (out_rows + B - 1u) / B * B;
+    for (std::uint32_t orow = out_rows; orow < padded_rows; ++orow) {
+      float *obase = out + (orow / B) * out_cblk * B * B + (orow % B) * B;
+      for (std::uint32_t cb = 0u; cb < out_cblk; ++cb)
+        for (std::uint32_t j = 0u; j < B; ++j)
+          obase[cb * B * B + j] = 0.0f;
+    }
+    std::free(wgt);
+    return;
+  }
+
   for (std::uint32_t i = 0u; i < d.n_out_elems; ++i)
     out[i] = 0.0f;
 
-  /* 1. Scatter-accumulate (reference loop order c_in,h_in,w_in,c_out,ky,kx). */
+  /* 1. Scatter-accumulate over c_in,h_in,w_in,ky,kx,c_out. A source pixel
+     reaches each output cell at most once, so the order of the adds on a cell
+     depends only on c_in,h_in,w_in. */
   for (std::uint32_t c_in = 0u; c_in < Cin; ++c_in) {
     for (std::uint32_t h_in = 0u; h_in < Hin; ++h_in) {
       for (std::uint32_t w_in = 0u; w_in < Win; ++w_in) {
@@ -395,26 +485,33 @@ void run_convtranspose(const NnConvTransposeStep &d, const float *in,
         const float input_val = in[s_off];
         if (input_val == 0.0f)
           continue; /* numerically a no-op; kept for reference parity */
-        for (std::uint32_t c_out = 0u; c_out < Cout; ++c_out) {
-          for (std::uint32_t ky = 0u; ky < kh; ++ky) {
-            for (std::uint32_t kx = 0u; kx < kw; ++kx) {
-              const std::int32_t h_out =
-                  static_cast<std::int32_t>(h_in * stride + ky) - pt;
-              const std::int32_t w_out =
-                  static_cast<std::int32_t>(w_in * stride + kx) - pl;
-              if (h_out >= 0 && h_out < static_cast<std::int32_t>(Hout) &&
-                  w_out >= 0 && w_out < static_cast<std::int32_t>(Wout)) {
-                /* ONNX weight layout [Cin][Cout][KH][KW], no kernel flip. */
-                const std::uint32_t w_idx =
-                    c_in * (Cout * kh * kw) + c_out * (kh * kw) + ky * kw + kx;
-                const std::uint32_t orow =
-                    static_cast<std::uint32_t>(h_out) * Wout +
-                    static_cast<std::uint32_t>(w_out);
-                const std::uint32_t o_off =
-                    ((orow / B) * out_cblk + c_out / B) * B * B +
-                    (orow % B) * B + (c_out % B);
-                out[o_off] += input_val * wgt[w_idx];
-              }
+
+        for (std::uint32_t ky = 0u; ky < kh; ++ky) {
+          const std::int32_t h_out =
+              static_cast<std::int32_t>(h_in * stride + ky) - pt;
+          if (h_out < 0 || h_out >= static_cast<std::int32_t>(Hout))
+            continue;
+          for (std::uint32_t kx = 0u; kx < kw; ++kx) {
+            const std::int32_t w_out =
+                static_cast<std::int32_t>(w_in * stride + kx) - pl;
+            if (w_out < 0 || w_out >= static_cast<std::int32_t>(Wout))
+              continue;
+
+            const std::uint32_t orow =
+                static_cast<std::uint32_t>(h_out) * Wout +
+                static_cast<std::uint32_t>(w_out);
+            /* Everything below is fixed for this output position. */
+            float *obase =
+                out + (orow / B) * out_cblk * B * B + (orow % B) * B;
+            const float *wbase = wgt + ((ky * kw + kx) * Cin + c_in) * Cout;
+
+            for (std::uint32_t cb = 0u; cb < out_cblk; ++cb) {
+              float *op = obase + cb * B * B;
+              const float *wp = wbase + cb * B;
+              const std::uint32_t n =
+                  (Cout - cb * B) < B ? (Cout - cb * B) : B;
+              for (std::uint32_t j = 0u; j < n; ++j)
+                op[j] += input_val * wp[j];
             }
           }
         }
@@ -424,16 +521,18 @@ void run_convtranspose(const NnConvTransposeStep &d, const float *in,
 
   /* 2. Bias broadcast over all real (orow, c_out) cells. */
   if (bias) {
-    for (std::uint32_t c_out = 0u; c_out < Cout; ++c_out) {
-      const float bv = bias[c_out];
-      for (std::uint32_t orow = 0u; orow < out_rows; ++orow) {
-        const std::uint32_t o_off =
-            ((orow / B) * out_cblk + c_out / B) * B * B + (orow % B) * B +
-            (c_out % B);
-        out[o_off] += bv;
+    for (std::uint32_t orow = 0u; orow < out_rows; ++orow) {
+      float *obase = out + (orow / B) * out_cblk * B * B + (orow % B) * B;
+      for (std::uint32_t cb = 0u; cb < out_cblk; ++cb) {
+        float *op = obase + cb * B * B;
+        const float *bp = bias + cb * B;
+        const std::uint32_t n = (Cout - cb * B) < B ? (Cout - cb * B) : B;
+        for (std::uint32_t j = 0u; j < n; ++j)
+          op[j] += bp[j];
       }
     }
   }
+  std::free(wgt);
 }
 
 } // namespace vta

@@ -70,6 +70,12 @@ struct NnIm2RowStep {
   std::uint32_t out_h;    /* output height after im2row                       */
   std::uint32_t out_w;    /* output width  after im2row                       */
   std::uint32_t block;    /* VTA block size (BLOCK_IN = BLOCK_OUT)            */
+  /* Fused rescale of the producer's OUT: 0 => src is already compact int8
+     (a preceding NN_STEP_RESCALE ran). Nonzero => src is the raw int32 OUT and
+     each element is requantized clamp_i8(nearbyint(x*rescale_scale)+
+     rescale_offset) before use - identical to run_rescale then this step. */
+  float rescale_scale;
+  std::int32_t rescale_offset;
 };
 
 /* In-place INT32→INT8 rescale of a VTA OUT buffer.
@@ -101,6 +107,10 @@ struct NnInt32ChainStep {
       tensor_ch; /* C - input channels (for padding, when supported)  */
   std::uint32_t tensor_h; /* H - input height */
   std::uint32_t tensor_w; /* W - input width */
+  /* Fused rescale of the producer's OUT (see NnIm2RowStep). 0 => src is compact
+     int8; nonzero => src is the raw int32 OUT, requantized before widening. */
+  float rescale_scale;
+  std::int32_t rescale_offset;
 };
 
 /* Floating-point ConvTranspose (transposed convolution / deconvolution).

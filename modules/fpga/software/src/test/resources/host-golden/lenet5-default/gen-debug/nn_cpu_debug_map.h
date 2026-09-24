@@ -44,7 +44,7 @@ static const vta::DebugCpuStep nn_cpu_debug[NN_NUM_CPU_DEBUG] = {
     },
     /* im2row */
     {
-        .step_idx      = 6u,
+        .step_idx      = 4u,
         .out_phys      = 0x00052000u,
         .out_bytes     = 0x00011800u,
         .ref_phys      = 0x000E2000u,
@@ -58,7 +58,7 @@ static const vta::DebugCpuStep nn_cpu_debug[NN_NUM_CPU_DEBUG] = {
     },
     /* im2row */
     {
-        .step_idx      = 12u,
+        .step_idx      = 8u,
         .out_phys      = 0x0006D000u,
         .out_bytes     = 0x00006400u,
         .ref_phys      = 0x000F4000u,
@@ -72,7 +72,7 @@ static const vta::DebugCpuStep nn_cpu_debug[NN_NUM_CPU_DEBUG] = {
     },
     /* im2row */
     {
-        .step_idx      = 15u,
+        .step_idx      = 10u,
         .out_phys      = 0x000AC000u,
         .out_bytes     = 0x00002000u,
         .ref_phys      = 0x000FB000u,
@@ -86,7 +86,7 @@ static const vta::DebugCpuStep nn_cpu_debug[NN_NUM_CPU_DEBUG] = {
     },
     /* im2row */
     {
-        .step_idx      = 18u,
+        .step_idx      = 12u,
         .out_phys      = 0x000C0000u,
         .out_bytes     = 0x00001800u,
         .ref_phys      = 0x000FD000u,
