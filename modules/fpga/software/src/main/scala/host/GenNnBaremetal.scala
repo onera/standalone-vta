@@ -60,6 +60,11 @@ object GenNnBaremetal {
     println(
       s"[gen] dependency.csv: ${dep.executionOrder.length} execution steps"
     )
+    if (dep.aliases.nonEmpty)
+      println(
+        s"[gen] aliased INP: ${dep.aliases.size} layer(s) read their" +
+          s" producer's OUT in place"
+      )
 
     if (!Checks.checkConfigCompat(cfg, dep)) sys.error("incompatible config")
 
@@ -127,7 +132,14 @@ object GenNnBaremetal {
         println(
           f"[gen] isolation-check golden regions: 0x${alignedBase}%08X-0x${checkTop}%08X"
         )
-        if (!Checks.checkBufferOverlaps(checkedLayers, ddrBase, allScratch))
+        if (
+          !Checks.checkBufferOverlaps(
+            checkedLayers,
+            ddrBase,
+            allScratch,
+            dep.aliases.keySet
+          )
+        )
           sys.error("layout check failed: buffer overlaps")
         checkedLayers
       } else layers
@@ -283,6 +295,16 @@ object GenNnBaremetal {
         .action((_, c) => c.copy(emitCpuCheck = true))
         .text(
           "emit the per-CPU-op isolation-check map (implies --emit-layer-check)"
+        ),
+      opt[Unit]("alias-cpu-out")
+        .action { (_, c) =>
+          // Read by ExecSteps.cpuOutRetargets.
+          System.setProperty("vta.alias.cpu.out", "true")
+          c
+        }
+        .text(
+          "let a qadd/concat write straight into its 1x1 consumer's INP" +
+            " buffer, dropping that layer's im2row"
         ),
       opt[Unit]("emit-sd-manifest")
         .action((_, c) => c.copy(emitSdManifest = true))

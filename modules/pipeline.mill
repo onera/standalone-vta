@@ -93,6 +93,7 @@ trait HasOnnxModel extends HasCompilableModel {
       .compileModel(onnxPath().path, configPath, compOut,
                     directConv = directConv(),
                     directConvMaxWork = directConvMaxWork(),
+                    aliasInp = aliasInp(),
                     foldInpZp = foldInpZp())
     PathRef(compOut, quick = true)
   }
@@ -119,6 +120,13 @@ trait HasOnnxModel extends HasCompilableModel {
     */
   def foldInpZp = Task.Input {
     build.getVtaArg("vta.fold.inp.zp").toLowerCase == "true"
+  }
+
+  /** Address a 1x1 convolution's input at its producer's OUT, from
+    * -Dvta.alias.inp (default off).
+    */
+  def aliasInp = Task.Input {
+    build.getVtaArg("vta.alias.inp").toLowerCase == "true"
   }
 
   /** Run the ONNX reference for this model: input_nn.bin (the network input)
@@ -455,6 +463,13 @@ trait BaremetalTasks extends LayerDumpTasks {
     */
   // Writes into this task's dest, never the tracked modules/fpga/software/gen/ dir
   // that a Vitis build reads from: a cached task must not silently overwrite it.
+  /** Let a qadd/concat write straight into its 1x1 consumer's INP buffer,
+    * from -Dvta.alias.cpu.out (default off). Codegen only.
+    */
+  def aliasCpuOut = Task.Input {
+    build.getVtaArg("vta.alias.cpu.out").toLowerCase == "true"
+  }
+
   def genBaremetal = Task {
     baremetalGen(noGolden, Seq("--no-stage-sd-files"))()
     PathRef(Task.dest)
@@ -479,6 +494,8 @@ trait BaremetalTasks extends LayerDumpTasks {
     val golden = goldenDir()
     // --emit-cpu-check only adds a header, it changes no DDR layout, so one gen
     // dir serves both run_nn_debug and run_nn_cpu_debug.
+    val cpuOutArgs =
+      if (aliasCpuOut()) Seq("--alias-cpu-out") else Seq.empty
     val debugArgs = golden.toSeq.flatMap(g =>
       Seq(
         "--emit-layer-check",
@@ -494,7 +511,7 @@ trait BaremetalTasks extends LayerDumpTasks {
       configKey,
       vtaDdrBase(),
       Seq("--emit-sd-manifest", "--sd-dir", sdDir, "--sd-drive", sdDrive()) ++
-        debugArgs ++ extraArgs
+        cpuOutArgs ++ debugArgs ++ extraArgs
     )
   }
 

@@ -37,6 +37,8 @@ def main(
     base_address,
     dram_offset,
     dram_state_dictionary={},
+    out_addresses=None,
+    applied_aliases=None,
     debug=True,
     summary=True,
 ):
@@ -52,6 +54,7 @@ def main(
             base_address=base_address,
             dram_offset=dram_offset,
             dram_state_dictionary=dram_state_dictionary,
+            out_addresses=out_addresses,
             debug=debug,
             summary=summary,
         )
@@ -368,6 +371,41 @@ def main(
     )
 
     # ---------------------------------------------
+    # INP ALIASING
+    # ------------
+    # A layer marked ALIAS_INP loads its INP from its producer's OUT. Its INP
+    # region stays allocated so every other address matches fsim's allocation.
+    # Layers compile in filename order, so a producer compiled later declines.
+    if out_addresses is not None:
+        out_entry = next(
+            (a for a in base_addresses_list if a.get("type") == "OUT"), None)
+        if out_entry is not None:
+            out_addresses[name] = int(out_entry["physical_base_address"], 16)
+
+    alias_of = operations_dict.get("ALIAS_INP")
+    if alias_of is not None and out_addresses is not None and alias_of in out_addresses:
+        inp_entry = next(
+            (a for a in base_addresses_list if a.get("type") == "INP"), None)
+        if inp_entry is not None:
+            src = out_addresses[alias_of]
+            # The producer's rescaled OUT has the int8 INP block stride.
+            blk_bytes = block_size * block_size * np.dtype(inp_dtype).itemsize
+            divisor = np.dtype(inp_dtype).itemsize * block_size
+            inp_entry["physical_base_address"] = hex(src)
+            inp_entry["logical_base_address"] = hex((src - dram_offset) // divisor)
+            inp_entry["blocks_addresses"] = {
+                i: (i, hex(src + i * blk_bytes),
+                    hex((src + i * blk_bytes - dram_offset) // divisor))
+                for i in range(len(inp_entry["blocks_addresses"]))
+            }
+            # Only applied aliases are recorded: the host drops the im2row of
+            # every layer listed.
+            if applied_aliases is not None:
+                applied_aliases[name] = alias_of
+            if debug or summary:
+                print(f"\t INP aliased to {alias_of} OUT at {hex(src)}")
+
+    # ---------------------------------------------
     # OPERATIONS DEFINITION
     # ---------------------
     insn_buffer, uop_buffer = OP.operations_definition(
@@ -630,6 +668,13 @@ if __name__ == "__main__":
     else:
         dram_state_dictionary = False
 
+    # Physical OUT address of every layer compiled so far, so a 1x1 consumer
+    # can address its producer's activation instead of copying it.
+    out_addresses = {}
+
+    # Consumer -> producer for every INP that was actually rebased.
+    applied_aliases = {}
+
     vta_ir_files = sorted(args.vta_ir, key=os.path.basename)
 
     for i, vta_ir in enumerate(vta_ir_files):
@@ -647,6 +692,8 @@ if __name__ == "__main__":
             base_address,
             dram_offset,
             dram_state_dictionary=dram_state_dictionary,
+            out_addresses=out_addresses,
+            applied_aliases=applied_aliases,
             debug=debug,
             summary=summary,
         )
@@ -686,6 +733,19 @@ if __name__ == "__main__":
         )  # Header
         for i, (add, n) in enumerate(layer_addr_name):
             writer.writerow([i, n, hex(add)])
+
+    # Aliases applied; a stale file from a previous run is removed.
+    alias_file_path = filepath_definition(output_dir, "aliases.csv")
+    if applied_aliases:
+        with open(alias_file_path, "w", newline="") as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(["Consumer layer", "Producer layer whose OUT it reads"])
+            for consumer, producer in sorted(applied_aliases.items()):
+                writer.writerow([consumer, producer])
+        if debug or summary:
+            print(f"\nALIASED INP: {len(applied_aliases)} layer(s)\n")
+    elif os.path.exists(alias_file_path):
+        os.remove(alias_file_path)
 
     # Generate a JSON
     if dram_state_dictionary != False:

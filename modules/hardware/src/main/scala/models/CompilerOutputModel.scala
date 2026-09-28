@@ -76,6 +76,8 @@ object CompilerOutputModel {
     layers: Map[String, LayerDependency],
     imageH: Int,
     imageW: Int,
-    outputLayer: String
+    outputLayer: String,
+    /** Consumer layer -> producer whose OUT its INP reads (`aliases.csv`). */
+    aliases: Map[String, String] = Map.empty
   )
 }

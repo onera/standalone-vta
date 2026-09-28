@@ -82,6 +82,7 @@ object `package` extends Module { m =>
       dest: os.Path,
       directConv: Boolean = false,
       directConvMaxWork: Double = 1.0,
+      aliasInp: Boolean = false,
       foldInpZp: Boolean = false
     ): Unit = {
       val directArgs =
@@ -92,6 +93,7 @@ object `package` extends Module { m =>
       exec(
         nnCompilerMain,
         Seq("--expand-bias") ++ directArgs ++
+          (if (aliasInp) Seq("--alias-inp") else Seq.empty) ++
           (if (foldInpZp) Seq("--fold-inp-zp") else Seq.empty) ++
           Seq(config.toString, onnx.toString),
         compDir = Some(dest)
@@ -118,10 +120,11 @@ object `package` extends Module { m =>
       dest: os.Path,
       directConv: Boolean = false,
       directConvMaxWork: Double = 1.0,
+      aliasInp: Boolean = false,
       foldInpZp: Boolean = false
     ): os.Path = {
       os.makeDir.all(dest)
-      nnCompile(onnx, config, dest, directConv, directConvMaxWork,
+      nnCompile(onnx, config, dest, directConv, directConvMaxWork, aliasInp,
                 foldInpZp)
       vtaCompile(config, dest)
       dest

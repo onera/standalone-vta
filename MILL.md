@@ -165,6 +165,8 @@ never synthesis:
 | `vta.fold.inp.zp`       | `false`                     | Fold the input zero point into the bias. Needed by 8-bit input configs.                                   |
 | `vta.direct.conv`       | `false`                     | Lower eligible convolutions directly onto the GEMM loop nest instead of a CPU-built im2row matrix.        |
 | `vta.direct.conv.max.work`| `1.0`                       | Largest direct/im2row GEMM-work ratio a direct convolution may take.                                      |
+| `vta.alias.inp`         | `false`                     | Let a 1x1 layer read its producer's OUT in place. Needs `vta.fold.inp.zp` and 8-bit inputs (`LOG_INP_WIDTH=3`); declined otherwise. |
+| `vta.alias.cpu.out`     | `false`                     | Let a qadd/concat write straight into its 1x1 consumer's INP. Needs `vta.fold.inp.zp` and 8-bit inputs; inert otherwise. |
 | `vta.verilator.threads` | `4`                         | Verilator build threads. Changing it invalidates the `vsim` tasks.                                        |
 | `vta.vivado.jobs`       | `4`                         | Vivado parallel jobs. A runtime flag: changing it does not invalidate anything.                           |
 | `vta.xil.out`           | unset                       | Shallow root for the heavy Vivado/Vitis trees (`<dir>/<config>/<board>/`), for Windows long-path limits.  |

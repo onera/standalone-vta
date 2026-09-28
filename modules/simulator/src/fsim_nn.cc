@@ -784,6 +784,12 @@ int run_nn(const FsimOptions &opts) {
             ctx.res, out_tensor_height * out_tensor_width, out_ch_pad,
             block_size, /*to_flat=*/false);
       }
+
+      /* Write the rescaled int8 back into OUT, as the board's in-place
+         rescale does, for a consumer whose INP is aliased to it. */
+      if (ctx.mem_outC != nullptr && !ctx.res.empty())
+        VTAMemCopyFromHost(ctx.mem_outC, ctx.res.data(),
+                           ctx.res.size() * sizeof(std::int8_t));
     }
   }
 

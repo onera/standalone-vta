@@ -90,7 +90,8 @@ object Dependency {
       layers = layers,
       imageH = imageH,
       imageW = imageW,
-      outputLayer = outputLayer
+      outputLayer = outputLayer,
+      aliases = readPairs(file, "aliases.csv")
     )
   }
 

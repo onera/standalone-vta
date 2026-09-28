@@ -33,7 +33,7 @@ import nn_compiler.nodes.node_cpu as Ncpu
 def vta_backend(vta_config_dict, onnx_model_path, 
                 doExpandBiasAtCompilation=False,
                 directConv=False, directConvMaxWork=1.0,
-                foldInpZp=False,
+                aliasInp=False, foldInpZp=False,
                 debug=True):
 
     # GET CONFIGURATION
@@ -149,13 +149,20 @@ def vta_backend(vta_config_dict, onnx_model_path,
             "matrix_shape": (0, 0)
         }
 
+        # VTA layers whose OUT holds a block-tiled activation; a direct
+        # convolution writes its OUT flat.
+        aliasable_producers = {
+            e['node_name'] for e in execution_order
+            if e['processor'] == 'vta' and e['reshape'] != 'direct'
+        } if aliasInp else frozenset()
+
         # Define operation for each task
         # ---
         # Convolution or Fully-Connected
         if (op_type == "QLinearConv"): 
             # Get data from the node
             vta_ir, node_info = \
-                Nconv.node_conv(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, doExpandBiasAtCompilation=doExpandBiasAtCompilation, directConv=directConv, directConvMaxWork=directConvMaxWork, block_size=block_size, inp_buffer_size=inp_buffer_size, wgt_buffer_size=wgt_buffer_size, acc_buffer_size=acc_buffer_size, uop_buffer_size=uop_buffer_size, foldInpZp=foldInpZp, debug=debug)
+                Nconv.node_conv(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, doExpandBiasAtCompilation=doExpandBiasAtCompilation, directConv=directConv, directConvMaxWork=directConvMaxWork, block_size=block_size, inp_buffer_size=inp_buffer_size, wgt_buffer_size=wgt_buffer_size, acc_buffer_size=acc_buffer_size, uop_buffer_size=uop_buffer_size, aliasableProducers=aliasable_producers, foldInpZp=foldInpZp, debug=debug)
 
         # ---
 
@@ -163,7 +170,7 @@ def vta_backend(vta_config_dict, onnx_model_path,
         elif (op_type == "QLinearMul"): 
             # Get data from the node
             vta_ir, node_info = \
-                Nconv.node_mulconstant(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, foldInpZp=foldInpZp, debug=False)
+                Nconv.node_mulconstant(node=cpt_node, param=model_param, node_mapping=dict_name_index, node_info=node_info, filename=filename, inp_dtype=inp_dtype, wgt_dtype=wgt_dtype, acc_dtype=acc_dtype, aliasableProducers=aliasable_producers, foldInpZp=foldInpZp, debug=False)
 
         # ---
 
@@ -446,6 +453,12 @@ if __name__ == "__main__":
              "activations.",
     )
     parser.add_argument(
+        "--alias-inp",
+        action="store_true",
+        help="Point a 1x1 stride-1 unpadded convolution's INP at its "
+             "producer's OUT instead of copying it into an im2row matrix.",
+    )
+    parser.add_argument(
         "--direct-conv",
         action="store_true",
         help="Lower convolutions onto the GEMM loop nest instead of a GEMM over "
@@ -472,4 +485,4 @@ if __name__ == "__main__":
 
     vta_config_dict = parse_json_to_dict(args.config)
 
-    result = vta_backend(vta_config_dict, args.onnx, doExpandBiasAtCompilation=args.expand_bias, directConv=args.direct_conv, directConvMaxWork=args.direct_conv_max_work, foldInpZp=args.fold_inp_zp, debug=args.debug)
+    result = vta_backend(vta_config_dict, args.onnx, doExpandBiasAtCompilation=args.expand_bias, directConv=args.direct_conv, directConvMaxWork=args.direct_conv_max_work, aliasInp=args.alias_inp, foldInpZp=args.fold_inp_zp, debug=args.debug)

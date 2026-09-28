@@ -80,6 +80,9 @@ object MemoryLayout {
     val initAlloc =
       rawPhys + math.max(alignPage(rawSize), PAGE)
 
+    // CPU ops writing into a VTA layer's INP need no scratch region.
+    val retarget = ExecSteps.cpuOutRetargets(dep, layers, suffixToIdx)
+
     val (cpuOut, allocPtr, cpuScratch) =
       dep.executionOrder.foldLeft(
         (Map.empty[String, Long], initAlloc, Vector.empty[(String, Long, Long)])
@@ -114,6 +117,16 @@ object MemoryLayout {
           }
         } else {
           dep.layers.get(layerName) match {
+            case Some(_) if retarget.contains(layerName) =>
+              val consumer = retarget(layerName)
+              val addr =
+                ddrBase + layers(suffixToIdx(consumer)).mem("INP").offset
+              println(
+                s"[gen] CPU out retargeted: $layerName -> $consumer INP at " +
+                  s"${Model.hex32(addr)} (no scratch, im2row dropped)"
+              )
+              (cpuOut + (layerName -> addr), allocPtr, cpuScratch)
+
             case Some(ld)
                 if Set("qadd", "concat", "quant").contains(processor) =>
               // A CPU op's compact int8 output is never written straight into a
@@ -255,6 +268,14 @@ object MemoryLayout {
     goldenDir: String,
     baseTop: Long
   ): (Seq[Model.LayerInfo], Long) = {
+    val cpuWritesInp: String => Boolean = {
+      val targets = ExecSteps
+        .cpuOutRetargets(depInfo, layers, Model.suffixToIdx(layers))
+        .values
+        .toSet
+      targets.contains
+    }
+
     // Thread the page-aligned allocation pointer through the layers with a fold
     // (was a `var` mutated inside `map`). Per layer the golden OUT region is
     // allocated before the golden IN region, matching the old order.
@@ -297,7 +318,11 @@ object MemoryLayout {
           // Golden input - copied into inDstAddr before the layer runs.
           val inFile = Model.refInputPath(goldenDir, suffix)
           val (inRefFile, inRefAddr, inRefSize, ptrAfterIn) =
-            if (Model.isFile(inFile)) {
+            if (depInfo.aliases.contains(suffix) || cpuWritesInp(suffix)) {
+              // An aliased or CPU-written INP is overwritten before the layer
+              // runs; the producer's output check covers it.
+              ("", 0L, 0L, ptrAfterOut)
+            } else if (Model.isFile(inFile)) {
               val size = os.size(os.Path(inFile, os.pwd))
               if (size > dstBuf.byteSize)
                 println(

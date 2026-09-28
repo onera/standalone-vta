@@ -87,15 +87,19 @@ object Checks {
   private def liveRegions(
     layers: Seq[Model.LayerInfo],
     ddrBase: Long,
-    cpuScratch: Seq[(String, Long, Long)] = Nil
+    cpuScratch: Seq[(String, Long, Long)] = Nil,
+    aliasedInp: Set[String] = Set.empty
   ): Seq[(Long, Long, String)] = {
     val scratchRegions = cpuScratch.collect {
       case (label, addr, size) if size > 0 =>
         (addr, addr + size, s"cpu-scratch $label")
     }
     val layerRegions = layers.zipWithIndex.flatMap { case (layer, i) =>
+      // An aliased INP is its producer's OUT, already checked there.
       val vtaBufs = DataType.names.collect {
-        case bt if layer.mem(bt).byteSize != 0 =>
+        case bt
+            if layer.mem(bt).byteSize != 0 &&
+              !(bt == "INP" && aliasedInp.contains(layer.suffix)) =>
           val m = layer.mem(bt)
           val start = ddrBase + m.offset
           (start, start + m.byteSize, s"L$i ${layer.suffix} $bt")
@@ -119,9 +123,10 @@ object Checks {
   def checkBufferOverlaps(
     layers: Seq[Model.LayerInfo],
     ddrBase: Long,
-    cpuScratch: Seq[(String, Long, Long)] = Nil
+    cpuScratch: Seq[(String, Long, Long)] = Nil,
+    aliasedInp: Set[String] = Set.empty
   ): Boolean = {
-    val regions = liveRegions(layers, ddrBase, cpuScratch)
+    val regions = liveRegions(layers, ddrBase, cpuScratch, aliasedInp)
     val conflicts = for {
       j <- regions.indices
       k <- (j + 1) until regions.length
@@ -305,7 +310,7 @@ object Checks {
     maxAddr: Option[Long]
   ): Boolean = (
     Seq(
-      checkBufferOverlaps(layers, ddrBase, cpuScratch),
+      checkBufferOverlaps(layers, ddrBase, cpuScratch, dep.aliases.keySet),
       checkBinaryFits(layers, compDir),
       checkCpuOutputFits(
         dep,

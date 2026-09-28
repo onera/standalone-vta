@@ -85,6 +85,18 @@ object ExecPlanResolver {
         resolvedSuffixToIdx,
         logOutWidth
       )
+    // Layers a CPU op writes into directly need no im2row either.
+    val cpuWrittenInp =
+      ExecSteps.cpuOutRetargets(dep, layers, resolvedSuffixToIdx).values.toSet
+
+    // A wrongly dropped im2row fails silently at run time, so fail here.
+    val aliasErrors = ExecSteps.aliasViolations(dep, fusedProducers)
+    if (aliasErrors.nonEmpty)
+      sys.error(
+        s"INP aliasing is inconsistent with the exec plan:\n  " +
+          aliasErrors.mkString("\n  ")
+      )
+
     def fusedScale(depName: String): (Double, Int) =
       if (fusedProducers.contains(depName))
         dep.layers
@@ -101,6 +113,9 @@ object ExecPlanResolver {
         if processor == "vta"
         ld <- dep.layers.get(layerName).toSeq
         if ld.reshapeInfo == "im2row"
+        // Must match ExecSteps.of, which computes the step count separately.
+        if !dep.aliases.contains(layerName)
+        if !cpuWrittenInp.contains(layerName)
         idx <- resolvedSuffixToIdx.get(layerName).toSeq
       } yield {
         val outH = (ld.tensorH + ld.pad._1 + ld.pad._3 - ld.kh) / ld.sh + 1

@@ -29,8 +29,8 @@ def node_conv(node, param={}, node_mapping={}, node_info={}, filename='',
               directConvMaxWork=1.0, block_size=16,
               inp_buffer_size=None, wgt_buffer_size=None,
               acc_buffer_size=None, uop_buffer_size=None,
-              producersFlat=True, foldInpZp=False,
-              debug=False):
+              producersFlat=True, aliasableProducers=frozenset(),
+              foldInpZp=False, debug=False):
     # Reset the vta_ir
     vta_ir = {}
 
@@ -317,6 +317,9 @@ def node_conv(node, param={}, node_mapping={}, node_info={}, filename='',
     else:
         X_ir = [Ah, Bw, "../compiler_output/"+filename+"accumulator_"+str(Ah)+"x"+str(Bw)+".bin"]
 
+    alias_of = _alias_producer(node_info, aliasableProducers, fh, fw, sh, sw,
+                               ph, pw, foldedA, A_zp, filename, inp_dtype, debug)
+
     # Define the VTA IR
     vta_ir = {
         "NAME": filename,
@@ -337,6 +340,10 @@ def node_conv(node, param={}, node_mapping={}, node_info={}, filename='',
         },
         "STRATEGY": 2
     }
+    if alias_of is not None:
+        # Consumed by main_vta_compiler: address the loads at this producer's
+        # OUT instead of at this layer's own INP region.
+        vta_ir["ALIAS_INP"] = alias_of
 
 
     # ---
@@ -498,6 +505,36 @@ def _direct_conv_ir(filename, nc, nh, nw, mc, fh, fw, sh, sw, ph, pw,
 
 # INPUT ZERO POINT
 # ----------------
+def _alias_producer(node_info, aliasableProducers, fh, fw, sh, sw, ph, pw,
+                    foldedA, A_zp, filename, inp_dtype=np.int8, debug=False):
+    """The producer whose OUT this layer's INP can be addressed at, or None.
+
+    Once the input zero point is folded away, a 1x1 stride-1 unpadded layer's
+    im2row matrix is its producer's block-tiled output activation, so the
+    im2row is a plain copy. The producer must be a VTA layer (aliasableProducers)
+    and not the network input, which arrives as raw HWC.
+
+    INP must be int8: the producer's OUT is read in place after its rescale to
+    int8, and a wider INP (e.g. LOG_INP_WIDTH=5) would read those bytes as
+    wider elements.
+    """
+    producers = node_info.get("input_nodes", [])
+    if np.dtype(inp_dtype) != np.int8:
+        if debug and aliasableProducers:
+            print(f"[alias] {filename}: declined - INP is {np.dtype(inp_dtype).name}, "
+                  f"aliasing needs int8")
+        return None
+    ok = (fh == 1 and fw == 1 and sh == 1 and sw == 1
+          and not any(ph) and not any(pw)
+          and (foldedA or int(A_zp) == 0)
+          and len(producers) == 1
+          and producers[0] != "image"
+          and producers[0] in aliasableProducers)
+    if ok and debug:
+        print(f"[alias] {filename}: INP -> {producers[0]} OUT (1x1 s1 unpadded)")
+    return producers[0] if ok else None
+
+
 def _fold_input_zero_point(acc_tensor, isBias, wgt_tensor, out_channels,
                            A_zp, acc_dtype):
     """Move the input zero point out of the activations and into the bias.
@@ -613,7 +650,7 @@ def _direct_conv_acc(acc_tensor, isBias, wgt_tensor, out_channels, oc_pad,
 # ------------
 def node_mulconstant(node, param={}, node_mapping={}, node_info={}, filename='', 
                      inp_dtype=np.int8, wgt_dtype=np.int8, acc_dtype=np.int32,
-                     foldInpZp=False,
+                     aliasableProducers=frozenset(), foldInpZp=False,
                      debug=False):
     # Reset the vta_ir
     vta_ir = {}
@@ -809,6 +846,11 @@ def node_mulconstant(node, param={}, node_mapping={}, node_info={}, filename='',
     if foldedA:
         vta_ir["MATRICES"]["X"] = [1, Aw, "../compiler_output/" + acc_name]
         vta_ir["LOAD"]["ACC"] = ["X"]
+
+    alias_of = _alias_producer(node_info, aliasableProducers, fh, fw, sh, sw,
+                               ph, pw, foldedA, A_zp, filename, inp_dtype, debug)
+    if alias_of is not None:
+        vta_ir["ALIAS_INP"] = alias_of
 
 
     # ---

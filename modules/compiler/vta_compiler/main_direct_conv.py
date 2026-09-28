@@ -59,6 +59,7 @@ def compile_direct_conv(
     base_address,
     dram_offset,
     dram_state_dictionary={},
+    out_addresses=None,
     debug=True,
     summary=True,
 ):
