@@ -146,7 +146,10 @@ a model to `examples/onnx/`, a fixture to `examples/vta_ir/` or a board JSON to
 ### Global options
 
 Anything that is not a cross axis is passed as a JVM property. These also supply
-the default cross keys, which is why they matter before you run anything:
+the default cross keys, which is why they matter before you run anything. The
+defaults live in `config/mill-defaults.properties`; adding an option means adding
+a line there (and its `Task.Input`), which re-runs only the tasks that read it -
+never synthesis:
 
 | Property                | Default                     | Effect                                                                                                    |
 | ----------------------- | --------------------------- | --------------------------------------------------------------------------------------------------------- |
@@ -157,6 +160,7 @@ the default cross keys, which is why they matter before you run anything:
 | `vta.sd.drive`          | `0:/`                       | FatFs volume the `sd` data loader reads from.                                                             |
 | `vta.sd.dir`            | model name                  | Folder on the SD card holding the model's files.                                                          |
 | `vta.heap.size`         | `0x800000`                  | Heap size written into a generated app's linker script.                                                   |
+| `vta.app.opt`           | `O0`                        | Optimization level of the generated app (O0, O1, O2, O3, Os). Above O0 adds `-ffp-contract=off`, so results stay bit-identical to fsim. O2 runs the CPU steps ~4x faster. |
 | `vta.uart.baud`         | `115200`                    | PS UART rate of both the app and `uart_nn.py`. A change needs `buildVitisApp` + `flashBoard`.             |
 | `vta.verilator.threads` | `4`                         | Verilator build threads. Changing it invalidates the `vsim` tasks.                                        |
 | `vta.vivado.jobs`       | `4`                         | Vivado parallel jobs. A runtime flag: changing it does not invalidate anything.                           |

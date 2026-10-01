@@ -12,6 +12,7 @@ import mill.api.BuildCtx
 import mill.api.Args
 import com.goyeau.mill.scalafix.ScalafixModule
 import build.modules.fpga.TargetModule
+import scala.jdk.CollectionConverters._
 
 // Doc-comment convention for every task in the *.mill files, so that the
 // completion scripts (tools/completions/) and `./mill inspect <task>` both read
@@ -56,32 +57,23 @@ object `package` extends Module with SpotlessModule {
     }
 
   /** Default VTA build arguments, overridable by passing -Dvta.*=<value> flags
-    * to mill, or by running `./mill configure vta.*=<value>`
+    * to mill, or by running `./mill configure vta.*=<value>`.
+    *
+    * Read from config/mill-defaults.properties rather than written here: a
+    * task is invalidated when the bytecode of a build method it calls changes,
+    * and every option read goes through [[getVtaArg]], so a Map literal here
+    * made adding an option re-run synthesis. watchValue re-resolves the build
+    * when the file changes.
     */
-  val defaultOpts = Map(
-    /** Default config filename */
-    "vta.config.file" -> "vta_config.json",
-    /** Default DDR offset for fpga DRAM allocation. */
-    "vta.ddr.base" -> "0x0",
-    /** Default fpga board used by synthesis flows. */
-    "vta.board.name" -> "zcu104",
-    /** Default FatFs volume the SD data loader reads from ("0:/" or "1:/"). */
-    "vta.sd.drive" -> "0:/",
-    /** SD-card subfolder of the model's files; empty for the model name. */
-    "vta.sd.dir" -> "",
-    /** Heap size written into a generated app's linker script. */
-    "vta.heap.size" -> "0x800000",
-    /** PS UART baud rate, used by both the app (VTA_UART_BAUD) and uart_nn.py. */
-    "vta.uart.baud" -> "115200",
-    /** Width of the VTA's AXI master to DRAM, in bits: 64 or 128. */
-    "vta.axi.bits" -> "64",
-    /** Default verilator threads for verilator simulation. */
-    "vta.verilator.threads" -> "4",
-    /** Default jobs for vivado synthesis */
-    "vta.vivado.jobs" -> "4",
-    /** Default onnx file, for run flow */
-    "vta.onnx.file" -> (BuildCtx.workspaceRoot / "examples" / "onnx" / "lenet5.onnx").toString
-  )
+  val defaultOpts: Map[String, String] = BuildCtx.watchValue {
+    val props = new java.util.Properties()
+    val reader = java.nio.file.Files.newBufferedReader(
+      (BuildCtx.workspaceRoot / "config" / "mill-defaults.properties").toNIO
+    )
+    try props.load(reader)
+    finally reader.close()
+    props.stringPropertyNames().asScala.map(k => k -> props.getProperty(k)).toMap
+  }
 
   def getVtaArg(name: String) = sys.props.getOrElse(name, defaultOpts(name))
 

@@ -42,7 +42,13 @@ if {[catch {
     bpremove -all
 } msg]} {
     puts "  (XFsbl_Exit sync skipped: $msg) - fixed wait instead"
-    con ; after 8000 ; stop
+    # The core may still be running after the timed-out `con -block` (a bare
+    # `con` then aborts with "Already running"), and the breakpoint may still
+    # be set: tolerate both.
+    catch {bpremove -all}
+    catch {con}
+    after 8000
+    catch {stop}
 }
 
 puts "=== program PL: $BIT ==="

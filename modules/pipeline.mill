@@ -606,10 +606,28 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
         namePrefix = modelKey,
         cpu = Some(fpga.readManifestField(manifest, "cpu")),
         genDir = Some(gen),
-        extraArgs =
-          Seq("--heap-size", heapSize(), "--baud", uartBaud()) ++ extraArgs
+        extraArgs = appArgs() ++ extraArgs
       )
     ws.toString
+  }
+
+  /** The app settings create_vitis_workspace.py takes from Mill options: heap
+    * size, UART baud and optimization level.
+    */
+  def appArgs = Task.Anon {
+    Seq("--heap-size", heapSize(), "--baud", uartBaud(), "--opt", appOpt())
+  }
+
+  /** Compiler optimization level of the generated app, from -Dvta.app.opt
+    * (default O0, the Vitis default). Above O0 the app is built with
+    * -ffp-contract=off so its CPU steps stay bit-identical to fsim. A change
+    * needs [[buildVitisApp]] and [[flashBoard]].
+    */
+  def appOpt = Task.Input {
+    val v = build.getVtaArg("vta.app.opt")
+    require(Set("O0", "O1", "O2", "O3", "Os")(v),
+      s"vta.app.opt must be O0, O1, O2, O3 or Os, got '$v'")
+    v
   }
 
   /** Heap size for the generated app's linker script, from -Dvta.heap.size. */
@@ -693,14 +711,15 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
     val ws = BuildCtx.workspaceRoot / "build" / "vitis" /
       s"${modelKey}_$configKey"
     val xsaPath = os.Path(xsa, BuildCtx.workspaceRoot)
-    // No --cpu: on this path it comes from `args`, along with --xsa.
+    // No --cpu: on this path it comes from `args`, along with --xsa. The
+    // Mill-side app settings go first so a flag repeated in `args` wins.
     fpga.software
       .vitisRunner()
       .addApps(
         workspace = ws,
         namePrefix = modelKey,
         genDir = Some(genDir),
-        extraArgs = Seq("--xsa", xsaPath.toString) ++ args.value
+        extraArgs = appArgs() ++ Seq("--xsa", xsaPath.toString) ++ args.value
       )
     ws.toString
   }

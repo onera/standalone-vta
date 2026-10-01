@@ -373,11 +373,29 @@ def create_app(
     return app_src
 
 
+# Optimization levels accepted by --opt. Vitis generates apps at -O0.
+OPT_LEVELS = ("O0", "O1", "O2", "O3", "Os")
+
+
+def opt_flags(level: str) -> list[str]:
+    """Extra compiler flags for an --opt level (none for the Vitis default O0).
+
+    Any level above O0 also gets -ffp-contract=off: GCC on AArch64 otherwise
+    fuses a*b+c into an FMA, which rounds once instead of twice, so the CPU
+    steps' float math (rescale, concat, quantize) would stop matching fsim's
+    bit for bit.
+    """
+    if level not in OPT_LEVELS:
+        raise ValueError(f"--opt must be one of {OPT_LEVELS}, got {level!r}")
+    return [] if level == "O0" else [f"-{level}", "-ffp-contract=off"]
+
+
 def _patch_user_config(
     app_src: Path,
     runner_cc: str,
     baud: int = 115200,
     extra_defines: list[str] | None = None,
+    compile_flags: list[str] | None = None,
 ) -> None:
     """Append driver paths and compile definitions to UserConfig.cmake.
 
@@ -391,6 +409,12 @@ def _patch_user_config(
 
     extra_defines are added to USER_COMPILE_DEFINITIONS (e.g. NN_CHECK_LAYERS
     for the run_nn_debug isolation app).
+
+    compile_flags (e.g. from opt_flags) cannot be set that way: UserConfig.cmake
+    folds the optimization settings into USER_COMPILE_OPTIONS *above* this
+    block, so they are appended to that list instead. CMakeLists.txt adds the
+    list to CMAKE_C/CXX_FLAGS after the include, so they come after Vitis'
+    -O0 and GCC keeps the last -O.
     """
     cfg = app_src / "UserConfig.cmake"
     if not cfg.exists():
@@ -420,6 +444,8 @@ def _patch_user_config(
             "${_drv_sources} ${_asm_sources})\n"
             f'set(USER_COMPILE_DEFINITIONS "{defines_str}")\n'
         )
+        if compile_flags:
+            f.write(f'list(APPEND USER_COMPILE_OPTIONS " {" ".join(compile_flags)}")\n')
     print(
         f"[copy] Added driver paths and definitions [{defines_str}] to UserConfig.cmake."
     )
@@ -478,6 +504,7 @@ def copy_sources(
     baud: int = 115200,
     extra_defines: list[str] | None = None,
     heap_size: str | None = None,
+    opt: str = "O0",
 ) -> None:
     sources = collect_sources(runner, data_loader, gen_dir)
     print(f"[copy] Copying files to {app_src}")
@@ -512,7 +539,8 @@ def copy_sources(
         # Activates the guarded SD-load path in run_nn / run_nn_uart and the
         # body of driver/src/vta_sd.cc (compiled to empty otherwise).
         defines.append("NN_SD_LOADER")
-    _patch_user_config(app_src, RUNNER_SOURCE[runner].name, baud, defines)
+    _patch_user_config(app_src, RUNNER_SOURCE[runner].name, baud, defines,
+                       opt_flags(opt))
     if data_loader == "elf":
         # nn_bin_data.S already carries absolute POSIX .incbin paths from the
         # codegen, so it is copied in as-is.
@@ -853,6 +881,16 @@ def main() -> None:
         help="Heap size written into the app's linker script (e.g. 0x800000).",
     )
     parser.add_argument(
+        "--opt",
+        choices=OPT_LEVELS,
+        default="O0",
+        help=(
+            "Compiler optimization level of the app (VTA runners). O0 is the "
+            "Vitis default; above it, -ffp-contract=off is added so the CPU "
+            "steps stay bit-identical to fsim. O2 runs the CPU steps ~4x faster."
+        ),
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Print what would be done without calling Vitis APIs.",
@@ -1080,6 +1118,7 @@ def main() -> None:
             args.baud,
             _extra_defines_for(runner),
             args.heap_size,
+            args.opt,
         )
 
     print()

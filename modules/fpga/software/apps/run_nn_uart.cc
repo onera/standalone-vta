@@ -9,10 +9,11 @@
  * --------
  *   Board sends: "=== VTA NN runner: <N> step(s) ===\r\n"   (once, at boot)
  *   Loop:
- *     Board waits: trigger byte (0x01) from host
+ *     Board waits: trigger byte from host - 0x01 (load) or 0x02 (rerun)
  *     Board sends: "input=<N> out=<M>\r\n"
  *     Board sends: "READY\r\n"
  *     Host sends:  <input_n_bytes> raw bytes (HWC INT8, no framing)
+ *                  -- on 0x02 only, this upload is skipped entirely
  *     Board runs inference (prints per-step logs)
  *     Board sends: "OUTPUT\r\n"
  *     Board sends: <out_n_bytes> raw bytes (INT8 from VTA OUT buffer,
@@ -42,8 +43,21 @@ extern "C" {
 // UART byte I/O
 // ---------------------------------------------------------------------------
 
-static void wait_for_trigger() {
-  while (inbyte() != '\x01') {
+// 0x01 keeps the original contract: the host uploads a fresh input, then the
+// board runs it. 0x02 reruns on whatever is already in the raw input buffer.
+//
+// The upload is not a small part of the round trip - 1.2 MB of qyolo input at
+// 2 Mbaud is ~6.1 s against ~6.1 s of inference - so measuring inference alone
+// means not paying for it on every iteration. Any other byte is ignored rather
+// than treated as a trigger, so a stray byte on the line cannot start a run.
+static constexpr int TRIG_LOAD = 0x01;
+static constexpr int TRIG_RERUN = 0x02;
+
+static int wait_for_trigger() {
+  while (true) {
+    const int c = inbyte() & 0xff;
+    if (c == TRIG_LOAD || c == TRIG_RERUN)
+      return c;
   }
 }
 
@@ -89,13 +103,18 @@ int main() {
   constexpr std::uint32_t out_n_bytes = NN_OUTPUT_BYTES;
 
   while (true) {
-    wait_for_trigger();
+    const int trigger = wait_for_trigger();
     xil_printf("input=%u out=%u\r\n", input_n_bytes, out_n_bytes);
     xil_printf("READY\r\n");
 
     // Receive raw HWC input into scratch DDR, flush cache for PL coherency.
-    uart_recv(reinterpret_cast<void *>(raw_addr), input_n_bytes);
-    Xil_DCacheFlushRange(raw_addr, input_n_bytes);
+    // On a rerun the buffer already holds the input from a previous 0x01, so
+    // there is nothing to receive; the FORMAT_INPUT step flushes raw_addr
+    // itself before reading it, so skipping the flush here is safe too.
+    if (trigger == TRIG_LOAD) {
+      uart_recv(reinterpret_cast<void *>(raw_addr), input_n_bytes);
+      Xil_DCacheFlushRange(raw_addr, input_n_bytes);
+    }
 
     // Run the full inference pipeline.
     std::uint32_t float_bytes = 0;
