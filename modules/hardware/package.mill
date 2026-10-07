@@ -145,12 +145,12 @@ object `package` extends build.VtaScalaModule with PublishModule { m =>
       */
     def vtaSimConfig = Task {
       configSignature()
-      axiBits()
+      val wide = axiBits() == 128
       m.emitConfig(
         m.runner(),
         Task.dest,
         s"$configKey.json",
-        if (build.axiDataBits == 128) "vta.exporters.Test128bBusConfigEmitter"
+        if (wide) "vta.exporters.Test128bBusConfigEmitter"
         else "vta.exporters.TestDefaultPynqConfigEmitter"
       )
     }
@@ -164,12 +164,12 @@ object `package` extends build.VtaScalaModule with PublishModule { m =>
       */
     def vtaFpgaConfig = Task {
       configSignature()
-      axiBits()
+      val wide = axiBits() == 128
       m.emitConfig(
         m.runner(),
         Task.dest,
         s"$configKey.json",
-        if (build.axiDataBits == 128) "vta.exporters.WideXilinxConfigEmitter"
+        if (wide) "vta.exporters.WideXilinxConfigEmitter"
         else "vta.exporters.DefaultXilinxConfigEmitter"
       )
     }
@@ -180,6 +180,15 @@ object `package` extends build.VtaScalaModule with PublishModule { m =>
       */
     def vtaDebugShell = Task {
       configSignature()
+      // DebugXilinxConfigEmitter is EmitterApp(new DefaultPynqConfig), i.e.
+      // hardwired to a 64-bit memory port. Fail rather than hand the
+      // post-synth flow a shell that is narrower than the design under test.
+      require(
+        axiBits() == 64,
+        s"$configKey is a ${axiBits()}-bit config, and the debug shell is " +
+          "pinned to the 64-bit DefaultPynqConfig; a wide debug emitter is " +
+          "needed before the post-synth flow can run on it"
+      )
       m.emitConfig(
         m.runner(),
         Task.dest,

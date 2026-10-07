@@ -198,6 +198,17 @@ class PkgConfig(object):
             self.load_base_addr = "0x43C01000"
             self.compute_base_addr = "0x43C02000"
             self.store_base_addr = "0x43C03000"
+        # The TARGET chain above is the legacy source of the AXI bus width, and
+        # it has no branch for TARGET="sim", so every config in config/ fell
+        # through to the de10nano default of 6 (64-bit) regardless of the width
+        # the hardware was actually built with. Let the config file override it:
+        # LOG_AXI_BITS is the same value the Mill build selects the RTL emitter
+        # from, so the C side and the shell can no longer disagree. Absent, the
+        # TARGET-derived value stands, so pre-existing configs are unaffected.
+        self.fpga_log_axi_bus_width = cfg.get(
+            "LOG_AXI_BITS", self.fpga_log_axi_bus_width
+        )
+
         # Set coherence settings
         coherent = True
         if coherent:

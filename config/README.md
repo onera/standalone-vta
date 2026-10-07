@@ -10,13 +10,22 @@ Both the compiler and the simulators read this file to ensure that generated ins
 variable from `examples/` (e.g. `make CONFIG_FILE=vta_w8b.json fsim_inference`),
 or with `CONFIG=<path>` when building the simulators directly.
 
-| File                 | `TARGET`       | Inputs | Weights | Block | Notes                      |
-| :------------------- | :------------- | :----- | :------ | :---- | :------------------------- |
-| `vta_config.json`    | `sim`          | 32-bit | 32-bit  | 16x16 | Default.                   |
-| `vta_w8b.json`       | `weights8b`    | 32-bit | 8-bit   | 16x16 | Narrower weight SRAM.      |
-| `vta_config_8b.json` | `8b_largeBuff` | 8-bit  | 8-bit   | 16x16 | Narrower input and weights |
+| File                  | `TARGET`       | Inputs | Weights | Block | AXI | Notes                        |
+| :-------------------- | :------------- | :----- | :------ | :---- | --: | :--------------------------- |
+| `vta_config.json`     | `sim`          | 32-bit | 32-bit  | 16x16 |  64 | Default.                     |
+| `vta_w8b.json`        | `weights8b`    | 32-bit | 8-bit   | 16x16 |  64 | Narrower weight SRAM.        |
+| `vta_config_8b.json`  | `8b_largeBuff` | 8-bit  | 8-bit   | 16x16 |  64 | Narrower input and weights.  |
+| `vta_8b_block32.json` | `8b_block32`   | 8-bit  | 8-bit   | 32x32 |  64 | Larger array, 2x input SRAM. |
+| `*_a128.json`         | as its sibling | as its sibling | - | - | 128 | 128-bit AXI variant of each of the above. |
 
-All three share `LOG_ACC_WIDTH=5`, `LOG_OUT_WIDTH=5` and `LOG_BLOCK=4`.
+Each `_a128.json` is its 64-bit sibling plus `"LOG_AXI_BITS": 7`, and nothing
+else. The width is a config rather than a flag so that the two coexist: as
+`-Dvta.axi.bits` they both wrote to `out/targets/<config>/<board>/synth.dest`,
+so synthesizing one silently discarded the other. Passing that flag is now an
+error rather than being ignored.
+
+Every config except `vta_8b_block32` shares `LOG_ACC_WIDTH=5`, `LOG_OUT_WIDTH=5`
+and `LOG_BLOCK=4`.
 
 The same configuration must be used to compile the network, build the simulator,
 **and** synthesize the bitstream. Mixing them silently produces wrong results.
@@ -33,6 +42,7 @@ The same configuration must be used to compile the network, build the simulator,
 | `LOG_OUT_WIDTH`     | Integer | Log2 of the data width (in bits) for the store/output stream. Must be $\geq$ `LOG_ACC_WIDTH`. A 32-bit output (`5`) requires a CPU-side rescale step after every VTA layer; an 8-bit output (`3`) lets the hardware VSHX ALU do the scaling. |
 | `LOG_BATCH`         | Integer | Log2 of the batch size multiplier. `0` means batch size is 1 ($2^0$). Defines the shape of hardware tensors.                                                                                                                                 |
 | `LOG_BLOCK`         | Integer | Log2 of the tensor core block size. Example: `4` means a $16 \times 16$ tensor core ($2^4=16$).                                                                                                                                              |
+| `LOG_AXI_BITS`      | Integer | Log2 of the DRAM-side AXI master width: `6` = 64-bit, `7` = 128-bit, **absent means 64**. Selects the RTL shell (`DefaultPynqConfig` vs `FpgaExtWidthConfig`) and the C-side `VTA_LOG_BUS_WIDTH`. Never reaches the compiler, so model data and SD-card contents are shared between the two widths. |
 | `LOG_UOP_BUFF_SIZE` | Integer | Log2 of the micro-op buffer size. Limits the number of uops stored on-chip.                                                                                                                                                                  |
 | `LOG_INP_BUFF_SIZE` | Integer | Log2 of the input SRAM buffer size in bytes.                                                                                                                                                                                                 |
 | `LOG_WGT_BUFF_SIZE` | Integer | Log2 of the weight SRAM buffer size in bytes.                                                                                                                                                                                                |

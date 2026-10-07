@@ -12,6 +12,7 @@ import mill.api.BuildCtx
 import mill.api.Args
 import com.goyeau.mill.scalafix.ScalafixModule
 import build.modules.fpga.TargetModule
+import vtabuild.VtaAxiWidth
 import scala.jdk.CollectionConverters._
 
 // Doc-comment convention for every task in the *.mill files, so that the
@@ -109,14 +110,6 @@ object `package` extends Module with SpotlessModule {
     * vta.verilator.threads=<N>`
     */
   def verilatorThreads = getVtaArg("vta.verilator.threads")
-
-  /** Width of the VTA's DRAM-side AXI master, from -Dvta.axi.bits. */
-  def axiDataBits: Int = {
-    val v = getVtaArg("vta.axi.bits")
-    require(v == "64" || v == "128",
-      s"vta.axi.bits must be 64 or 128, got '$v'")
-    v.toInt
-  }
 
   /** Path to the default onnx file, for use in the [[run]] cross module
     */
@@ -219,8 +212,18 @@ object `package` extends Module with SpotlessModule {
       */
     def configSignature = Task.Input { configSig(configPath) }
 
-    /** DRAM-side AXI width, so that changing it re-emits the RTL. */
-    def axiBits = Task.Input { axiDataBits }
+    /** DRAM-side AXI width in bits, declared by this module's config JSON
+      * (`LOG_AXI_BITS`, absent meaning 64), so that the two widths are
+      * separate cross keys instead of overwriting one `synth.dest`.
+      *
+      * Still an Input even though [[configSignature]] already covers the file:
+      * it records the width in out/.../axiBits.json, which is what makes a
+      * stale cache diagnosable.
+      */
+    def axiBits = Task.Input {
+      VtaAxiWidth.rejectLegacyProperty(configKey)
+      VtaAxiWidth.axiBitsOf(configPath)
+    }
   }
 
   /** The FPGA board a board-dependent module targets: the other identity axis
@@ -321,6 +324,14 @@ object `package` extends Module with SpotlessModule {
         sys.error("--reset must be the only argument")
       case _ =>
         arg.split("=", 2) match {
+          // Pinning the retired option would produce a build that silently
+          // ignores it; clearing it (empty value) is how you remove the line.
+          case Array("vta.axi.bits", v) if v.nonEmpty =>
+            sys.error(
+              "vta.axi.bits is retired: the AXI width comes from the config " +
+                "file now. Use a _a128 config for a 128-bit build, and " +
+                "`./mill configure vta.axi.bits=` to drop any pinned value."
+            )
           case Array(k, v) if k.startsWith("vta.") => k -> v
           case _ =>
             sys.error(

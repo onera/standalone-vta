@@ -166,6 +166,36 @@ never synthesis:
 | `vta.vivado.jobs`       | `4`                         | Vivado parallel jobs. A runtime flag: changing it does not invalidate anything.                           |
 | `vta.xil.out`           | unset                       | Shallow root for the heavy Vivado/Vitis trees (`<dir>/<config>/<board>/`), for Windows long-path limits.  |
 
+#### The AXI width is a config, not an option
+
+The width of the VTA's AXI master to DRAM used to be `-Dvta.axi.bits`. It is now
+declared by the config JSON, as `"LOG_AXI_BITS": 7` for 128 bits; absent means
+64. Each width therefore has its own config file and its own cross key:
+
+| 64-bit | 128-bit |
+|---|---|
+| `vta_config` | `vta_config_a128` |
+| `vta_w8b` | `vta_w8b_a128` |
+| `vta_config_8b` | `vta_config_8b_a128` |
+| `vta_8b_block32` | `vta_8b_block32_a128` |
+
+```bash
+./mill "targets[vta_config,zcu104].synth"       # 64-bit
+./mill "targets[vta_config_a128,zcu104].synth"  # 128-bit, a separate cache
+```
+
+It moved because a flag is not part of a config's identity: both widths wrote to
+`out/targets/<config>/<board>/synth.dest`, so synthesising one silently discarded
+the other. As cross keys they coexist. Passing `-Dvta.axi.bits` is now an error
+rather than being ignored, since a flag read by nothing produces a build you
+believe is something else.
+
+Two things to know. The width reaches the compiler and the model data not at all
+(it only re-emits the RTL and the C-side bus constant), so a 128-bit leg can
+reuse a 64-bit config's SD card. And `sdDir` still defaults to the model name
+alone, so an `_a128` config stages to the same SD folder as its sibling - pass
+`-Dvta.sd.dir=<model>_<config>` when that matters.
+
 #### Pinning options between runs
 
 Rather than repeating `-Dvta.*` flags on every invocation, persist them:

@@ -231,13 +231,15 @@ trait SimTasks extends HasCompilableModel {
 
     sim.launch(
       fsimBin,
+      // The reference dir is where an ONNX model's input_nn.bin lives: without
+      // it both legs read an empty input and agree on garbage.
       Seq("--comp-dir", compOut.toString, "--output", fsimOut.toString)
-        ++ defaultSimFlags
+        ++ referenceArgs() ++ defaultSimFlags
     )
     sim.launch(
       vsimBin,
       Seq("--comp-dir", compOut.toString, "--output", vsimOut.toString)
-        ++ defaultSimFlags ++ Seq("--no-timeout")
+        ++ referenceArgs() ++ defaultSimFlags ++ Seq("--no-timeout")
     )
     compare.runCompare(fsimOut / fName, vsimOut / vName)
     PathRef(Task.dest)
