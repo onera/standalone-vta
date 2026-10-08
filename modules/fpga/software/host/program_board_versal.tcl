@@ -48,9 +48,15 @@ connect
 # runs the PLM that applies the image. Selecting the device node instead makes
 # `device program` report "Multiple devices found" and list the PMC among the
 # candidates, which is the symptom that identifies this.
+#
+# The glob is anchored at the start on purpose. "*PMC*" also matches the RPU,
+# whose name carries its power state: with the low-power domain unpowered the
+# target is listed as "RPU (No PMC LPD power)", so the filter found two targets
+# and programming failed with "no unique PMC target". Whether it matches
+# therefore depends on board state, which is why this only shows up sometimes.
 puts "=== program PDI: $PDI ==="
 if {[catch {
-    eval targets -set -nocase -filter [list [tfilter {name =~ "*PMC*"}]]
+    eval targets -set -nocase -filter [list [tfilter {name =~ "PMC*"}]]
 } msg]} {
     puts "ERROR: no unique PMC target ($msg)"
     puts "  pass --jtag-cable <substring> (e.g. VCK190) to disambiguate."
@@ -80,7 +86,7 @@ after 15000
 # Programming itself goes through the PMC, selected again here because the reset
 # above moved the current target to the device node.
 if {[catch {
-    eval targets -set -nocase -filter [list [tfilter {name =~ "*PMC*"}]]
+    eval targets -set -nocase -filter [list [tfilter {name =~ "PMC*"}]]
 } msg]} {
     puts "ERROR: no unique PMC target after reset ($msg)"
     exit 1
