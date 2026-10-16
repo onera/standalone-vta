@@ -22,6 +22,7 @@
 
 #include <svdpi.h>
 #include <deque>
+#include <cstdlib>
 #include <cstring>
 
 using DRAM = vta::vmem::VirtualMemoryManager;
@@ -44,13 +45,54 @@ struct RdTxn {
   uint32_t addr;  // current byte address for the next beat
   uint8_t  len;   // remaining beats after this one (AXI: len=0 → 1 beat)
   uint8_t  id;
+  uint64_t ready;  // first cycle its data may be served
 };
 
 static std::deque<RdTxn> s_rq;            // pending / in-progress read bursts
 static uint32_t          s_wr_addr = 0;   // write burst current byte address
+static uint64_t          s_cycle   = 0;   // calls since start, one per clock
 // NOTE: we assume VTAMemDPIToAXI.sv serialises AW and W such that a new
 // wr_req_valid pulse never arrives before the previous burst's beats are
 // all delivered.  This matches the current Chisel-generated implementation.
+
+// Experimental: per-request read latency for VTAMemDPIToAXI, in cycles, from
+// VTA_DPI_RD_LAT. Unset or 0 keeps the original bridge timing exactly.
+extern "C" int VTAMemDPI_RdLat() {
+  static int lat = -1;
+  if (lat < 0) {
+    const char *v = std::getenv("VTA_DPI_RD_LAT");
+    lat = v ? std::atoi(v) : 0;
+    if (lat < 0) lat = 0;
+    if (lat > 65535) lat = 65535;
+  }
+  return lat;
+}
+
+// Experimental: write-response latency for VTAMemDPIToAXI, in cycles, from
+// VTA_DPI_WR_LAT. Unset or 0 keeps the original bridge timing exactly.
+extern "C" int VTAMemDPI_WrLat() {
+  static int lat = -1;
+  if (lat < 0) {
+    const char *v = std::getenv("VTA_DPI_WR_LAT");
+    lat = v ? std::atoi(v) : 0;
+    if (lat < 0) lat = 0;
+    if (lat > 65535) lat = 65535;
+  }
+  return lat;
+}
+
+// Experimental: pipelined reads, from VTA_DPI_RD_PIPE=1. The bridge then
+// forwards every read request at once and this model holds each one
+// VTA_DPI_RD_LAT cycles before serving its data, bursts in order, so requests
+// overlap up to the memory engine's own limit. Unset keeps the original timing.
+extern "C" int VTAMemDPI_RdPipe() {
+  static int pipe = -1;
+  if (pipe < 0) {
+    const char *v = std::getenv("VTA_DPI_RD_PIPE");
+    pipe = (v && std::atoi(v) != 0) ? 1 : 0;
+  }
+  return pipe;
+}
 
 void VTAMemDPI_Reset() {
   s_rq.clear();
@@ -68,6 +110,7 @@ extern "C" void VTAMemDPI(
 {
   *rd_valid = 0;
   *rd_id    = 0;
+  ++s_cycle;
 
   const int blockNb      = BlockNb(rd_value);
   const int bytesPerBeat = blockNb * kBytesPerWord;
@@ -86,6 +129,7 @@ extern "C" void VTAMemDPI(
     txn.addr = static_cast<uint32_t>(rd_req_addr);
     txn.len  = rd_req_len;
     txn.id   = rd_req_id;
+    txn.ready = s_cycle + (VTAMemDPI_RdPipe() ? VTAMemDPI_RdLat() : 0);
     s_rq.push_back(txn);
   }
 
@@ -127,7 +171,7 @@ extern "C" void VTAMemDPI(
   // -----------------------------------------------------------------------
   // 4. Serve read data from virtual memory (one beat per cycle)
   // -----------------------------------------------------------------------
-  if (!s_rq.empty()) {
+  if (!s_rq.empty() && s_cycle >= s_rq.front().ready) {
     RdTxn &front = s_rq.front();
 
     const uint8_t *mem = static_cast<const uint8_t *>(

@@ -39,8 +39,18 @@ module VTAMemDPI #
     output logic                 dpi_rd_valid,
     output logic [7:0]           dpi_rd_bits_id,
     output logic [DATA_BITS-1:0] dpi_rd_bits_data,
-    input                        dpi_rd_ready
+    input                        dpi_rd_ready,
+    output logic [15:0]          dpi_rd_lat,
+    output logic [15:0]          dpi_wr_lat,
+    output logic                 dpi_rd_pipe
   );
+
+  import "DPI-C" function int VTAMemDPI_RdLat();
+  always_ff @(posedge clock) dpi_rd_lat <= 16'(VTAMemDPI_RdLat());
+  import "DPI-C" function int VTAMemDPI_WrLat();
+  always_ff @(posedge clock) dpi_wr_lat <= 16'(VTAMemDPI_WrLat());
+  import "DPI-C" function int VTAMemDPI_RdPipe();
+  always_ff @(posedge clock) dpi_rd_pipe <= VTAMemDPI_RdPipe() != 0;
 
   import "DPI-C" function void VTAMemDPI
     (
