@@ -14,7 +14,7 @@
 # Honour $(CXX) from the environment (the pixi env exports it, pointing at the toolchain that verilator
 # also uses for the verilated archive) and fall back to g++ outside pixi.
 CXX             ?= g++
-CFLAGS           = -std=c++17 -lstdc++fs -Wall -g -MMD -MP
+CFLAGS           = -std=c++17 -lstdc++fs -Wall -g -MMD -MP -ffp-contract=off
 # CFLAGS         = -std=c++17 -lstdc++fs -fsanitize=address -g -MMD -MP
 DEBUGFLAG       ?= -DDEBUG_SIM=false
 RUNTIME_FLAGS   ?= 
@@ -23,7 +23,7 @@ VTA_COMPILER_OUTPUT ?= ../../../compiler_output
 VTA_SIMULATOR_OUTPUT ?=../../../simulators_output
 
 # Verilated objects sit on the per-cycle hot path - optimise for throughput.
-VERILATED_CFLAGS = -std=c++17 -O3 -fomit-frame-pointer -MMD -MP
+VERILATED_CFLAGS = -std=c++17 -O3 -fomit-frame-pointer -MMD -MP -ffp-contract=off
 PATH_DEFINES          = -DVTA_COMPILER_OUTPUT='"$(abspath $(VTA_COMPILER_OUTPUT))"' \
                         -DVTA_SIMULATOR_OUTPUT='"$(abspath $(VTA_SIMULATOR_OUTPUT))"'
 CFLAGS           += $(PATH_DEFINES)

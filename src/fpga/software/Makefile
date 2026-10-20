@@ -83,7 +83,7 @@ gen-test_gemm:
 FSIM_INC = ../../simulators/functional_simulator/include
 test-cpu-ops:
 	@mkdir -p build
-	$(CXX) -std=c++17 -O2 -Wall -Wno-unused \
+	$(CXX) -std=c++17 -O2 -Wall -Wno-unused -ffp-contract=off \
 		test/test_cpu_ops.cc driver/src/vta_cpu_ops.cc \
 		-Itest/host -Idriver/include -I$(FSIM_INC) \
 		-o build/test_cpu_ops

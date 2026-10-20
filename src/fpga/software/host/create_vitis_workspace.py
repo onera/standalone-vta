@@ -361,6 +361,7 @@ def _patch_user_config(
             'file(GLOB _asm_sources "${CMAKE_CURRENT_SOURCE_DIR}/*.S")\n'
             "set(USER_COMPILE_SOURCES ${_drv_sources} ${_asm_sources})\n"
             f'set(USER_COMPILE_DEFINITIONS "{defines_str}")\n'
+            "add_compile_options(-ffp-contract=off)\n"
         )
     print(
         f"[copy] Added driver paths and definitions [{defines_str}] to UserConfig.cmake."

@@ -1,4 +1,5 @@
 from typing import Dict, List, Optional, Tuple, Any
+import json
 import os
 import sys
 import subprocess
@@ -12,7 +13,11 @@ compiler_dir: str = os.path.join(standalone_vta_dir, "src/compiler")
 
 sys.path.append(compiler_dir)
 
-from utils.numpy_implementation import NumPyReferenceEngine, get_node_attribute
+from utils.numpy_implementation import (
+    NumPyReferenceEngine,
+    float32_reciprocal,
+    get_node_attribute,
+)
 from utils.find_project_root import compiler_output_setup, filepath_definition
 from utils.read_csv import load_csv_to_dict
 
@@ -140,6 +145,188 @@ def debug_maxpool_mismatches(
             print(f"     Mismatch #{m_idx + 1} at NCHW ({b}, {c}, {h_out}, {w_out}): Ref = {r_val}, Sim = {s_val} (Diff: {r_val - s_val:+d})")
 
 
+def unblock_vta_output(raw: np.ndarray, shape: Tuple[int, ...], block_size: int = 16) -> np.ndarray:
+    """Converts a square VTA block stream to a logical NCHW tensor.
+
+    Args:
+        raw: Flat values ordered as ``[row_block, col_block, row, col]``.
+        shape: Logical NCHW tensor shape.
+        block_size: VTA tensor block dimension.
+
+    Returns:
+        Logical tensor cropped to its unpadded dimensions.
+
+    Raises:
+        ValueError: If the raw element count does not match the padded shape.
+    """
+    batch, channels, height, width = shape
+    logical_rows = batch * height * width
+    padded_rows = ((logical_rows + block_size - 1) // block_size) * block_size
+    padded_channels = ((channels + block_size - 1) // block_size) * block_size
+    expected_size = padded_rows * padded_channels
+    if raw.size != expected_size:
+        raise ValueError(f"Expected {expected_size} blocked values, got {raw.size}.")
+    blocks = raw.reshape(
+        padded_rows // block_size,
+        padded_channels // block_size,
+        block_size,
+        block_size,
+    )
+    matrix = blocks.transpose(0, 2, 1, 3).reshape(padded_rows, padded_channels)
+    logical = matrix[:logical_rows, :channels]
+    return logical.reshape(batch, height, width, channels).transpose(0, 3, 1, 2)
+
+
+def debug_quantized_mismatches(
+    node: Any,
+    tensors: Dict[str, np.ndarray],
+    mismatch_indices: Tuple[np.ndarray, ...],
+    max_print: int = 5,
+) -> None:
+    """Prints embedded-contract intermediates for quantized mismatches.
+
+    Args:
+        node: ONNX node whose output differs.
+        tensors: Reference-engine tensor mapping, including initializers.
+        mismatch_indices: Coordinates of differing output elements.
+        max_print: Maximum number of mismatch calculations to print.
+    """
+    if node.op_type not in {
+        "QLinearAdd",
+        "QLinearMul",
+        "QLinearConcat",
+        "QuantizeLinear",
+        "QLinearConv",
+    }:
+        return
+    print("     Embedded arithmetic breakdown:")
+    for mismatch_idx in range(min(max_print, len(mismatch_indices[0]))):
+        coords = tuple(int(dim[mismatch_idx]) for dim in mismatch_indices)
+        if node.op_type == "QLinearAdd":
+            a = int(tensors[node.input[0]][coords])
+            za = int(np.asarray(tensors[node.input[2]]).reshape(()))
+            b = int(tensors[node.input[3]][coords])
+            zb = int(np.asarray(tensors[node.input[5]]).reshape(()))
+            sa = np.float32(tensors[node.input[1]])
+            sb = np.float32(tensors[node.input[4]])
+            sc = np.float32(tensors[node.input[6]])
+            inv_c = float32_reciprocal(sc)
+            multiplier_a = np.float32(sa * inv_c)
+            multiplier_b = np.float32(sb * inv_c)
+            term_a = np.float32((a - za) * multiplier_a)
+            term_b = np.float32((b - zb) * multiplier_b)
+            scaled = np.float32(term_a + term_b)
+            distance = abs(float(scaled - np.floor(scaled)) - 0.5)
+            print(
+                f"       {coords}: A={a}, B={b}, centered=({a-za},{b-zb}), "
+                f"invC={inv_c!r}, multipliers=({multiplier_a!r},{multiplier_b!r}), "
+                f"terms=({term_a!r},{term_b!r}), pre-round={scaled!r}, "
+                f"distance-to-half={distance:.9g}"
+            )
+        elif node.op_type == "QLinearMul":
+            a = int(np.asarray(tensors[node.input[0]])[coords] if tensors[node.input[0]].size > 1 else np.asarray(tensors[node.input[0]]).reshape(-1)[0])
+            b = int(np.asarray(tensors[node.input[3]])[coords] if tensors[node.input[3]].size > 1 else np.asarray(tensors[node.input[3]]).reshape(-1)[0])
+            za = int(np.asarray(tensors[node.input[2]]).reshape(()))
+            zb = int(np.asarray(tensors[node.input[5]]).reshape(()))
+            scale = np.float32(
+                np.float32(np.float32(tensors[node.input[1]]) * np.float32(tensors[node.input[4]]))
+                / np.float32(tensors[node.input[6]])
+            )
+            accumulator = (a - za) * (b - zb)
+            scaled = float(accumulator) * float(scale)
+            print(
+                f"       {coords}: centered=({a-za},{b-zb}), accumulator={accumulator}, "
+                f"multiplier={scale!r}, pre-round={scaled!r}"
+            )
+        elif node.op_type == "QLinearConcat":
+            output_channel = coords[1]
+            branch_start = 0
+            inv_scale = float32_reciprocal(tensors[node.input[0]])
+            for input_idx in range(2, len(node.input), 3):
+                branch = tensors[node.input[input_idx]]
+                branch_channels = branch.shape[1]
+                if output_channel < branch_start + branch_channels:
+                    branch_coords = list(coords)
+                    branch_coords[1] -= branch_start
+                    branch_coords_tuple = tuple(branch_coords)
+                    value = int(branch[branch_coords_tuple])
+                    zero_point = int(
+                        np.asarray(tensors[node.input[input_idx + 2]]).reshape(())
+                    )
+                    multiplier = np.float32(
+                        np.float32(tensors[node.input[input_idx + 1]]) * inv_scale
+                    )
+                    scaled = np.float32((value - zero_point) * multiplier)
+                    distance = abs(float(scaled - np.floor(scaled)) - 0.5)
+                    print(
+                        f"       {coords}: branch={(input_idx-2)//3}, value={value}, "
+                        f"centered={value-zero_point}, multiplier={multiplier!r}, "
+                        f"pre-round={scaled!r}, distance-to-half={distance:.9g}"
+                    )
+                    break
+                branch_start += branch_channels
+        elif node.op_type == "QuantizeLinear":
+            value = np.float32(tensors[node.input[0]][coords])
+            inv_scale = float32_reciprocal(tensors[node.input[1]])
+            scaled = np.float32(value * inv_scale)
+            distance = abs(float(scaled - np.floor(scaled)) - 0.5)
+            print(
+                f"       {coords}: value={value!r}, inv-scale={inv_scale!r}, "
+                f"pre-round={scaled!r}, distance-to-half={distance:.9g}"
+            )
+        else:
+            print(f"       {coords}: see pre-rescale accumulator comparison above.")
+
+
+def compare_float_layer_outputs(
+    ref_val: np.ndarray,
+    sim_val: np.ndarray,
+    layer_name: str,
+    idx: int,
+) -> bool:
+    """Compares float32 tensors by IEEE-754 bit patterns, without tolerance.
+
+    Args:
+        ref_val: Logical NCHW reference tensor with dtype float32.
+        sim_val: Logical NCHW simulator tensor with dtype float32.
+        layer_name: Layer identifier used in the printed report.
+        idx: Zero-based graph node index.
+
+    Returns:
+        True only when every float32 bit pattern agrees, including signed zero
+        and NaN payloads. Numerical errors are printed only as diagnostics.
+    """
+    ref_bits = ref_val.view(np.uint32)
+    sim_bits = sim_val.view(np.uint32)
+    mismatched = ref_bits != sim_bits
+    count = int(np.count_nonzero(mismatched))
+    if count == 0:
+        print(f"[{idx:02d}] {layer_name:18s}: MATCH (shape: {ref_val.shape}, float32 bits)")
+        return True
+
+    # Subtract in float64 for diagnostics; never cast fractional values to
+    # integers or apply a tolerance to the actual equality decision.
+    with np.errstate(invalid="ignore", over="ignore"):
+        abs_diff = np.abs(ref_val.astype(np.float64) - sim_val.astype(np.float64))
+    finite_diff = abs_diff[np.isfinite(abs_diff)]
+    max_diff = float(np.max(finite_diff)) if finite_diff.size else float("nan")
+    print(
+        f"[{idx:02d}] {layer_name:18s}: MISMATCH! Shape: {ref_val.shape}, "
+        f"float32 bit mismatches: {count}/{ref_val.size}, "
+        f"Max finite abs diff: {max_diff:.9g}"
+    )
+    coordinates = np.where(mismatched)
+    for mismatch_idx in range(min(5, count)):
+        coords = tuple(int(axis[mismatch_idx]) for axis in coordinates)
+        print(
+            f"       at NCHW {coords}: "
+            f"Ref={float(ref_val[coords]):.9g} (0x{int(ref_bits[coords]):08x}), "
+            f"Sim={float(sim_val[coords]):.9g} (0x{int(sim_bits[coords]):08x}), "
+            f"abs diff={float(abs_diff[coords]):.9g}"
+        )
+    return False
+
+
 def compare_layer_outputs(
     ref_val: np.ndarray,
     sim_val: np.ndarray,
@@ -147,6 +334,7 @@ def compare_layer_outputs(
     idx: int,
     node: Any = None,
     input_val: Optional[np.ndarray] = None,
+    tensors: Optional[Dict[str, np.ndarray]] = None,
 ) -> bool:
     """Compares the reference NumPy tensor with the simulator output tensor.
 
@@ -157,10 +345,21 @@ def compare_layer_outputs(
         idx: Index of the node in the execution graph.
         node: Optional ONNX graph node.
         input_val: Optional input array to this layer.
+        tensors: Optional reference tensor mapping used for arithmetic diagnostics.
 
     Returns:
         bool: True if tensors are bit-exact equal, False otherwise.
     """
+    if ref_val.shape != sim_val.shape or ref_val.dtype != sim_val.dtype:
+        print(
+            f"[{idx:02d}] {layer_name:18s}: MISMATCH! "
+            f"Ref shape/dtype={ref_val.shape}/{ref_val.dtype}, "
+            f"Sim shape/dtype={sim_val.shape}/{sim_val.dtype}"
+        )
+        return False
+    if ref_val.dtype == np.dtype(np.float32):
+        return compare_float_layer_outputs(ref_val, sim_val, layer_name, idx)
+
     is_equal: bool = np.array_equal(ref_val, sim_val)
     if is_equal:
         print(f"[{idx:02d}] {layer_name:18s}: MATCH (shape: {ref_val.shape})")
@@ -198,6 +397,8 @@ def compare_layer_outputs(
     # If it is a MaxPool layer, print detailed window-by-window breakdown
     if node is not None and node.op_type == "MaxPool":
         debug_maxpool_mismatches(ref_val, sim_val, input_val, node, mismatch_indices, max_print=5)
+    if node is not None and tensors is not None:
+        debug_quantized_mismatches(node, tensors, mismatch_indices, max_print=5)
 
     return False
 
@@ -244,6 +445,12 @@ def main() -> None:
 
     all_matched: bool = True
     executed_layers_count: int = 0
+    # run_pipeline uses this same hardware configuration. Do not assume B=16
+    # when decoding the pre-rescale stream of a different VTA configuration.
+    with open(os.path.join(standalone_vta_dir, "config/vta_config.json"), encoding="utf-8") as config_file:
+        hardware_config = json.load(config_file)
+    block_size = 1 << int(hardware_config["LOG_BLOCK"])
+    output_bits = 1 << int(hardware_config["LOG_OUT_WIDTH"])
 
     for idx, node in enumerate(engine.graph.node):
         op_type: str = node.op_type
@@ -256,6 +463,28 @@ def main() -> None:
 
         ref_val: np.ndarray = engine.tensors[output_name]
 
+        if output_name in engine.integer_accumulators:
+            raw_acc_path = os.path.join(sim_out_dir, f"output{layer_name}.bin")
+            if os.path.exists(raw_acc_path):
+                expected_acc = engine.integer_accumulators[output_name]
+                rows = ref_val.shape[0] * ref_val.shape[2] * ref_val.shape[3]
+                padded_rows = ((rows + block_size - 1) // block_size) * block_size
+                padded_channels = ((ref_val.shape[1] + block_size - 1) // block_size) * block_size
+                padded_count = padded_rows * padded_channels
+                if output_bits == 32 and os.path.getsize(raw_acc_path) == padded_count * np.dtype(np.int32).itemsize:
+                    raw_acc = np.fromfile(raw_acc_path, dtype=np.int32)
+                    sim_acc = unblock_vta_output(raw_acc, ref_val.shape, block_size)
+                    acc_equal = np.array_equal(expected_acc, sim_acc)
+                    acc_mismatches = int(np.count_nonzero(expected_acc != sim_acc))
+                    status = "MATCH" if acc_equal else f"MISMATCH ({acc_mismatches})"
+                    print(f"     Pre-rescale accumulator: {status}")
+                    # Saturation can hide an incorrect accumulator in the
+                    # int8 result; this check must affect the exit status too.
+                    if not acc_equal:
+                        all_matched = False
+                else:
+                    print("     Pre-rescale accumulator: NOT CHECKED (OUT width or dump size)")
+
         # Retrieve input tensor to this node
         input_tensor_name = node.input[0]
         layer_input_val: Optional[np.ndarray] = engine.tensors.get(input_tensor_name, None)
@@ -266,14 +495,34 @@ def main() -> None:
             sim_path = os.path.join(output_dir, f"fsim_out_{layer_name}.bin")
 
         if not os.path.exists(sim_path):
-            print(f"[{idx:02d}] {layer_name:18s}: [WARNING] Output file 'fsim_out_{layer_name}.bin' not found. Skipped.")
+            print(f"[{idx:02d}] {layer_name:18s}: FAILURE: Output file 'fsim_out_{layer_name}.bin' not found.")
+            all_matched = False
             continue
 
-        sim_val: np.ndarray = np.fromfile(sim_path, dtype=np.int8).reshape(ref_val.shape)
+        # The file contains NCHW int8 for quantized nodes and NCHW IEEE-754
+        # float32 for DequantizeLinear/ConvTranspose. No header is added: the
+        # operator fixes the dtype, and the logical tensor fixes its byte count.
+        dump_dtype = np.dtype(np.float32 if op_type in {"DequantizeLinear", "ConvTranspose"} else np.int8)
+        expected_bytes = ref_val.size * dump_dtype.itemsize
+        actual_bytes = os.path.getsize(sim_path)
+        if actual_bytes != expected_bytes:
+            print(
+                f"[{idx:02d}] {layer_name:18s}: FAILURE: dump size "
+                f"{actual_bytes} bytes, expected {expected_bytes} ({dump_dtype})."
+            )
+            all_matched = False
+            continue
+        sim_val: np.ndarray = np.fromfile(sim_path, dtype=dump_dtype).reshape(ref_val.shape)
         executed_layers_count += 1
 
         matched: bool = compare_layer_outputs(
-            ref_val, sim_val, layer_name, idx, node=node, input_val=layer_input_val
+            ref_val,
+            sim_val,
+            layer_name,
+            idx,
+            node=node,
+            input_val=layer_input_val,
+            tensors=engine.tensors,
         )
         if not matched:
             all_matched = False

@@ -91,6 +91,18 @@ These are handled but run on the CPU: `QLinearAdd`, `QuantizeLinear`,
 `DequantizeLinear`, `QLinearConcat`, `ConvTranspose`. Any other operator is
 silently skipped.
 
+The exact scale precision, operation order, rounding, saturation, and embedded
+operator subset are defined in
+[`doc/QUANTIZED_ARITHMETIC_CONTRACT.md`](../../doc/QUANTIZED_ARITHMETIC_CONTRACT.md).
+The NumPy engine intentionally mirrors that embedded contract rather than an
+arbitrary ONNX Runtime execution provider.
+
+The trained LeNet-5, VGG16, and ResNet-18 QLinear models pass layer-wise
+NumPy/fsim checks, including pre-rescale convolution accumulators. GoogLeNet
+currently fails compilation at its first Inception concat because the frontend
+requires equal channel counts across branches. Detailed results and commands
+are recorded in the arithmetic contract linked above.
+
 Note that `AveragePool` is **not** supported through the ONNX front-end
 (`nn_compiler/nodes/node_pool.py` accepts `MaxPool` only), even though the
 `operations_definition` examples include a hand-written average-pooling

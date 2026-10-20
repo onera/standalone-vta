@@ -596,6 +596,18 @@ call it as their first statement.
 caches, program VCR registers, launch VTA, poll for completion, and invalidate
 the output cache.
 
+The arithmetic in `vta_cpu_ops.cc` is the authoritative implementation of the
+project's [bit-exact quantized arithmetic contract](../../../doc/QUANTIZED_ARITHMETIC_CONTRACT.md).
+The host `test-cpu-ops` target compiles this real driver source and checks it
+against fsim, including QAdd, concat, quantize/dequantize and accumulator
+rescaling edge cases.
+
+LeNet-5 has also been validated on FPGA by the project maintainer. The trained
+VGG16 and ResNet-18 models have passed host NumPy/fsim comparisons; those
+results do not establish board validation. GoogLeNet is blocked by unequal
+concat branch shapes during compilation. See the contract's validation table
+for the tested inputs, coverage, and hardware-validation limits.
+
 ---
 
 ## Host tooling

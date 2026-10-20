@@ -8,6 +8,11 @@
 // dims, spatial padding (incl. asymmetric), strides, and nonzero zero-points.
 //
 // Oracles (all from cpu_functions.h):
+//   run_qadd       <-> qlinear_add
+//   run_concat     <-> qlinear_concat
+//   run_dequant    <-> dequantize_linear
+//   run_quant      <-> quantize_linear
+//   run_rescale    <-> rescaling
 //   run_im2row      <-> reshape(convert<inp>(block_src), ...)
 //   run_format_input<-> reshape(convert<inp>(data_formatting(raw_hwc)), ...)
 //   run_int32_chain  : no pad -> subtract_offset(convert<acc>(src))
@@ -16,8 +21,8 @@
 // The ops cast their uint32 DRAM-address fields to pointers, so two scratch
 // regions are mmap'd MAP_FIXED at low (32-bit-representable) addresses.
 //
-// Exercises the 32-bit datapath only (stub vta_hw_config.h: int32 elements);
-// the int8 datapath is out of scope here.
+// The VTA datapath stub uses int32 elements; CPU activations and quantized
+// operator outputs additionally exercise the compact int8 path.
 //
 // Build/run:  cd src/fpga/software && make test-cpu-ops
 
@@ -26,6 +31,7 @@
 #include "vta_hw_config.h" // stub: vta_*_t element types + VTA_BLOCK_SIZE
 
 #include <cmath>
+#include <cstring>
 #include <cstdint>
 #include <cstdio>
 #include <random>
@@ -76,6 +82,29 @@ void check(const std::string &name, const std::vector<std::int32_t> &ref) {
     ++g_failures;
 }
 
+// Compare an int8 result at an explicit emulated DDR address.
+void check_i8_at(const std::string &name, const std::vector<std::int8_t> &ref,
+                 std::uintptr_t address) {
+  const auto *got = reinterpret_cast<const std::int8_t *>(address);
+  int mm = 0;
+  for (std::size_t i = 0; i < ref.size(); ++i) {
+    if (got[i] != ref[i]) {
+      if (mm < 3)
+        std::printf("    [%zu] got=%d exp=%d\n", i, static_cast<int>(got[i]),
+                    static_cast<int>(ref[i]));
+      ++mm;
+    }
+  }
+  std::printf("  %-44s ref=%-6zu mm=%-5d %s\n", name.c_str(), ref.size(), mm,
+              mm ? "FAIL" : "PASS");
+  if (mm)
+    ++g_failures;
+}
+
+void check_i8(const std::string &name, const std::vector<std::int8_t> &ref) {
+  check_i8_at(name, ref, kDst);
+}
+
 // Compare driver float output (at DST) against the reference vector.  The op
 // mirrors the reference arithmetic in the same order, so the match is expected
 // to be exact; a tiny tolerance guards against benign FP-contraction
@@ -98,6 +127,143 @@ void check_f(const std::string &name, const std::vector<float> &ref) {
               ref.size(), mm, maxd, mm ? "FAIL" : "PASS");
   if (mm)
     ++g_failures;
+}
+
+// Float CPU ops use an explicitly ordered float32 contract, so require the
+// exact IEEE-754 bit pattern instead of a numerical tolerance.
+void check_f_bits(const std::string &name, const std::vector<float> &ref) {
+  const auto *got = reinterpret_cast<const float *>(kDst);
+  int mm = 0;
+  for (std::size_t i = 0; i < ref.size(); ++i) {
+    std::uint32_t got_bits = 0u, ref_bits = 0u;
+    std::memcpy(&got_bits, &got[i], sizeof(got_bits));
+    std::memcpy(&ref_bits, &ref[i], sizeof(ref_bits));
+    if (got_bits != ref_bits) {
+      if (mm < 3)
+        std::printf("    [%zu] got=%g (0x%08x) exp=%g (0x%08x)\n", i,
+                    got[i], got_bits, ref[i], ref_bits);
+      ++mm;
+    }
+  }
+  std::printf("  %-44s ref=%-6zu mm=%-5d %s\n", name.c_str(), ref.size(), mm,
+              mm ? "FAIL" : "PASS");
+  if (mm)
+    ++g_failures;
+}
+
+void test_qadd() {
+  constexpr int B = VTA_BLOCK_SIZE;
+  // Use one complete row block so all physical values are logical values. The
+  // separate layout tests cover partial spatial blocks.
+  std::vector<std::int8_t> flat_a(B * B), flat_b(B * B);
+  for (int i = 0; i < B * B; ++i) {
+    flat_a[i] = static_cast<std::int8_t>(-39 + i);
+    flat_b[i] = static_cast<std::int8_t>(26 - i);
+  }
+  auto blocked_a = data_formatting(flat_a, B, B, B, true);
+  auto blocked_b = data_formatting(flat_b, B, B, B, true);
+  const std::vector<int> shape = {1, B, B, 1};
+  const float sA = 0.011274928227066994f;
+  const float sB = 0.011537629179656506f;
+  const float sC = 0.01993020437657833f;
+  auto ref = qlinear_add(blocked_a, blocked_b, shape, shape, sA, -128, sB,
+                         -128, sC, -128, B);
+
+  auto *a = reinterpret_cast<std::int8_t *>(kSrc);
+  auto *b = reinterpret_cast<std::int8_t *>(kSrc + 0x100000u);
+  std::copy(blocked_a.begin(), blocked_a.end(), a);
+  std::copy(blocked_b.begin(), blocked_b.end(), b);
+  NnQaddStep st{};
+  st.inpA = static_cast<std::uint32_t>(kSrc);
+  st.inpB = static_cast<std::uint32_t>(kSrc + 0x100000u);
+  st.out = static_cast<std::uint32_t>(kDst);
+  st.n_elems = static_cast<std::uint32_t>(ref.size());
+  st.sA = sA;
+  st.sB = sB;
+  st.sC = sC;
+  st.zA = -128;
+  st.zB = -128;
+  st.zC = -128;
+  vta::run_qadd(st);
+  check_i8("qadd precomputed ratios (QYolo tie)", ref);
+}
+
+void test_concat() {
+  constexpr int B = VTA_BLOCK_SIZE;
+  constexpr int H = B;
+  std::vector<std::int8_t> flat_a(B * H), flat_b(B * H);
+  for (int i = 0; i < B * H; ++i) {
+    flat_a[i] = static_cast<std::int8_t>((i % 31) - 15);
+    flat_b[i] = static_cast<std::int8_t>(15 - (i % 29));
+  }
+  auto blocked_a = data_formatting(flat_a, H, B, B, true);
+  auto blocked_b = data_formatting(flat_b, H, B, B, true);
+  std::vector<std::vector<std::int8_t>> inputs = {blocked_a, blocked_b};
+  std::vector<std::vector<int>> shapes = {{1, B, H, 1}, {1, B, H, 1}};
+  std::vector<float> scales = {0.25f, 1.0f};
+  std::vector<std::int32_t> zps = {-3, 5};
+  auto ref = qlinear_concat(inputs, shapes, scales, zps, 0.5f, -1, 1, B);
+
+  std::copy(blocked_a.begin(), blocked_a.end(),
+            reinterpret_cast<std::int8_t *>(kSrc));
+  std::copy(blocked_b.begin(), blocked_b.end(),
+            reinterpret_cast<std::int8_t *>(kSrc + 0x100000u));
+  NnConcatStep st{};
+  st.inp[0] = static_cast<std::uint32_t>(kSrc);
+  st.inp[1] = static_cast<std::uint32_t>(kSrc + 0x100000u);
+  st.out = static_cast<std::uint32_t>(kDst);
+  st.n_rows = H;
+  st.n_ch_per_inp = B;
+  st.nb_inp = 2;
+  st.scales[0] = scales[0];
+  st.scales[1] = scales[1];
+  st.zps[0] = zps[0];
+  st.zps[1] = zps[1];
+  st.out_scale = 0.5f;
+  st.out_zp = -1;
+  st.block = B;
+  vta::run_concat(st);
+  check_i8("concat per-branch precomputed multiplier", ref);
+}
+
+void test_dequant_quant() {
+  const std::vector<std::int8_t> quantized = {-128, -5, -1, 0, 3, 17, 127};
+  std::copy(quantized.begin(), quantized.end(),
+            reinterpret_cast<std::int8_t *>(kSrc));
+  NnDequantStep dequant{};
+  dequant.inp_addr = static_cast<std::uint32_t>(kSrc);
+  dequant.n_elems = static_cast<std::uint32_t>(quantized.size());
+  dequant.scale = 0.125f;
+  dequant.zp = -3;
+  auto dequant_ref = dequantize_linear(quantized, dequant.scale, dequant.zp);
+  vta::run_dequant(dequant, reinterpret_cast<float *>(kDst));
+  check_f_bits("dequant explicit float32", dequant_ref);
+
+  const std::vector<float> values = {-1000.0f, -0.625f, -0.375f, 0.375f,
+                                     0.625f, 1000.0f};
+  NnQuantStep quant{};
+  quant.out_addr = static_cast<std::uint32_t>(kDst);
+  quant.n_elems = static_cast<std::uint32_t>(values.size());
+  quant.scale = 0.25f;
+  quant.zp = 1;
+  auto quant_ref_i32 = quantize_linear(values, quant.scale, quant.zp);
+  auto quant_ref = convert_vector_type<std::int8_t>(quant_ref_i32);
+  vta::run_quant(quant, values.data());
+  check_i8("quant reciprocal + nearest-even", quant_ref);
+}
+
+void test_rescale() {
+  const std::vector<std::int32_t> values = {-1000, -5, -3, 3, 5, 1000};
+  auto *src = reinterpret_cast<std::int32_t *>(kSrc);
+  std::copy(values.begin(), values.end(), src);
+  NnRescaleStep st{};
+  st.addr = static_cast<std::uint32_t>(kSrc);
+  st.n_elems = static_cast<std::uint32_t>(values.size());
+  st.scale = 0.5f;
+  st.offset = -1;
+  auto ref = rescaling(values, static_cast<double>(st.scale), st.offset);
+  vta::run_rescale(st);
+  check_i8_at("int32 accumulator rescale", ref, kSrc);
 }
 
 struct ConvCfg {
@@ -310,7 +476,7 @@ void test_convtranspose(const ConvTCfg &c, std::mt19937 &rng) {
   std::snprintf(nm, sizeof(nm),
                 "convT Cin=%d %dx%d->Cout=%d k%d s%d pad{%d,%d} b%d", c.Cin,
                 c.Hin, c.Win, c.Cout, c.k, c.stride, c.pt, c.pl, c.bias);
-  check_f(nm, ref);
+  check_f_bits(nm, ref);
 }
 
 } // namespace
@@ -328,6 +494,12 @@ int main() {
   }
 
   std::mt19937 rng(0xC0FFEE);
+
+  std::printf("== quantized arithmetic contract ==\n");
+  test_qadd();
+  test_concat();
+  test_dequant_quant();
+  test_rescale();
 
   // C: 1 (image), 3, 6 (sub-block), 16 (exact), 20 (partial multi-block), 120.
   const ConvCfg conv[] = {

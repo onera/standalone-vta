@@ -686,8 +686,15 @@ int run_nn(const FsimOptions &opts) {
       );
     }
 
-    // Dump rescaled NCHW output if requested
-    if (dump_layers && !ctx.res.empty()) {
+    // Dump logical NCHW values, retaining the arithmetic dtype. Floating CPU
+    // intermediates live in ctx.value in the same blocked layout as ctx.res;
+    // output_tensor<float> removes block padding without quantizing values.
+    if (dump_layers && (processor == "dequant" || processor == "convtranspose")) {
+      output_tensor(
+          ctx.value, block_size, 1, out_tensor_channel, out_tensor_height,
+          out_tensor_width,
+          construct_sim_output_path("fsim_out_" + ctx.suffix + ".bin"));
+    } else if (dump_layers && !ctx.res.empty()) {
       output_tensor(
           ctx.res, block_size, 1, out_tensor_channel, out_tensor_height,
           out_tensor_width,

@@ -31,17 +31,20 @@ void run_qadd(const NnQaddStep &d) {
     xil_printf("[vta] run_qadd: zero output scale\r\n");
     return;
   }
-  /* fsim folds qadd into outC=nearbyint((X*sA+Y*sB)/sC) then rescale ×1.0 with
-     offset zC. Done in one pass here (add zC, clamp int8) so qadd is complete
-     with no trailing rescale step. */
+  /* Precompute both effective multipliers once per layer.  This avoids every
+     element-wise division and one multiplication compared with separately
+     dequantizing both inputs before applying 1/sC. */
   const float inv_sC = 1.0f / d.sC;
+  const float multiplier_a = d.sA * inv_sC;
+  const float multiplier_b = d.sB * inv_sC;
   for (std::uint32_t i = 0u; i < d.n_elems; ++i) {
-    float fa =
-        d.sA * static_cast<float>(static_cast<std::int32_t>(a[i]) - d.zA);
-    float fb =
-        d.sB * static_cast<float>(static_cast<std::int32_t>(b[i]) - d.zB);
+    const std::int32_t centered_a = static_cast<std::int32_t>(a[i]) - d.zA;
+    const std::int32_t centered_b = static_cast<std::int32_t>(b[i]) - d.zB;
+    const float term_a = static_cast<float>(centered_a) * multiplier_a;
+    const float term_b = static_cast<float>(centered_b) * multiplier_b;
+    const float scaled = term_a + term_b;
     std::int64_t q =
-        static_cast<std::int64_t>(std::nearbyintf((fa + fb) * inv_sC)) + d.zC;
+        static_cast<std::int64_t>(std::nearbyintf(scaled)) + d.zC;
     c[i] = clamp_i8(q);
   }
 }
@@ -77,12 +80,11 @@ void run_concat(const NnConcatStep &d) {
         const std::int8_t *s_blk = src + cb * blk2;
         std::int8_t *d_blk = dst + cb * blk2;
         for (std::uint32_t e = 0u; e < blk2; ++e) {
+          const std::int32_t centered =
+              static_cast<std::int32_t>(s_blk[e]) - d.zps[p];
+          const float scaled = static_cast<float>(centered) * rescale_p;
           std::int64_t q =
-              static_cast<std::int64_t>(std::nearbyintf(
-                  rescale_p *
-                  static_cast<float>(static_cast<std::int32_t>(s_blk[e]) -
-                                     d.zps[p]))) +
-              d.out_zp;
+              static_cast<std::int64_t>(std::nearbyintf(scaled)) + d.out_zp;
           d_blk[e] = clamp_i8(q);
         }
       }

@@ -445,6 +445,27 @@ def convtranspose(node, param={}, node_mapping={}, node_info={}, filename='',
 
     # Get the attributes
     # ---
+    group = int(attributes_dict.get('group', 1))
+    dilations = tuple(attributes_dict.get('dilations', [1, 1]))
+    output_padding = tuple(attributes_dict.get('output_padding', [0, 0]))
+    strides = tuple(attributes_dict.get('strides', [1, 1]))
+    if group != 1:
+        raise ValueError(
+            f"ERROR (in {filename}): embedded ConvTranspose only supports group=1, got {group}."
+        )
+    if dilations != (1, 1):
+        raise ValueError(
+            f"ERROR (in {filename}): embedded ConvTranspose only supports dilations=(1, 1), got {dilations}."
+        )
+    if output_padding != (0, 0):
+        raise ValueError(
+            f"ERROR (in {filename}): embedded ConvTranspose only supports output_padding=(0, 0), got {output_padding}."
+        )
+    if strides[0] != strides[1]:
+        raise ValueError(
+            f"ERROR (in {filename}): embedded ConvTranspose requires equal strides, got {strides}."
+        )
+
     nc = inp_tensor_shape[1]
     nh = inp_tensor_shape[2]
     nw = inp_tensor_shape[3]
@@ -459,8 +480,8 @@ def convtranspose(node, param={}, node_mapping={}, node_info={}, filename='',
     if (fh != attributes_dict['kernel_shape'][0] or fw != attributes_dict['kernel_shape'][1]):
         raise Exception(f"ERROR (in {filename}): Kernel size not consistent! \n")
 
-    sh = attributes_dict['strides'][0]
-    sw = attributes_dict['strides'][1]
+    sh = strides[0]
+    sw = strides[1]
 
     # attributes_dict['pads'] = [TOP, LEFT, BOTTOM, RIGHT]
     if ('pads' in attributes_dict):
@@ -488,7 +509,7 @@ def convtranspose(node, param={}, node_mapping={}, node_info={}, filename='',
 
     # BIAS
     if (isBias < 0):
-        acc_tensor = np.zeros((1, accX_tensor_shape[2]), dtype=np.float32)
+        acc_tensor = np.zeros((mc,), dtype=np.float32)
 
     
     # ---

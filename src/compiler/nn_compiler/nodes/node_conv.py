@@ -314,7 +314,9 @@ def node_conv(node, param={}, node_mapping={}, node_info={}, filename='',
         "output_shape": out_tensor_shape,
         "offsetC": C_zp,
         "scaleC": C_scale,
-        "rescaling": (A_scale * B_scale)/C_scale
+        "rescaling": np.float32(
+            (np.float32(A_scale) * np.float32(B_scale)) / np.float32(C_scale)
+        )
     })
 
     return vta_ir, node_info
@@ -442,6 +444,14 @@ def node_mulconstant(node, param={}, node_mapping={}, node_info={}, filename='',
 
     # Get the attributes
     # ---
+    if isInpGet < 0 or isScalarGet < 0:
+        raise ValueError(
+            f"ERROR (in {filename}): embedded QLinearMul requires exactly "
+            "one dynamic tensor and one scalar initializer."
+        )
+    if np.asarray(C_scale, dtype=np.float32).item() == 0.0:
+        raise ValueError(f"ERROR (in {filename}): output scale cannot be zero.")
+
     nc = inp_tensor_shape[1]
     nh = inp_tensor_shape[2]
     nw = inp_tensor_shape[3]
@@ -531,8 +541,9 @@ def node_mulconstant(node, param={}, node_mapping={}, node_info={}, filename='',
         "output_shape": out_tensor_shape,
         "offsetC": C_zp,
         "scaleC": C_scale,
-        "rescaling": (A_scale * B_scale)/C_scale
+        "rescaling": np.float32(
+            (np.float32(A_scale) * np.float32(B_scale)) / np.float32(C_scale)
+        )
     })
 
     return vta_ir, node_info
-

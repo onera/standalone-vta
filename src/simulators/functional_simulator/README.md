@@ -213,6 +213,17 @@ surfaces it.
 ./build/fsim --dump-layers       # writes simulators_output/input<layer>.bin / output<layer>.bin
 ```
 
+Quantized CPU operations and the post-VTA rescale follow the bit-exact contract
+in [`doc/QUANTIZED_ARITHMETIC_CONTRACT.md`](../../../doc/QUANTIZED_ARITHMETIC_CONTRACT.md).
+`output<layer>.bin` is the raw VTA output before requantization, while
+`fsim_out_<layer>.bin` is the logical NCHW activation: `int8` for quantized
+operators, and IEEE-754 `float32` for `DequantizeLinear` and `ConvTranspose`.
+The files contain raw native binary values without a header; graph operator
+type determines the dtype, and the graph output shape determines the count.
+`compare_layers.py` checks floating intermediates by their exact 32-bit
+representations, including signed zero, without a numerical tolerance. A
+missing dump or unexpected byte count fails the comparison.
+
 ## Clean
 
 ```bash

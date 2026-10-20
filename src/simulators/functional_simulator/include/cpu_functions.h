@@ -947,6 +947,10 @@
           throw std::invalid_argument("Size mismatch between inputs, shapes, or scales.");
       }
       if (inputs.empty()) return {};
+      if (output_scale == 0.0f) {
+          throw std::invalid_argument("QLinearConcat output scale cannot be zero.");
+      }
+      const float inv_output_scale = 1.0f / output_scale;
 
       // 1. DETERMINE OUTPUT SHAPE
       std::vector<int> out_shape = shapes[0];
@@ -979,6 +983,7 @@
           const auto& shape = shapes[i];
           float scale_in = input_scales[i];
           int32_t zp_in = input_zps[i];
+          const float multiplier = scale_in * inv_output_scale;
 
           int N = shape[0];
           int C = shape[1];
@@ -1018,12 +1023,13 @@
                           // Get Value
                           T val_q = input_tensor[b][c][h][w];
 
-                          // Dequantize: (x - zp_in) * s_in
-                          float val_f = (static_cast<float>(val_q) - zp_in) * scale_in;
-
-                          // Requantize: (x / s_out) + zp_out
-                          // Using nearbyint for rounding
-                          int32_t val_rec = static_cast<int32_t>(std::nearbyint(val_f / output_scale)) + output_zp; // round vs nearbyint
+                          const int32_t centered =
+                              static_cast<int32_t>(val_q) - zp_in;
+                          const float scaled =
+                              static_cast<float>(centered) * multiplier;
+                          int32_t val_rec =
+                              static_cast<int32_t>(std::nearbyintf(scaled)) +
+                              output_zp;
                           
                           // Clamp (assuming int8 output range)
                           val_rec = std::clamp(val_rec, -128, 127);
@@ -1055,8 +1061,11 @@
   // qlinear_add
   /**
    * Quantized Linear Addition: adds two quantized tensors with different scales and zero-points.
-   * ONNX QLinearAdd formula:
-   * out = clamp(nearbyint(((A - zA) * sA + (B - zB) * sB) / sC) + zC, -128, 127)
+   * Real-valued formula: ((A-zA)*sA + (B-zB)*sB)/sC.
+   * Embedded evaluation precomputes invC=1.0f/sC, mA=sA*invC, mB=sB*invC.
+   * Each product and their sum are rounded separately to float32 before
+   * nearbyintf, output zero-point addition, and int8 saturation. A direct
+   * element-wise division is not bit-equivalent near a half-integer.
    *
    * Args:
    *   inputA: First input vector in VTA block format.
@@ -1093,6 +1102,10 @@
       }
       if (inputA.empty() || inputB.empty()) return {};
 
+      const float invScaleC = 1.0f / scaleC;
+      const float multiplierA = scaleA * invScaleC;
+      const float multiplierB = scaleB * invScaleC;
+
       int N = shapeA[0];
       int C = shapeA[1];
       int H = shapeA[2];
@@ -1124,9 +1137,17 @@
           for (int c = 0; c < C; ++c) {
               for (int h = 0; h < H; ++h) {
                   for (int w = 0; w < W; ++w) {
-                      float valA = (static_cast<float>(tensorA[b][c][h][w]) - static_cast<float>(zpA)) * scaleA;
-                      float valB = (static_cast<float>(tensorB[b][c][h][w]) - static_cast<float>(zpB)) * scaleB;
-                      int32_t val_rec = static_cast<int32_t>(std::nearbyint((valA + valB) / scaleC)) + zpC;
+                      const int32_t centeredA =
+                          static_cast<int32_t>(tensorA[b][c][h][w]) - zpA;
+                      const int32_t centeredB =
+                          static_cast<int32_t>(tensorB[b][c][h][w]) - zpB;
+                      const float termA =
+                          static_cast<float>(centeredA) * multiplierA;
+                      const float termB =
+                          static_cast<float>(centeredB) * multiplierB;
+                      const float scaled = termA + termB;
+                      int32_t val_rec =
+                          static_cast<int32_t>(std::nearbyintf(scaled)) + zpC;
                       val_rec = std::clamp(val_rec, -128, 127);
                       output_tensor[b][c][h][w] = static_cast<T>(val_rec);
                   }
@@ -1197,10 +1218,14 @@
       // Reserve memory to avoid reallocations
       result.reserve(input_vector.size());
 
+      if (scale == 0.0f) {
+          throw std::invalid_argument("QuantizeLinear scale cannot be zero.");
+      }
+      const float inv_scale = 1.0f / scale;
+
       for (const auto& val : input_vector) {
-          // 1. Divide by scale
-          // 2. Round to nearest integer (using nearbyint)
-          double scaled_val = std::nearbyint(val / scale); // round vs nearbyint
+          const float scaled = val * inv_scale;
+          const float scaled_val = std::nearbyintf(scaled);
 
           // 3. Add Zero Point
           int32_t quant_val = static_cast<int32_t>(scaled_val) + zero_point;
