@@ -546,22 +546,17 @@ int run_nn(const FsimOptions &opts) {
       std::vector<float> concat_scales;
       std::vector<int32_t> concat_zps;
 
-      // Define the shape
-      std::vector<int> shape = {1, tensor_channel, tensor_height, tensor_width};
-
       // Get the previous layers
       dep_out = convert_vector_type<out_dtype>(dep_ctx.res);
       dep2_out = convert_vector_type<out_dtype>(dep2_ctx.res);
       if (nb_inp == 2) {
         concat_inp = {dep_out, dep2_out};
-        concat_shapes = {shape, shape};
         concat_scales = {scaleA, scaleB};
         concat_zps = {offsetA, offsetB};
       } else if (nb_inp == 3) {
         dep3_out = convert_vector_type<out_dtype>(dep3_ctx.res);
 
         concat_inp = {dep_out, dep2_out, dep3_out};
-        concat_shapes = {shape, shape, shape};
         concat_scales = {scaleA, scaleB, scaleU};
         concat_zps = {offsetA, offsetB, offsetU};
       } else if (nb_inp == 4) {
@@ -569,9 +564,21 @@ int run_nn(const FsimOptions &opts) {
         dep4_out = convert_vector_type<out_dtype>(dep4_ctx.res);
 
         concat_inp = {dep_out, dep2_out, dep3_out, dep4_out};
-        concat_shapes = {shape, shape, shape, shape};
         concat_scales = {scaleA, scaleB, scaleU, scaleV};
         concat_zps = {offsetA, offsetB, offsetU, offsetV};
+      }
+
+      // Each producer records its own output shape. Inception branches share
+      // N/H/W but can have different C; the concat row describes input A only.
+      const std::vector<std::string> parents = {
+          name_dep, name_dep2, name_dep3, name_dep4};
+      for (int parent = 0; parent < nb_inp; ++parent) {
+        const auto &name = parents[parent];
+        concat_shapes.push_back({
+            1,
+            strToInt(get_csv_value(dependency_map, name.c_str(), 22)),
+            strToInt(get_csv_value(dependency_map, name.c_str(), 23)),
+            strToInt(get_csv_value(dependency_map, name.c_str(), 24))});
       }
 
       // Perform the concatenation

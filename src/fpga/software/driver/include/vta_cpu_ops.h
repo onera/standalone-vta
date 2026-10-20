@@ -12,9 +12,10 @@ struct NnQaddStep {
 struct NnConcatStep {
   std::uint32_t inp[4];
   std::uint32_t out;
-  std::uint32_t n_rows; /* H * W spatial positions (multiple of block) */
-  std::uint32_t
-      n_ch_per_inp; /* channels per input branch (multiple of block) */
+  std::uint32_t n_rows; /* logical H * W spatial positions */
+  std::uint32_t channels[4]; /* logical channels per branch, before padding */
+  std::uint32_t stored_rows[4]; /* physical rows: H*W or round_up(H*W, block) */
+  std::uint32_t n_out_elems; /* square-block-padded output int8 byte count */
   int nb_inp;
   float scales[4];
   std::int32_t zps[4];

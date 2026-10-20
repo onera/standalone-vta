@@ -224,6 +224,10 @@ type determines the dtype, and the graph output shape determines the count.
 representations, including signed zero, without a numerical tolerance. A
 missing dump or unexpected byte count fails the comparison.
 
+For channel concat, fsim reconstructs each input with its producer's output
+C/H/W from `dependency.csv`. This supports unequal-channel Inception branches
+and independently padded source layouts; the output uses square VTA blocks.
+
 ## Clean
 
 ```bash

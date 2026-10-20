@@ -97,10 +97,11 @@ operator subset are defined in
 The NumPy engine intentionally mirrors that embedded contract rather than an
 arbitrary ONNX Runtime execution provider.
 
-The trained LeNet-5, VGG16, and ResNet-18 QLinear models pass layer-wise
-NumPy/fsim checks, including pre-rescale convolution accumulators. GoogLeNet
-currently fails compilation at its first Inception concat because the frontend
-requires equal channel counts across branches. Detailed results and commands
+The trained LeNet-5, VGG16, ResNet-18, and GoogLeNet QLinear models pass
+layer-wise NumPy/fsim checks, including pre-rescale convolution accumulators.
+Channel concat accepts two to four batch-one inputs with common H/W and
+independent channel counts. Shapes are recovered from the existing parent
+dependency rows, so the CSV format is unchanged. Detailed results and commands
 are recorded in the arithmetic contract linked above.
 
 Note that `AveragePool` is **not** supported through the ONNX front-end

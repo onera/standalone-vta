@@ -10,6 +10,7 @@ from .model import (
     _PAGE,
     _align_page,
     hex32,
+    concat_output_elements,
     safe_c_name,
 )
 
@@ -88,6 +89,7 @@ def _build_cpu_out_addrs(
     ddr_base: int,
     suffix_to_idx: Dict[str, int],
     comp_dir: str,
+    block_size: int = 16,
 ) -> Tuple[Dict[str, int], int, List[Tuple[str, int, int]]]:
     """Pre-resolve every CPU op's output DDR address.
 
@@ -135,6 +137,8 @@ def _build_cpu_out_addrs(
             # than 0.  Its output is consumed either by a downstream VTA layer
             # (via im2row from this scratch) or read back as the network output.
             n_bytes = ld.out_ch * ld.out_h * ld.out_w
+            if processor == "concat":
+                n_bytes = concat_output_elements(ld, block_size)
             cpu_out[layer_name] = alloc_ptr
             cpu_scratch.append((layer_name, alloc_ptr, n_bytes))
             alloc_ptr += _align_page(n_bytes)

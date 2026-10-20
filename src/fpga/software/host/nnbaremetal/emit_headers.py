@@ -4,7 +4,9 @@ import csv
 from typing import Dict, List, Optional
 
 from .config import DEFAULT_BLOCK_SIZE, _elem_bytes
-from .model import DependencyInfo, LayerInfo, hex32, insn_count_from_file
+from .model import (
+    DependencyInfo, LayerInfo, concat_output_elements, hex32, insn_count_from_file,
+)
 from .layout import _build_cpu_out_addrs, _cpu_out_addr, _out_addr, scratch_addr
 
 
@@ -62,7 +64,7 @@ def gen_exec_plan_header(
         suffix_to_idx = {layer.suffix: i for i, layer in enumerate(layers)}
     if cpu_out is None:
         cpu_out, _, _ = _build_cpu_out_addrs(
-            dep_info, layers, ddr_base, suffix_to_idx, comp_dir
+            dep_info, layers, ddr_base, suffix_to_idx, comp_dir, block_size
         )
     num_steps = len(dep_info.execution_order)
 
@@ -351,11 +353,32 @@ def gen_exec_plan_header(
                 layer_name, dep_info, layers, ddr_base, suffix_to_idx, k + 1, cpu_out
             )
             n_rows = ld.tensor_h * ld.tensor_w
-            n_ch_per_inp = ld.tensor_ch
+            # Parent rows already carry each branch's logical output shape;
+            # dependency.csv needs no new columns for unequal channel counts.
+            parents = [dep_info.layers[parent] for parent in ld.deps]
+            if len(parents) != ld.nb_inp or not 2 <= len(parents) <= 4:
+                raise ValueError(f"Invalid concat parents for {layer_name}.")
+            if any((p.out_h, p.out_w) != (ld.out_h, ld.out_w) for p in parents):
+                raise ValueError(f"Concat spatial shape mismatch for {layer_name}.")
+            channels = [p.out_ch for p in parents]
+            if sum(channels) != ld.out_ch:
+                raise ValueError(f"Concat output channel mismatch for {layer_name}.")
+            padded_rows = ((n_rows + block_size - 1) // block_size) * block_size
+            stored_rows = [
+                n_rows if name.startswith("MaxPool") and p.processor == "vta"
+                else padded_rows
+                for name, p in zip(ld.deps, parents)
+            ]
+            channels += [0] * (4 - len(channels))
+            stored_rows += [0] * (4 - len(stored_rows))
+            n_out_elems = concat_output_elements(ld, block_size)
             L.append(f"    /* step {step_idx}: concat */")
             L.append(f'    {{ NN_STEP_CONCAT, "{layer_name}", {{ .concat = {{')
             L.append(f"        {{ {', '.join(hex32(a) for a in inp_addrs)} }},")
-            L.append(f"        {hex32(out)}, {n_rows}u, {n_ch_per_inp}u, {ld.nb_inp},")
+            L.append(f"        {hex32(out)}, {n_rows}u,")
+            L.append(f"        {{ {', '.join(f'{c}u' for c in channels)} }},")
+            L.append(f"        {{ {', '.join(f'{r}u' for r in stored_rows)} }},")
+            L.append(f"        {n_out_elems}u, {ld.nb_inp},")
             L.append(
                 f"        {{ {ld.scale_a}f, {ld.scale_b}f, {ld.scale_u}f, {ld.scale_v}f }},"
             )

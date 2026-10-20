@@ -213,7 +213,11 @@ void test_concat() {
   st.inp[1] = static_cast<std::uint32_t>(kSrc + 0x100000u);
   st.out = static_cast<std::uint32_t>(kDst);
   st.n_rows = H;
-  st.n_ch_per_inp = B;
+  st.channels[0] = B;
+  st.channels[1] = B;
+  st.stored_rows[0] = H;
+  st.stored_rows[1] = H;
+  st.n_out_elems = static_cast<std::uint32_t>(ref.size());
   st.nb_inp = 2;
   st.scales[0] = scales[0];
   st.scales[1] = scales[1];
@@ -224,6 +228,52 @@ void test_concat() {
   st.block = B;
   vta::run_concat(st);
   check_i8("concat per-branch precomputed multiplier", ref);
+}
+
+/** Checks channel repacking, partial row layouts, and physical output padding. */
+void test_concat_unequal(const std::vector<int> &channels, int rows,
+                         bool mixed_layouts, std::mt19937 &rng) {
+  const int B = VTA_BLOCK_SIZE;
+  std::vector<std::vector<std::int8_t>> inputs;
+  std::vector<std::vector<int>> shapes;
+  std::vector<float> scales;
+  std::vector<std::int32_t> zps;
+  NnConcatStep st{};
+  st.out = static_cast<std::uint32_t>(kDst);
+  st.n_rows = rows;
+  st.nb_inp = static_cast<int>(channels.size());
+  st.out_scale = 0.03125f;
+  st.out_zp = -7;
+  st.block = B;
+  for (std::size_t p = 0; p < channels.size(); ++p) {
+    const bool square = !mixed_layouts || p % 2 == 0;
+    auto logical = rand_i8(rows * channels[p], rng);
+    inputs.push_back(data_formatting(logical, rows, channels[p], B, square));
+    shapes.push_back({1, channels[p], rows, 1});
+    scales.push_back(0.011274928227066994f * static_cast<float>(p + 1));
+    zps.push_back(-11 + static_cast<int>(p) * 9);
+    const auto address = kSrc + p * 0x100000u;
+    std::copy(inputs.back().begin(), inputs.back().end(),
+              reinterpret_cast<std::int8_t *>(address));
+    st.inp[p] = static_cast<std::uint32_t>(address);
+    st.channels[p] = channels[p];
+    st.stored_rows[p] = square ? ru(rows, B) : rows;
+    st.scales[p] = scales.back();
+    st.zps[p] = zps.back();
+  }
+  auto ref = qlinear_concat(inputs, shapes, scales, zps,
+                            st.out_scale, st.out_zp, 1, B);
+  st.n_out_elems = static_cast<std::uint32_t>(ref.size());
+  auto *out = reinterpret_cast<std::int8_t *>(kDst);
+  std::fill(out, out + ref.size() + 1, static_cast<std::int8_t>(77));
+  vta::run_concat(st);
+  const std::string name = "concat unequal C, rows=" + std::to_string(rows) +
+      (mixed_layouts ? " mixed row padding" : " square padding");
+  check_i8(name, ref);
+  if (out[ref.size()] != 77) {
+    std::printf("    FAIL: concat writes beyond its physical output\n");
+    ++g_failures;
+  }
 }
 
 void test_dequant_quant() {
@@ -498,6 +548,11 @@ int main() {
   std::printf("== quantized arithmetic contract ==\n");
   test_qadd();
   test_concat();
+  test_concat_unequal({64, 128, 32, 32}, 16, false, rng);
+  test_concat_unequal({128, 192, 96, 64}, 4, false, rng);
+  test_concat_unequal({3, 17, 5}, 19, true, rng);
+  test_concat_unequal({48, 16}, 1, true, rng);
+  test_concat_unequal({3, 5, 1, 17}, 33, true, rng);
   test_dequant_quant();
   test_rescale();
 

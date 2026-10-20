@@ -603,10 +603,17 @@ against fsim, including QAdd, concat, quantize/dequantize and accumulator
 rescaling edge cases.
 
 LeNet-5 has also been validated on FPGA by the project maintainer. The trained
-VGG16 and ResNet-18 models have passed host NumPy/fsim comparisons; those
-results do not establish board validation. GoogLeNet is blocked by unequal
-concat branch shapes during compilation. See the contract's validation table
-for the tested inputs, coverage, and hardware-validation limits.
+VGG16, ResNet-18, and GoogLeNet models have passed host NumPy/fsim comparisons;
+those results do not establish board validation. See the contract's validation
+table for the tested inputs, coverage, and hardware-validation limits.
+
+`NnConcatStep` carries per-branch `channels[4]` and `stored_rows[4]`, plus the
+padded output byte count `n_out_elems`. The kernel supports unequal channels
+and partial blocks, including short-row MaxPool sources; it excludes input
+padding and initializes output padding to zero. Generation, buffer-fit checks,
+and cache flushing account for the full padded output. Regenerate `gen/`
+headers after updating this descriptor; older `nn_exec_plan.h` files are
+incompatible. The host CPU-op suite exercises both aligned and partial cases.
 
 ---
 

@@ -164,7 +164,7 @@ def main() -> None:
 
     suffix_to_idx = {layer.suffix: i for i, layer in enumerate(layers)}
     cpu_out, alloc_top, cpu_scratch = _build_cpu_out_addrs(
-        dep_info, layers, ddr_base, suffix_to_idx, comp_dir
+        dep_info, layers, ddr_base, suffix_to_idx, comp_dir, block_size
     )
     # CPU-op parameter blobs (convtranspose float weights/bias) allocated above
     # all VTA + CPU-scratch regions, loaded via the static-load path (incbin/Tcl).

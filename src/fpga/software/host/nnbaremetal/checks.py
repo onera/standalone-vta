@@ -18,6 +18,7 @@ from .model import (
     _align_page,
     hex32,
     iter_static_buffers,
+    concat_output_elements,
 )
 from .layout import scratch_addr
 
@@ -153,6 +154,8 @@ def check_cpu_output_fits(
             continue
         idx, buf = consumer
         need = ld.out_ch * ld.out_h * ld.out_w
+        if processor == "concat":
+            need = concat_output_elements(ld, block_size)
         have = layers[idx].mem[buf].size
         if need > have:
             bad.append(f"  {processor} {name}: {need} B > {buf} {have} B")

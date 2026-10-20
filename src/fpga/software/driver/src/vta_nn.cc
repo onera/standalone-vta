@@ -150,8 +150,7 @@ float *run_nn(std::uintptr_t vcr_base, const NnExecStep *steps,
       run_concat(s.concat);
       Xil_DCacheFlushRange(
           static_cast<UINTPTR>(s.concat.out),
-          static_cast<INTPTR>(s.concat.n_rows * s.concat.n_ch_per_inp *
-                              static_cast<std::uint32_t>(s.concat.nb_inp)));
+          static_cast<INTPTR>(s.concat.n_out_elems));
       break;
 
     case NN_STEP_DEQUANT:

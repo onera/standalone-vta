@@ -11,7 +11,7 @@ COMPILER_DIR = Path(__file__).resolve().parents[1]
 if str(COMPILER_DIR) not in sys.path:
     sys.path.append(str(COMPILER_DIR))
 
-from nn_compiler.nodes.node_cpu import convtranspose
+from nn_compiler.nodes.node_cpu import convtranspose, qlinearconcat
 from src.compiler.utils.numpy_implementation import (
     NumPyReferenceEngine,
     float32_reciprocal,
@@ -162,6 +162,53 @@ class QuantizedArithmeticContractTest(unittest.TestCase):
             ],
         )
         np.testing.assert_array_equal(got, np.array([[[[1]], [[4]]]], dtype=np.int8))
+
+    def test_qlinear_concat_unequal_channels(self) -> None:
+        """Requantizes unequal, sub-block channel branches without extra channels."""
+        node = helper.make_node("QLinearConcat", [], ["y"], axis=1)
+        a = np.full((1, 3, 1, 19), 5, dtype=np.int8)
+        b = np.full((1, 17, 1, 19), -3, dtype=np.int8)
+        got = self.engine._qlinear_concat(node, [
+            np.array(0.5, np.float32), np.array(-1, np.int8),
+            a, np.array(0.25, np.float32), np.array(1, np.int8),
+            b, np.array(1.0, np.float32), np.array(-1, np.int8),
+        ])
+        expected = np.concatenate((
+            np.full_like(a, 1), np.full_like(b, -5)
+        ), axis=1)
+        np.testing.assert_array_equal(got, expected)
+
+    def test_compiler_concat_shape_validation(self) -> None:
+        """Accepts Inception channels and rejects non-channel shape mismatches."""
+        shapes = [[1, 64, 4, 4], [1, 128, 4, 4], [1, 32, 4, 4], [1, 32, 4, 4]]
+        params = {"ys": np.array(0.5, np.float32), "yz": np.array(-7, np.int8)}
+        inputs = [{"name": "ys", "shape": []}, {"name": "yz", "shape": []}]
+        mapping = {}
+        for p, shape in enumerate(shapes):
+            mapping[f"x{p}"] = p
+            params[f"s{p}"] = np.array(0.25, np.float32)
+            params[f"z{p}"] = np.array(-3, np.int8)
+            inputs.extend([
+                {"name": f"x{p}", "shape": shape},
+                {"name": f"s{p}", "shape": []},
+                {"name": f"z{p}", "shape": []},
+            ])
+        node = {"op_type": "QLinearConcat", "inputs": inputs,
+                "outputs": [{"name": "y", "shape": [1, 256, 4, 4]}],
+                "attributes": {"axis": 1}}
+        info = qlinearconcat(node, params, mapping, {}, filename="InceptionConcat")
+        self.assertEqual(info["output_shape"], [1, 256, 4, 4])
+        self.assertEqual(info["input_shape"], shapes[0])
+        for dimension in (0, 2, 3):
+            with self.subTest(dimension=dimension):
+                original = shapes[1][dimension]
+                shapes[1][dimension] += 1
+                with self.assertRaises(ValueError):
+                    qlinearconcat(node, params, mapping, {}, filename="InvalidConcat")
+                shapes[1][dimension] = original
+        node["outputs"][0]["shape"][1] = 255
+        with self.assertRaises(ValueError):
+            qlinearconcat(node, params, mapping, {}, filename="WrongOutputConcat")
 
     def test_maxpool_keeps_quantized_domain_and_negative_padding(self) -> None:
         """Pads with int8 minimum so padding cannot win a maximum."""

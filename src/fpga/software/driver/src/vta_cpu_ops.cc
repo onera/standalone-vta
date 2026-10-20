@@ -9,6 +9,7 @@
 #include "../include/vta_cpu_ops.h"
 #include "vta_hw_config.h"
 #include <cmath>
+#include <algorithm>
 #include <cstdint>
 extern "C" {
 #include "xil_printf.h"
@@ -49,13 +50,11 @@ void run_qadd(const NnQaddStep &d) {
   }
 }
 
-/* Channel-concat for VTA block layout: for each row-block, copy each input's
-   channel-blocks sequentially so output has the correct [rb, cb_A, cb_B, …]
-   order. A simple flat append would be wrong for H*W > 16 (multiple
-   row-blocks). */
+/* Repack logical channels across independently padded branches. MaxPool can
+   store a short final row-block, while convolution stores square blocks. */
 void run_concat(const NnConcatStep &d) {
-  if (d.out_scale == 0.0f) {
-    xil_printf("[vta] run_concat: zero output scale\r\n");
+  if (d.out_scale == 0.0f || d.block == 0u || d.nb_inp < 2 || d.nb_inp > 4) {
+    xil_printf("[vta] run_concat: invalid scale, block or branch count\r\n");
     return;
   }
   auto *out =
@@ -64,31 +63,41 @@ void run_concat(const NnConcatStep &d) {
   const float inv_out_scale = 1.0f / d.out_scale;
   const std::uint32_t blk = d.block;
   const std::uint32_t blk2 = blk * blk;
-  const std::uint32_t n_rb = d.n_rows / blk;
-  const std::uint32_t n_cb = d.n_ch_per_inp / blk;
-  const std::uint32_t tot_cb = n_cb * static_cast<std::uint32_t>(d.nb_inp);
+  std::uint32_t total_channels = 0u;
+  for (int p = 0; p < d.nb_inp; ++p)
+    total_channels += d.channels[p];
+  const std::uint32_t out_cb = (total_channels + blk - 1u) / blk;
+  // Match fsim's physical zero padding; never requantize these padding cells.
+  std::fill(out, out + d.n_out_elems, static_cast<std::int8_t>(0));
 
-  for (std::uint32_t rb = 0u; rb < n_rb; ++rb) {
-    for (int p = 0; p < d.nb_inp; ++p) {
-      const float rescale_p = d.scales[p] * inv_out_scale;
-      const auto *src = reinterpret_cast<const std::int8_t *>(
-                            static_cast<std::uintptr_t>(d.inp[p])) +
-                        rb * n_cb * blk2;
-      std::int8_t *dst =
-          out + (rb * tot_cb + static_cast<std::uint32_t>(p) * n_cb) * blk2;
-      for (std::uint32_t cb = 0u; cb < n_cb; ++cb) {
-        const std::int8_t *s_blk = src + cb * blk2;
-        std::int8_t *d_blk = dst + cb * blk2;
-        for (std::uint32_t e = 0u; e < blk2; ++e) {
+  std::uint32_t channel_offset = 0u;
+  for (int p = 0; p < d.nb_inp; ++p) {
+    const float rescale_p = d.scales[p] * inv_out_scale;
+    const auto *src = reinterpret_cast<const std::int8_t *>(
+        static_cast<std::uintptr_t>(d.inp[p]));
+    const std::uint32_t in_cb = (d.channels[p] + blk - 1u) / blk;
+    for (std::uint32_t rb = 0u; rb * blk < d.n_rows; ++rb) {
+      const std::uint32_t row_start = rb * blk;
+      const std::uint32_t stored_height =
+          std::min(blk, d.stored_rows[p] - row_start);
+      const std::uint32_t logical_height = std::min(blk, d.n_rows - row_start);
+      for (std::uint32_t c = 0u; c < d.channels[p]; ++c) {
+        const std::uint32_t out_c = channel_offset + c;
+        const std::uint32_t src_base = rb * in_cb * blk2 +
+            (c / blk) * stored_height * blk + c % blk;
+        const std::uint32_t dst_base =
+            (rb * out_cb + out_c / blk) * blk2 + out_c % blk;
+        for (std::uint32_t r = 0u; r < logical_height; ++r) {
           const std::int32_t centered =
-              static_cast<std::int32_t>(s_blk[e]) - d.zps[p];
+              static_cast<std::int32_t>(src[src_base + r * blk]) - d.zps[p];
           const float scaled = static_cast<float>(centered) * rescale_p;
-          std::int64_t q =
+          const std::int64_t q =
               static_cast<std::int64_t>(std::nearbyintf(scaled)) + d.out_zp;
-          d_blk[e] = clamp_i8(q);
+          out[dst_base + r * blk] = clamp_i8(q);
         }
       }
     }
+    channel_offset += d.channels[p];
   }
 }
 

@@ -2,6 +2,7 @@
 # ---------------
 import os
 import sys
+from typing import Any, Dict
 
 import numpy as np
 
@@ -162,9 +163,43 @@ def quantizelinear(node, param={}, node_mapping={}, node_info={}, filename='',
 
 # QLinearConcat
 # --------------
-def qlinearconcat(node, param={}, node_mapping={}, node_info={}, filename='', 
-                  inp_dtype=np.int8, wgt_dtype=np.int8, acc_dtype=np.int32,
-                  debug=False):
+def qlinearconcat(
+    node: Dict[str, Any],
+    param: Dict[str, Any] = {},
+    node_mapping: Dict[str, Any] = {},
+    node_info: Dict[str, Any] = {},
+    filename: str = '',
+    inp_dtype: Any = np.int8,
+    wgt_dtype: Any = np.int8,
+    acc_dtype: Any = np.int32,
+    debug: bool = False,
+) -> Dict[str, Any]:
+    """Parses channel concatenation with independent input channel counts.
+
+    Args:
+        node: Parsed ONNX node with input/output shapes and attributes.
+        param: Initializer mapping containing scalar quantization parameters.
+        node_mapping: Mapping of activation names to producer nodes.
+        node_info: Layer metadata to update.
+        filename: Layer identifier used in diagnostics.
+        inp_dtype: VTA input dtype.
+        wgt_dtype: VTA weight dtype.
+        acc_dtype: VTA accumulator dtype.
+        debug: Whether debug output is requested.
+
+    Returns:
+        Layer metadata; input_shape describes the first branch only. Other
+        branch shapes are recovered through the existing parent dependencies.
+
+    Raises:
+        ValueError: If branch counts, shapes, or output shape are incompatible.
+    """
+
+    activation_shapes = [
+        inp['shape'] for inp in node['inputs'] if inp['name'] in node_mapping
+    ]
+    if not 2 <= len(activation_shapes) <= 4:
+        raise ValueError(f"ERROR (in {filename}): QLinearConcat requires 2 to 4 inputs.")
 
     # ---
     # PARSE METADATA
@@ -243,8 +278,10 @@ def qlinearconcat(node, param={}, node_mapping={}, node_info={}, filename='',
 
                 inpB_tensor_shape = inp_shape # NCHW
 
-                if (inpB_tensor_shape != inpA_tensor_shape):
-                    raise Exception(f"ERROR (in {filename}): A and B have different shape! \n")
+                if any(inpB_tensor_shape[d] != inpA_tensor_shape[d] for d in (0, 2, 3)):
+                    raise ValueError(
+                        f"ERROR (in {filename}): concat inputs must match in N, H and W."
+                    )
             
             # Else problem
             else:
@@ -308,6 +345,14 @@ def qlinearconcat(node, param={}, node_mapping={}, node_info={}, filename='',
 
     if (axis != 1):
         raise Exception(f"ERROR (in {filename}): We expect AXIS=1 whereas axis={axis} ! \n")
+
+    expected_shape = list(inpA_tensor_shape)
+    expected_shape[1] = sum(shape[1] for shape in activation_shapes)
+    if list(out_tensor_shape) != expected_shape or expected_shape[0] != 1:
+        raise ValueError(
+            f"ERROR (in {filename}): expected batch-one concat output "
+            f"{expected_shape}, got {out_tensor_shape}."
+        )
 
 
     # ---

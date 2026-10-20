@@ -116,6 +116,22 @@ class DependencyInfo:
     output_layer: str
 
 
+def concat_output_elements(layer: LayerDep, block_size: int) -> int:
+    """Returns the square-block-padded int8 concat output byte count.
+
+    Args:
+        layer: Concatenation layer with logical output dimensions.
+        block_size: VTA block dimension.
+
+    Returns:
+        Physical output element count, including row and channel padding.
+    """
+    rows = layer.out_h * layer.out_w
+    padded_rows = ((rows + block_size - 1) // block_size) * block_size
+    padded_channels = ((layer.out_ch + block_size - 1) // block_size) * block_size
+    return padded_rows * padded_channels
+
+
 BIN_BASENAME: Dict[str, str] = {
     "INP": "input",
     "WGT": "weight",
