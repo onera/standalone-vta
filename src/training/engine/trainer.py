@@ -17,6 +17,11 @@ def train_model(
 ) -> nn.Module:
     """Trains and validates a PyTorch neural network model (supporting PT2E QAT).
 
+    Observers update quantization parameters during training and are disabled
+    during validation. Fake quantization remains active in both phases.
+    This phase policy does not implement a permanent observer or BatchNorm
+    statistics freeze after a fixed number of epochs.
+
     Args:
         model: The PyTorch neural network model or exported QAT module.
         dataloaders: Dictionary containing "train" and "valid" DataLoaders.
@@ -42,8 +47,11 @@ def train_model(
 
             if phase == 'train':
                 torchao.quantization.pt2e.move_exported_model_to_train(model)
+                model.apply(torchao.quantization.pt2e.enable_observer)
             else:
                 torchao.quantization.pt2e.move_exported_model_to_eval(model)
+                # Evaluation mode alone does not stop quantization statistics updates.
+                model.apply(torchao.quantization.pt2e.disable_observer)
             
             metrics = RunningAverage(keys=('loss', 'accuracy'))
             pbar = tqdm(

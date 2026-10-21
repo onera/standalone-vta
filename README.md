@@ -65,6 +65,9 @@ Explore the detailed documentation for each component of the `standalone-vta` ec
   - [Standalone VTA Compiler](src/compiler/README.md)
   - [VTA Instructions & Operations Definition](src/compiler/vta_compiler/operations_definition/README.md)
 
+- **Training (`src/training/`)**
+  - [Quantization-Aware Training (QAT)](src/training/README.md)
+
 - **Simulators (`src/simulators/`)**
   - [Simulators Architecture Overview](src/simulators/README.md)
   - [Functional Simulator (C++)](src/simulators/functional_simulator/README.md)

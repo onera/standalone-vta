@@ -17,6 +17,9 @@ simulators_output/
 training_output/
 log_output/
 
+# Local investigation records and article preparation notes
+/research_notes/
+
 # Vitis Generated Files
 # (We ignore contents but keep the folder structures)
 src/fpga/software/gen/*

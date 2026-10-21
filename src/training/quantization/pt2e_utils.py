@@ -27,6 +27,10 @@ def prepare_qat_model(
 
     Returns:
         Prepared QAT PyTorch module.
+
+    References:
+        TorchAO PT2E QAT tutorial:
+        https://docs.pytorch.org/ao/stable/pt2e_quantization/pt2e_quant_qat.html
     """
     # Allow batch size to vary dynamically between min_batch (e.g. 1 for VTA) and max_batch (e.g. 64 for training)
     batch_dim = Dim("batch", min=min_batch, max=max_batch)
@@ -39,8 +43,11 @@ def prepare_qat_model(
         dynamic_shapes=dynamic_shapes
     ).module()
 
-    # Prepare QAT model using torchao symmetric quantization
-    quantizer = XNNPACKQuantizer().set_global(get_symmetric_quantization_config())
+    # The default configuration inserts PTQ observers, even with prepare_qat_pt2e.
+    # Enable QAT explicitly so training simulates INT8 rounding and clipping.
+    quantizer = XNNPACKQuantizer().set_global(
+        get_symmetric_quantization_config(is_qat=True)
+    )
     qat_model = prepare_qat_pt2e(exported_model, quantizer)
 
     return qat_model

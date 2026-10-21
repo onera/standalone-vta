@@ -48,7 +48,9 @@ operations and do not introduce a quantization rounding step.
 ## Supported embedded subset
 
 - `QLinearMul`: exactly one dynamic tensor and one single-element initializer.
-- `QLinearConcat`: channel axis (`axis=1`), two to four compatible inputs.
+- `QLinearConcat`: batch one, channel axis (`axis=1`), two to four inputs
+  sharing N/H/W. Each branch may have a different channel count, including
+  counts that are not multiples of the VTA block size.
 - `ConvTranspose`: `group=1`, dilation `(1,1)`, `output_padding=(0,0)`, and
   equal height/width strides.
 - Quantized activations are `int8`. The NumPy convolution can broadcast
@@ -62,15 +64,39 @@ embedded QAdd traverses two flat buffers without shape/layout metadata, whereas
 fsim reconstructs each logical tensor. Residual inputs with different physical
 row padding (such as ResNet-18's MaxPool/Conv pair) need additional runtime
 layout support before claiming three-backend parity on that topology.
-The current embedded concat implementation also requires block-aligned spatial
-rows and channels per branch, and equal channel counts between branches. The
-host concat test uses those conditions; NumPy/fsim can handle more shapes.
+Concat supports partial spatial/channel blocks and mixtures of square-padded
+and short-row MaxPool input layouts. Output uses square-block padding; padding
+cells are physical zero and are excluded from logical requantization.
 
 Integer accumulators are assumed to stay within int32 and intermediate scales
 and products to remain finite. Extremely large rounded values can exceed the
 C++ integer conversion range before the existing saturation step; such inputs
 are outside the validated range. Scales are expected to be positive and finite;
 current runtime guards check zero, not every invalid scale.
+
+### Concat layout and generated descriptors
+
+`dependency.csv` retains its existing format. Each concat parent row contains
+its own output C/H/W; the concat's input C/H/W fields describe only the first
+branch. Both fsim and the header generator recover the remaining branch shapes
+through the ordered parent names, preserving their quantization scale/ZP order.
+
+`NnConcatStep` replaces the single shared `n_ch_per_inp` with `channels[4]`,
+`stored_rows[4]`, and `n_out_elems`. Physical input rows are `H*W` for canonical
+VTA MaxPool producers and `round_up(H*W, B)` for square-block producers. For a
+short final row-block, each channel block's stride uses that short height;
+assuming a full `B*B` stride would read the wrong input channels.
+
+The runtime precomputes one float32 multiplier per branch, then repacks only
+logical channels into the cumulative output-channel offset. Input channel
+padding is never inserted between branches. It writes to the blocked output
+directly without allocating reconstructed tensors. Output storage and cache
+flush size are both `round_up(H*W, B) * round_up(sum(C), B)` int8 bytes; scratch
+allocation and buffer-fit checks use that same count.
+
+Regenerate bare-metal headers with `pixi run make -C src/fpga/software gen`
+after updating the driver. Existing `nn_exec_plan.h` files are incompatible
+with the revised concat descriptor and must not be reused with the new runtime.
 
 The compiler must reject unsupported variants rather than silently emitting a
 model that fsim or the board evaluates differently.
@@ -80,7 +106,8 @@ model that fsim or the board evaluates differently.
 ```bash
 pixi run python -m unittest \
   src.compiler.reference_computation.test_quantized_arithmetic \
-  src.compiler.reference_computation.test_compare_layers -v
+  src.compiler.reference_computation.test_compare_layers \
+  src.fpga.software.test.test_concat_generation -v
 pixi run make -C src/fpga/software test-cpu-ops
 pixi run python src/compiler/reference_computation/compare_layers.py \
   examples/onnx/qyolo.onnx
@@ -126,17 +153,21 @@ for that input, not an exhaustive proof over all possible activations.
 | LeNet-5 | `1x1x28x28` | PASS: 7/7 | PASS: 5/5 | PASS |
 | VGG16 | `1x1x28x28` | PASS: 20/20 | PASS: 16/16 | Not reported |
 | ResNet-18 | `1x1x224x224` | PASS: 30/30 | PASS: 21/21 | Not reported |
-| GoogLeNet | `1x1x28x28` | Blocked during compilation at `QLinearConcat13` | Not reached | Not reported |
+| GoogLeNet | `1x1x28x28` | PASS: 80/80 | PASS: 58/58 | Not reported |
 
 GoogLeNet's first Inception concatenation receives tensors shaped
-`[1,64,4,4]`, `[1,128,4,4]`, `[1,32,4,4]`, and `[1,32,4,4]`. Concatenating
-these along the channel axis is valid, but the current frontend requires
-identical input shapes and raises `A and B have different shape!`. The fsim
-integration and embedded concat descriptor also assume equal channels per
-branch. Consequently GoogLeNet has not passed arithmetic validation; supporting
-it requires propagating individual branch shapes through compilation and
-runtime execution. This failure precedes numerical comparison and is not an
-observed rounding mismatch.
+`[1,64,4,4]`, `[1,128,4,4]`, `[1,32,4,4]`, and `[1,32,4,4]`. All nine Inception
+concats pass NumPy/fsim validation, including later stages with just four or
+one spatial positions. Bare-metal generation succeeds with per-parent channel
+counts and padded scratch sizes, and passes allocation-overlap, binary-fit,
+and CPU-output-fit checks. This is host validation of the generated plan and
+CPU kernel, not a complete GoogLeNet execution on FPGA.
+
+Host concat tests compare the real embedded kernel with fsim on unequal
+channels (including 3/17/5), short and square input layouts, partial output
+blocks, nonzero zero-points, and saturation. Sentinel bytes check that the
+kernel respects the declared physical output size. Generator tests verify
+branch metadata, shape checks, and allocation sizes for multiple block sizes.
 
 The LeNet-5 FPGA result above is a maintainer-reported hardware validation;
 the automated runs in this table were performed on the host. The FPGA result
