@@ -6,6 +6,12 @@ from typing import Dict, Set, List, Optional
 def convert_qdq_to_qlinear_onnx(input_path: str, output_path: str) -> None:
     """Converts an ONNX model from QDQ (QuantizeDequantize) format to QLinear format.
 
+    Rewrites recognized scalar-quantized patterns for the VTA frontend and
+    strips the leading Q and trailing DQ into INT8 external boundaries when
+    they occupy the first and last node positions. This is a restricted graph
+    rewrite, not a general numerical-equivalence guarantee. See README.md in
+    this directory for the transformation rules, assumptions and known limits.
+
     Args:
         input_path: Path to the input QDQ ONNX model.
         output_path: Path where the converted QLinear ONNX model will be saved.
@@ -39,7 +45,7 @@ def convert_qdq_to_qlinear_onnx(input_path: str, output_path: str) -> None:
         for inp in node.input:
             input_use_count[inp] = input_use_count.get(inp, 0) + 1
 
-    # Iterative pattern matching
+    # Match patterns on the original graph; dead-Q/DQ cleanup runs separately.
     nodes_to_remove: Set[int] = set()
     replacements: Dict[int, onnx.NodeProto] = {}  # id(old_node) -> new_node
     new_initializers: List[onnx.TensorProto] = []

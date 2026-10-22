@@ -67,6 +67,11 @@ The backend uses moving-average observers through
 dynamic-shape constraints; the pipeline sets bounds from 1 to the configured
 training batch size.
 
+After ReLU, the affine observer normally calculates zero-point -128 because
+its nonnegative real range is extended to include zero. The positive scale
+still depends on the activation range. See the
+[derivation and conversion conditions](onnx_utils/README.md#why-the-output-zero-point-is-normally--128-after-relu).
+
 ## Training and validation
 
 [`train_model`](engine/trainer.py) manages observer updates separately from
@@ -97,6 +102,9 @@ the training phase from re-enabling observers after the freeze threshold.
 After training, `convert_quantized_model` switches exported evaluation behavior
 and calls `convert_pt2e`. The pipeline then exports the converted graph to ONNX
 and converts QDQ patterns to QLinear operators.
+
+See [ONNX QDQ-to-QLinear conversion](onnx_utils/README.md) for graph examples,
+the INT8 input/output interface, numerical assumptions and executable checks.
 
 XNNPACK provides the current quantization policy. It does not guarantee that
 training simulates every VTA accumulator, rounding, or requantization detail.

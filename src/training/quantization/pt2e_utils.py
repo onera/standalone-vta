@@ -46,7 +46,7 @@ def prepare_qat_model(
     # The default configuration inserts PTQ observers, even with prepare_qat_pt2e.
     # Enable QAT explicitly so training simulates INT8 rounding and clipping.
     quantizer = XNNPACKQuantizer().set_global(
-        get_symmetric_quantization_config(is_qat=True)
+        get_symmetric_quantization_config(is_qat=True) # Weights : per tensor symmetric, Activation : per tensor affine
     )
     qat_model = prepare_qat_pt2e(exported_model, quantizer)
 
