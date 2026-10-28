@@ -85,13 +85,13 @@ agreement with every ONNX Runtime kernel or VTA execution path.
 | Matched float pattern | Replacement | Numerical condition or limitation |
 | --- | --- | --- |
 | `DQ(x), DQ(w) -> Conv -> Q` | Standard ONNX `QLinearConv` | Scalar scales; representable bias for exact equivalence; kernel rounding may differ |
-| `DQ(x), DQ(w) -> Conv -> Relu -> Q` | `QLinearConv`, with the ReLU removed | ReLU removal requires the output range to enforce the real lower bound zero |
+| `DQ(x), DQ(w) -> Conv -> Relu -> Q` | `QLinearConv` only when the ReLU-removal guard passes; otherwise retain QDQ | Known scalar positive output scale, INT8 zero-point -128, unshared arithmetic and activation outputs |
 | `DQ(x), DQ(y) -> Add -> Q` | `com.microsoft::QLinearAdd` | Carries both input scales/zero-points and the output scale/zero-point |
-| `DQ(x), DQ(y) -> Add -> Relu -> Q` | `com.microsoft::QLinearAdd`, with the ReLU removed | Same ReLU-removal condition as convolution |
+| `DQ(x), DQ(y) -> Add -> Relu -> Q` | `com.microsoft::QLinearAdd` only when the ReLU-removal guard passes; otherwise retain QDQ | Same ReLU-removal condition as convolution |
 | `DQ(inputs) -> Concat -> Q` | `com.microsoft::QLinearConcat` | Carries output parameters followed by each input's parameters; preserves concat attributes |
 | `DQ -> MaxPool -> Q` | Integer `MaxPool` | Direct integer reuse requires matching input/output scales and zero-points |
 | `DQ -> Flatten -> Q` | Integer `Flatten` | Direct integer reuse requires matching input/output scales and zero-points |
-| `DQ -> Relu -> Q` | Integer `Relu` | With matching parameters, clamping at integer zero only implements real ReLU when the zero-point is zero |
+| `DQ -> Relu -> Q` | Integer `Relu` only with matching known scalar INT8 parameters and zero-points zero; otherwise retain QDQ | Input/output scale must match and be finite and positive; activation output must be unshared |
 
 QLinearAdd and QLinearConcat are ONNX Runtime extensions in the
 `com.microsoft` domain, version 1, not standard ONNX operators. A consumer
@@ -179,10 +179,42 @@ QDQ Conv/ReLU, dequantized:            [ 0,  0, 0, 1, 4]
 Converted Conv, output zero-point 0:  [-4, -1, 0, 1, 4]
 ```
 
-The same issue applies to Add/ReLU. The converter currently removes these
-ReLUs without checking the zero-point. This is a known correctness limitation.
-An integer ReLU after conversion is also not a general fix: the correct
-quantized lower bound is the code for real zero, not necessarily integer zero.
+The same issue applies to Add/ReLU. The converter checks that the output scale
+is a known finite positive scalar initializer, the output zero-point is a known
+scalar INT8 initializer equal to -128, and neither the arithmetic output nor
+the ReLU output is shared with another consumer or graph output. The matched
+operators must use the standard ONNX domain. If any check fails, the entire
+float arithmetic/ReLU/QDQ motif is retained. In particular, output zero-points
+0 and 7 now preserve the ReLU and its outputs instead of producing the changed
+values illustrated above. Unknown or vector parameters are conservatively
+retained even when a more advanced analysis might prove a rewrite valid.
+
+The guard proves redundancy of the activation at the quantization boundary;
+it does not eliminate the separate bias-rounding or kernel-arithmetic
+differences introduced by QLinear conversion.
+
+An integer ReLU after conversion is not a general fix: the correct quantized
+lower bound is the code for real zero, not necessarily integer zero. The
+standalone `DQ -> Relu -> Q` rewrite therefore also checks for equal scalar
+positive scales, INT8 zero-points both equal to zero, and an unshared ReLU
+output. Otherwise it retains the original float ReLU and quantization nodes.
+
+Retaining QDQ may produce a mixed float/quantized graph. This preserves the
+activation behavior in ONNX Runtime but does not guarantee acceptance by the
+VTA compiler: a retained float operator can require additional frontend support.
+
+Every retained float ReLU emits a Python `UserWarning` during conversion,
+identifying the node and explaining that a safe removal or integer rewrite
+could not be established. The warning also signals that the resulting mixed
+QDQ/QLinear graph may require additional VTA compiler support. Safe removals
+and validated integer rewrites do not emit this warning. For example:
+
+```text
+UserWarning: QDQ-to-QLinear: keeping float ReLU 'activation': a safe removal
+or integer rewrite could not be established from the quantization parameters
+and tensor uses. The original QDQ motif is preserved; the mixed graph may
+require additional VTA compiler support.
+```
 
 ## External input/output interface
 
@@ -218,14 +250,16 @@ a QLinearConv with scale/zero-point at input positions 6 and 7.
 In addition to the counterexamples above, source inspection identifies these
 unsupported assumptions:
 
-- Replacements remove matched float operators without validating all their
-  consumers. Shared Conv/Add/activation outputs need explicit handling beyond
-  the existing DQ use-count check.
-- The cleanup removes `axis` from Q/DQ nodes and clears scale/zero-point
-  initializer dimensions. Vector scales and per-channel quantization must not
-  be assumed supported.
-- The cleanup removes `auto_pad` attributes. Graphs relying on `SAME_UPPER` or
-  `SAME_LOWER` need explicit padding preservation before this transformation.
+- Conv/Add and ReLU rewrites check output use counts. Other rewrites, such as
+  Concat, still do not fully validate all consumers of the removed operators.
+- Retained Q/DQ nodes keep their `axis`; only single-element parameter
+  initializers are reshaped to scalars. This preserves vector parameters in a
+  rejected ReLU motif, but general per-channel QLinear conversion remains
+  outside the validated subset.
+- Retained float Conv nodes preserve `auto_pad`. The cleanup still removes
+  that attribute from other operators, including replacement QLinearConv;
+  graphs relying on `SAME_UPPER` or `SAME_LOWER` need explicit padding
+  preservation before those rewrites.
 - The converter prints a warning if the ONNX checker fails, then still saves
   the graph. A success message confirms file creation, not model validity or
   numerical equivalence.
@@ -259,10 +293,16 @@ standalone zero-point-zero ReLU, and Conv/Add ReLU removal with output
 zero-point -128. Checks include full ONNX validation, the INT8 boundary
 interface, extension domains and exact real output comparison.
 
+Regression cases also verify exact outputs with preserved Conv/Add ReLU
+motifs at zero-points 0 and 7, standalone ReLU fallback with different
+quantization parameters, shared pre/post-activation graph outputs and unknown
+output scales. These ReLU cases are ordinary passing tests.
+They also check that retained activations emit a warning and safe rewrites
+do not.
+
 Known equivalence failures are marked `xfail(strict=True, raises=AssertionError)`:
-Conv/Add ReLU removal with other zero-points, integer ReLU with nonzero output
-zero-point, MaxPool/Flatten with changed output scales, and nonrepresentable
-bias. These expected failures document unresolved defects, not supported
+MaxPool/Flatten with changed output scales and nonrepresentable bias.
+These expected failures document unresolved defects, not supported
 behavior; an unexpected pass requires updating the test after a correction.
 The existing `test_onnx_conversion.py` exercises the PyTorch export path but
 only checks that files are created.

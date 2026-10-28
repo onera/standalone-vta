@@ -1,6 +1,7 @@
 import onnx
 from onnx import helper, numpy_helper
 import numpy as np
+import warnings
 from typing import Dict, Set, List, Optional
 
 def convert_qdq_to_qlinear_onnx(input_path: str, output_path: str) -> None:
@@ -15,6 +16,10 @@ def convert_qdq_to_qlinear_onnx(input_path: str, output_path: str) -> None:
     Args:
         input_path: Path to the input QDQ ONNX model.
         output_path: Path where the converted QLinear ONNX model will be saved.
+
+    Warns:
+        UserWarning: If a float ReLU must be retained because a safe quantized
+            rewrite cannot be established. The result may contain QDQ operators.
     """
     model = onnx.load(input_path)
     graph = model.graph
@@ -31,6 +36,14 @@ def convert_qdq_to_qlinear_onnx(input_path: str, output_path: str) -> None:
         ms_opset.version = 1
     
     def get_initializer(name: str) -> Optional[onnx.TensorProto]:
+        """Returns a constant tensor by name, or None if it is not an initializer.
+
+        Args:
+            name: Tensor name to resolve.
+
+        Returns:
+            Matching initializer, if present.
+        """
         for init in graph.initializer:
             if init.name == name:
                 return init
@@ -44,6 +57,65 @@ def convert_qdq_to_qlinear_onnx(input_path: str, output_path: str) -> None:
     for node in graph.node:
         for inp in node.input:
             input_use_count[inp] = input_use_count.get(inp, 0) + 1
+
+    def can_remove_relu(quantize: onnx.NodeProto) -> bool:
+        """Checks whether output saturation already enforces real zero.
+
+        Args:
+            quantize: QuantizeLinear immediately following a float ReLU.
+
+        Returns:
+            True only for known scalar positive scales and INT8 zero-point -128.
+        """
+        if quantize.domain or len(quantize.input) != 3:
+            return False
+        scale_init = get_initializer(quantize.input[1])
+        zero_init = get_initializer(quantize.input[2])
+        if scale_init is None or zero_init is None:
+            return False
+        scale = numpy_helper.to_array(scale_init)
+        zero = numpy_helper.to_array(zero_init)
+        return bool(
+            scale.size == 1 and np.isfinite(scale).all() and (scale > 0).all()
+            and zero.size == 1 and zero.dtype == np.dtype(np.int8)
+            and zero.item() == -128
+            and not any(a.name in ("block_size", "output_dtype") for a in quantize.attribute)
+        )
+
+    def can_convert_integer_relu(
+        dequantize: onnx.NodeProto, quantize: onnx.NodeProto,
+    ) -> bool:
+        """Checks the narrower conditions for clamping directly at integer zero.
+
+        Args:
+            dequantize: Input DequantizeLinear of a standalone ReLU.
+            quantize: Output QuantizeLinear of the same ReLU.
+
+        Returns:
+            True for matching scalar INT8 quantizers with zero-points zero.
+        """
+        if dequantize.domain or quantize.domain:
+            return False
+        if any(a.name in ("block_size", "output_dtype") for a in quantize.attribute):
+            return False
+        if len(dequantize.input) != 3 or len(quantize.input) != 3:
+            return False
+        parameters = [get_initializer(n) for n in (
+            dequantize.input[1], dequantize.input[2],
+            quantize.input[1], quantize.input[2],
+        )]
+        if any(parameter is None for parameter in parameters):
+            return False
+        scale_in, zero_in, scale_out, zero_out = [
+            numpy_helper.to_array(parameter) for parameter in parameters
+        ]
+        return bool(
+            all(value.size == 1 for value in (scale_in, zero_in, scale_out, zero_out))
+            and np.isfinite(scale_in).all() and (scale_in > 0).all()
+            and np.array_equal(scale_in, scale_out)
+            and zero_in.dtype == zero_out.dtype == np.dtype(np.int8)
+            and zero_in.item() == zero_out.item() == 0
+        )
 
     # Match patterns on the original graph; dead-Q/DQ cleanup runs separately.
     nodes_to_remove: Set[int] = set()
@@ -71,7 +143,12 @@ def convert_qdq_to_qlinear_onnx(input_path: str, output_path: str) -> None:
                                     q_after = n2
                                     break
                         break
-                if q_after:
+                if q_after and not node.domain and input_use_count.get(node.output[0], 0) == 1 and (
+                    relu_node is None or (
+                        not relu_node.domain and input_use_count.get(relu_node.output[0], 0) == 1
+                        and can_remove_relu(q_after)
+                    )
+                ):
                     # Construct QLinearConv
                     x_q, x_s, x_zp = x_dq.input[0], x_dq.input[1], x_dq.input[2]
                     w_q, w_s, w_zp = w_dq.input[0], w_dq.input[1], w_dq.input[2]
@@ -119,7 +196,10 @@ def convert_qdq_to_qlinear_onnx(input_path: str, output_path: str) -> None:
                     if node.output[0] in n.input and n.op_type == "QuantizeLinear":
                         q_after = n
                         break
-                if q_after:
+                if q_after and (node.op_type != "Relu" or (
+                    not node.domain and input_use_count.get(node.output[0], 0) == 1
+                    and can_convert_integer_relu(x_dq, q_after)
+                )):
                     replacements[id(q_after)] = helper.make_node(
                         node.op_type,
                         inputs=[x_dq.input[0]],
@@ -148,7 +228,12 @@ def convert_qdq_to_qlinear_onnx(input_path: str, output_path: str) -> None:
                                     q_after = n2
                                     break
                         break
-                if q_after:
+                if q_after and not node.domain and input_use_count.get(node.output[0], 0) == 1 and (
+                    relu_node is None or (
+                        not relu_node.domain and input_use_count.get(relu_node.output[0], 0) == 1
+                        and can_remove_relu(q_after)
+                    )
+                ):
                     x_q, x_s, x_zp = x_dq.input[0], x_dq.input[1], x_dq.input[2]
                     y_q, y_s, y_zp = y_dq.input[0], y_dq.input[1], y_dq.input[2]
                     out_s, out_zp, out_q = q_after.input[1], q_after.input[2], q_after.output[0]
@@ -211,6 +296,16 @@ def convert_qdq_to_qlinear_onnx(input_path: str, output_path: str) -> None:
             new_node_list.append(replacements[id(node)])
         elif id(node) not in nodes_to_remove:
             new_node_list.append(node)
+            if node.op_type == "Relu":
+                warnings.warn(
+                    f"QDQ-to-QLinear: keeping float ReLU '{node.name or node.output[0]}': "
+                    "a safe removal or integer rewrite could not be established from "
+                    "the quantization parameters and tensor uses. The original QDQ "
+                    "motif is preserved; the mixed graph may require additional "
+                    "VTA compiler support.",
+                    UserWarning,
+                    stacklevel=2,
+                )
     graph.ClearField("node")
     graph.node.extend(new_node_list)
     graph.initializer.extend(new_initializers)
@@ -289,14 +384,18 @@ def convert_qdq_to_qlinear_onnx(input_path: str, output_path: str) -> None:
             for i in idx:
                 if i < len(node.input):
                     scalar_inits.add(node.input[i])
-            attrs = [a for a in node.attribute if a.name not in ["axis", "auto_pad"]]
+            # Retained QDQ motifs must keep their axis (e.g. per-channel scales).
+            attrs = [a for a in node.attribute if a.name != "auto_pad"]
+        elif node.op_type == "Conv":
+            # A rejected Conv/ReLU rewrite retains its original padding semantics.
+            attrs = list(node.attribute)
         else:
             attrs = [a for a in node.attribute if a.name not in ["auto_pad"]]
         node.ClearField("attribute")
         node.attribute.extend(attrs)
 
     for init in graph.initializer:
-        if init.name in scalar_inits:
+        if init.name in scalar_inits and numpy_helper.to_array(init).size == 1:
             init.ClearField("dims")
 
     # Dead node elimination pass for unused Q/DQ nodes
