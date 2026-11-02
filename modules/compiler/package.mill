@@ -62,7 +62,8 @@ object `package` extends Module { m =>
       args: Seq[String],
       compDir: Option[os.Path] = None,
       refDir: Option[os.Path] = None,
-      simDir: Option[os.Path] = None
+      simDir: Option[os.Path] = None,
+      extraEnv: Map[String, String] = Map.empty
     ): Unit =
       os.proc(python, main, args)
         .call(
@@ -70,7 +71,8 @@ object `package` extends Module { m =>
           env = env ++
             compDir.map("VTA_COMPILER_OUT" -> _.toString) ++
             refDir.map("VTA_REFERENCE_OUT" -> _.toString) ++
-            simDir.map("VTA_SIMULATOR_OUT" -> _.toString),
+            simDir.map("VTA_SIMULATOR_OUT" -> _.toString) ++
+            extraEnv,
           stdout = os.Inherit,
           stderr = os.Inherit
         )
@@ -156,11 +158,16 @@ object `package` extends Module { m =>
 
     /** Run the ONNX reference: reads the compiler's dependency.csv from
       * `compDir`, writes input_nn.bin and reference.bin into `refDir`.
+      *
+      * `seed` pins the random input (VTA_REF_SEED). It is always set, empty
+      * for a fresh draw, so a VTA_REF_SEED left in the shell cannot leak in
+      * untracked.
       */
     def runReference(
       onnx: os.Path,
       compDir: os.Path,
       refDir: os.Path,
+      seed: String,
       refMode: String = "numpy",
       debug: String = "False"
     ): Unit =
@@ -168,7 +175,8 @@ object `package` extends Module { m =>
         referenceMain,
         Seq(debug, refMode, onnx.toString),
         compDir = Some(compDir),
-        refDir = Some(refDir)
+        refDir = Some(refDir),
+        extraEnv = Map("VTA_REF_SEED" -> seed)
       )
 
     /** Check a simulator run against the ONNX reference; throws on a mismatch.

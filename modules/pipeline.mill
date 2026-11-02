@@ -140,8 +140,18 @@ trait HasOnnxModel extends HasCompilableModel {
   def reference = Task {
     compiler
       .runner()
-      .runReference(onnxPath().path, compile().path, Task.dest)
+      .runReference(onnxPath().path, compile().path, Task.dest, refSeed())
     PathRef(Task.dest)
+  }
+
+  /** Seed of the reference's random input, from -Dvta.ref.seed (default
+    * 1234, empty for a fresh draw). An Input so that the input only changes
+    * when the seed does: [[reference]] re-runs whenever [[compile]] does, and
+    * unseeded each re-run drew a new input that no earlier fsim or board run
+    * had seen.
+    */
+  def refSeed = Task.Input {
+    build.getVtaArg("vta.ref.seed")
   }
 
   override def referenceDir = Task.Anon { Some(reference().path) }
