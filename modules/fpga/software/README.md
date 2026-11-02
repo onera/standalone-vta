@@ -58,7 +58,7 @@ elf sd`. Addressed directly, per (model, config):
 | `examples.onnx[<model>,<config>].createVitisProjectFromXsa` | The same from an XSA you already have, with no Vivado run                        |
 | `examples.onnx[<model>,<config>].addVitisDebugApps`         | Goldens + debug headers + debug app in one step                                  |
 | `examples.onnx[<model>,<config>].buildVitisApp`             | The app component for a runner/loader, and its ELF                               |
-| `examples.onnx[<model>,<config>].flashBoard`                | Bitstream and ELF programmed over JTAG (`host/program_board.sh`), app started    |
+| `examples.onnx[<model>,<config>].flashBoard`                | Bitstream (ZynqMP, `host/program_board.sh`) or PDI (Versal, `host/program_board_versal.sh`) and ELF programmed over JTAG, app started |
 | `examples.onnx[<model>,<config>].runUart`                   | Drives `run_nn_uart` on the board and checks the result                          |
 
 The board comes from `-Dvta.board.name` and the DDR base from
@@ -745,7 +745,8 @@ interpreter:
 Both are also invoked by the Mill tasks - `createVitisProject` and `runUart`
 respectively - so calling them by hand is for the standalone path only.
 
-`program_board.sh` (with `program_board.tcl`) is what `flashBoard` runs: xsdb
+`program_board.sh` (with `program_board.tcl`) is what `flashBoard` runs on a
+ZynqMP board (on a Versal it runs `program_board_versal.sh` with the PDI): xsdb
 resets the PS, runs the FSBL, programs the bitstream, releases the PL, then
 downloads and starts the ELF. It takes the artifact paths explicitly
 (`--bit`, `--elf`, `--fsbl`, `--psinit`).

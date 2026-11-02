@@ -132,17 +132,6 @@ object `package` extends Module {
       run(Seq("--workspace", workspace.toString, "--build", appName))
   }
 
-  /** Read a string field out of a BuildFpga manifest.json (xsa, cpu, board,
-    * ...).
-    */
-  def readManifestField(manifestPath: os.Path, key: String): String =
-    ujson
-      .read(os.read(manifestPath))
-      .obj
-      .get(key)
-      .map(_.str)
-      .getOrElse(sys.error(s"ERROR: '$key' not found in $manifestPath"))
-
   /** One Vivado build: the tasks of a (config, board) pair.
     *
     * The Cross itself lives at the root of the build, as `targets`, so it is
@@ -222,8 +211,8 @@ object `package` extends Module {
     }
 
     /** Synthesize this (config, board): the output dir holds the XSA, the
-      * bitstream, the reports and manifest.json (which the Vitis tasks read to
-      * find the XSA and CPU). Slow (Vivado).
+      * bitstream (or PDI), the reports and a provenance manifest.json. Slow
+      * (Vivado).
       *
       * Reopens the project [[fpgaProject]] created, GUI edits included, and
       * exports the deliverables straight into this task's dest (--export-dir);
@@ -289,7 +278,8 @@ object `package` extends Module {
     }
 
     /** Create (or refresh) the Vitis workspace + hardware platform of this
-      * (config, board), from its synthesized XSA ([[synth]]'s manifest).
+      * (config, board), from its synthesized XSA ([[synth]]). With
+      * -Dvta.hw.dir the Vitis tasks use [[prebuiltVitisPlatform]] instead.
       *
       * The platform is model-independent: per-model app components are added on
       * top by `examples.onnx[<model>,<config>].createVitisProject` (or the flat
@@ -301,18 +291,63 @@ object `package` extends Module {
       * content-hashing). Honors -Dvta.xil.out.
       */
     def vitisPlatform = Task(persistent = true) {
-      val manifest = synth().path / "manifest.json"
       val ws = xilOutRoot(xilOutDir(), configKey, board)
         .map(_ / "vitis")
         .getOrElse(Task.dest)
-      software
-        .vitisRunner()
-        .platform(
-          xsa = readManifestField(manifest, "xsa"),
-          cpu = readManifestField(manifest, "cpu"),
-          workspace = ws
-        )
+      software.vitisRunner().platform(
+        xsa = (synth().path / s"vta_$board.xsa").toString,
+        cpu = cpu(),
+        workspace = ws
+      )
       ws.toString
+    }
+
+    /** The same workspace as [[vitisPlatform]], built from the -Dvta.hw.dir
+      * export instead of [[synth]], so it never runs Vivado. A workspace of
+      * its own, so switching between the two never swaps a platform's XSA.
+      */
+    def prebuiltVitisPlatform = Task(persistent = true) {
+      val ws = xilOutRoot(xilOutDir(), configKey, board)
+        .map(_ / "vitis-prebuilt")
+        .getOrElse(Task.dest)
+      software.vitisRunner().platform(
+        xsa = (prebuiltHardware().path / s"vta_$board.xsa").toString,
+        cpu = cpu(),
+        workspace = ws
+      )
+      ws.toString
+    }
+
+    // The two choices below are plain defs, called only from Commands and
+    // Anons. A cached task built on them would be created once per module
+    // instance and keep the first call's choice in a warm daemon.
+
+    /** The hardware export apps are built for and flashed with: [[synth]]'s,
+      * or the -Dvta.hw.dir directory. Either holds vta_<board>.xsa and
+      * vta_<board>.bit (ZynqMP) or .pdi (Versal).
+      */
+    def hardware: Task[PathRef] =
+      if (build.prebuiltHwDir.isDefined) prebuiltHardware else synth
+
+    /** The Vitis workspace matching [[hardware]]. */
+    def platform: Task[String] =
+      if (build.prebuiltHwDir.isDefined) prebuiltVitisPlatform else vitisPlatform
+
+    /** The -Dvta.hw.dir export, tracked by size and mtime. */
+    // quick: an XSA is tens of MB and an Input is re-checked on every run.
+    def prebuiltHardware = Task.Input {
+      val dir = build.prebuiltHwDir.getOrElse(sys.error("vta.hw.dir is not set"))
+      if (!os.exists(dir / s"vta_$board.xsa"))
+        sys.error(s"vta.hw.dir: no vta_$board.xsa in $dir")
+      PathRef(dir, quick = true)
+    }
+
+    /** The processor apps run on, from the board definition. */
+    def cpu = Task { ujson.read(os.read(boardJson().path))("cpu").str }
+
+    /** Whether the board is a Versal (flashed with a PDI, no FSBL). */
+    def isVersal = Task {
+      ujson.read(os.read(boardJson().path)).obj.get("is_versal").exists(_.bool)
     }
   }
 
@@ -521,8 +556,30 @@ object `package` extends Module {
         psuInit
       ).call(stdout = os.Inherit, stderr = os.Inherit)
 
+    def programBoardVersalScript = moduleDir / "host" / "program_board_versal.sh"
+
+    /** Flash an already-built app onto a Versal board over JTAG (see
+      * program_board_versal.tcl). `jtagCable` narrows programming to one cable
+      * when several boards are attached.
+      */
+    def runProgramBoardVersal(
+      pdi: os.Path,
+      elf: os.Path,
+      jtagCable: Option[String]
+    ): Unit =
+      os.proc(
+        "bash",
+        programBoardVersalScript,
+        "--pdi",
+        pdi,
+        "--elf",
+        elf,
+        jtagCable.toSeq.flatMap(c => Seq("--jtag-cable", c))
+      ).call(stdout = os.Inherit, stderr = os.Inherit)
+
     /** Add app components for the active config to its shared Vitis workspace,
-      * building the platform first if stale ([[TargetModule.vitisPlatform]]).
+      * building the platform first if stale ([[TargetModule.platform]]: the
+      * synthesized one, or the -Dvta.hw.dir one).
       *
       * Uses the checked-in software/gen/ headers and the default `vta` app-name
       * prefix; for a specific model, use
@@ -534,12 +591,11 @@ object `package` extends Module {
       *   <app>`, `--data-loader sd`.
       */
     def createVitisProject(args: Args) = Task.Command {
-      val ws = os.Path(activeTarget.vitisPlatform())
-      val manifest = activeTarget.synth().path / "manifest.json"
+      val ws = os.Path(activeTarget.platform())
       vitisRunner().addApps(
         workspace = ws,
         namePrefix = "vta",
-        cpu = Some(readManifestField(manifest, "cpu")),
+        cpu = Some(activeTarget.cpu()),
         extraArgs = args.value
       )
       PathRef(ws)

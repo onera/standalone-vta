@@ -78,6 +78,13 @@ object `package` extends Module with SpotlessModule {
 
   def getVtaArg(name: String) = sys.props.getOrElse(name, defaultOpts(name))
 
+  /** Every -Dvta.* option with the value in effect for this run: the default,
+    * a persisted `./mill configure` value, or a -D flag.
+    */
+  def vtaOptions = Task.Input {
+    defaultOpts.keys.toSeq.sorted.map(k => k -> getVtaArg(k)).toMap
+  }
+
   /** Key (name without ".json") of the config selected globally with
     * `-Dvta.config.file`, default vta_config.
     *
@@ -98,6 +105,16 @@ object `package` extends Module with SpotlessModule {
     * Cross instance (`targets(config, board)`).
     */
   def defaultBoardName = getVtaArg("vta.board.name")
+
+  /** The prebuilt hardware export from -Dvta.hw.dir, or None to synthesize.
+    *
+    * A plain value for the same reason as [[defaultBoardName]]: it decides
+    * which task `targets(config, board).hardware` is, and the shape of the
+    * graph must be known before any task runs.
+    */
+  def prebuiltHwDir: Option[os.Path] =
+    Some(getVtaArg("vta.hw.dir")).filter(_.nonEmpty)
+      .map(os.Path(_, BuildCtx.workspaceRoot))
 
   /** Number of vivado jobs changing this property DOES NOT invalidate vivado
     * tasks (runtime flag)

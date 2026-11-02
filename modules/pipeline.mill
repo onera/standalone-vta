@@ -583,10 +583,12 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
     *
     * The workspace and its hardware platform are per (config, board) only -
     * `targets[<config>,<board>].vitisPlatform`, built first if stale (which
-    * synthesizes the XSA if needed). This task adds the model-dependent part on
-    * top: app components named `<model>_<runner>[_<loader>]`, wired to this
-    * example's generated headers ([[genBaremetal]]). Several models therefore
-    * coexist in one workspace per platform. Requires Vivado and Vitis.
+    * synthesizes the XSA if needed), or `prebuiltVitisPlatform` from the
+    * -Dvta.hw.dir export, which never runs Vivado. This task adds the
+    * model-dependent part on top: app components named
+    * `<model>_<runner>[_<loader>]`, wired to this example's generated headers
+    * ([[genBaremetal]]). Several models therefore coexist in one workspace per
+    * platform. Requires Vitis, and Vivado unless -Dvta.hw.dir is set.
     *
     * The board comes from -Dvta.board.name (default zcu104).
     *
@@ -609,33 +611,104 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
           Seq("--data-loader", dl)
         )
       )()
-      val ws = os.Path(build.targets(configKey, fpgaBoard).vitisPlatform())
+      val ws = os.Path(fpgaTarget.platform())
       val appName = vitisAppName(runner, dataLoader)
       fpga.software.vitisRunner().build(ws, appName)
       appName
     }
 
+  // The (config, board) Vivado target, as a plain def: a task can only be
+  // applied inside a Task block through a reference defined outside it.
+  private def fpgaTarget = build.targets(configKey, fpgaBoard)
+
   /** App component name, as create_vitis_workspace.py derives it. */
   private def vitisAppName(runner: String, dataLoader: Option[String]): String =
     dataLoader.fold(s"${modelKey}_$runner")(dl => s"${modelKey}_${runner}_$dl")
 
-  /** Program the bitstream and the ELF built by [[buildVitisApp]] over JTAG
-    * and start the app. Requires a JTAG connection and Vitis.
+  /** Program the hardware and the ELF built by [[buildVitisApp]] over JTAG
+    * and start the app: bitstream, FSBL and psu_init on ZynqMP, the PDI on
+    * Versal (through the -Dvta.jtag.cable cable when set). The hardware is the
+    * target's synthesis or -Dvta.hw.dir. Requires a JTAG connection and Vitis.
     */
   def flashBoard(runner: String, dataLoader: Option[String] = None) =
     Task.Command {
-      val synthDir = build.targets(configKey, fpgaBoard).synth().path
-      val ws = os.Path(build.targets(configKey, fpgaBoard).vitisPlatform())
+      val hw = fpgaTarget.hardware().path
+      val ws = os.Path(fpgaTarget.platform())
       val appName = vitisAppName(runner, dataLoader)
-      fpga.software.runProgramBoard(
-        bitstream = synthDir / s"vta_$fpgaBoard.bit",
-        elf = ws / appName / "build" / s"$appName.elf",
-        fsbl =
-          ws / "vta_platform" / "export" / "vta_platform" / "sw" / "boot" / "fsbl.elf",
-        psuInit = ws / appName / "_ide" / "psinit" / "psu_init.tcl"
-      )
+      val elf = ws / appName / "build" / s"$appName.elf"
+      if (fpgaTarget.isVersal())
+        fpga.software.runProgramBoardVersal(
+          pdi = hw / s"vta_$fpgaBoard.pdi",
+          elf = elf,
+          jtagCable = Some(jtagCable()).filter(_.nonEmpty)
+        )
+      else
+        fpga.software.runProgramBoard(
+          bitstream = hw / s"vta_$fpgaBoard.bit",
+          elf = elf,
+          fsbl =
+            ws / "vta_platform" / "export" / "vta_platform" / "sw" / "boot" / "fsbl.elf",
+          psuInit = ws / appName / "_ide" / "psinit" / "psu_init.tcl"
+        )
       Task.dest
     }
+
+  /** What a board run of this example is made of, as JSON, with its input
+    * files copied out.
+    *
+    * Copies input_nn.bin and dependency.csv into `snapshotDir`, so a long
+    * session outside Mill keeps reading them after another run rebuilds
+    * this example. Reports the copies, the app ELF and its sha256, the
+    * hardware export and the sha256 of its files, and every -Dvta.* option in
+    * effect. Use with `./mill show`.
+    *
+    * @param snapshotDir
+    *   directory the inputs are copied into, created if needed.
+    */
+  def runInfo(
+    @arg(doc = "directory the run's inputs are copied into") snapshotDir: String,
+    runner: String = "run_nn_uart",
+    dataLoader: Option[String] = None
+  ) = Task.Command {
+    val dir = os.Path(snapshotDir, BuildCtx.workspaceRoot)
+    val refDir = referenceDir().getOrElse(
+      sys.error("runInfo needs a reference input (ONNX front end only)")
+    )
+    os.makeDir.all(dir)
+    os.copy.over(refDir / "input_nn.bin", dir / "input_nn.bin")
+    os.copy.over(compile().path / "dependency.csv", dir / "dependency.csv")
+    val hw = fpgaTarget.hardware().path
+    val appName = vitisAppName(runner, dataLoader)
+    val elf = os.Path(fpgaTarget.platform()) / appName / "build" / s"$appName.elf"
+    def sha256(p: os.Path) = Option.when(os.isFile(p))(
+      java.security.MessageDigest.getInstance("SHA-256")
+        .digest(os.read.bytes(p)).map("%02x".format(_)).mkString
+    )
+    ujson.Obj(
+      "model" -> modelKey,
+      "config" -> configKey,
+      "board" -> fpgaBoard,
+      "input" -> (dir / "input_nn.bin").toString,
+      "dependency_csv" -> (dir / "dependency.csv").toString,
+      "elf" -> elf.toString,
+      "elf_sha256" -> sha256(elf).fold[ujson.Value](ujson.Null)(ujson.Str(_)),
+      "hardware" -> hw.toString,
+      "hardware_sha256" -> ujson.Obj.from(
+        os.list(hw).filter(p => Set("xsa", "bit", "pdi")(p.ext))
+          .map(p => p.last -> ujson.Str(sha256(p).get))
+      ),
+      "options" -> ujson.Obj.from(
+        build.vtaOptions().map { case (k, v) => k -> ujson.Str(v) }
+      )
+    )
+  }
+
+  /** JTAG cable name [[flashBoard]] programs through, from -Dvta.jtag.cable;
+    * empty for any cable.
+    */
+  def jtagCable = Task.Input {
+    build.getVtaArg("vta.jtag.cable")
+  }
 
   /** Add app components for this example to the shared Vitis workspace of its
     * (config, board), building the platform first if stale.
@@ -649,18 +722,13 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
     extraArgs: Seq[String]
   ): Task[String] = Task.Anon {
     val gen = genDir().path
-    val ws =
-      os.Path(build.targets(configKey, fpgaBoard).vitisPlatform())
-    val manifest = build
-      .targets(configKey, fpgaBoard)
-      .synth()
-      .path / "manifest.json"
+    val ws = os.Path(fpgaTarget.platform())
     fpga.software
       .vitisRunner()
       .addApps(
         workspace = ws,
         namePrefix = modelKey,
-        cpu = Some(fpga.readManifestField(manifest, "cpu")),
+        cpu = Some(fpgaTarget.cpu()),
         genDir = Some(gen),
         extraArgs = appArgs() ++ extraArgs
       )
@@ -711,6 +779,35 @@ trait VitisTasks extends BaremetalTasks with HasFpgaBoard {
           compile().path,
           "--ref",
           refOut / "reference.bin"
+        ),
+        mainClass = "fpga.host.checkers.CheckOutput",
+        forkArgs = Seq(s"-Dvta.config.file=${configKey}.json")
+      )
+  }
+
+  /** Check a raw output captured from the board against fsim; fails when they
+    * differ.
+    *
+    * The output is de-tiled from the VTA block layout and compared byte for
+    * byte with [[layerDumps]]' final_output.bin: fsim on the same compiled
+    * stream and input, so exactly what the board must produce. The ONNX
+    * reference is not the gate (it rounds differently from the VTA pipeline).
+    *
+    * @param output
+    *   the board's raw, block-tiled output file.
+    */
+  def checkBoardOutput(
+    @arg(doc = "raw board output file") output: String
+  ) = Task.Command {
+    fpga.software
+      .runner()
+      .run(
+        args = (
+          os.Path(output, BuildCtx.workspaceRoot).toString,
+          "--comp-dir",
+          compile().path,
+          "--sim-dir",
+          layerDumps().path
         ),
         mainClass = "fpga.host.checkers.CheckOutput",
         forkArgs = Seq(s"-Dvta.config.file=${configKey}.json")

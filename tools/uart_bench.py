@@ -398,8 +398,20 @@ def main() -> None:
         help="Expected number of [time] step rows. Default: learn it from the "
         "first run; any later run that disagrees is recorded as failed.",
     )
+    p.add_argument(
+        "--save-output",
+        type=Path,
+        default=None,
+        help="Write the first successful run's raw (block-tiled) output here, "
+        "e.g. to check it with `./mill examples.onnx[<model>,<config>]"
+        ".checkBoardOutput`.",
+    )
     args = p.parse_args()
 
+    # A leftover from an earlier session must not pass for this one's output,
+    # even if this one fails before its first run.
+    if args.save_output:
+        args.save_output.unlink(missing_ok=True)
     raw = args.input.read_bytes()
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     outdir = args.out_dir / f"{args.tag}-{stamp}"
@@ -421,6 +433,7 @@ def main() -> None:
     per_step: dict = {}
     banner_in = banner_out = None
     expected_steps = args.expect_steps
+    saved = False
     t_wall = time.monotonic()
 
     for i in range(1, args.runs + 1):
@@ -486,6 +499,9 @@ def main() -> None:
                 rec_s["us"].append(s["us"])
                 s["run"] = i
             rec["_steps"] = parsed["steps"]
+            if args.save_output and not saved:
+                args.save_output.write_bytes(data)
+                saved = True
             print(
                 f"  total {rec['total_us']} us (vta {rec['vta_us']}, "
                 f"cpu {rec['cpu_us']}), host round {rec['host_round_us']/1000:.0f} ms",
@@ -540,6 +556,10 @@ def main() -> None:
     text = write_stats(outdir / "stats.md", meta, runs, per_step)
     print("\n" + text)
     print(f"[bench] results in {outdir}")
+    # Failed runs are recorded and left out of the statistics; a session with
+    # none left measured nothing, and a caller must not take it for a result.
+    if not any(r["status"] == "ok" for r in runs):
+        sys.exit(1)
 
 
 if __name__ == "__main__":

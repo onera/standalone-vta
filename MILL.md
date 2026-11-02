@@ -167,8 +167,11 @@ never synthesis:
 | `vta.direct.conv.max.work`| `1.0`                       | Largest direct/im2row GEMM-work ratio a direct convolution may take.                                      |
 | `vta.alias.inp`         | `false`                     | Let a 1x1 layer read its producer's OUT in place. Needs `vta.fold.inp.zp` and 8-bit inputs (`LOG_INP_WIDTH=3`); declined otherwise. |
 | `vta.alias.cpu.out`     | `false`                     | Let a qadd/concat write straight into its 1x1 consumer's INP. Needs `vta.fold.inp.zp` and 8-bit inputs; inert otherwise. |
+| `vta.ref.seed`          | `1234`                      | Seed of the reference's random input (`input_nn.bin`); empty for a fresh draw on every `reference` run.   |
 | `vta.verilator.threads` | `4`                         | Verilator build threads. Changing it invalidates the `vsim` tasks.                                        |
 | `vta.vivado.jobs`       | `4`                         | Vivado parallel jobs. A runtime flag: changing it does not invalidate anything.                           |
+| `vta.hw.dir`            | empty                       | Prebuilt hardware export (`vta_<board>.xsa` plus `.bit` or `.pdi`) that `buildVitisApp` and `flashBoard` use instead of synthesizing. Its workspace is separate from the synthesized one. |
+| `vta.jtag.cable`        | empty                       | JTAG cable `flashBoard` programs a Versal through (e.g. `VCK190`), needed when several boards share the host. |
 | `vta.xil.out`           | unset                       | Shallow root for the heavy Vivado/Vitis trees (`<dir>/<config>/<board>/`), for Windows long-path limits.  |
 
 #### The AXI width is a config, not an option
@@ -251,8 +254,10 @@ of these tasks exist on `run[...]`, on `default`, and on
 | `createVitisProjectFromXsa` | command | Same, from an XSA you already have, with no Vivado run.                               |
 | `addVitisDebugApps`         | command | Add the on-board isolation apps (`run_nn_debug`, `run_nn_cpu_debug`).                 |
 | `buildVitisApp`             | command | Add the app component for a runner/loader and build its ELF.                          |
-| `flashBoard`                | command | Program the bitstream and a built app over JTAG and start it.                         |
+| `flashBoard`                | command | Program the bitstream (ZynqMP) or PDI (Versal) and a built app over JTAG and start it. |
 | `runUart`                   | command | Drive a board running `run_nn_uart` over a serial port and check its output.          |
+| `checkBoardOutput`          | command | Check a raw output captured from the board against the cached fsim run.               |
+| `runInfo`                   | command | What a board run is made of (ELF and hardware hashes, options in effect), as JSON, with its inputs copied out. |
 | `postSynth`                 | command | Gate-level xsim check of a layer subset against the fsim goldens.                     |
 
 The first four are the loop:
@@ -377,6 +382,11 @@ by `targets[<config>,<board>].vitisPlatform`, which it builds first if stale
 (synthesizing the XSA if needed). The platform is model-independent, so several
 models coexist in one workspace per (config, board); the components are named
 `<model>_<runner>[_<loader>]`. Requires Vivado and Vitis.
+
+With `-Dvta.hw.dir=<dir>`, a prebuilt export holding `vta_<board>.xsa` and its
+`.bit` or `.pdi`, the Vitis tasks and `flashBoard` use it instead, through
+`targets[<config>,<board>].prebuiltVitisPlatform`, a separate workspace. No
+Vivado run is needed.
 
 ```bash
 ./mill "examples.onnx[lenet5,vta_config].createVitisProject" \
