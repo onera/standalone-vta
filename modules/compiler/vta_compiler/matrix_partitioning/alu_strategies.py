@@ -6,6 +6,16 @@ from matrix_partitioning.utils_strategies import *
 
 ###############################################
 
+# The SRAM status of a step is also its SRAM layout: vector v sits at slot
+# sram_status.index(v). When a step is split, the DST vectors (store_C) stay in
+# SRAM and the next step starts from sram_status = store_C, i.e. expects them in
+# slots 0..len(store_C)-1. So the step being emitted has to place them there
+# too. The previous step's carry is a prefix of store_C, so vectors that were
+# already carried keep their slots.
+def _carried_first(sram_status, store_C):
+    return list(store_C) + [v for v in sram_status if v not in store_C]
+
+
 # ALU Strategy Generation
 # -----------------------
 def alu_strategy(sorted_alu_ops, acc_buffer_size, idx_to_store):
@@ -66,7 +76,7 @@ def alu_strategy(sorted_alu_ops, acc_buffer_size, idx_to_store):
                 # Filter the ops
                 filtered_ops = filter_op_for_step(alu_ops=ops, sram_status=sram_status)
                 # Append the strategy [([], [], [Xi], [SRAM], [DRAM], [Ci], [Ops])]
-                strategy.append( ([], [], load_X, sram_status, dram_status, [], filtered_ops) )
+                strategy.append( ([], [], load_X, _carried_first(sram_status, store_C), dram_status, [], filtered_ops) )
 
                 # Reset the lists (SRAM maintains DST vector)
                 load_X = []
@@ -102,7 +112,7 @@ def alu_strategy(sorted_alu_ops, acc_buffer_size, idx_to_store):
                     # Filter the ops
                     filtered_ops = filter_op_for_step(alu_ops=ops, sram_status=sram_status)
                     # Append the strategy [([], [], [Xi], [SRAM], [DRAM], [Ci], [Ops])]
-                    strategy.append( ([], [], load_X, sram_status, dram_status, [], filtered_ops) )
+                    strategy.append( ([], [], load_X, _carried_first(sram_status, store_C), dram_status, [], filtered_ops) )
                     # Reset
                     load_X = []
                     sram_status = store_C.copy()

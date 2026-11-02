@@ -150,9 +150,11 @@ def strategy_2(nb_A=1, A_blocks_col=1, nb_B=1, B_blocks_col=1, nb_X=1, nb_C=1, C
     else:
         tile_h, tile_w = 1, 1
 
-    # Limit tile's dimension to C's dimension
-    tile_h = min(tile_h, A_blocks_row)
-    tile_w = min(tile_w, C_blocks_col)
+    # Limit tile's dimension to C's dimension, and to what one K-chunk of A
+    # (tile_h x 1) and of B (1 x tile_w) can occupy in INP and WGT: tile_k
+    # never goes below 1, so a wider tile would overfill those buffers.
+    tile_h = min(tile_h, A_blocks_row, inp_block_buffer_size)
+    tile_w = min(tile_w, C_blocks_col, wgt_block_buffer_size)
     
     # 2 - Size of the chunk for the common dimension K
     # A (tile_h x tile_k) must fit inp_block_buffer_size

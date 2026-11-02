@@ -125,7 +125,7 @@ def node_relu(node, param={}, node_mapping={}, node_info={}, filename='',
     # Return
     # ---
     node_info.update({
-        "matrix_shape": (Ah, Aw_Bh, Bw),
+        "matrix_shape": (Xh, Xw),
         "processor": "vta",
         "reshape": "int32",
         "offsetA": 0,

@@ -100,16 +100,18 @@ struct NnRescaleStep {
    int32 (sign-extend) and subtracts the consumer's zero-point, writing the
    layer's ACC buffer - the runtime equivalent of the functional simulator's
    int32 chaining (fsim_nn.cc: convert_vector_type<int32> + subtract_offset).
-   Spatial padding (pad != {0,0,0,0}) is not yet implemented (warned, skipped).
+   With spatial padding (pad != {0,0,0,0}) it rebuilds the padded, re-blocked
+   matrix, filling padded positions with -128 (int8 min, i.e. -inf for the
+   max-pool that consumes it), as fsim's pad_matrix does.
  */
 struct NnInt32ChainStep {
   std::uint32_t src_addr; /* producer OUT buffer (compact int8, post-rescale) */
   std::uint32_t dst_addr; /* this layer's ACC buffer (int32) */
   std::uint32_t n_elems; /* element count = tensor_ch*tensor_h*tensor_w       */
   std::int32_t offset_a; /* zero-point to subtract from source values         */
-  std::int32_t pad[4];   /* {top, left, bottom, right}; nonzero not supported */
+  std::int32_t pad[4];   /* {top, left, bottom, right}                        */
   std::uint32_t
-      tensor_ch; /* C - input channels (for padding, when supported)  */
+      tensor_ch; /* C - input channels (for padding)                  */
   std::uint32_t tensor_h; /* H - input height */
   std::uint32_t tensor_w; /* W - input width */
   /* Fused rescale of the producer's OUT (see NnIm2RowStep). 0 => src is compact
