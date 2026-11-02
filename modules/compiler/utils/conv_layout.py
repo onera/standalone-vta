@@ -179,6 +179,20 @@ def direct_conv_supported(g, kh, kw, sh, sw, H, W,
             f"{kh * kw * IC_b} INP and {OC_b} ACC tensors "
             f"(budgets {inp_max}/{acc_max})")
 
+    # A tile whose input window lies entirely in the padding (kernel no larger
+    # than the pad, e.g. a padded 1x1) would need a LOAD with x_size or y_size
+    # 0, filled by the pad fields alone. The load engine is not built for an
+    # empty data region, so leave such layers to im2row.
+    for oh0, th, ow0, tw in tiles:
+        r0 = oh0 * sh - g["pt"]
+        c0 = ow0 * sw - g["pl"]
+        rows = min(H, r0 + (th - 1) * sh + kh) - max(0, r0)
+        cols = min(W, c0 + (tw - 1) * sw + kw) - max(0, c0)
+        if rows < 1 or cols < 1:
+            return False, (
+                f"tile {(oh0, th, ow0, tw)} reads only padding "
+                f"({max(rows, 0)} input rows x {max(cols, 0)} input cols)")
+
     # Validate the widest/tallest tile's GEMM factors; the rest are no larger.
     for tile in (tiles[0], tiles[-1]):
         _, th, _, tw = tile

@@ -228,13 +228,21 @@ if __name__ == "__main__":
         g = direct_conv_geometry(C, H, W, OC, kh, kw, sh, sw, pad)
         IC_b, OC_b = g["IC_b"], g["OC_b"]
 
+        # One tile covering the whole output: its input window is the padded
+        # input cropped to the rows and columns the GEMM actually reads.
+        tile = (0, g["oH"], 0, g["oW"])
+        tile_H = (g["oH"] - 1) * sh + kh
+        tile_W = (g["oW"] - 1) * sw + kw
+
         # scratchpads as the emitted LOADs would leave them
-        inp = np.zeros((g["H_pad"] * g["W_pad"] * IC_b, B), dtype=np.int64)
+        inp = np.zeros((tile_H * tile_W * IC_b, B), dtype=np.int64)
         for c in range(C):
             for yy in range(H):
                 for xx in range(W):
-                    pos = (yy + g["pt"]) * g["W_pad"] + (xx + g["pl"])
-                    inp[pos * IC_b + c // B, c % B] = x[c, yy, xx]
+                    wy, wx = yy + g["pt"], xx + g["pl"]
+                    if wy < tile_H and wx < tile_W:
+                        pos = wy * tile_W + wx
+                        inp[pos * IC_b + c // B, c % B] = x[c, yy, xx]
         wgt = np.zeros((OC_b * IC_b * kh * kw, B, B), dtype=np.int64)
         for oc in range(OC):
             for c in range(C):
@@ -247,8 +255,8 @@ if __name__ == "__main__":
         acc = np.zeros((g["oH"] * g["oW"] * OC_b, B), dtype=np.int64)
         n_gemm = 0
         for ocb in range(OC_b):
-            uops = conv_uops(g, kh, kw, ocb)
-            gem, sem = conv_gemm(g, kh, kw, sh, sw, len(uops), sem)
+            uops = conv_uops(g, kh, kw, ocb, tile_W=tile_W)
+            gem, sem = conv_gemm(g, kh, kw, sh, sw, len(uops), sem, tile)
             n_gemm += 1
             acc += simulate(g, kh, kw, sh, sw, uops, gem, inp, wgt)
 
@@ -260,9 +268,9 @@ if __name__ == "__main__":
                     got[oc, oh, ow] = acc[(oh * g["oW"] + ow) * OC_b + oc // B, oc % B]
         ok = np.array_equal(ref, got)
 
-        # the padded input load, for its field values
-        ld, sem = load_inp_padded(g, 0, sem)
-        sup, why = direct_conv_supported(g, kh, kw, sh, sw, **W8B)
+        # the tile's input load, for its field values
+        ld, sem = load_inp_tile(g, kh, kw, sh, sw, tile, H, W, 0, sem)
+        sup, why = direct_conv_supported(g, kh, kw, sh, sw, H, W, **W8B)
         print(f"=== {name}: C={C} {H}x{W} -> OC={OC} k{kh}x{kw} s{sh},{sw} pad{pad}"
               f" => {g['oH']}x{g['oW']}")
         print(f"    LOAD INP: y={ld.y_size} x={ld.x_size} xstr={ld.x_stride} "
@@ -293,15 +301,29 @@ if __name__ == "__main__":
     print()
     rejects = [
         ("256ch 3x3 pad1 (x_pad field)", 256, 8, 8, 256, 3, 3, 1, 1, (1, 1, 1, 1)),
-        ("224x224 feature map (INP capacity)", 3, 224, 224, 64, 3, 3, 1, 1, (1, 1, 1, 1)),
-        ("128x128x64 output (ACC capacity)", 64, 128, 128, 64, 1, 1, 1, 1, (0, 0, 0, 0)),
+        ("padded 1x1, one-row tiles (window only padding)", 16, 8, 100, 256, 1, 1, 1, 1, (1, 1, 1, 1)),
     ]
     for name, C, H, W, OC, kh, kw, sh, sw, pad in rejects:
         g = direct_conv_geometry(C, H, W, OC, kh, kw, sh, sw, pad)
-        sup, why = direct_conv_supported(g, kh, kw, sh, sw, **W8B)
+        sup, why = direct_conv_supported(g, kh, kw, sh, sw, H, W, **W8B)
         print(f"--- {name}: {'declined' if not sup else 'ACCEPTED (should decline!)'}"
               f" - {why}")
         r.append(not sup)
+
+    # Feature maps far larger than the scratchpads are no longer declined:
+    # direct_conv_tiles() sweeps them in several tiles.
+    tiled = [
+        ("224x224 feature map (INP capacity)", 3, 224, 224, 64, 3, 3, 1, 1, (1, 1, 1, 1)),
+        ("128x128x64 output (ACC capacity)", 64, 128, 128, 64, 1, 1, 1, 1, (0, 0, 0, 0)),
+    ]
+    for name, C, H, W, OC, kh, kw, sh, sw, pad in tiled:
+        g = direct_conv_geometry(C, H, W, OC, kh, kw, sh, sw, pad)
+        sup, why = direct_conv_supported(g, kh, kw, sh, sw, H, W, **W8B)
+        n_tiles = len(direct_conv_tiles(g, kh, kw, sh, sw, W8B["inp_buffer_size"],
+                                        W8B["acc_buffer_size"]) or [])
+        good = sup and n_tiles > 1
+        print(f"+++ {name}: {'tiled' if good else 'NOT TILED (should be!)'} - {why}")
+        r.append(good)
 
     print()
     print("ALL EXACT" if all(r) else f"{r.count(False)} case(s) FAILED")
