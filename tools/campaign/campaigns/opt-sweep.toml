@@ -1,0 +1,28 @@
+# The VTA compiler optimisation sweep: each flag applied ALONE to the all-off
+# baseline, so orthogonality is answerable, plus the cumulative sets. ELF
+# loader, so no SD card rewrite is needed for the changed model data. App at
+# -O0, as the sweep ran. The baseline is only all-off when `./mill configure`
+# persists no compiler option; the tool warns when one is.
+name = "opt-sweep"
+n_runs = 30
+mode = "reuse"
+
+# The exploratory options (vta.alu.coalesce, vta.pool.*) are not on this
+# branch, so their legs are left out.
+[variants]
+directconv = ["-Dvta.direct.conv=true"]
+aliasinp = ["-Dvta.alias.inp=true"]
+aliascpuout = ["-Dvta.alias.cpu.out=true"]
+classic3 = ["-Dvta.direct.conv=true", "-Dvta.alias.inp=true", "-Dvta.alias.cpu.out=true"]
+foldinpzp = ["-Dvta.fold.inp.zp=true"]
+all = ["-Dvta.direct.conv=true", "-Dvta.alias.inp=true", "-Dvta.alias.cpu.out=true",
+       "-Dvta.fold.inp.zp=true"]
+
+[[group]]
+configs = ["vta_config"]
+boards = ["vck190"]
+models = ["resnet18"]
+app_opts = ["O0"]
+variants = ["base", "directconv", "aliasinp", "aliascpuout", "classic3", "foldinpzp", "all"]
+loader = "elf"
+tag = "OPT-{variant}-{model}-{config}-{board}"

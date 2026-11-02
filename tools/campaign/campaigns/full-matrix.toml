@@ -1,0 +1,102 @@
+# The earlier full matrix: everything runnable without re-synthesis, in
+# priority order. Behind results/full-matrix.md.
+#
+# Two differences from how it first ran, both forced by the framework:
+# - The 128-bit legs ran as the 64-bit config with -Dvta.axi.bits=128 on the
+#   archived 128-bit XSA. The AXI width is now declared by the config, so they
+#   run as the *_a128 config on the same XSA; tags keep their old names. Their
+#   SD folder is <model>_<config>_a128 (stage it first with stage-sd).
+# - The first run predates the correctness rules, so its qyolo/vta_8b_block32 legs
+#   ran without the flags that config needs (four of them were measured at
+#   31599/32000 elements wrong). Here they get correctness.toml's flags like
+#   every other leg.
+name = "full-matrix"
+n_runs = 30
+mode = "reuse"
+
+# The exploratory options (vta.alu.coalesce, vta.pool.*) are not on this
+# branch, so their legs are left out.
+[variants]
+directconv = ["-Dvta.direct.conv=true"]
+aliasinp = ["-Dvta.alias.inp=true"]
+aliascpuout = ["-Dvta.alias.cpu.out=true"]
+classic3 = ["-Dvta.direct.conv=true", "-Dvta.alias.inp=true", "-Dvta.alias.cpu.out=true"]
+foldinpzp = ["-Dvta.fold.inp.zp=true"]
+all = ["-Dvta.direct.conv=true", "-Dvta.alias.inp=true", "-Dvta.alias.cpu.out=true",
+       "-Dvta.fold.inp.zp=true"]
+
+# Phase 1: model axis, vta_config, 64-bit
+[[group]]
+configs = ["vta_config"]
+boards = ["zcu104", "vck190"]
+models = ["lenet5"]
+app_opts = ["O0", "O2"]
+loader = "sd"
+tag = "F-{model}-{config}-{board}-{app_opt}"
+
+[[group]]
+configs = ["vta_config"]
+boards = ["zcu104"]
+models = ["resnet18"]
+app_opts = ["O0", "O2"]
+loader = "sd"
+tag = "F-{model}-{config}-{board}-{app_opt}"
+
+# Phase 2: 128-bit arm across models
+[[group]]
+configs = ["vta_config_a128"]
+boards = ["zcu104", "vck190"]
+models = ["resnet18", "lenet5"]
+app_opts = ["O0", "O2"]
+loader = "sd"
+tag = "F-{model}-vta_config-{board}-a128-{app_opt}"
+hw_dir = "{archive}/vta_config__{board}__axi128"
+
+# Phase 3: vta_w8b across models, 64-bit
+[[group]]
+configs = ["vta_w8b"]
+boards = ["zcu104", "vck190"]
+models = ["resnet18", "lenet5"]
+app_opts = ["O0", "O2"]
+loader = "sd"
+tag = "F-{model}-{config}-{board}-{app_opt}"
+
+# Phase 4: does direct.conv transfer to qyolo / ZynqMP
+[[group]]
+configs = ["vta_config"]
+boards = ["zcu104", "vck190"]
+models = ["qyolo"]
+app_opts = ["O0", "O2"]
+variants = ["directconv"]
+loader = "elf"
+tag = "F-{model}-{variant}-{board}-{app_opt}"
+
+# Phase 5: flag sweep at -O2, resnet18, vck190, 64-bit
+[[group]]
+configs = ["vta_config"]
+boards = ["vck190"]
+models = ["resnet18"]
+app_opts = ["O2"]
+variants = ["aliasinp", "aliascpuout", "classic3", "foldinpzp", "all"]
+loader = "elf"
+tag = "F-sw-{variant}-{board}-{app_opt}"
+
+# Phase 6: the same sweep on zcu104, plus its base and direct.conv legs
+[[group]]
+configs = ["vta_config"]
+boards = ["zcu104"]
+models = ["resnet18"]
+app_opts = ["O2"]
+variants = ["base", "directconv", "aliasinp", "aliascpuout", "classic3", "foldinpzp", "all"]
+loader = "elf"
+tag = "F-sw-{variant}-{board}-{app_opt}"
+
+# Phase 7: vta_8b_block32, 128-bit, ELF
+[[group]]
+configs = ["vta_8b_block32_a128"]
+boards = ["zcu104", "vck190"]
+models = ["resnet18", "qyolo"]
+app_opts = ["O0", "O2"]
+loader = "elf"
+tag = "F-{model}-block32-{board}-a128-{app_opt}"
+hw_dir = "{archive}/vta_8b_block32__{board}__axi128"

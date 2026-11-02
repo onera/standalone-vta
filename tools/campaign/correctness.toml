@@ -1,0 +1,43 @@
+# Which compiler flags a (model, config) pair needs to compute the RIGHT answer.
+# These are correctness requirements, not speed choices: every leg of every
+# campaign gets them (before its own variant flags) unless the campaign sets
+# apply_correctness = false.
+#
+# Established by fsim against the ONNX Runtime golden, re-established on
+# 8 October with one seeded input per pair:
+#
+#   qyolo on vta_config_8b    fold -> correct (output bit-identical to the
+#                             32-bit config's golden, a65892acf7)
+#   qyolo on vta_8b_block32   none -> 98.8% of elements wrong
+#                             fold only -> 22.8% wrong
+#                             fold+direct.conv+alias x2 -> correct
+#   resnet18 on every 8-bit   fold -> correct (and it is inert for resnet18,
+#                             which has no layer with a non-zero input zero
+#                             point, node_conv.py:819)
+#
+# The earlier "qyolo cannot run on vta_config_8b at all, 21-24% wrong under
+# every flag set" finding was an artefact of the build graph, not of the
+# hardware or the compiler: the reference input was redrawn whenever a flag
+# change recompiled, so goldens and runs described different random inputs.
+# With the seed held (now the vta.ref.seed build option), fold alone is
+# correct. Every pair is measurable.
+#
+# Rules are tried in order; the first whose configs (and models, when given)
+# match wins. A pair no rule matches needs no flag.
+
+[flag_sets]
+fold = ["-Dvta.fold.inp.zp=true"]
+classic = ["-Dvta.direct.conv=true", "-Dvta.alias.inp=true", "-Dvta.alias.cpu.out=true"]
+
+[[rule]]
+configs = ["vta_config_8b", "vta_config_8b_a128"]
+flags = ["fold"]
+
+[[rule]]
+configs = ["vta_8b_block32", "vta_8b_block32_a128"]
+models = ["qyolo"]
+flags = ["fold", "classic"]
+
+[[rule]]
+configs = ["vta_8b_block32", "vta_8b_block32_a128"]
+flags = ["fold"]

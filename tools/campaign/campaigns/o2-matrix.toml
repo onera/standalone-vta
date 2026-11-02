@@ -1,0 +1,41 @@
+# The -O2 repeat of the reported cells, so the CPU/accelerator
+# split is quoted from optimised code. Same XSAs, same SD cards, same VTA
+# compiler options as the cells it repeats.
+#
+# The O2A128 legs ran as vta_config with -Dvta.axi.bits=128 on the archived
+# 128-bit XSA. The AXI width is now declared by the config, so they are the
+# vta_config_a128 config on the same XSA; the tag keeps its old name. Their SD
+# folder is now qyolo_vta_config_a128 (stage it first, see stage-sd); the
+# staged data does not depend on the AXI width.
+name = "o2-matrix"
+n_runs = 30
+mode = "reuse"
+
+[variants]
+directconv = ["-Dvta.direct.conv=true"]
+
+[[group]]
+configs = ["vta_w8b"]
+boards = ["zcu104", "vck190"]
+models = ["qyolo"]
+app_opts = ["O2"]
+loader = "sd"
+tag = "O2-{model}-{config}-{board}"
+
+[[group]]
+configs = ["vta_config_a128"]
+boards = ["zcu104", "vck190"]
+models = ["qyolo"]
+app_opts = ["O2"]
+loader = "sd"
+tag = "O2A128-{model}-vta_config-{board}"
+hw_dir = "{archive}/vta_config__{board}__axi128"
+
+[[group]]
+configs = ["vta_config"]
+boards = ["vck190"]
+models = ["resnet18"]
+app_opts = ["O2"]
+variants = ["base", "directconv"]
+loader = "elf"
+tag = "O2-OPT{variant}-{model}-{config}-{board}"

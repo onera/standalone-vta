@@ -1,0 +1,21 @@
+# The config sweep behind results/config-matrix.md (run on 8 October): 8
+# configs x 2 boards x 2 models, all at -O2, SD loader, resident input, n=30,
+# every leg gated on matching fsim exactly.
+#
+# Six configs use mill's synthesis. vta_config_a128 and vta_8b_block32_a128
+# have no build under their _a128 name because they predate the AXI-width
+# cross key, so they are taken from the synthesis archive: the XSAs are the
+# same files the earlier *-a128-* legs used.
+name = "config-matrix"
+n_runs = 30
+mode = "reuse"
+
+[[group]]
+configs = ["vta_config", "vta_config_a128", "vta_w8b", "vta_w8b_a128",
+           "vta_config_8b", "vta_config_8b_a128", "vta_8b_block32", "vta_8b_block32_a128"]
+boards = ["zcu104", "vck190"]
+models = ["qyolo", "resnet18"]
+app_opts = ["O2"]
+loader = "sd"
+tag = "C-{model}-{config}-{board}"
+hw_dirs = { vta_config_a128 = "{archive}/vta_config__{board}__axi128", vta_8b_block32_a128 = "{archive}/vta_8b_block32__{board}__axi128" }

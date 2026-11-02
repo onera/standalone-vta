@@ -59,6 +59,11 @@ pyserial = ">=3.5"
 mpmath = "==1.3.0"   # Pin to 1.3.0 to satisfy executorch requirement on PyPI
 
 
+[tasks]
+# Measurement campaign tool, see tools/campaign/README.md.
+campaign = { cmd = "python -m vta_campaign", env = { PYTHONPATH = "tools/campaign" } }
+campaign-test = { cmd = "python -m unittest discover -s tools/campaign/tests -t tools/campaign", env = { PYTHONPATH = "tools/campaign" } }
+
 [pypi-dependencies]
 # ONNX consumption for the compiler + reference/check flow (these pull numpy).
 onnxruntime = "==1.20.1"

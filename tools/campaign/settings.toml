@@ -1,0 +1,39 @@
+# Machine settings of the measurement campaign tool. Pass another file with
+# `campaign --settings <file>` (it only needs the keys it changes, and may add
+# boards); a port can also be overridden per invocation with
+# `--port <board>=<device>`.
+
+# Relative paths resolve against the repository root, `~` is expanded.
+[paths]
+# Logs, leg status and each leg's captured output and input copies.
+work = "build/campaign"
+# Where uart_bench writes one <tag>-<mode>-<timestamp>/ per measurement.
+results = "results"
+# Prebuilt hardware exports, for campaigns whose hw_dir names "{archive}".
+archive = "~/dev/vta_synth_archive"
+# Host copy of the SD card trees, one <board>/<model>_<config>/ per pair.
+cards = "~/dev/vta_sd_cards/baseline_opts_off"
+# Taken around flashing. Outside the checkout on purpose: every checkout and
+# worktree on the host programs through the same hw_server.
+jtag_lock = "~/.cache/vta-campaign/jtag.lock"
+
+# One table per board: the UART the board's app talks on, its baud rate (one
+# of the board JSON's uart_baud_choices), and optionally:
+#   uart_usb_model  udev ID_MODEL of the board's USB-UART bridge. The port must
+#                   report it, and no other board's port may.
+#   jtag_cable      JTAG cable to flash through (-Dvta.jtag.cable), needed
+#                   when several boards share the host.
+#
+# ttyUSB numbering follows USB enumeration order, not the board: with both
+# boards attached the ZCU104 takes ttyUSB0-3 and the VCK190 ttyUSB4-7, with
+# only the VCK190 attached it is on ttyUSB0-3. The check above turns a wrong
+# guess into a failure instead of a run on the other board.
+[boards.zcu104]
+port = "/dev/ttyUSB1"
+baud = 2000000
+
+[boards.vck190]
+port = "/dev/ttyUSB5"
+baud = 115200
+uart_usb_model = "VCK190"
+jtag_cable = "VCK190"
