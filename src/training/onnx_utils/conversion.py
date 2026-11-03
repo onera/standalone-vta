@@ -1,8 +1,11 @@
+import logging
 import onnx
 from onnx import helper, numpy_helper
 import numpy as np
 import warnings
 from typing import Dict, Set, List, Optional
+
+logger = logging.getLogger(__name__)
 
 def convert_qdq_to_qlinear_onnx(input_path: str, output_path: str) -> None:
     """Converts an ONNX model from QDQ (QuantizeDequantize) format to QLinear format.
@@ -21,6 +24,7 @@ def convert_qdq_to_qlinear_onnx(input_path: str, output_path: str) -> None:
         UserWarning: If a float ReLU must be retained because a safe quantized
             rewrite cannot be established. The result may contain QDQ operators.
     """
+    logger.info(f"[convert] Converting QDQ model to QLinear: {input_path}")
     model = onnx.load(input_path)
     graph = model.graph
 
@@ -433,8 +437,12 @@ def convert_qdq_to_qlinear_onnx(input_path: str, output_path: str) -> None:
     try:
         onnx.checker.check_model(model)
     except Exception as e:
-        print(f"⚠️ ONNX Model Checker Warning: {e}")
+        logger.warning(
+            f"[convert] ONNX checker failed; saving model without successful structural validation: {e}"
+        )
+    else:
+        logger.info("[convert] ONNX checker passed (structural validation only)")
 
     onnx.save(model, output_path)
-    print(f"✅ Successfully converted QDQ model to QLinear model at: {output_path}")
+    logger.info(f"[convert] Saved QLinear model: {output_path}")
 

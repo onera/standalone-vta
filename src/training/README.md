@@ -117,17 +117,30 @@ Models trained with the earlier configuration lacking `is_qat=True` need a new
 training or fine-tuning run with fake quantization enabled before their results
 can be interpreted as QAT results.
 
+## Console output
+
+The pipeline reports progress using `LEVEL [stage] message` logs, with an epoch
+summary of training loss and training/validation accuracy. Progress bars appear
+in interactive terminals only.
+
+ONNX comparison reports the sample count, accuracies, output differences and
+prediction agreement. These metrics are informational; no numerical acceptance
+threshold is applied. VTA compilation or execution failures produce a nonzero
+exit status.
+
 ## Regression tests
 
 ```bash
 pixi run -e training python -m pytest -p no:rerunfailures \
   tests/training/test_quantization.py \
   tests/training/test_trainer.py \
+  tests/training/test_onnx_verification.py \
   tests/training/test_onnx_conversion.py -q
 ```
 
 The checks cover enabled fake quantization, gradient propagation and optimizer
 updates, conversion, and observer freezing/resumption over two epochs.
+The verification checks also cover truncated and empty test datasets.
 The ONNX conversion test checks artifact creation, not output equivalence.
 `-p no:rerunfailures` allows these tests to run in environments where that
 optional plugin's socket initialization is unavailable.

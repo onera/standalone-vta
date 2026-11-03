@@ -1,9 +1,12 @@
+import logging
 import numpy as np
 import onnx
 from onnx import numpy_helper
 import torch
 import torch.nn as nn
 from typing import Dict, Any, List, Optional
+
+logger = logging.getLogger(__name__)
 
 def verify_onnx(
     py_model: nn.Module,
@@ -20,9 +23,15 @@ def verify_onnx(
         qlinear_path: Path to the QLinear ONNX model.
         loaders: Data loaders dictionary containing the test set loader.
         num_samples: Number of samples to run verification on.
+
+    Raises:
+        ValueError: If the requested sample count is nonpositive or no samples
+            are available in the test loader.
     """
     import onnxruntime as ort
-    print("\n--- Verifying ONNX Models ---")
+    if num_samples <= 0:
+        raise ValueError("num_samples must be positive")
+    logger.info(f"[verify] Comparing PyTorch, QDQ and QLinear: requested samples={num_samples}")
     
     test_loader = loaders['test']
     ort_sess_qdq = ort.InferenceSession(qdq_path)
@@ -35,6 +44,14 @@ def verify_onnx(
     model_qlinear = onnx.load(qlinear_path)
     
     def get_init_val(name: str) -> Optional[np.ndarray]:
+        """Returns an initializer array by name, or None when absent.
+
+        Args:
+            name: Initializer name in the QLinear graph.
+
+        Returns:
+            Constant array, or None if not found.
+        """
         for init in model_qlinear.graph.initializer:
             if init.name == name:
                 return numpy_helper.to_array(init)
@@ -108,16 +125,31 @@ def verify_onnx(
             qlinear_preds.append(qlinear_pred)
             labels_list.append(label.item())
         
-    mse_qdq /= num_samples
-    mse_qlinear /= num_samples
+    actual_samples = len(py_preds)
+    if actual_samples == 0:
+        raise ValueError("No test samples available for ONNX comparison")
+    if actual_samples < num_samples:
+        logger.warning(
+            f"[verify] Test loader exhausted: requested={num_samples} processed={actual_samples}"
+        )
+    mse_qdq /= actual_samples
+    mse_qlinear /= actual_samples
     labels_np = np.array(labels_list)
     py_acc = np.mean(np.array(py_preds) == labels_np) * 100
     qdq_acc = np.mean(np.array(qdq_preds) == labels_np) * 100
     qlinear_acc = np.mean(np.array(qlinear_preds) == labels_np) * 100
     
-    print(f"PyTorch Accuracy:       {py_acc:.2f}%")
-    print(f"ONNX QDQ Accuracy:      {qdq_acc:.2f}%")
-    print(f"ONNX QLinear Accuracy:  {qlinear_acc:.2f}%")
-    print(f"\nQDQ vs PyTorch Max Diff: {max_diff_qdq:.6f}, MSE: {mse_qdq:.6f}")
-    print(f"QLinear vs PyTorch Max Diff: {max_diff_qlinear:.6f}, MSE: {mse_qlinear:.6f}")
-    print(f"Match Rate: QDQ {np.mean(np.array(py_preds) == np.array(qdq_preds))*100:.2f}%, QLinear {np.mean(np.array(py_preds) == np.array(qlinear_preds))*100:.2f}%")
+    logger.info(f"[verify] Processed samples={actual_samples}")
+    logger.info(
+        f"[verify] Accuracy: PyTorch={py_acc:.2f}% QDQ={qdq_acc:.2f}% QLinear={qlinear_acc:.2f}%"
+    )
+    for name, predictions, max_diff, mse in (
+        ("QDQ", qdq_preds, max_diff_qdq, mse_qdq),
+        ("QLinear", qlinear_preds, max_diff_qlinear, mse_qlinear),
+    ):
+        match_rate = np.mean(np.array(py_preds) == np.array(predictions)) * 100
+        logger.info(
+            f"[verify] {name} vs PyTorch: max_abs_diff={max_diff:.6g} "
+            f"mse={mse:.6g} prediction_match={match_rate:.2f}%"
+        )
+    logger.info("[verify] Comparison completed; no numerical acceptance threshold applied")

@@ -1,8 +1,11 @@
+import logging
 import argparse
 from dataclasses import dataclass, asdict, fields
 from typing import Optional, Tuple, Union, List, Dict, Any
 import os
 import yaml
+
+logger = logging.getLogger(__name__)
 
 @dataclass
 class TrainingConfig:
@@ -48,7 +51,7 @@ class TrainingConfig:
             data["image_size"] = list(data["image_size"])
         with open(filepath, 'w', encoding='utf-8') as f:
             yaml.dump(data, f, default_flow_style=False, sort_keys=False)
-        print(f"📄 Saved configuration YAML to: {filepath}")
+        logger.info(f"[setup] Saved configuration: {filepath}")
 
     @classmethod
     def from_yaml(cls, filepath: str) -> "TrainingConfig":

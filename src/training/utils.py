@@ -2,6 +2,7 @@
 Copyright (c) 2024 Julien Posso
 """
 
+import logging
 import os
 import random
 import string
@@ -11,6 +12,8 @@ from typing import Dict, Optional, Tuple, Any
 import numpy as np
 import torch
 
+
+logger = logging.getLogger(__name__)
 
 class RunningAverage:
     """Class to compute and store running averages of values"""
@@ -115,7 +118,7 @@ def select_device(device_str: Optional[str] = None) -> torch.device:
     """
     if device_str is not None:
         device = torch.device(device_str)
-        print(f"Device specified: {device}\n")
+        logger.debug(f"[setup] Explicit device: {device}")
         return device
 
     if torch.cuda.is_available():
@@ -124,10 +127,9 @@ def select_device(device_str: Optional[str] = None) -> torch.device:
             device = torch.device(f"cuda:{gpu_nb}")
         else:
             device = torch.device("cuda:0")
-            print(f"Device used: {device}\n")
     else:
         device = torch.device("cpu")
-        print(f"Device used: {device}\n")
+    logger.debug(f"[setup] Selected device: {device}")
     return device
 
 

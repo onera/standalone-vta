@@ -1,7 +1,10 @@
+import logging
 import os
 from typing import Dict, Optional, Tuple, Union
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, random_split, Dataset
+
+logger = logging.getLogger(__name__)
 
 def get_data_loaders(
     dataset_name: str = "FashionMNIST",
@@ -82,7 +85,10 @@ def get_data_loaders(
                 transform=transform
             )
         else:
-            print("⚠️ ImageNet directory not found at datasets/imagenet or empty. Falling back to synthetic FakeData for testing.")
+            logger.warning(
+                f"[data] ImageNet unavailable at {imagenet_root}; using synthetic FakeData. "
+                "Accuracy on these data is not an ImageNet benchmark."
+            )
             full_train_data = datasets.FakeData(
                 size=200,
                 image_size=(3, 224, 224),
@@ -112,4 +118,8 @@ def get_data_loaders(
         "test": test_loader
     }
     
+    logger.info(
+        f"[data] Loaded samples: train={len(train_data)} "
+        f"valid={len(val_data)} test={len(test_data)}"
+    )
     return data_loaders

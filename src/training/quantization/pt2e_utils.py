@@ -1,3 +1,4 @@
+import logging
 import torch
 import torch.nn as nn
 import torchao
@@ -10,6 +11,8 @@ from executorch.backends.xnnpack.quantizer.xnnpack_quantizer import (
     get_symmetric_quantization_config,
     XNNPACKQuantizer,
 )
+
+logger = logging.getLogger(__name__)
 
 def prepare_qat_model(
     model: nn.Module, 
@@ -32,6 +35,7 @@ def prepare_qat_model(
         TorchAO PT2E QAT tutorial:
         https://docs.pytorch.org/ao/stable/pt2e_quantization/pt2e_quant_qat.html
     """
+    logger.info("[qat] Preparing model with PT2E fake quantization")
     # Allow batch size to vary dynamically between min_batch (e.g. 1 for VTA) and max_batch (e.g. 64 for training)
     batch_dim = Dim("batch", min=min_batch, max=max_batch)
     dynamic_shapes = ({0: batch_dim},)
@@ -50,6 +54,7 @@ def prepare_qat_model(
     )
     qat_model = prepare_qat_pt2e(exported_model, quantizer)
 
+    logger.info("[qat] Model prepared")
     return qat_model
 
 def convert_quantized_model(qat_model: nn.Module) -> nn.Module:
@@ -61,6 +66,8 @@ def convert_quantized_model(qat_model: nn.Module) -> nn.Module:
     Returns:
         Quantized PyTorch model.
     """
+    logger.info("[qat] Converting trained model to quantized graph")
     torchao.quantization.pt2e.move_exported_model_to_eval(qat_model)
     q_model = convert_pt2e(qat_model)
+    logger.info("[qat] Quantized graph ready")
     return q_model

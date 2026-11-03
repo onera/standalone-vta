@@ -1,3 +1,5 @@
+import logging
+import sys
 import torch
 import torch.nn as nn
 import torchao
@@ -5,6 +7,8 @@ from tqdm import tqdm
 from typing import Dict, Union, Optional
 from torch.utils.data import DataLoader
 from src.training.utils import RunningAverage
+
+logger = logging.getLogger(__name__)
 
 def train_model(
     model: nn.Module,
@@ -34,13 +38,13 @@ def train_model(
     Returns:
         The trained model with best validation weights loaded if available.
     """
-    batch_size: int = next(iter(dataloaders['train']))[0].size(0)
-    print(f"Batch Size: {batch_size}")
+    logger.info(f"[train] Starting training: epochs={num_epochs}")
     model = model.to(device)
     best_model = None
     best_accuracy: float = 0.0
     
     for epoch in range(num_epochs):
+        epoch_metrics: Dict[str, float] = {}
         for phase in ['train', 'valid']:
             if phase not in dataloaders:
                 continue
@@ -56,9 +60,12 @@ def train_model(
             metrics = RunningAverage(keys=('loss', 'accuracy'))
             pbar = tqdm(
                 dataloaders[phase], 
-                desc=f"{phase.capitalize()} Epoch {epoch+1}/{num_epochs}", 
-                bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}', 
-                ncols=120
+                desc=f"{phase.capitalize()} Epoch {epoch+1}/{num_epochs}",
+                total=min(len(dataloaders[phase]), max_steps_per_epoch)
+                if max_steps_per_epoch is not None else len(dataloaders[phase]),
+                disable=not sys.stderr.isatty(),
+                dynamic_ncols=True,
+                leave=False,
             )
             
             step_count: int = 0
@@ -91,15 +98,25 @@ def train_model(
                 if max_steps_per_epoch is not None and step_count >= max_steps_per_epoch:
                     break
 
+            pbar.close()
             current_accuracy = metrics.get('accuracy')
+            epoch_metrics[f"{phase}_accuracy"] = current_accuracy
+            if phase == 'train':
+                epoch_metrics['train_loss'] = metrics.get('loss')
             if phase == 'valid' and current_accuracy > best_accuracy:
                 best_accuracy = current_accuracy
                 best_model = {k: v.cpu().clone() for k, v in model.state_dict().items()}
 
+        summary = " ".join(
+            f"{key}={value:.4f}" if key.endswith('loss') else f"{key}={value:.2f}%"
+            for key, value in epoch_metrics.items()
+        )
+        logger.info(f"[train] Epoch {epoch + 1}/{num_epochs}: {summary}")
+
     if best_model is not None:
         model.load_state_dict(best_model)
-        print(f"\nBest Validation Accuracy: {best_accuracy:.2f}%")
+        logger.info(f"[train] Restored best validation state: accuracy={best_accuracy:.2f}%")
     else:
-        print("\nTraining completed or interrupted early. Returning current trained weights.")
+        logger.info("[train] No best validation state selected; returning current weights")
     return model
 

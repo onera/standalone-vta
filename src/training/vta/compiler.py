@@ -1,6 +1,10 @@
+import logging
 import os
+import shlex
 import subprocess
 import sys
+
+logger = logging.getLogger(__name__)
 
 def compile_and_run_vta(onnx_path: str) -> bool:
     """Compiles and executes the ONNX model using the standalone-vta toolchain.
@@ -28,8 +32,9 @@ def compile_and_run_vta(onnx_path: str) -> bool:
         f"ONNX_FILE={rel_onnx_path}"
     ]
     
-    print(f"📂 Execution Directory : {target_cwd}")
-    print(f"🚀 Launching Command   : {' '.join(command)}\n")
+    logger.info("[vta] Starting compilation and execution")
+    logger.debug(f"[vta] Working directory: {target_cwd}")
+    logger.debug(f"[vta] Command: {shlex.join(command)}")
     
     try:
         process = subprocess.Popen(
@@ -50,12 +55,12 @@ def compile_and_run_vta(onnx_path: str) -> bool:
                 
         return_code = process.poll()
         if return_code != 0:
-            print(f"\n❌ VTA Compilation/Execution Failed (Code: {return_code})", file=sys.stderr)
+            logger.error(f"[vta] Compilation or execution failed: exit code={return_code}")
             return False
             
-        print("\n✅ VTA compilation and execution completed successfully.")
+        logger.info("[vta] Compilation and execution completed")
         return True
 
     except FileNotFoundError:
-        print(f"\n❌ System Error: Verify that the path {target_cwd} exists and 'make' is installed.", file=sys.stderr)
+        logger.error(f"[vta] Cannot launch make; check executable and working directory: {target_cwd}")
         return False
