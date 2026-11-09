@@ -74,11 +74,25 @@ class QuantizedArithmeticContractTest(unittest.TestCase):
         )
         np.testing.assert_array_equal(got, np.array([[[[1]]]], dtype=np.int8))
 
-    def test_accumulator_requantization_uses_float32_multiplier(self) -> None:
-        """Matches the VTA double-accumulator rescale contract."""
+    def test_accumulator_requantization_uses_float32_product(self) -> None:
+        """Rounds the float32 product before applying the integer zero-point."""
         accumulator = np.array([-5, -3, 3, 5, 1000], dtype=np.int32)
         got = requantize_accumulator(accumulator, np.float32(0.5), np.int8(-1))
         np.testing.assert_array_equal(got, np.array([-3, -3, 1, 1, 127], dtype=np.int8))
+
+        # QYolo QLinearConv65. The float32 product is 107.5; the float64
+        # product is below the tie and would give an INT8 output of -21.
+        got = requantize_accumulator(
+            np.array([7963], dtype=np.int32), np.float32(0.013499937020242214), np.int8(-128)
+        )
+        np.testing.assert_array_equal(got, np.array([-20], dtype=np.int8))
+
+    def test_accumulator_requantization_saturates_int32_limits(self) -> None:
+        """Saturates before converting a rounded product outside int32."""
+        bounds = np.iinfo(np.int32)
+        accumulator = np.array([bounds.min, 0, bounds.max], dtype=np.int32)
+        got = requantize_accumulator(accumulator, np.float32(1.0), np.int8(-1))
+        np.testing.assert_array_equal(got, np.array([-128, -1, 127], dtype=np.int8))
 
     def test_qlinear_add_precomputes_two_ratios(self) -> None:
         """Reproduces the QYolo half-tie with the selected embedded contract."""

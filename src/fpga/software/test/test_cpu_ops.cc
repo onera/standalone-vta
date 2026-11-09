@@ -303,17 +303,30 @@ void test_dequant_quant() {
 }
 
 void test_rescale() {
-  const std::vector<std::int32_t> values = {-1000, -5, -3, 3, 5, 1000};
-  auto *src = reinterpret_cast<std::int32_t *>(kSrc);
-  std::copy(values.begin(), values.end(), src);
-  NnRescaleStep st{};
-  st.addr = static_cast<std::uint32_t>(kSrc);
-  st.n_elems = static_cast<std::uint32_t>(values.size());
-  st.scale = 0.5f;
-  st.offset = -1;
-  auto ref = rescaling(values, static_cast<double>(st.scale), st.offset);
-  vta::run_rescale(st);
-  check_i8_at("int32 accumulator rescale", ref, kSrc);
+  const auto check_rescale = [](const std::string &name,
+                                const std::vector<std::int32_t> &values,
+                                float scale, std::int32_t offset,
+                                const std::vector<std::int8_t> &expected) {
+    auto *src = reinterpret_cast<std::int32_t *>(kSrc);
+    std::copy(values.begin(), values.end(), src);
+    NnRescaleStep st{};
+    st.addr = static_cast<std::uint32_t>(kSrc);
+    st.n_elems = static_cast<std::uint32_t>(values.size());
+    st.scale = scale;
+    st.offset = offset;
+    auto ref = rescaling(values, scale, offset);
+    vta::run_rescale(st);
+    check_i8_at(name + " (runtime vs fsim)", ref, kSrc);
+    check_i8_at(name + " (runtime vs expected)", expected, kSrc);
+  };
+
+  check_rescale("int32 accumulator rescale", {-1000, -5, -3, 3, 5, 1000},
+                0.5f, -1, {-128, -3, -3, 1, 1, 127});
+  // QYolo QLinearConv65. The float32 product is exactly 107.5.
+  check_rescale("float32 product half-tie", {7963},
+                0.013499937020242214f, -128, {-20});
+  check_rescale("int32 limits saturate", {INT32_MIN, 0, INT32_MAX},
+                1.0f, -1, {-128, -1, 127});
 }
 
 struct ConvCfg {

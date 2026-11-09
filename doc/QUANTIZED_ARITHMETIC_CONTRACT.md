@@ -19,13 +19,15 @@ All commands and validation scripts must be run through Pixi.
 - Quantized CPU operations use explicit `float32` intermediate variables and
   `nearbyintf`, with round-to-nearest, ties-to-even.
 - VTA integer accumulators are requantized as
-  `nearbyint(double(accumulator) * double(multiplier_float32))`.
+  `nearbyintf(float32(accumulator) * multiplier_float32)`.
 - The output zero-point is added after rounding, followed by saturation to the
-  destination integer type.
+  destination integer type. For accumulator rescaling, the implementation
+  clamps to the equivalent centered INT8 interval before the integer
+  conversion and zero-point addition.
 - Build recipes disable floating-point contraction (`-ffp-contract=off`);
   do not add `fast-math` or reassociation flags. Named intermediate variables
   alone do not prevent a C++ compiler from contracting products and sums.
-- C++ `nearbyint`/`nearbyintf` obey the active floating-point rounding mode.
+- C++ `nearbyintf` obeys the active floating-point rounding mode.
   Nearest-even therefore assumes the default `FE_TONEAREST` environment remains
   active on the host and ARM. These functions do not set the rounding mode.
 
@@ -33,8 +35,8 @@ All commands and validation scripts must be run through Pixi.
 
 | Operator | Required evaluation order |
 | --- | --- |
-| `QLinearConv` | Accumulate centered integer products and bias in `int32`; compute `(sA*sB)/sC` as `float32`; apply the VTA double-accumulator rescale. |
-| `QLinearMul` | Require one scalar operand; compute `(A-zA)*(B-zB)` in `int32`; apply `float32((sA*sB)/sC)` through the VTA double-accumulator rescale. |
+| `QLinearConv` | Accumulate centered integer products and bias in `int32`; compute `(sA*sB)/sC` as `float32`; convert the accumulator and multiply in `float32`. |
+| `QLinearMul` | Require one scalar operand; compute `(A-zA)*(B-zB)` in `int32`; convert the accumulator and multiply by `float32((sA*sB)/sC)` in `float32`. |
 | `QLinearAdd` | `invC=float32(1/sC)`; `mA=float32(sA*invC)`; `mB=float32(sB*invC)`; `termA=float32((A-zA)*mA)`; `termB=float32((B-zB)*mB)`; `scaled=float32(termA+termB)`; round, add `zC`, saturate. |
 | `QLinearConcat` | For each branch compute `mX=float32(sX*float32(1/sC))`; requantize that branch with one `float32` multiplication per value before concatenation. |
 | `QuantizeLinear` | `inv=float32(1/scale)`; `scaled=float32(x*inv)`; round, add zero-point, saturate. Embedded output is `int8`. |
@@ -68,11 +70,10 @@ Concat supports partial spatial/channel blocks and mixtures of square-padded
 and short-row MaxPool input layouts. Output uses square-block padding; padding
 cells are physical zero and are excluded from logical requantization.
 
-Integer accumulators are assumed to stay within int32 and intermediate scales
-and products to remain finite. Extremely large rounded values can exceed the
-C++ integer conversion range before the existing saturation step; such inputs
-are outside the validated range. Scales are expected to be positive and finite;
-current runtime guards check zero, not every invalid scale.
+Integer accumulators are assumed to stay within int32. Scales are expected to
+be positive and finite, and intermediate products are expected to remain
+finite. In other CPU quantization operations, extremely large rounded values
+can exceed the C++ integer conversion range before saturation.
 
 ### Concat layout and generated descriptors
 
@@ -188,6 +189,21 @@ adjacent float32 values around half-integers and convolution accumulation,
 bias, centered padding, and requantization. Existing random host
 tests mainly cover layout operations and ConvTranspose; quantized CPU-op tests
 are targeted cases and are not exhaustive over scale/input combinations.
+
+### Float32 accumulator rescaling validation
+
+Regression tests cover nearest-even rounding when a float32 product lands
+exactly on a half-integer and saturation at the INT32 accumulator limits.
+The embedded CPU kernel passes the host comparison against fsim.
+
+The full NumPy model and fsim agree bit-for-bit on all 149 layer outputs
+and 107 pre-rescale accumulator tensors for QYolo's seed-42 input. Across
+ten inputs, 368,448,000 convolution accumulator values agree with an
+independent integer reference. All 60,928,000 multiply accumulator values
+and requantized outputs agree with NumPy on shared local inputs.
+
+The ONNX Runtime experiments and the comparison with the ERTS paper
+are recorded in the [local research notes](../research_notes/ONNX_RUNTIME_QYOLO.md).
 
 Golden outputs must be regenerated after changing this contract. Values close
 to a half-integer may legitimately differ from older references even when the

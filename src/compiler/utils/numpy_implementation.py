@@ -75,11 +75,10 @@ def requantize_accumulator(
     multiplier: Any,
     zero_point: Any,
 ) -> np.ndarray:
-    """Requantizes an integer accumulator using the VTA double multiply path.
+    """Requantizes an integer accumulator using the VTA float32 multiply path.
 
-    The effective multiplier is first rounded to float32, then widened to
-    float64 for the element-wise multiplication. This mirrors fsim and the
-    embedded ``run_rescale`` implementation.
+    The accumulator is converted to float32 before multiplication by the
+    effective float32 multiplier, as in fsim and embedded ``run_rescale``.
 
     Args:
         accumulator: Integer accumulator values.
@@ -90,8 +89,13 @@ def requantize_accumulator(
         Saturated int8 tensor.
     """
     multiplier_f32 = np.asarray(multiplier, dtype=np.float32)
-    scaled = accumulator.astype(np.float64) * multiplier_f32.astype(np.float64)
-    return round_and_saturate(scaled, zero_point, np.dtype(np.int8))
+    scaled = accumulator.astype(np.float32) * multiplier_f32
+    offset = np.asarray(zero_point, dtype=np.int32)
+    # Clamp before integer conversion, including products outside int32.
+    min_centered = (-128 - offset).astype(np.float32)
+    max_centered = (127 - offset).astype(np.float32)
+    centered = np.clip(np.rint(scaled), min_centered, max_centered)
+    return (centered.astype(np.int32) + offset).astype(np.int8)
 
 
 def get_node_attribute(node: Any, attribute_name: str, default: Any = None) -> Any:
@@ -158,36 +162,6 @@ class NumPyReferenceEngine:
         if name in self.tensors:
             return self.tensors[name]
         raise ValueError(f"Tensor {name} not found in graph inputs or initialisers.")
-
-    def _requantize(
-        self,
-        data: np.ndarray,
-        scale: Any,
-        zero_point: Any,
-        min_val: int = -128,
-        max_val: int = 127,
-    ) -> np.ndarray:
-        """Applies the VTA accumulator rescale with explicit float64 products.
-
-        Args:
-            data: Integer accumulator tensor.
-            scale: Effective multiplier, rounded to float32 before widening.
-            zero_point: Output zero-point added after nearest-even rounding.
-            min_val: Lower saturation bound.
-            max_val: Upper saturation bound.
-
-        Returns:
-            Saturated int8 activation tensor.
-        """
-        multiplier_f32 = np.asarray(scale, dtype=np.float32)
-        scaled = data.astype(np.float64) * multiplier_f32.astype(np.float64)
-        return round_and_saturate(
-            scaled,
-            zero_point,
-            np.dtype(np.int8),
-            min_val=min_val,
-            max_val=max_val,
-        )
 
     def run(self, input_name: str, input_data: np.ndarray) -> np.ndarray:
         """Executes every supported node in graph order.
@@ -327,7 +301,7 @@ class NumPyReferenceEngine:
             effective_scale = effective_scale.reshape(1, -1, 1, 1)
 
         self._last_integer_accumulator = output_acc
-        return self._requantize(output_acc, effective_scale, y_zp)
+        return requantize_accumulator(output_acc, effective_scale, y_zp)
 
     def _qlinear_add(self, inputs: List[Any]) -> np.ndarray:
         """Adds two quantized tensors using precomputed float32 ratios.

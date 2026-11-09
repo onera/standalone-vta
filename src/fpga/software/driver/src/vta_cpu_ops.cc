@@ -290,11 +290,16 @@ void run_rescale(const NnRescaleStep &d) {
       reinterpret_cast<const vta_out_t *>(static_cast<std::uintptr_t>(d.addr));
   auto *dst =
       reinterpret_cast<std::int8_t *>(static_cast<std::uintptr_t>(d.addr));
-  for (std::uint32_t i = 0u; i < d.n_elems; ++i)
-    dst[i] = clamp_i8(
-        static_cast<std::int64_t>(std::nearbyint(
-            static_cast<double>(src[i]) * static_cast<double>(d.scale))) +
-        d.offset);
+  // Saturate in the centered domain before the float-to-integer conversion.
+  const float min_centered = -128.0f - d.offset;
+  const float max_centered = 127.0f - d.offset;
+  for (std::uint32_t i = 0u; i < d.n_elems; ++i) {
+    const float scaled = static_cast<float>(src[i]) * d.scale;
+    const float rounded = std::nearbyintf(scaled);
+    const auto centered = static_cast<std::int32_t>(
+        std::clamp(rounded, min_centered, max_centered));
+    dst[i] = static_cast<std::int8_t>(centered + d.offset);
+  }
 }
 
 void run_int32_chain(const NnInt32ChainStep &d) {

@@ -742,15 +742,14 @@
     * Rescales input vector values, adds an offset, and clamps to int8.
     *
     * Operations pipeline:
-    * 1. Multiply value by rescale_factor (floating point).
-    * 2. Round the result to the nearest integer.
-    * 3. Add the integer offset.
-    * 4. Clamp the result to the int8 range [-128, 127].
-    * 5. Cast to int8_t.
+    * 1. Convert the value to float32 and multiply by the float32 rescale factor.
+    * 2. Round to nearest, ties to even.
+    * 3. Clamp to the int8 range shifted by the output offset.
+    * 4. Convert to an integer, add the offset, and cast to int8_t.
     *
     * Args:
     * input_vector: Input vector of type T.
-    * rescale_factor: Floating point factor.
+    * rescale_factor: Float32 multiplier.
     * offset: Integer offset to add after scaling.
     *
     * Returns:
@@ -759,27 +758,23 @@
   template <typename T>
   std::vector<int8_t> rescaling(
       const std::vector<T>& input_vector,
-      double rescale_factor,
+      float rescale_factor,
       int32_t offset) {
 
       std::vector<int8_t> result;
       // Reserve memory to avoid reallocations
       result.reserve(input_vector.size());
 
+      // Clamp in the centered domain before converting back to an integer.
+      // A float32 product can exceed the int32 range even for an int32 input.
+      const float min_centered = -128.0f - offset;
+      const float max_centered = 127.0f - offset;
       for (const auto& val : input_vector) {
-          // 1. Multiply by factor (cast input to double for precision)
-          // 2. Round to nearest integer
-          double scaled_val = std::nearbyint(static_cast<double>(val) * rescale_factor); // round vs nearbyint
-
-          // 3. Add offset (cast back to int32 for arithmetic)
-          int32_t offsetted_val = static_cast<int32_t>(scaled_val) + offset;
-
-          // 4. Clamp to int8 range [-128, 127]
-          // We force the bounds to be integers to ensure correct comparison
-          int32_t clamped_val = std::clamp(offsetted_val, -128, 127);
-
-          // 5. Cast to int8_t
-          result.push_back(static_cast<int8_t>(clamped_val));
+          const float scaled = static_cast<float>(val) * rescale_factor;
+          const float rounded = std::nearbyintf(scaled);
+          const auto centered = static_cast<int32_t>(
+              std::clamp(rounded, min_centered, max_centered));
+          result.push_back(static_cast<int8_t>(centered + offset));
       }
 
       return result;
