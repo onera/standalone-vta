@@ -202,9 +202,6 @@ ten inputs, 368,448,000 convolution accumulator values agree with an
 independent integer reference. All 60,928,000 multiply accumulator values
 and requantized outputs agree with NumPy on shared local inputs.
 
-The ONNX Runtime experiments and the comparison with the ERTS paper
-are recorded in the [local research notes](../research_notes/ONNX_RUNTIME_QYOLO.md).
-
 Golden outputs must be regenerated after changing this contract. Values close
 to a half-integer may legitimately differ from older references even when the
 real-valued formula is unchanged.
